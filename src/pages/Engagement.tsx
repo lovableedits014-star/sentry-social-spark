@@ -23,8 +23,10 @@ import {
   Trophy,
   AlertTriangle,
   History,
-  Calendar
+  Calendar,
+  Megaphone
 } from "lucide-react";
+import { EngagementPostCards } from "@/components/engagement/EngagementPostCards";
 
 type EngagementConfig = {
   id: string;
@@ -357,8 +359,12 @@ export default function Engagement() {
         </Card>
       </div>
 
-      <Tabs defaultValue="ranking" className="space-y-4">
+      <Tabs defaultValue="central" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="central" className="text-xs sm:text-sm">
+            <Megaphone className="mr-1 sm:mr-2 h-4 w-4" />
+            Central
+          </TabsTrigger>
           <TabsTrigger value="ranking" className="text-xs sm:text-sm">
             <Trophy className="mr-1 sm:mr-2 h-4 w-4" />
             Ranking
@@ -376,6 +382,11 @@ export default function Engagement() {
             Config
           </TabsTrigger>
         </TabsList>
+
+        {/* Central Tab - Post Cards */}
+        <TabsContent value="central">
+          <EngagementPostCards clientId={client?.id} />
+        </TabsContent>
 
         {/* Ranking Tab */}
         <TabsContent value="ranking">
