@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
           let sendError = '';
 
           if (item.platform === 'facebook') {
-            // Facebook Messenger - Page must have messaging permission
+            // Try standard messaging first
             const msgResp = await fetch(
               buildGraphUrl(`${integration.meta_page_id}/messages`, { access_token: accessToken }),
               {
@@ -323,8 +323,62 @@ Deno.serve(async (req) => {
               sendSuccess = true;
             } else {
               const errData = await msgResp.json();
+              const errCode = errData?.error?.code;
               sendError = errData?.error?.message || `HTTP ${msgResp.status}`;
-              console.error(`[FB] Send failed for ${item.supporter_name}:`, errData);
+              console.warn(`[FB] Standard send failed for ${item.supporter_name} (code ${errCode}):`, sendError);
+
+              // If outside 24h window (error 551 or 10), try recurring notification token
+              if (errCode === 551 || errCode === 10) {
+                const { data: tokenData } = await supabase
+                  .from('recurring_notification_tokens')
+                  .select('token, id')
+                  .eq('supporter_id', item.supporter_id)
+                  .eq('client_id', clientId)
+                  .eq('token_status', 'active')
+                  .limit(1)
+                  .maybeSingle();
+
+                if (tokenData?.token) {
+                  console.log(`[FB] Trying recurring notification token for ${item.supporter_name}`);
+                  const rnResp = await fetch(
+                    buildGraphUrl(`${integration.meta_page_id}/messages`, { access_token: accessToken }),
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        recipient: { notification_messages_token: tokenData.token },
+                        message: { text: dispatch.message_template },
+                        messaging_type: 'MESSAGE_TAG',
+                        tag: 'CONFIRMED_EVENT_UPDATE',
+                      }),
+                    }
+                  );
+
+                  if (rnResp.ok) {
+                    sendSuccess = true;
+                    sendError = '';
+                    // Update last_used_at
+                    await supabase
+                      .from('recurring_notification_tokens')
+                      .update({ last_used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                      .eq('id', tokenData.id);
+                    console.log(`[FB] Recurring notification sent to ${item.supporter_name}`);
+                  } else {
+                    const rnErr = await rnResp.json();
+                    sendError = `Token recorrente falhou: ${rnErr?.error?.message || rnResp.status}`;
+                    console.error(`[FB] Recurring notification also failed for ${item.supporter_name}:`, rnErr);
+                    // Mark token as expired if specific error
+                    if (rnErr?.error?.code === 551 || rnErr?.error?.code === 190) {
+                      await supabase
+                        .from('recurring_notification_tokens')
+                        .update({ token_status: 'expired', updated_at: new Date().toISOString() })
+                        .eq('id', tokenData.id);
+                    }
+                  }
+                } else {
+                  sendError = 'Fora da janela de 24h e sem token de notificação recorrente';
+                }
+              }
             }
           } else if (item.platform === 'instagram') {
             // Instagram DM
