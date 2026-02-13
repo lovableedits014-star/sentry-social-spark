@@ -26,9 +26,11 @@ import {
   Calendar,
   Megaphone,
   FileText,
+  BellRing,
 } from "lucide-react";
 import { EngagementPostCards } from "@/components/engagement/EngagementPostCards";
 import { DispatchLogsPanel } from "@/components/engagement/DispatchLogsPanel";
+import { RecurringNotificationsPanel } from "@/components/engagement/RecurringNotificationsPanel";
 
 type EngagementConfig = {
   id: string;
@@ -387,11 +389,20 @@ export default function Engagement() {
             <FileText className="mr-1 sm:mr-2 h-4 w-4" />
             Logs
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs sm:text-sm">
+            <BellRing className="mr-1 sm:mr-2 h-4 w-4" />
+            Notificações
+          </TabsTrigger>
         </TabsList>
 
         {/* Central Tab - Post Cards */}
         <TabsContent value="central">
           <EngagementPostCards clientId={client?.id} />
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications">
+          <RecurringNotificationsPanel clientId={client?.id} />
         </TabsContent>
 
         {/* Logs Tab */}
