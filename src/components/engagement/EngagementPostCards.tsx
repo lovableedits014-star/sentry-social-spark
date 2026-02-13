@@ -92,7 +92,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
   const [msgDelayMin, setMsgDelayMin] = useState(15);
   const [msgDelayMax, setMsgDelayMax] = useState(45);
   const [creating, setCreating] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   // Fetch posts
   const { data: rawComments, isLoading, refetch, isRefetching } = useQuery({
@@ -127,7 +127,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
       return (data || []) as DispatchData[];
     },
     enabled: !!clientId,
-    refetchInterval: processingId ? 5000 : false,
+    refetchInterval: processingIds.size > 0 ? 5000 : false,
   });
 
   const posts = useMemo((): PostData[] => {
@@ -158,7 +158,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
   // Auto-process dispatches that are still processing
   const processDispatch = useCallback(async (dispatchId: string) => {
     if (!clientId) return;
-    setProcessingId(dispatchId);
+    setProcessingIds(prev => new Set(prev).add(dispatchId));
     
     try {
       const { data, error } = await supabase.functions.invoke('send-engagement-messages', {
@@ -169,10 +169,13 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
 
       if (data.completed) {
         toast.success(data.message);
-        setProcessingId(null);
+        setProcessingIds(prev => {
+          const next = new Set(prev);
+          next.delete(dispatchId);
+          return next;
+        });
       } else {
         toast.info(data.message);
-        // Continue processing after batch delay
         const dispatch = dispatches?.find(d => d.id === dispatchId);
         const delay = (dispatch?.batch_delay_seconds || 180) * 1000;
         setTimeout(() => processDispatch(dispatchId), delay);
@@ -181,7 +184,11 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
     } catch (err: any) {
       console.error('Error processing dispatch:', err);
       toast.error(err.message || 'Erro ao processar disparo');
-      setProcessingId(null);
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(dispatchId);
+        return next;
+      });
     }
   }, [clientId, dispatches, refetchDispatches]);
 
@@ -237,7 +244,11 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
       });
       if (error) throw error;
       toast.success(data.message || 'Disparo cancelado');
-      setProcessingId(null);
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(dispatchId);
+        return next;
+      });
       refetchDispatches();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao cancelar');
@@ -294,6 +305,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
   };
 
   const activeDispatches = dispatches?.filter(d => d.status === 'processing' || d.status === 'pending') || [];
+  const isAnyProcessing = processingIds.size > 0;
 
   if (isLoading) {
     return (
@@ -383,7 +395,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
                         <p className="text-xs text-destructive">{d.error_message}</p>
                       )}
 
-                      {isActive && processingId !== d.id && (
+                      {isActive && !processingIds.has(d.id) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -473,7 +485,7 @@ export function EngagementPostCards({ clientId }: EngagementPostCardsProps) {
                     size="sm"
                     className="flex-1 gap-1.5"
                     onClick={() => openSendDialog(post)}
-                    disabled={!!processingId}
+                    disabled={false}
                   >
                     <Send className="w-4 h-4" />
                     Enviar para Apoiadores
