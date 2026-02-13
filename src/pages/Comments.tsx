@@ -36,6 +36,7 @@ const Comments = () => {
   const [postsLimit, setPostsLimit] = useState<number>(5);
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
+  const [managingComment, setManagingComment] = useState<string | null>(null);
   const [editingResponse, setEditingResponse] = useState<{ [key: string]: string }>({});
   const [clientId, setClientId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
@@ -225,6 +226,29 @@ const Comments = () => {
       toast.error(error.message || "Erro ao publicar resposta");
     } finally {
       setResponding(null);
+    }
+  };
+
+  const handleManageComment = async (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => {
+    setManagingComment(commentId);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-comment', {
+        body: { commentId, clientId, action }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(data.message);
+        await fetchComments();
+      } else {
+        toast.error(data.error || 'Erro na operação');
+      }
+    } catch (error: any) {
+      console.error(`Error ${action} comment:`, error);
+      toast.error(error.message || 'Erro ao gerenciar comentário');
+    } finally {
+      setManagingComment(null);
     }
   };
 
@@ -442,8 +466,10 @@ const Comments = () => {
                   group={group}
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
+                  onManageComment={handleManageComment}
                   generatingResponse={generatingResponse}
                   responding={responding}
+                  managingComment={managingComment}
                   editingResponse={editingResponse}
                   setEditingResponse={setEditingResponse}
                 />
@@ -481,8 +507,10 @@ const Comments = () => {
                       comment={comment}
                       onGenerateResponse={handleGenerateResponse}
                       onSendResponse={handleSendResponse}
+                      onManageComment={handleManageComment}
                       generatingResponse={generatingResponse}
                       responding={responding}
+                      managingComment={managingComment}
                       editingResponse={editingResponse}
                       setEditingResponse={setEditingResponse}
                       showPostInfo
@@ -493,8 +521,10 @@ const Comments = () => {
                           comment={reply}
                           onGenerateResponse={handleGenerateResponse}
                           onSendResponse={handleSendResponse}
+                          onManageComment={handleManageComment}
                           generatingResponse={generatingResponse}
                           responding={responding}
+                          managingComment={managingComment}
                           editingResponse={editingResponse}
                           setEditingResponse={setEditingResponse}
                         />
