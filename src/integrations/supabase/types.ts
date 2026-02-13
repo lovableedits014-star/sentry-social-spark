@@ -594,6 +594,66 @@ export type Database = {
           },
         ]
       }
+      recurring_notification_tokens: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string | null
+          frequency: string
+          id: string
+          last_used_at: string | null
+          opted_in_at: string
+          platform_user_id: string
+          supporter_id: string
+          token: string
+          token_status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at?: string | null
+          frequency?: string
+          id?: string
+          last_used_at?: string | null
+          opted_in_at?: string
+          platform_user_id: string
+          supporter_id: string
+          token: string
+          token_status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string | null
+          frequency?: string
+          id?: string
+          last_used_at?: string | null
+          opted_in_at?: string
+          platform_user_id?: string
+          supporter_id?: string
+          token?: string
+          token_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_notification_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_notification_tokens_supporter_id_fkey"
+            columns: ["supporter_id"]
+            isOneToOne: false
+            referencedRelation: "supporters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_profiles: {
         Row: {
           avatar_url: string | null
