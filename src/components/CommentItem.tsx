@@ -1,11 +1,17 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
+  Trash2, EyeOff, Eye, Ban, Loader2,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 
@@ -35,14 +41,17 @@ export interface CommentData {
   created_at: string;
   parent_comment_id: string | null;
   is_page_owner: boolean;
+  is_hidden?: boolean;
 }
 
 export interface CommentItemProps {
   comment: CommentData;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
+  onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
   generatingResponse: string | null;
   responding: string | null;
+  managingComment?: string | null;
   editingResponse: { [key: string]: string };
   setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
   showPostInfo?: boolean;
@@ -90,25 +99,44 @@ export function CommentItem({
   comment,
   onGenerateResponse,
   onSendResponse,
+  onManageComment,
   generatingResponse,
   responding,
+  managingComment,
   editingResponse,
   setEditingResponse,
   showPostInfo = false,
 }: CommentItemProps) {
   const isResponded = comment.status === 'responded';
   const isPageOwner = comment.is_page_owner;
+  const isHidden = comment.is_hidden;
+  const isManaging = managingComment === comment.id;
 
   return (
-    <div className={`p-4 transition-colors ${isPageOwner ? 'bg-primary/5 border-l-2 border-primary/30' : isResponded ? 'bg-muted/40 opacity-60' : 'bg-muted/10 hover:bg-muted/20'}`}>
+    <div className={`p-4 transition-colors ${
+      isHidden ? 'bg-muted/60 opacity-70 border-l-2 border-muted-foreground/30' :
+      isPageOwner ? 'bg-primary/5 border-l-2 border-primary/30' : 
+      isResponded ? 'bg-muted/40 opacity-60' : 'bg-muted/10 hover:bg-muted/20'
+    }`}>
+      {/* Hidden badge */}
+      {isHidden && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground bg-muted/30 gap-1">
+            <EyeOff className="w-3 h-3" />
+            Comentário oculto
+          </Badge>
+        </div>
+      )}
+
       {/* Page owner badge */}
-      {isPageOwner && (
+      {isPageOwner && !isHidden && (
         <div className="flex items-center gap-1.5 mb-2">
           <Badge variant="outline" className="text-[10px] border-primary/40 text-primary bg-primary/10">
             👤 Sua resposta
           </Badge>
         </div>
       )}
+
       {/* Post context (for flat list view) */}
       {showPostInfo && comment.post_message && (
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
@@ -186,14 +214,20 @@ export function CommentItem({
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {isHidden && (
+            <Badge variant="outline" className="text-[10px] border-muted-foreground/30 text-muted-foreground gap-1">
+              <EyeOff className="w-3 h-3" />
+              Oculto
+            </Badge>
+          )}
           {comment.sentiment && getSentimentBadge(comment.sentiment)}
           {comment.status && getStatusBadge(comment.status)}
         </div>
       </div>
 
       {/* Comment Text */}
-      <div className="bg-background rounded-lg p-3 mb-3 ml-12">
-        <p className="text-sm leading-relaxed">{comment.text}</p>
+      <div className={`rounded-lg p-3 mb-3 ml-12 ${isHidden ? 'bg-muted/50' : 'bg-background'}`}>
+        <p className={`text-sm leading-relaxed ${isHidden ? 'text-muted-foreground' : ''}`}>{comment.text}</p>
       </div>
 
       {/* AI Response */}
@@ -221,50 +255,166 @@ export function CommentItem({
         </div>
       )}
 
-      {/* Actions - hidden when already responded */}
-      {!isResponded && (
+      {/* Actions */}
+      {!isPageOwner && (
         <div className="flex flex-wrap gap-2 ml-12">
-          {comment.author_id && <AddToSupportersButton comment={comment} />}
+          {/* Standard response actions - hidden when responded */}
+          {!isResponded && (
+            <>
+              {comment.author_id && <AddToSupportersButton comment={comment} />}
 
-          {!comment.ai_response && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onGenerateResponse(comment.id, false)}
-              disabled={generatingResponse === comment.id}
-              className="h-8 text-xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-              {generatingResponse === comment.id ? "Gerando..." : "Gerar Resposta"}
-            </Button>
+              {!comment.ai_response && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onGenerateResponse(comment.id, false)}
+                  disabled={generatingResponse === comment.id}
+                  className="h-8 text-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                  {generatingResponse === comment.id ? "Gerando..." : "Gerar Resposta"}
+                </Button>
+              )}
+
+              {comment.ai_response && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGenerateResponse(comment.id, true)}
+                    disabled={generatingResponse === comment.id}
+                    className="h-8 text-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    {generatingResponse === comment.id ? "Regenerando..." : "Nova Resposta"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onSendResponse(
+                      comment.id,
+                      editingResponse[comment.id] || comment.ai_response!,
+                      comment.platform || 'facebook'
+                    )}
+                    disabled={responding === comment.id}
+                    className="h-8 text-xs"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    {responding === comment.id ? "Publicando..." : "Publicar"}
+                  </Button>
+                </>
+              )}
+            </>
           )}
 
-          {comment.ai_response && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onGenerateResponse(comment.id, true)}
-                disabled={generatingResponse === comment.id}
-                className="h-8 text-xs"
-              >
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                {generatingResponse === comment.id ? "Regenerando..." : "Nova Resposta"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => onSendResponse(
-                  comment.id,
-                  editingResponse[comment.id] || comment.ai_response!,
-                  comment.platform || 'facebook'
-                )}
-                disabled={responding === comment.id}
-                className="h-8 text-xs"
-              >
-                <Send className="w-3.5 h-3.5 mr-1.5" />
-                {responding === comment.id ? "Publicando..." : "Publicar"}
-              </Button>
-            </>
+          {/* Moderation actions - always visible */}
+          {onManageComment && (
+            <div className="flex gap-1 ml-auto">
+              {/* Hide / Unhide */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onManageComment(comment.id, isHidden ? 'unhide' : 'hide')}
+                      disabled={isManaging}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    >
+                      {isManaging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+                        isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />
+                      }
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">{isHidden ? 'Desocultar comentário' : 'Ocultar comentário'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* Block user */}
+              {(comment.author_id || comment.platform_user_id) && comment.platform === 'facebook' && (
+                <AlertDialog>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isManaging}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Bloquear usuário</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Bloquear usuário</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja bloquear <strong>{comment.author_name || 'este usuário'}</strong> da sua página? 
+                        Esta pessoa não poderá mais comentar em suas publicações.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => onManageComment(comment.id, 'block_user')}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Bloquear
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              {/* Delete comment */}
+              <AlertDialog>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={isManaging}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Excluir comentário</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir comentário</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja excluir este comentário? Esta ação não pode ser desfeita e o comentário será 
+                      removido da rede social.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => onManageComment(comment.id, 'delete')}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           )}
         </div>
       )}

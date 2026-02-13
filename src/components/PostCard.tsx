@@ -24,8 +24,10 @@ interface PostCardProps {
   group: PostGroup;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
+  onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
   generatingResponse: string | null;
   responding: string | null;
+  managingComment?: string | null;
   editingResponse: { [key: string]: string };
   setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
 }
@@ -51,8 +53,10 @@ export function PostCard({
   group,
   onGenerateResponse,
   onSendResponse,
+  onManageComment,
   generatingResponse,
   responding,
+  managingComment,
   editingResponse,
   setEditingResponse,
 }: PostCardProps) {
@@ -169,8 +173,10 @@ export function PostCard({
                 comment={comment}
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
+                onManageComment={onManageComment}
                 generatingResponse={generatingResponse}
                 responding={responding}
+                managingComment={managingComment}
                 editingResponse={editingResponse}
                 setEditingResponse={setEditingResponse}
               />
@@ -181,8 +187,10 @@ export function PostCard({
                     comment={reply}
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
+                    onManageComment={onManageComment}
                     generatingResponse={generatingResponse}
                     responding={responding}
+                    managingComment={managingComment}
                     editingResponse={editingResponse}
                     setEditingResponse={setEditingResponse}
                   />

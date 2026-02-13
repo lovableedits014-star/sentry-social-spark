@@ -96,6 +96,7 @@ export type Database = {
           created_at: string | null
           final_response: string | null
           id: string
+          is_hidden: boolean
           is_page_owner: boolean
           parent_comment_id: string | null
           platform: string | null
@@ -125,6 +126,7 @@ export type Database = {
           created_at?: string | null
           final_response?: string | null
           id?: string
+          is_hidden?: boolean
           is_page_owner?: boolean
           parent_comment_id?: string | null
           platform?: string | null
@@ -154,6 +156,7 @@ export type Database = {
           created_at?: string | null
           final_response?: string | null
           id?: string
+          is_hidden?: boolean
           is_page_owner?: boolean
           parent_comment_id?: string | null
           platform?: string | null
