@@ -338,6 +338,7 @@ export type Database = {
       }
       integrations: {
         Row: {
+          ai_custom_prompt: string | null
           client_id: string
           created_at: string | null
           id: string
@@ -353,6 +354,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ai_custom_prompt?: string | null
           client_id: string
           created_at?: string | null
           id?: string
@@ -368,6 +370,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ai_custom_prompt?: string | null
           client_id?: string
           created_at?: string | null
           id?: string

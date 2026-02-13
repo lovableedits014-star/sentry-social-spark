@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Brain, Save, AlertCircle, Zap, Check, Loader2, ShieldCheck, ShieldAlert, RefreshCw, Instagram } from "lucide-react";
+import { Facebook, Brain, Save, AlertCircle, Zap, Check, Loader2, ShieldCheck, ShieldAlert, RefreshCw, Instagram, MessageSquareText } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -77,6 +78,8 @@ const Integrations = () => {
     isConfigured: false,
   });
 
+  const [customPrompt, setCustomPrompt] = useState("");
+
   useEffect(() => {
     fetchClientAndIntegrations();
   }, []);
@@ -116,7 +119,7 @@ const Integrations = () => {
       // Fetch integrations
       const { data: integration } = await supabase
         .from("integrations")
-        .select("meta_page_id, meta_instagram_id, meta_webhook_url, llm_provider, llm_model, meta_token_expires_at, meta_token_type")
+        .select("meta_page_id, meta_instagram_id, meta_webhook_url, llm_provider, llm_model, meta_token_expires_at, meta_token_type, ai_custom_prompt")
         .eq("client_id", currentClientId)
         .maybeSingle();
 
@@ -134,6 +137,8 @@ const Integrations = () => {
           model: integration.llm_model || "",
           isConfigured: !!integration.llm_provider,
         });
+
+        setCustomPrompt((integration as any).ai_custom_prompt || "");
 
         // Check token status
         const expiresAt = (integration as any).meta_token_expires_at;
@@ -352,6 +357,9 @@ const Integrations = () => {
         updateData.llm_model = llmData.model;
       }
 
+      // Custom prompt
+      updateData.ai_custom_prompt = customPrompt || null;
+
       const { error } = await supabase
         .from("integrations")
         .upsert(updateData, { onConflict: 'client_id' });
@@ -523,6 +531,36 @@ const Integrations = () => {
               </Button>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Custom AI Prompt */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <MessageSquareText className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Prompt de Resposta</CardTitle>
+              <CardDescription>Defina as instruções que a IA deve seguir ao gerar respostas para comentários</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="custom-prompt">Instruções para a IA</Label>
+            <Textarea
+              id="custom-prompt"
+              placeholder={`Ex: Responda sempre em nome do Deputado João Silva. Use tom formal e empático. Nunca faça promessas de campanha. Sempre agradeça o engajamento do cidadão.`}
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              className="min-h-[120px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Este prompt será usado como base para todas as respostas geradas pela IA. Deixe em branco para usar o comportamento padrão.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

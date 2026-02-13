@@ -1,0 +1,1 @@
+ALTER TABLE public.integrations ADD COLUMN ai_custom_prompt text;

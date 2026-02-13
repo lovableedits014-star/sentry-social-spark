@@ -67,6 +67,15 @@ Deno.serve(async (req) => {
       .eq('client_id', clientId)
       .single();
 
+    // Get custom prompt from integrations
+    const { data: integration } = await supabaseClient
+      .from('integrations')
+      .select('ai_custom_prompt')
+      .eq('client_id', clientId)
+      .single();
+    
+    const customPrompt = integration?.ai_custom_prompt || null;
+
     if (commentError || !comment) {
       return new Response(
         JSON.stringify({ success: false, error: 'Comentário não encontrado' }),
@@ -87,7 +96,8 @@ Deno.serve(async (req) => {
       comment.post_message,
       comment.post_full_picture,
       comment.post_media_type,
-      comment.author_name
+      comment.author_name,
+      customPrompt
     );
 
     // Update comment with AI response
@@ -134,7 +144,8 @@ async function generateResponse(
   postMessage?: string,
   postFullPicture?: string,
   postMediaType?: string,
-  authorName?: string
+  authorName?: string,
+  customPrompt?: string | null
 ): Promise<string> {
   const sentimentContext = sentiment === 'positive' 
     ? 'O comentário é POSITIVO. Agradeça de forma institucional e empática.'
@@ -150,9 +161,13 @@ async function generateResponse(
     ? `\n👤 Nome do usuário que comentou: ${authorName}`
     : '';
 
+  const customInstructions = customPrompt 
+    ? `\n\n📋 INSTRUÇÕES PERSONALIZADAS DO CLIENTE:\n${customPrompt}`
+    : '';
+
   const systemPrompt = `Você é o assistente digital de ${clientName}${cargo ? `, que é ${cargo}` : ''}.
 
-${sentimentContext}${postContext}${authorContext}
+${sentimentContext}${postContext}${authorContext}${customInstructions}
 
 ✅ REGRAS OBRIGATÓRIAS:
 - Máximo 2-3 frases (não seja prolixo)
