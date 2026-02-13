@@ -190,6 +190,60 @@ export type Database = {
           },
         ]
       }
+      dispatch_items: {
+        Row: {
+          created_at: string
+          dispatch_id: string
+          error_message: string | null
+          id: string
+          platform: string
+          platform_user_id: string | null
+          sent_at: string | null
+          status: string
+          supporter_id: string
+          supporter_name: string
+        }
+        Insert: {
+          created_at?: string
+          dispatch_id: string
+          error_message?: string | null
+          id?: string
+          platform: string
+          platform_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          supporter_id: string
+          supporter_name: string
+        }
+        Update: {
+          created_at?: string
+          dispatch_id?: string
+          error_message?: string | null
+          id?: string
+          platform?: string
+          platform_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          supporter_id?: string
+          supporter_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_items_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "message_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_items_supporter_id_fkey"
+            columns: ["supporter_id"]
+            isOneToOne: false
+            referencedRelation: "supporters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engagement_actions: {
         Row: {
           action_date: string
@@ -393,6 +447,83 @@ export type Database = {
             foreignKeyName: "integrations_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_dispatches: {
+        Row: {
+          batch_delay_seconds: number
+          batch_size: number
+          cancelled_at: string | null
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          failed_count: number
+          id: string
+          message_delay_max_seconds: number
+          message_delay_min_seconds: number
+          message_template: string
+          post_id: string
+          post_permalink_url: string | null
+          post_platform: string
+          sent_count: number
+          started_at: string | null
+          status: string
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          batch_delay_seconds?: number
+          batch_size?: number
+          cancelled_at?: string | null
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number
+          id?: string
+          message_delay_max_seconds?: number
+          message_delay_min_seconds?: number
+          message_template: string
+          post_id: string
+          post_permalink_url?: string | null
+          post_platform?: string
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_delay_seconds?: number
+          batch_size?: number
+          cancelled_at?: string | null
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number
+          id?: string
+          message_delay_max_seconds?: number
+          message_delay_min_seconds?: number
+          message_template?: string
+          post_id?: string
+          post_permalink_url?: string | null
+          post_platform?: string
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_dispatches_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
