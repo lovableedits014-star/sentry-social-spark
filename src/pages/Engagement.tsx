@@ -24,9 +24,11 @@ import {
   AlertTriangle,
   History,
   Calendar,
-  Megaphone
+  Megaphone,
+  FileText,
 } from "lucide-react";
 import { EngagementPostCards } from "@/components/engagement/EngagementPostCards";
+import { DispatchLogsPanel } from "@/components/engagement/DispatchLogsPanel";
 
 type EngagementConfig = {
   id: string;
@@ -381,11 +383,20 @@ export default function Engagement() {
             <Settings className="mr-1 sm:mr-2 h-4 w-4" />
             Config
           </TabsTrigger>
+          <TabsTrigger value="logs" className="text-xs sm:text-sm">
+            <FileText className="mr-1 sm:mr-2 h-4 w-4" />
+            Logs
+          </TabsTrigger>
         </TabsList>
 
         {/* Central Tab - Post Cards */}
         <TabsContent value="central">
           <EngagementPostCards clientId={client?.id} />
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs">
+          <DispatchLogsPanel clientId={client?.id} />
         </TabsContent>
 
         {/* Ranking Tab */}
