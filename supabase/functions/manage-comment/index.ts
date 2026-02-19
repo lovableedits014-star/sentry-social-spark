@@ -109,29 +109,34 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case 'delete': {
-        // DELETE /{comment-id} works for both Facebook and Instagram
         const deleteUrl = `https://graph.facebook.com/v21.0/${comment.comment_id}?access_token=${pageAccessToken}`;
         const resp = await fetch(deleteUrl, { method: 'DELETE' });
         
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          const errMsg = err?.error?.message || 'Falha ao excluir comentário';
+          const errCode = err?.error?.code;
           console.error('Delete comment error:', err);
+
+          // Comment not found - already deleted on Meta, just clean up locally
+          if (errCode === 100) {
+            await supabaseClient.from('comments').delete().eq('id', commentId);
+            result = { success: true, message: 'Comentário já foi removido da plataforma. Registro local removido.' };
+            break;
+          }
+
+          const errMsg = err?.error?.message || 'Falha ao excluir comentário';
           return new Response(
             JSON.stringify({ success: false, error: `Erro Meta API: ${errMsg}` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Remove from database
         await supabaseClient.from('comments').delete().eq('id', commentId);
         result = { success: true, message: 'Comentário excluído com sucesso!' };
         break;
       }
 
       case 'hide': {
-        // POST /{comment-id} with is_hidden=true (Facebook)
-        // POST /{comment-id} with hide=true (Instagram)
         const hideUrl = `https://graph.facebook.com/v21.0/${comment.comment_id}`;
         const hideBody = isInstagram 
           ? { hide: true, access_token: pageAccessToken }
@@ -145,8 +150,24 @@ Deno.serve(async (req) => {
 
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          const errMsg = err?.error?.message || 'Falha ao ocultar comentário';
+          const errCode = err?.error?.code;
+          const errSubcode = err?.error?.error_subcode;
           console.error('Hide comment error:', err);
+
+          // Comment not found (already deleted on Meta) - sync local state
+          if (errCode === 100) {
+            await supabaseClient.from('comments').delete().eq('id', commentId);
+            result = { success: true, message: 'Comentário já foi removido da plataforma. Registro local atualizado.' };
+            break;
+          }
+          // Already hidden/spam (subcode 1446036) - sync local state
+          if (errSubcode === 1446036) {
+            await supabaseClient.from('comments').update({ is_hidden: true }).eq('id', commentId);
+            result = { success: true, message: 'Comentário já estava ocultado. Status atualizado.' };
+            break;
+          }
+
+          const errMsg = err?.error?.message || 'Falha ao ocultar comentário';
           return new Response(
             JSON.stringify({ success: false, error: `Erro Meta API: ${errMsg}` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
