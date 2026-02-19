@@ -62,19 +62,17 @@ Deno.serve(async (req) => {
 
     // ============ WEBHOOK from Meta ============
     if (body.object === 'page' || body.object === 'instagram') {
-      // Process webhook entries
       for (const entry of body.entry || []) {
         for (const event of entry.messaging || []) {
+          // === Handle opt-in confirmation ===
           if (event.optin && event.optin.type === 'notification_messages') {
             const senderId = event.sender?.id;
             const token = event.optin.notification_messages_token;
             const frequency = event.optin.notification_messages_frequency || 'daily';
             const tokenExpiresAt = event.optin.token_expiry_timestamp;
-            const pageId = entry.id;
 
             if (!senderId || !token) continue;
 
-            // Find the supporter by platform_user_id
             const { data: profiles } = await supabase
               .from('supporter_profiles')
               .select('supporter_id, supporter:supporters(client_id)')
@@ -82,28 +80,52 @@ Deno.serve(async (req) => {
 
             if (profiles && profiles.length > 0) {
               for (const profile of profiles) {
-                const clientId = (profile as any).supporter?.client_id;
-                if (!clientId) continue;
-
+                const clientId2 = (profile as any).supporter?.client_id;
+                if (!clientId2) continue;
                 await supabase
                   .from('recurring_notification_tokens')
                   .upsert({
-                    client_id: clientId,
+                    client_id: clientId2,
                     supporter_id: profile.supporter_id,
                     platform_user_id: senderId,
                     token,
                     token_status: 'active',
                     frequency,
-                    expires_at: tokenExpiresAt 
-                      ? new Date(tokenExpiresAt * 1000).toISOString() 
-                      : null,
+                    expires_at: tokenExpiresAt ? new Date(tokenExpiresAt * 1000).toISOString() : null,
                     opted_in_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                   }, { onConflict: 'client_id,supporter_id,platform_user_id' });
               }
             }
-
             console.log(`[Webhook] Opt-in received from ${senderId}, frequency: ${frequency}`);
+            continue;
+          }
+
+          // === Handle m.me referral → auto-send opt-in request ===
+          const referral = event.referral || event.postback?.referral;
+          const ref = referral?.ref || event.postback?.payload;
+
+          if (ref === 'recurring_optin' && event.sender?.id) {
+            const senderId = event.sender.id;
+            const pageId = entry.id;
+            console.log(`[Webhook] m.me referral from ${senderId}, auto-sending opt-in`);
+
+            const { data: integ } = await supabase
+              .from('integrations')
+              .select('meta_access_token, meta_page_id, client_id')
+              .eq('meta_page_id', pageId)
+              .single();
+
+            if (integ?.meta_access_token) {
+              let at = integ.meta_access_token;
+              try {
+                const r = await fetch(buildGraphUrl(pageId, { fields: 'access_token', access_token: at }));
+                if (r.ok) { const d = await r.json(); if (d.access_token) at = d.access_token; }
+              } catch (_) {}
+              const res = await sendOptInRequest(pageId, at, senderId, 'daily');
+              console.log(`[Webhook] Auto opt-in result for ${senderId}:`, res);
+            }
+            continue;
           }
         }
       }
