@@ -20,6 +20,11 @@ import {
   Users,
   RefreshCw,
   AlertTriangle,
+  Link,
+  Copy,
+  Facebook,
+  Instagram,
+  ExternalLink,
 } from "lucide-react";
 
 interface RecurringNotificationsPanelProps {
@@ -29,6 +34,36 @@ interface RecurringNotificationsPanelProps {
 export function RecurringNotificationsPanel({ clientId }: RecurringNotificationsPanelProps) {
   const [frequency, setFrequency] = useState("daily");
   const [sending, setSending] = useState(false);
+
+  // Get integration for link generation
+  const { data: integration } = useQuery({
+    queryKey: ["integration-meta", clientId],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("meta_page_id, meta_instagram_id")
+        .eq("client_id", clientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clientId,
+  });
+
+  const messengerLink = integration?.meta_page_id
+    ? `https://m.me/${integration.meta_page_id}?ref=recurring_optin`
+    : null;
+
+  // Instagram: ig.me link (opens DM - no auto opt-in, but opens 24h window)
+  const instagramLink = integration?.meta_instagram_id
+    ? `https://ig.me/m/${integration.meta_instagram_id}`
+    : null;
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`Link ${label} copiado!`);
+  };
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ["recurring-stats", clientId],
@@ -130,6 +165,78 @@ export function RecurringNotificationsPanel({ clientId }: RecurringNotifications
                 O sistema tentará automaticamente usar o token quando o envio padrão falhar.
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Opt-in Links */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link className="w-4 h-4" />
+            Links de Opt-in para Apoiadores
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Compartilhe estes links para que apoiadores iniciem uma conversa e autorizem receber suas mensagens.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Facebook Messenger */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Facebook className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium">Facebook Messenger</span>
+              <Badge variant="outline" className="text-xs border-emerald-500/50 text-emerald-600">Auto opt-in</Badge>
+            </div>
+            {messengerLink ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted p-2.5 rounded-md truncate select-all">
+                  {messengerLink}
+                </code>
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(messengerLink, 'Messenger')}>
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={messengerLink} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">⚠️ Configure o Page ID do Facebook nas Integrações para gerar o link.</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Quando o apoiador clicar, o Messenger abre automaticamente. Ao enviar uma mensagem, o sistema envia o pedido de opt-in automaticamente.
+            </p>
+          </div>
+
+          {/* Instagram */}
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <Instagram className="w-4 h-4 text-pink-500" />
+              <span className="text-sm font-medium">Instagram DM</span>
+              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-600">Janela 24h</Badge>
+            </div>
+            {instagramLink ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted p-2.5 rounded-md truncate select-all">
+                  {instagramLink}
+                </code>
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(instagramLink, 'Instagram')}>
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={instagramLink} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">⚠️ Configure o Instagram ID nas Integrações para gerar o link.</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              O Instagram não suporta Recurring Notifications. Quando o apoiador enviar DM pelo link, a janela de 24h é aberta e o sistema pode enviar mensagens de engajamento durante esse período.
+            </p>
           </div>
         </CardContent>
       </Card>
