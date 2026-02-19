@@ -13,6 +13,7 @@ import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
 import DashboardLayout from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
+import SupporterRegister from "./pages/SupporterRegister";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/comments" element={<Comments />} />
