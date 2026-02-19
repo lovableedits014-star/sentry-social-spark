@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Search, Plus, Star, TrendingUp, Merge, AlertTriangle, Instagram, Facebook, Link } from "lucide-react";
+import { Users, Search, Plus, Star, TrendingUp, Merge, AlertTriangle, Instagram, Facebook, Link, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { SupporterCard, Supporter } from "@/components/supporters/SupporterCard";
 import { SupporterDetailDialog } from "@/components/supporters/SupporterDetailDialog";
@@ -195,6 +195,20 @@ const Supporters = () => {
           <p className="text-sm text-muted-foreground mt-1">CRM político — Gerencie e unifique perfis</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {clientId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const url = `${window.location.origin}/cadastro/${clientId}`;
+                navigator.clipboard.writeText(url);
+                toast.success("Link de cadastro copiado!", { description: "Envie para seus apoiadores se cadastrarem." });
+              }}
+            >
+              <Share2 className="w-4 h-4 mr-1 sm:mr-2" />
+              Link de Cadastro
+            </Button>
+          )}
           <Button
             variant={mergeMode ? "default" : "outline"}
             size="sm"
