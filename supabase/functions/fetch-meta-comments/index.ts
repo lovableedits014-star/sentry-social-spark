@@ -467,9 +467,10 @@ async function persistPostStubs(
     }));
 
   for (const chunk of chunkArray(stubs, 50)) {
+    // ignoreDuplicates: false → always update stub with correct post date/metadata
     await supabase
       .from('comments')
-      .upsert(chunk, { onConflict: 'comment_id,client_id', ignoreDuplicates: true });
+      .upsert(chunk, { onConflict: 'comment_id,client_id', ignoreDuplicates: false });
   }
 }
 
@@ -508,7 +509,7 @@ Deno.serve(async (req) => {
 
     const body = RequestSchema.parse(await req.json());
     const { clientId } = body;
-    const postsLimit = body.postsLimit ?? 10;
+    const postsLimit = body.postsLimit ?? 30;
     clientIdVar = clientId;
 
     // Verify user owns this client
@@ -595,15 +596,78 @@ Deno.serve(async (req) => {
     const fbUsers: Array<{ platformUserId: string; username: string | null; displayName: string | null; avatarUrl: string | null }> = [];
     const igUsers: Array<{ platformUserId: string; username: string | null; displayName: string | null; avatarUrl: string | null }> = [];
 
-    // ==== FACEBOOK ====
-    console.log('--- Fetching Facebook posts with comments ---');
-    syncLog.push('--- FACEBOOK ---');
-    const { posts: fbPosts, log: fbLog } = await fetchFacebookPostsWithComments(
-      accessToken, integration.meta_page_id, postsLimit
-    );
-    syncLog.push(...fbLog);
 
-    // Collect all FB comments without resolving profiles yet
+    // ==== FETCH FB + IG IN PARALLEL (to maximize chances of saving stubs before timeout) ====
+    console.log('--- Fetching Facebook + Instagram in parallel ---');
+    syncLog.push('--- FETCHING FB + IG IN PARALLEL ---');
+
+    const [fbResult, igResult] = await Promise.all([
+      fetchFacebookPostsWithComments(accessToken, integration.meta_page_id, postsLimit),
+      integration.meta_instagram_id
+        ? fetchInstagramMediaWithComments(accessToken, integration.meta_instagram_id, postsLimit)
+        : Promise.resolve({ media: [], log: ['[IG] No Instagram ID configured'] }),
+    ]);
+
+    const { posts: fbPosts, log: fbLog } = fbResult;
+    const { media: igMedia, log: igLog } = igResult;
+    syncLog.push(...fbLog, ...igLog);
+    syncLog.push(`[FB] Posts fetched: ${fbPosts.length} | [IG] Media fetched: ${igMedia.length}`);
+    console.log(`FB posts: ${fbPosts.length}, IG media: ${igMedia.length}`);
+
+    // ==== PERSIST ALL POST STUBS IMMEDIATELY (before processing comments) ====
+    // This guarantees stubs are saved even if we run out of time on comments
+    const fbStubs = fbPosts.map(post => ({
+      post_id: post.id,
+      platform: 'facebook',
+      post_message: post.message || null,
+      post_permalink_url: post.permalink_url || null,
+      post_full_picture: post.full_picture || null,
+      post_media_type: post.attachments?.data?.[0]?.media_type || null,
+      post_created_time: post.created_time ? new Date(post.created_time).toISOString() : null,
+    }));
+
+    const igStubs = igMedia.map((m: any) => {
+      const isVideoMedia = m.media_type?.toLowerCase() === 'video';
+      return {
+        post_id: m.id,
+        platform: 'instagram',
+        post_message: m.caption || null,
+        post_permalink_url: m.permalink || null,
+        post_full_picture: isVideoMedia ? (m.thumbnail_url || m.media_url || null) : (m.media_url || m.thumbnail_url || null),
+        post_media_type: m.media_type?.toLowerCase() || null,
+        post_created_time: m.timestamp ? new Date(m.timestamp).toISOString() : null,
+      };
+    });
+
+    await Promise.all([
+      persistPostStubs(supabaseClient, clientId, fbStubs),
+      persistPostStubs(supabaseClient, clientId, igStubs),
+    ]);
+    syncLog.push(`[STUBS] FB: ${fbStubs.length}, IG: ${igStubs.length} persisted`);
+    console.log(`Post stubs saved - FB: ${fbStubs.length}, IG: ${igStubs.length}`);
+
+    // ==== GET IG OWNER USERNAME ====
+    let igOwnerUsername: string | null = null;
+    if (integration.meta_instagram_id) {
+      try {
+        const igInfoResp = await fetch(
+          buildGraphUrl(integration.meta_instagram_id, {
+            fields: 'username',
+            access_token: accessToken,
+          })
+        );
+        if (igInfoResp.ok) {
+          const igInfo = await igInfoResp.json();
+          igOwnerUsername = igInfo.username || null;
+          syncLog.push(`[IG] Owner username: ${igOwnerUsername}`);
+        }
+      } catch (e) {
+        syncLog.push(`[IG] Could not fetch owner username: ${e}`);
+      }
+    }
+
+    // ==== COLLECT FACEBOOK COMMENTS ====
+    syncLog.push('--- PROCESSING FACEBOOK COMMENTS ---');
     for (const post of fbPosts) {
       const postId = post.id;
       const postMessage = post.message || null;
@@ -636,7 +700,7 @@ Deno.serve(async (req) => {
           author_profile_picture: avatarUrl,
           platform: 'facebook',
           platform_user_id: authorId,
-          social_profile_id: null, // will be filled after batch resolution
+          social_profile_id: null,
           author_unavailable: !authorId,
           author_unavailable_reason: authorId ? null : 'from field not returned by Meta API',
           status: isPageOwner ? 'responded' : 'pending',
@@ -651,7 +715,6 @@ Deno.serve(async (req) => {
           is_hidden: isHidden,
         });
 
-        // Process replies
         for (const reply of comment.replies?.data || []) {
           processComment(reply, comment.id);
         }
@@ -662,117 +725,66 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ==== PERSIST FB POST STUBS (so posts appear even without comments) ====
-    await persistPostStubs(supabaseClient, clientId, fbPosts.map(post => ({
-      post_id: post.id,
-      platform: 'facebook',
-      post_message: post.message || null,
-      post_permalink_url: post.permalink_url || null,
-      post_full_picture: post.full_picture || null,
-      post_media_type: post.attachments?.data?.[0]?.media_type || null,
-      post_created_time: post.created_time ? new Date(post.created_time).toISOString() : null,
-    })));
-    syncLog.push(`[FB] Persisted ${fbPosts.length} post stubs`);
+    // ==== COLLECT INSTAGRAM COMMENTS ====
+    syncLog.push('--- PROCESSING INSTAGRAM COMMENTS ---');
+    for (const m of igMedia) {
+      const postId = m.id;
+      const postMessage = m.caption || null;
+      const postPermalink = m.permalink || null;
+      const isVideoMedia = m.media_type?.toLowerCase() === 'video';
+      const postPicture = isVideoMedia
+        ? (m.thumbnail_url || m.media_url || null)
+        : (m.media_url || m.thumbnail_url || null);
+      const postMediaType = m.media_type?.toLowerCase() || null;
 
-    // ==== INSTAGRAM ====
-    if (integration.meta_instagram_id && hasTimeLeft()) {
-      console.log('--- Fetching Instagram media with comments ---');
-      syncLog.push('--- INSTAGRAM ---');
+      const processIgComment = (comment: any, parentId: string | null) => {
+        stats.instagramComments++;
+        const username = comment.username || null;
+        const isHidden = comment.hidden === true;
 
-      let igOwnerUsername: string | null = null;
-      try {
-        const igInfoResp = await fetch(
-          buildGraphUrl(integration.meta_instagram_id, {
-            fields: 'username',
-            access_token: accessToken,
-          })
-        );
-        if (igInfoResp.ok) {
-          const igInfo = await igInfoResp.json();
-          igOwnerUsername = igInfo.username || null;
-          syncLog.push(`[IG] Owner username: ${igOwnerUsername}`);
+        if (username) {
+          igUsers.push({ platformUserId: username, username, displayName: null, avatarUrl: null });
+        } else {
+          stats.instagramMissingUsernames++;
         }
-      } catch (e) {
-        syncLog.push(`[IG] Could not fetch owner username: ${e}`);
-      }
 
-      const { media: igMedia, log: igLog } = await fetchInstagramMediaWithComments(
-        accessToken, integration.meta_instagram_id, postsLimit
-      );
-      syncLog.push(...igLog);
+        const isPageOwner = !!username && !!igOwnerUsername && username.toLowerCase() === igOwnerUsername.toLowerCase();
 
-      for (const m of igMedia) {
-        const postId = m.id;
-        const postMessage = m.caption || null;
-        const postPermalink = m.permalink || null;
-        const isVideoMedia = m.media_type?.toLowerCase() === 'video';
-        const postPicture = isVideoMedia
-          ? (m.thumbnail_url || m.media_url || null)
-          : (m.media_url || m.thumbnail_url || null);
-        const postMediaType = m.media_type?.toLowerCase() || null;
-
-        const processIgComment = (comment: any, parentId: string | null) => {
-          stats.instagramComments++;
-          const username = comment.username || null;
-          const isHidden = comment.hidden === true;
-
-          if (username) {
-            igUsers.push({ platformUserId: username, username, displayName: null, avatarUrl: null });
-          } else {
-            stats.instagramMissingUsernames++;
-          }
-
-          const isPageOwner = !!username && !!igOwnerUsername && username.toLowerCase() === igOwnerUsername.toLowerCase();
-
-          allComments.push({
-            client_id: clientId,
-            comment_id: comment.id,
-            post_id: postId,
-            text: comment.text || '',
-            author_name: username ? `@${username}` : null,
-            author_id: username,
-            author_profile_picture: null,
-            platform: 'instagram',
-            platform_user_id: username,
-            social_profile_id: null,
-            author_unavailable: !username,
-            author_unavailable_reason: username ? null : 'username not returned by Instagram API',
-            status: isPageOwner ? 'responded' : 'pending',
-            sentiment: 'neutral',
-            post_message: postMessage,
-            post_permalink_url: postPermalink,
-            post_full_picture: postPicture,
-            post_media_type: postMediaType,
-            comment_created_time: comment.timestamp ? new Date(comment.timestamp).toISOString() : null,
-            parent_comment_id: parentId,
-            is_page_owner: isPageOwner,
-            is_hidden: isHidden,
-          });
-
-          for (const reply of comment.replies?.data || []) {
-            processIgComment(reply, comment.id);
-          }
-        };
-
-        for (const comment of m.comments?.data || []) {
-          processIgComment(comment, null);
-        }
-      }
-      // ==== PERSIST IG POST STUBS ====
-      await persistPostStubs(supabaseClient, clientId, igMedia.map((m: any) => {
-        const isVideoMedia = m.media_type?.toLowerCase() === 'video';
-        return {
-          post_id: m.id,
+        allComments.push({
+          client_id: clientId,
+          comment_id: comment.id,
+          post_id: postId,
+          text: comment.text || '',
+          author_name: username ? `@${username}` : null,
+          author_id: username,
+          author_profile_picture: null,
           platform: 'instagram',
-          post_message: m.caption || null,
-          post_permalink_url: m.permalink || null,
-          post_full_picture: isVideoMedia ? (m.thumbnail_url || m.media_url || null) : (m.media_url || m.thumbnail_url || null),
-          post_media_type: m.media_type?.toLowerCase() || null,
-          post_created_time: m.timestamp ? new Date(m.timestamp).toISOString() : null,
-        };
-      }));
-      syncLog.push(`[IG] Persisted ${igMedia.length} post stubs`);
+          platform_user_id: username,
+          social_profile_id: null,
+          author_unavailable: !username,
+          author_unavailable_reason: username ? null : 'username not returned by Instagram API',
+          status: isPageOwner ? 'responded' : 'pending',
+          sentiment: 'neutral',
+          post_message: postMessage,
+          post_permalink_url: postPermalink,
+          post_full_picture: postPicture,
+          post_media_type: postMediaType,
+          comment_created_time: comment.timestamp ? new Date(comment.timestamp).toISOString() : null,
+          parent_comment_id: parentId,
+          is_page_owner: isPageOwner,
+          is_hidden: isHidden,
+        });
+
+        for (const reply of comment.replies?.data || []) {
+          processIgComment(reply, comment.id);
+        }
+      };
+
+      for (const comment of m.comments?.data || []) {
+        processIgComment(comment, null);
+      }
     }
+
 
     // ==== BATCH PROFILE RESOLUTION ====
     syncLog.push('--- PROFILE RESOLUTION ---');
