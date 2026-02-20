@@ -225,7 +225,6 @@ const Index = () => {
           <div className="mt-14 flex flex-wrap items-center justify-center gap-6 text-white/40 text-xs">
             <div className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> Dados 100% seguros</div>
             <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Monitoramento 24/7</div>
-            <div className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Setup em menos de 5 min</div>
             <div className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5" /> Suporte dedicado</div>
           </div>
         </div>
@@ -241,8 +240,8 @@ const Index = () => {
           {[
             { value: 98, suffix: "%", label: "Taxa de satisfação" },
             { value: 24, suffix: "h", label: "Monitoramento contínuo" },
-            { value: 3, suffix: "x", label: "Mais engajamento médio" },
-            { value: 5, suffix: " min", label: "Para configurar" },
+            { value: 5, suffix: "x", label: "Mais engajamento médio" },
+            { value: 3, suffix: "x", label: "Mais apoiadores ativos" },
           ].map((stat, i) => (
             <div key={i} className="space-y-2">
               <div className="text-4xl md:text-5xl font-black text-blue-400">

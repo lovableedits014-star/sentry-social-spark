@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Shield, Loader2, MessageCircle } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -181,6 +181,25 @@ const Auth = () => {
         <p className="text-center text-xs text-slate-500">
           Apoiador? Use o link específico do portal que recebeu do seu coordenador
         </p>
+
+        {/* WhatsApp CTA */}
+        <div className="mt-2 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-center space-y-3">
+          <p className="text-green-300 text-sm font-semibold">
+            🚀 Ainda não usa o Sentinelle?
+          </p>
+          <p className="text-slate-400 text-xs leading-relaxed">
+            Agende uma demonstração gratuita e veja como transformar sua gestão digital em vantagem política.
+          </p>
+          <a
+            href="https://wa.me/5567992773931?text=Ol%C3%A1!%20Vi%20o%20Sentinelle%20e%20quero%20saber%20mais%20sobre%20a%20plataforma.%20Pode%20me%20explicar%20como%20funciona%3F"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-[1.02] shadow-lg shadow-green-600/30 text-sm"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Agendar demonstração pelo WhatsApp
+          </a>
+        </div>
       </div>
     </div>
   );
