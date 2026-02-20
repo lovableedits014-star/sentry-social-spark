@@ -15,13 +15,18 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      // Use injectManifest so we control the SW completely
-      strategies: "injectManifest",
-      srcDir: "public",
-      filename: "sw-custom.js",
-      injectManifest: {
-        // Don't inject any precache manifest - we just want our push handler
+      strategies: "generateSW",
+      workbox: {
+        // No navigation fallback - prevents "offline copy" error on install
+        navigateFallback: null,
+        navigateFallbackDenylist: [/^\/~oauth/],
+        // No file caching - app always loads fresh from network
         globPatterns: [],
+        runtimeCaching: [],
+        skipWaiting: true,
+        clientsClaim: true,
+        // Import our push notification handler
+        importScripts: ["/push-handler.js"],
       },
       manifest: {
         name: "Portal do Apoiador",
@@ -32,7 +37,7 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         orientation: "portrait",
         scope: "/",
-        // Opens PwaStart page which reads clientId from localStorage
+        // Opens PwaStart which redirects to /portal/:clientId via localStorage
         start_url: "/pwa-start",
         icons: [
           {
