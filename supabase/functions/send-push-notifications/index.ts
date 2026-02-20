@@ -38,15 +38,27 @@ async function generateVapidHeaders(
   const payloadEncoded = encode(payload);
   const signingInput = `${headerEncoded}.${payloadEncoded}`;
 
-  // Import private key
+  // Import private key - VAPID keys are raw 32-byte scalars, must be wrapped in PKCS8
   const privateKeyBytes = Uint8Array.from(
     atob(vapidPrivateKey.replace(/-/g, "+").replace(/_/g, "/")),
     (c) => c.charCodeAt(0)
   );
 
+  // PKCS8 wrapper for P-256 raw private key (RFC 5958)
+  const pkcs8Prefix = new Uint8Array([
+    0x30, 0x41, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06,
+    0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
+    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03,
+    0x01, 0x07, 0x04, 0x27, 0x30, 0x25, 0x02, 0x01,
+    0x01, 0x04, 0x20,
+  ]);
+  const pkcs8Key = new Uint8Array(pkcs8Prefix.length + privateKeyBytes.length);
+  pkcs8Key.set(pkcs8Prefix);
+  pkcs8Key.set(privateKeyBytes, pkcs8Prefix.length);
+
   const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    privateKeyBytes,
+    "pkcs8",
+    pkcs8Key,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"]
