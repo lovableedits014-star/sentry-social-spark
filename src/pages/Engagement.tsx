@@ -187,24 +187,47 @@ export default function Engagement() {
       if (!client?.id) return null;
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(periodDays));
-      const { data, error } = await supabase
-        .from("engagement_actions" as any)
-        .select("action_type")
-        .eq("client_id", client.id)
-        .gte("action_date", daysAgo.toISOString());
-      if (error) throw error;
-      const stats = { likes: 0, comments: 0, shares: 0, reactions: 0, total: 0 };
-      const actions = data as unknown as Array<{ action_type: string }>;
-      (actions || []).forEach((action) => {
-        stats.total++;
-        switch (action.action_type) {
-          case "like": stats.likes++; break;
-          case "comment": stats.comments++; break;
-          case "share": stats.shares++; break;
-          case "reaction": stats.reactions++; break;
-        }
-      });
-      return stats;
+      const dateFilter = daysAgo.toISOString();
+
+      const [likesRes, commentsRes, sharesRes, reactionsRes] = await Promise.all([
+        supabase
+          .from("engagement_actions" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", client.id)
+          .eq("action_type", "like")
+          .gte("action_date", dateFilter),
+        supabase
+          .from("engagement_actions" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", client.id)
+          .eq("action_type", "comment")
+          .gte("action_date", dateFilter),
+        supabase
+          .from("engagement_actions" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", client.id)
+          .eq("action_type", "share")
+          .gte("action_date", dateFilter),
+        supabase
+          .from("engagement_actions" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", client.id)
+          .eq("action_type", "reaction")
+          .gte("action_date", dateFilter),
+      ]);
+
+      const likes = likesRes.count || 0;
+      const comments = commentsRes.count || 0;
+      const shares = sharesRes.count || 0;
+      const reactions = reactionsRes.count || 0;
+
+      return {
+        likes,
+        comments,
+        shares,
+        reactions,
+        total: likes + comments + shares + reactions,
+      };
     },
     enabled: !!client?.id
   });
