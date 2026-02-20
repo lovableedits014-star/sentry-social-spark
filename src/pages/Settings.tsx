@@ -1,31 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Copy, ExternalLink, Users, UserPlus, Shield, Info, CheckCircle2 } from "lucide-react";
+import { Settings as SettingsIcon, Copy, ExternalLink, Users, UserPlus, Shield, Info, CheckCircle2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
+  const [userId, setUserId] = useState<string>("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copiedPortal, setCopiedPortal] = useState(false);
   const [copiedCadastro, setCopiedCadastro] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchClient = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       const { data } = await supabase
         .from("clients")
-        .select("id, name")
+        .select("id, name, logo_url")
         .eq("user_id", user.id)
         .limit(1)
         .maybeSingle();
       if (data) {
         setClientId(data.id);
         setClientName(data.name);
+        setLogoUrl(data.logo_url);
       }
       setLoading(false);
     };
@@ -48,6 +54,59 @@ const Settings = () => {
     }
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId || !clientId) return;
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      toast.error("Imagem muito grande. Use até 2MB.");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${userId}/logo.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("client-logos")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("client-logos")
+        .getPublicUrl(filePath);
+
+      const cacheBusted = `${publicUrl}?t=${Date.now()}`;
+
+      const { error: updateError } = await supabase
+        .from("clients")
+        .update({ logo_url: cacheBusted })
+        .eq("id", clientId);
+
+      if (updateError) throw updateError;
+
+      setLogoUrl(cacheBusted);
+      toast.success("Logo atualizada com sucesso!");
+    } catch (err: any) {
+      toast.error("Erro ao enviar logo: " + err.message);
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!clientId) return;
+    const { error } = await supabase.from("clients").update({ logo_url: null }).eq("id", clientId);
+    if (!error) {
+      setLogoUrl(null);
+      toast.success("Logo removida");
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       <div>
@@ -56,6 +115,65 @@ const Settings = () => {
           Gerencie suas preferências e links de acesso
         </p>
       </div>
+
+      {/* Logo / Identidade visual */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Identidade Visual do Portal</CardTitle>
+              <CardDescription>Logo exibida no portal dos seus apoiadores</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-6">
+            {/* Preview */}
+            <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <div className="text-center p-2">
+                  <Shield className="w-7 h-7 text-muted-foreground/40 mx-auto" />
+                  <p className="text-xs text-muted-foreground/40 mt-1">Sem logo</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLogo || loading}
+              >
+                {uploadingLogo ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                {uploadingLogo ? "Enviando..." : logoUrl ? "Trocar logo" : "Enviar logo"}
+              </Button>
+              {logoUrl && (
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive ml-2" onClick={handleRemoveLogo}>
+                  Remover
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">PNG, JPG ou WEBP · máx 2MB · recomendado 200×200px</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Como funciona — explicação SaaS */}
       <Card className="border-primary/20 bg-primary/5">

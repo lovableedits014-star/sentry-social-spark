@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,68 +7,55 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Eye, Shield } from "lucide-react";
+import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [signupData, setSignupData] = useState({ email: "", password: "", fullName: "" });
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [activeTab, setActiveTab] = useState<"login" | "forgot">("login");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: loginData.email,
         password: loginData.password,
       });
-
       if (error) throw error;
-
       toast.success("Login realizado com sucesso!");
       navigate("/dashboard");
     } catch (error: any) {
-      console.error("Login error:", error);
       toast.error(error.message || "Erro ao fazer login");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
+    setForgotLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: signupData.email,
-        password: signupData.password,
-        options: {
-          data: {
-            full_name: signupData.fullName,
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-        },
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
-
       if (error) throw error;
-
-      toast.success("Conta criada com sucesso!");
-      navigate("/dashboard");
+      setForgotSent(true);
     } catch (error: any) {
-      console.error("Signup error:", error);
-      toast.error(error.message || "Erro ao criar conta");
+      toast.error(error.message || "Erro ao enviar e-mail");
     } finally {
-      setIsLoading(false);
+      setForgotLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="w-full max-w-md space-y-4">
-        {/* Badge diferenciador */}
         <div className="text-center">
           <span className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
             <Shield className="w-3.5 h-3.5" />
@@ -87,10 +74,14 @@ const Auth = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-slate-700">
-                <TabsTrigger value="login" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-400">Login</TabsTrigger>
-                <TabsTrigger value="signup" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-400">Cadastro</TabsTrigger>
+                <TabsTrigger value="login" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-400">
+                  Login
+                </TabsTrigger>
+                <TabsTrigger value="forgot" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-400">
+                  Esqueci a senha
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -109,69 +100,84 @@ const Auth = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password" className="text-slate-300">Senha</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      required
-                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={loginData.password}
+                        onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                        required
+                        className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     {isLoading ? "Entrando..." : "Entrar no Painel"}
                   </Button>
                 </form>
               </TabsContent>
 
-              <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name" className="text-slate-300">Nome Completo</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="Seu nome"
-                      value={signupData.fullName}
-                      onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
-                      required
-                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-slate-300">E-mail</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={signupData.email}
-                      onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                      required
-                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-slate-300">Senha</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={signupData.password}
-                      onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                      required
-                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white" disabled={isLoading}>
-                    {isLoading ? "Criando conta..." : "Criar conta Admin"}
-                  </Button>
-                </form>
+              <TabsContent value="forgot">
+                <div className="mt-4">
+                  {forgotSent ? (
+                    <div className="text-center py-6 space-y-3">
+                      <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
+                        <Shield className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <p className="text-white font-medium">E-mail enviado!</p>
+                      <p className="text-slate-400 text-sm">
+                        Verifique sua caixa de entrada e clique no link para redefinir sua senha.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="mt-2 border-slate-600 text-slate-300"
+                        onClick={() => { setForgotSent(false); setActiveTab("login"); }}
+                      >
+                        Voltar ao login
+                      </Button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <p className="text-slate-400 text-sm">
+                        Informe seu e-mail e enviaremos um link para redefinir sua senha.
+                      </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email" className="text-slate-300">E-mail</Label>
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="seu@email.com"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          required
+                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                      <Button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white" disabled={forgotLoading}>
+                        {forgotLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        {forgotLoading ? "Enviando..." : "Enviar link de recuperação"}
+                      </Button>
+                    </form>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
+        <p className="text-center text-xs text-slate-500">
+          Não tem conta?{" "}
+          <span className="text-slate-400">Use o link de convite enviado pelo administrador da plataforma.</span>
+        </p>
         <p className="text-center text-xs text-slate-500">
           Apoiador? Use o link específico do portal que recebeu do seu coordenador
         </p>

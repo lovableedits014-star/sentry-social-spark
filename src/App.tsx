@@ -16,6 +16,9 @@ import NotFound from "./pages/NotFound";
 import SupporterRegister from "./pages/SupporterRegister";
 import SupporterPortal from "./pages/SupporterPortal";
 import PwaStart from "./pages/PwaStart";
+import Signup from "./pages/Signup";
+import ResetPassword from "./pages/ResetPassword";
+import SuperAdmin from "./pages/SuperAdmin";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +31,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/signup/:token" element={<Signup />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/super-admin" element={<SuperAdmin />} />
           <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
@@ -48,3 +54,4 @@ const App = () => (
 );
 
 export default App;
+
