@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,13 +24,43 @@ const Supporters = () => {
   const [selectedSupporter, setSelectedSupporter] = useState<Supporter | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const clientIdRef = useRef<string>("");
 
   // Merge mode
   const [mergeMode, setMergeMode] = useState(false);
   const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
 
-  useEffect(() => { fetchSupporters(); }, []);
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const init = async () => {
+      await fetchSupporters();
+
+      // Subscribe to realtime changes on supporters and supporter_profiles
+      if (clientIdRef.current) {
+        channel = supabase
+          .channel("supporters-realtime")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "supporters", filter: `client_id=eq.${clientIdRef.current}` },
+            () => { fetchSupporters(); }
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "supporter_profiles" },
+            () => { fetchSupporters(); }
+          )
+          .subscribe();
+      }
+    };
+
+    init();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchSupporters = async () => {
     try {
@@ -41,12 +71,14 @@ const Supporters = () => {
         .from("clients").select("id").eq("user_id", user.id).limit(1);
 
       if (!clients || clients.length === 0) { setLoading(false); return; }
-      setClientId(clients[0].id);
+      const cid = clients[0].id;
+      setClientId(cid);
+      clientIdRef.current = cid;
 
       const { data, error } = await supabase
         .from("supporters")
         .select(`*, supporter_profiles (*)`)
-        .eq("client_id", clients[0].id)
+        .eq("client_id", cid)
         .order("last_interaction_date", { ascending: false });
 
       if (error) throw error;
