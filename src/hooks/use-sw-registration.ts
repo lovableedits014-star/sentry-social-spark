@@ -10,15 +10,18 @@ export async function getSWRegistration(): Promise<ServiceWorkerRegistration> {
 
   if (!swRegistrationPromise) {
     swRegistrationPromise = (async () => {
-      // Unregister any existing SWs to ensure we use the latest
+      // Check if our sw.js is already registered and active — reuse it
       const existing = await navigator.serviceWorker.getRegistration("/");
       if (existing && existing.active) {
         const scriptUrl = existing.active.scriptURL;
-        // If it's a workbox-generated SW (not our sw.js), unregister it
-        if (scriptUrl.includes("workbox") || scriptUrl.includes("sw-") && !scriptUrl.endsWith("sw.js")) {
+        // Only unregister if it's clearly NOT our sw.js (pure Workbox build artifact)
+        const isOurSW = scriptUrl.endsWith("/sw.js");
+        if (!isOurSW && scriptUrl.includes("workbox")) {
           console.log("[SW] Unregistering old Workbox SW:", scriptUrl);
           await existing.unregister();
         } else {
+          // Reuse existing registration — do NOT unregister to preserve push subscriptions
+          await navigator.serviceWorker.ready;
           return existing;
         }
       }
@@ -33,3 +36,4 @@ export async function getSWRegistration(): Promise<ServiceWorkerRegistration> {
 
   return swRegistrationPromise;
 }
+
