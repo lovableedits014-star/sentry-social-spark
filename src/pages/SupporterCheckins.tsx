@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarCheck, Flame, Trophy, Search, RefreshCw, Loader2, Copy } from "lucide-react";
+import { CalendarCheck, Flame, Trophy, Search, RefreshCw, Loader2, Copy, Target } from "lucide-react";
 import { toast } from "sonner";
+import { PortalMissionsPanel } from "@/components/engagement/PortalMissionsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CheckinStat {
   supporter_account_id: string;
@@ -119,6 +121,23 @@ export function SupporterCheckins({ clientId }: SupporterCheckinsProps) {
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="presencas" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="presencas" className="text-xs sm:text-sm">
+            <CalendarCheck className="mr-1 h-4 w-4" />
+            Ranking de Presenças
+          </TabsTrigger>
+          <TabsTrigger value="missoes" className="text-xs sm:text-sm">
+            <Target className="mr-1 h-4 w-4" />
+            Missões do Portal
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="missoes">
+          <PortalMissionsPanel clientId={clientId} />
+        </TabsContent>
+
+        <TabsContent value="presencas" className="space-y-4">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
@@ -261,6 +280,8 @@ export function SupporterCheckins({ clientId }: SupporterCheckinsProps) {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+interface Mission {
+  id: string;
+  platform: string;
+  post_url: string;
+  title: string | null;
+  description: string | null;
+  display_order: number;
+}
+
 interface Post {
   id: string;
   message: string;
@@ -56,8 +65,8 @@ export default function SupporterPortal() {
   // Portal state
   const [account, setAccount] = useState<SupporterAccount | null>(null);
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [missionsLoading, setMissionsLoading] = useState(false);
   const [checkedInToday, setCheckedInToday] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   const [totalCheckins, setTotalCheckins] = useState(0);
@@ -135,8 +144,8 @@ export default function SupporterPortal() {
       }
     }
 
-    // Load recent posts
-    loadPosts();
+    // Load missions pinned by the manager
+    loadMissions();
   };
 
   const linkAsSupporterActive = async (accountId: string, supporterName: string) => {
@@ -159,37 +168,19 @@ export default function SupporterPortal() {
     }
   };
 
-  const loadPosts = async () => {
+  const loadMissions = async () => {
     if (!clientId) return;
-    setPostsLoading(true);
+    setMissionsLoading(true);
     try {
-      // Get the most recent post from comments (grouped by post_id)
-      const { data } = await supabase
-        .from("comments")
-        .select("post_id, post_message, post_permalink_url, platform, comment_created_time")
+      const { data } = await (supabase as any)
+        .from("portal_missions")
+        .select("id, platform, post_url, title, description, display_order")
         .eq("client_id", clientId)
-        .not("post_permalink_url", "is", null)
-        .order("comment_created_time", { ascending: false })
-        .limit(100);
-
-      if (data) {
-        // Deduplicate by post_id, take most recent per post
-        const seen = new Map<string, Post>();
-        for (const row of data) {
-          if (!seen.has(row.post_id) && row.post_permalink_url) {
-            seen.set(row.post_id, {
-              id: row.post_id,
-              message: row.post_message || "Sem descrição",
-              permalink_url: row.post_permalink_url,
-              platform: row.platform || "facebook",
-              created_at: row.comment_created_time || "",
-            });
-          }
-        }
-        setPosts(Array.from(seen.values()).slice(0, 5));
-      }
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+      setMissions((data || []) as Mission[]);
     } finally {
-      setPostsLoading(false);
+      setMissionsLoading(false);
     }
   };
 
@@ -523,50 +514,58 @@ export default function SupporterPortal() {
           </CardContent>
         </Card>
 
-        {/* POSTS */}
+        {/* MISSIONS */}
         <div>
           <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">
-            📣 Últimas Postagens — Vá Interagir!
+            🎯 Missões de Engajamento
           </h3>
-          {postsLoading ? (
+          {missionsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-          ) : posts.length === 0 ? (
+          ) : missions.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                Nenhuma postagem encontrada ainda.
+                <p className="font-medium">Nenhuma missão ativa no momento.</p>
+                <p className="text-xs mt-1 opacity-70">Volte em breve — novas missões serão publicadas aqui!</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-3">
-              {posts.map((post) => (
-                <Card key={post.id} className="overflow-hidden">
+              {missions.map((mission) => (
+                <Card key={mission.id} className="overflow-hidden border-primary/20">
                   <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg shrink-0 ${post.platform === "instagram" ? "bg-pink-500/10" : "bg-blue-500/10"}`}>
-                        {post.platform === "instagram"
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className={`p-2 rounded-lg shrink-0 ${
+                        mission.platform === "instagram" ? "bg-pink-500/10" : "bg-blue-500/10"
+                      }`}>
+                        {mission.platform === "instagram"
                           ? <Instagram className="w-4 h-4 text-pink-500" />
                           : <Facebook className="w-4 h-4 text-blue-600" />
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm line-clamp-3 text-foreground">
-                          {post.message}
-                        </p>
-                        {post.created_at && (
-                          <p className="text-xs text-muted-foreground mt-1">{formatDate(post.created_at)}</p>
+                        {mission.title && (
+                          <p className="text-sm font-semibold text-foreground mb-1">{mission.title}</p>
+                        )}
+                        {mission.description && (
+                          <p className="text-sm text-muted-foreground">{mission.description}</p>
+                        )}
+                        {!mission.title && !mission.description && (
+                          <p className="text-sm text-muted-foreground capitalize">
+                            Publicação no {mission.platform}
+                          </p>
                         )}
                       </div>
                     </div>
                     <a
-                      href={post.permalink_url}
+                      href={mission.post_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 flex items-center justify-center gap-2 w-full py-2 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4" />
-                      Abrir e Interagir
+                      Abrir e Interagir Agora
                     </a>
                   </CardContent>
                 </Card>
@@ -574,6 +573,7 @@ export default function SupporterPortal() {
             </div>
           )}
         </div>
+
 
         {/* PROFILE */}
         <Card>
