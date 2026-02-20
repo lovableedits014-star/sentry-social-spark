@@ -1,7 +1,5 @@
 // Service Worker para Push Notifications do Portal do Apoiador
-const CACHE_NAME = 'apoiador-portal-v1';
-
-// Required by vite-plugin-pwa injectManifest strategy
+// v3 - Direct registration, no Workbox wrapper
 const WB_MANIFEST = self.__WB_MANIFEST || [];
 
 self.addEventListener('install', (event) => {
