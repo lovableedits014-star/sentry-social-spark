@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ const Supporters = () => {
   const [selectedSupporter, setSelectedSupporter] = useState<Supporter | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const clientIdRef = useRef<string>("");
+  
 
   // Merge mode
   const [mergeMode, setMergeMode] = useState(false);
@@ -32,33 +32,25 @@ const Supporters = () => {
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
 
   useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    fetchSupporters();
 
-    const init = async () => {
-      await fetchSupporters();
-
-      // Subscribe to realtime changes on supporters and supporter_profiles
-      if (clientIdRef.current) {
-        channel = supabase
-          .channel("supporters-realtime")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "supporters", filter: `client_id=eq.${clientIdRef.current}` },
-            () => { fetchSupporters(); }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "supporter_profiles" },
-            () => { fetchSupporters(); }
-          )
-          .subscribe();
-      }
-    };
-
-    init();
+    // Subscribe to realtime changes — RLS already filters by client ownership
+    const channel = supabase
+      .channel("supporters-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "supporters" },
+        () => { fetchSupporters(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "supporter_profiles" },
+        () => { fetchSupporters(); }
+      )
+      .subscribe();
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -73,7 +65,6 @@ const Supporters = () => {
       if (!clients || clients.length === 0) { setLoading(false); return; }
       const cid = clients[0].id;
       setClientId(cid);
-      clientIdRef.current = cid;
 
       const { data, error } = await supabase
         .from("supporters")
