@@ -24,15 +24,9 @@ import {
   AlertTriangle,
   History,
   Calendar,
-  Megaphone,
-  FileText,
-  BellRing,
+  CalendarCheck,
 } from "lucide-react";
-import { EngagementPostCards } from "@/components/engagement/EngagementPostCards";
-import { DispatchLogsPanel } from "@/components/engagement/DispatchLogsPanel";
-import { RecurringNotificationsPanel } from "@/components/engagement/RecurringNotificationsPanel";
 import { SupporterCheckins } from "./SupporterCheckins";
-import { CalendarCheck } from "lucide-react";
 
 type EngagementConfig = {
   id: string;
@@ -365,12 +359,8 @@ export default function Engagement() {
         </Card>
       </div>
 
-      <Tabs defaultValue="central" className="space-y-4">
+      <Tabs defaultValue="ranking" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="central" className="text-xs sm:text-sm">
-            <Megaphone className="mr-1 sm:mr-2 h-4 w-4" />
-            Central
-          </TabsTrigger>
           <TabsTrigger value="ranking" className="text-xs sm:text-sm">
             <Trophy className="mr-1 sm:mr-2 h-4 w-4" />
             Ranking
@@ -387,34 +377,11 @@ export default function Engagement() {
             <Settings className="mr-1 sm:mr-2 h-4 w-4" />
             Config
           </TabsTrigger>
-          <TabsTrigger value="logs" className="text-xs sm:text-sm">
-            <FileText className="mr-1 sm:mr-2 h-4 w-4" />
-            Logs
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="text-xs sm:text-sm">
-            <BellRing className="mr-1 sm:mr-2 h-4 w-4" />
-            Notificações
-          </TabsTrigger>
           <TabsTrigger value="presencas" className="text-xs sm:text-sm">
             <CalendarCheck className="mr-1 sm:mr-2 h-4 w-4" />
             Presenças
           </TabsTrigger>
         </TabsList>
-
-        {/* Central Tab - Post Cards */}
-        <TabsContent value="central">
-          <EngagementPostCards clientId={client?.id} />
-        </TabsContent>
-
-        {/* Notifications Tab */}
-        <TabsContent value="notifications">
-          <RecurringNotificationsPanel clientId={client?.id} />
-        </TabsContent>
-
-        {/* Logs Tab */}
-        <TabsContent value="logs">
-          <DispatchLogsPanel clientId={client?.id} />
-        </TabsContent>
 
         {/* Presencas Tab */}
         <TabsContent value="presencas">
