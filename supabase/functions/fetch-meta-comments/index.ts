@@ -965,12 +965,29 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Link orphans & snapshot scores
+      // Link orphans (also recalculates scores internally)
       try {
         const { data: linkedCount } = await supabaseClient.rpc('link_orphan_engagement_actions', { p_client_id: clientId });
         syncLog.push(`Orphan actions linked: ${linkedCount}`);
       } catch (e) { syncLog.push(`Error linking orphans: ${e}`); }
 
+      // Explicitly recalculate scores for ALL supporters of this client
+      // (ensures new actions are counted even if link_orphan_engagement_actions already ran)
+      try {
+        const { data: allSupporters } = await supabaseClient
+          .from('supporters')
+          .select('id')
+          .eq('client_id', clientId);
+        
+        if (allSupporters && allSupporters.length > 0) {
+          for (const supporter of allSupporters) {
+            await supabaseClient.rpc('calculate_engagement_score', { p_supporter_id: supporter.id });
+          }
+          syncLog.push(`Scores recalculated for ${allSupporters.length} supporters`);
+        }
+      } catch (e) { syncLog.push(`Error recalculating scores: ${e}`); }
+
+      // Snapshot monthly scores
       try {
         await supabaseClient.rpc('snapshot_monthly_scores', { p_client_id: clientId });
       } catch (e) { syncLog.push(`Error snapshotting scores: ${e}`); }
