@@ -41,9 +41,9 @@ const statusConfig = {
 
 export function PushNotificationsPanel({ clientId }: PushNotificationsPanelProps) {
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState("");
+  const DEFAULT_TITLE = "📣 Nova missão disponível!";
+  const [title, setTitle] = useState(DEFAULT_TITLE);
   const [message, setMessage] = useState("");
-  const [url, setUrl] = useState("");
   const [isSending, setIsSending] = useState(false);
 
   // Load job history
@@ -115,15 +115,14 @@ export function PushNotificationsPanel({ clientId }: PushNotificationsPanelProps
       if (!session) { toast.error("Sessão expirada"); return; }
 
       const { data, error } = await supabase.functions.invoke("send-push-notifications", {
-        body: { client_id: clientId, title: title.trim(), message: message.trim(), url: url.trim() || undefined },
+        body: { client_id: clientId, title: title.trim(), message: message.trim() },
       });
 
       if (error) throw error;
 
       toast.success("📤 Envio iniciado! Acompanhe o progresso abaixo.");
-      setTitle("");
+      setTitle(DEFAULT_TITLE);
       setMessage("");
-      setUrl("");
       refetch();
     } catch (err: any) {
       console.error(err);
@@ -186,16 +185,7 @@ export function PushNotificationsPanel({ clientId }: PushNotificationsPanelProps
             <p className="text-xs text-muted-foreground text-right">{message.length}/200</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="push-url">Link de destino <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-            <Input
-              id="push-url"
-              placeholder={`/portal/${clientId}`}
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              disabled={isSending || hasActiveJob}
-            />
-          </div>
+
 
           <Button
             onClick={handleSend}

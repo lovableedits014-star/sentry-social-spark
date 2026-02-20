@@ -393,63 +393,59 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Post picker tabs */}
-            {!editMission && (
-              <Tabs defaultValue="facebook">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Escolher publicação existente</p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs gap-1"
-                    onClick={() => refetchPosts()}
-                    disabled={postsLoading}
-                  >
-                    <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
-                    {postsLoading ? "Carregando..." : `${postOptions.length} posts`}
-                  </Button>
-                </div>
-                <TabsList className="mb-3">
-                  <TabsTrigger value="facebook" className="gap-1.5">
-                    <Facebook className="w-3.5 h-3.5 text-blue-600" />
-                    Facebook ({fbPosts.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="instagram" className="gap-1.5">
-                    <Instagram className="w-3.5 h-3.5 text-pink-500" />
-                    Instagram ({igPosts.length})
-                  </TabsTrigger>
-                </TabsList>
+            {/* Post picker tabs — always visible */}
+            <Tabs defaultValue="facebook">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Escolher publicação existente</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => refetchPosts()}
+                  disabled={postsLoading}
+                >
+                  <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
+                  {postsLoading ? "Carregando..." : `${postOptions.length} posts`}
+                </Button>
+              </div>
+              <TabsList className="mb-3">
+                <TabsTrigger value="facebook" className="gap-1.5">
+                  <Facebook className="w-3.5 h-3.5 text-blue-600" />
+                  Facebook ({fbPosts.length})
+                </TabsTrigger>
+                <TabsTrigger value="instagram" className="gap-1.5">
+                  <Instagram className="w-3.5 h-3.5 text-pink-500" />
+                  Instagram ({igPosts.length})
+                </TabsTrigger>
+              </TabsList>
 
-                <TabsContent value="facebook">
-                  <PostPickerList
-                    posts={fbPosts}
-                    selectedPostId={selectedPostId}
-                    onSelect={handleSelectPost}
-                    platform="facebook"
-                  />
-                </TabsContent>
-                <TabsContent value="instagram">
-                  <PostPickerList
-                    posts={igPosts}
-                    selectedPostId={selectedPostId}
-                    onSelect={handleSelectPost}
-                    platform="instagram"
-                  />
-                </TabsContent>
-              </Tabs>
-            )}
+              <TabsContent value="facebook">
+                <PostPickerList
+                  posts={fbPosts}
+                  selectedPostId={selectedPostId}
+                  onSelect={handleSelectPost}
+                  platform="facebook"
+                />
+              </TabsContent>
+              <TabsContent value="instagram">
+                <PostPickerList
+                  posts={igPosts}
+                  selectedPostId={selectedPostId}
+                  onSelect={handleSelectPost}
+                  platform="instagram"
+                />
+              </TabsContent>
+            </Tabs>
 
             {/* Divider */}
-            {!editMission && (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Link className="w-3 h-3" /> ou cole um link manualmente
-                </span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Link className="w-3 h-3" /> ou cole um link manualmente
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
 
             {/* Manual URL */}
             <div className="space-y-2">
