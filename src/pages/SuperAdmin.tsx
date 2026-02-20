@@ -12,7 +12,7 @@ import {
   CheckCircle2, Clock, LogOut, Link2
 } from "lucide-react";
 
-const SUPER_ADMIN_EMAIL = "saintmarq@gmail.com";
+const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
 interface InviteToken {
   id: string;
