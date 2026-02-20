@@ -166,21 +166,16 @@ export default function SupporterPortal() {
 
   const linkAsSupporterActive = async (accountId: string, supporterName: string) => {
     if (!clientId) return;
-    const { data: sup } = await supabase
-      .from("supporters")
-      .insert({
-        client_id: clientId,
-        name: supporterName,
-        classification: "apoiador_ativo",
-      } as any)
-      .select()
-      .single();
-
-    if (sup) {
-      await supabase
-        .from("supporter_accounts")
-        .update({ supporter_id: sup.id } as any)
-        .eq("id", accountId);
+    try {
+      await supabase.functions.invoke("link-supporter-account", {
+        body: {
+          account_id: accountId,
+          client_id: clientId,
+          supporter_name: supporterName,
+        },
+      });
+    } catch (err) {
+      console.error("Error linking supporter account:", err);
     }
   };
 
