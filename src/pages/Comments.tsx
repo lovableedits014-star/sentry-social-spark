@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,8 +29,6 @@ interface PostGroup {
 }
 
 const Comments = () => {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
@@ -41,139 +40,130 @@ const Comments = () => {
   const [clientId, setClientId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchComments();
-  }, [postsLimit]);
+  const fetchCommentsData = useCallback(async (limit: number) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No user");
 
-  const [refreshing, setRefreshing] = useState(false);
+    const { data: clients } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", user.id);
 
-  const fetchComments = async (showRefreshState = false) => {
-    if (showRefreshState) setRefreshing(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (!clients || clients.length === 0) return { comments: [] as Comment[], clientId: "" };
 
-      const { data: clients } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("user_id", user.id);
+    const clientIds = clients.map(c => c.id);
+    const cId = clientIds[0];
 
-      if (!clients || clients.length === 0) {
-        setLoading(false);
-        return;
-      }
+    // Step 1: Find the N most recent distinct post_ids
+    const { data: stubs } = await supabase
+      .from("comments")
+      .select("post_id, platform, comment_created_time")
+      .in("client_id", clientIds)
+      .like("comment_id", "post_stub_%")
+      .order("comment_created_time", { ascending: false })
+      .limit(limit * 2);
 
-      const clientIds = clients.map(c => c.id);
-      setClientId(clientIds[0]);
+    const seenFromStubs = new Set<string>();
+    const stubPostIds: Array<{post_id: string; platform: string; time: string}> = [];
+    for (const row of stubs || []) {
+      if (!row?.post_id || seenFromStubs.has(row.post_id)) continue;
+      seenFromStubs.add(row.post_id);
+      stubPostIds.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
+    }
 
-      // Step 1: Find the N most recent distinct post_ids using post stubs first (most accurate date)
-      // Post stubs have comment_created_time = the actual post creation date
-      const { data: stubs } = await supabase
+    const scanLimit = Math.max(limit * 200, 2000);
+    const { data: recent, error: recentError } = await supabase
+      .from("comments")
+      .select("post_id, platform, comment_created_time")
+      .in("client_id", clientIds)
+      .not("comment_id", "like", "post_stub_%")
+      .not("text", "eq", "__post_stub__")
+      .order("comment_created_time", { ascending: false })
+      .limit(scanLimit);
+
+    if (recentError) throw recentError;
+
+    const allCandidates: Array<{post_id: string; platform: string; time: string}> = [...stubPostIds];
+    const seenAll = new Set<string>(seenFromStubs);
+    for (const row of recent || []) {
+      if (!row?.post_id || seenAll.has(row.post_id)) continue;
+      seenAll.add(row.post_id);
+      allCandidates.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
+    }
+
+    allCandidates.sort((a, b) => b.time.localeCompare(a.time));
+
+    const fbCandidates = allCandidates.filter(p => p.platform === 'facebook');
+    const igCandidates = allCandidates.filter(p => p.platform === 'instagram');
+    const otherCandidates = allCandidates.filter(p => p.platform !== 'facebook' && p.platform !== 'instagram');
+
+    const interleaved: string[] = [];
+    const maxLen = Math.max(fbCandidates.length, igCandidates.length, otherCandidates.length);
+    for (let i = 0; i < maxLen && interleaved.length < limit; i++) {
+      if (fbCandidates[i]) interleaved.push(fbCandidates[i].post_id);
+      if (igCandidates[i] && interleaved.length < limit) interleaved.push(igCandidates[i].post_id);
+      if (otherCandidates[i] && interleaved.length < limit) interleaved.push(otherCandidates[i].post_id);
+    }
+
+    const recentPostIds = interleaved.slice(0, limit);
+    if (recentPostIds.length === 0) return { comments: [] as Comment[], clientId: cId };
+
+    // Step 2: Fetch ALL comments for these posts
+    const PAGE_SIZE = 1000;
+    let allComments: Comment[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase
         .from("comments")
-        .select("post_id, platform, comment_created_time")
+        .select("*")
         .in("client_id", clientIds)
-        .like("comment_id", "post_stub_%")
-        .order("comment_created_time", { ascending: false })
-        .limit(postsLimit * 2); // fetch more to allow platform interleaving
-
-      // Build ordered post list from stubs (most recent first)
-      const seenFromStubs = new Set<string>();
-      const stubPostIds: Array<{post_id: string; platform: string; time: string}> = [];
-      for (const row of stubs || []) {
-        if (!row?.post_id || seenFromStubs.has(row.post_id)) continue;
-        seenFromStubs.add(row.post_id);
-        stubPostIds.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
-      }
-
-      // Also scan real comments for older posts not covered by stubs
-      const scanLimit = Math.max(postsLimit * 200, 2000);
-      const { data: recent, error: recentError } = await supabase
-        .from("comments")
-        .select("post_id, platform, comment_created_time")
-        .in("client_id", clientIds)
-        .not("comment_id", "like", "post_stub_%")
+        .in("post_id", recentPostIds)
         .not("text", "eq", "__post_stub__")
         .order("comment_created_time", { ascending: false })
-        .limit(scanLimit);
+        .range(from, to);
 
-      if (recentError) throw recentError;
-
-      // Merge all post candidates, stubs take priority (more accurate date)
-      const allCandidates: Array<{post_id: string; platform: string; time: string}> = [...stubPostIds];
-      const seenAll = new Set<string>(seenFromStubs);
-      for (const row of recent || []) {
-        if (!row?.post_id || seenAll.has(row.post_id)) continue;
-        seenAll.add(row.post_id);
-        allCandidates.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
-      }
-
-      // Sort all candidates by date descending, then interleave FB and IG
-      allCandidates.sort((a, b) => b.time.localeCompare(a.time));
-
-      // Interleave: alternating Facebook and Instagram (same post same day = paired)
-      const fbCandidates = allCandidates.filter(p => p.platform === 'facebook');
-      const igCandidates = allCandidates.filter(p => p.platform === 'instagram');
-      const otherCandidates = allCandidates.filter(p => p.platform !== 'facebook' && p.platform !== 'instagram');
-
-      const interleaved: string[] = [];
-      const maxLen = Math.max(fbCandidates.length, igCandidates.length, otherCandidates.length);
-      for (let i = 0; i < maxLen && interleaved.length < postsLimit; i++) {
-        if (fbCandidates[i]) interleaved.push(fbCandidates[i].post_id);
-        if (igCandidates[i] && interleaved.length < postsLimit) interleaved.push(igCandidates[i].post_id);
-        if (otherCandidates[i] && interleaved.length < postsLimit) interleaved.push(otherCandidates[i].post_id);
-      }
-
-      const recentPostIds = interleaved.slice(0, postsLimit);
-
-      if (recentPostIds.length === 0) {
-        setComments([]);
-        return;
-      }
-
-      // Step 2: Fetch ALL comments for these posts (excluding stubs)
-      const PAGE_SIZE = 1000;
-      let allComments: Comment[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        const { data, error } = await supabase
-          .from("comments")
-          .select("*")
-          .in("client_id", clientIds)
-          .in("post_id", recentPostIds)
-          .not("text", "eq", "__post_stub__")
-          .order("comment_created_time", { ascending: false })
-          .range(from, to);
-
-        if (error) throw error;
-
-        allComments = [...allComments, ...(data || [])];
-        hasMore = (data?.length || 0) === PAGE_SIZE;
-        page++;
-      }
-
-      // Sort: keep recentPostIds order (interleaved), then comments within each post by date
-      const postOrder = new Map<string, number>(recentPostIds.map((id, idx) => [id, idx]));
-      allComments.sort((a, b) => {
-        const orderDiff = (postOrder.get(a.post_id) ?? 999) - (postOrder.get(b.post_id) ?? 999);
-        if (orderDiff !== 0) return orderDiff;
-        return (b.comment_created_time || '').localeCompare(a.comment_created_time || '');
-      });
-
-      setComments(allComments);
-    } catch (error: any) {
-      console.error("Error fetching comments:", error);
-      toast.error("Erro ao carregar comentários");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (error) throw error;
+      allComments = [...allComments, ...(data || [])];
+      hasMore = (data?.length || 0) === PAGE_SIZE;
+      page++;
     }
-  };
+
+    const postOrder = new Map<string, number>(recentPostIds.map((id, idx) => [id, idx]));
+    allComments.sort((a, b) => {
+      const orderDiff = (postOrder.get(a.post_id) ?? 999) - (postOrder.get(b.post_id) ?? 999);
+      if (orderDiff !== 0) return orderDiff;
+      return (b.comment_created_time || '').localeCompare(a.comment_created_time || '');
+    });
+
+    return { comments: allComments, clientId: cId };
+  }, []);
+
+  const { data: commentsData, isLoading: loading } = useQuery({
+    queryKey: ["comments-data", postsLimit],
+    queryFn: () => fetchCommentsData(postsLimit),
+    staleTime: Infinity,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+  });
+
+  const comments = commentsData?.comments ?? [];
+
+  // Keep clientId in sync
+  if (commentsData?.clientId && commentsData.clientId !== clientId) {
+    setClientId(commentsData.clientId);
+  }
+
+  const reloadComments = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["comments-data"] });
+  }, [queryClient]);
 
   const handleSyncComments = async () => {
     if (!clientId) {
@@ -198,7 +188,7 @@ const Comments = () => {
             }
           });
         }
-        await fetchComments();
+        reloadComments();
       } else {
         toast.error(data.error || 'Erro ao sincronizar comentários');
       }
@@ -220,7 +210,7 @@ const Comments = () => {
       if (error) throw error;
 
       if (data.success) {
-        await fetchComments();
+        reloadComments();
         toast.success(isRegenerate ? "Nova resposta gerada!" : "Resposta gerada!");
       } else {
         toast.error(data.error || 'Erro ao gerar resposta.');
@@ -248,7 +238,7 @@ const Comments = () => {
       if (error) throw error;
 
       if (data.success) {
-        await fetchComments();
+        reloadComments();
         toast.success(`Resposta publicada no ${platform === 'instagram' ? 'Instagram' : 'Facebook'}!`);
         setEditingResponse(prev => {
           const newState = { ...prev };
@@ -287,7 +277,7 @@ const Comments = () => {
 
       if (data.success) {
         toast.success(data.message);
-        await fetchComments();
+        reloadComments();
       } else {
         toast.error(data.error || 'Erro na operação');
       }
@@ -437,8 +427,8 @@ const Comments = () => {
         </div>
         {/* Action buttons: primary = Sincronizar, secondary = Atualizar */}
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" onClick={() => fetchComments(true)} disabled={syncing || refreshing} size="sm">
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button variant="outline" onClick={() => reloadComments()} disabled={syncing} size="sm">
+            <RefreshCw className="w-4 h-4 mr-1.5" />
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button onClick={handleSyncComments} disabled={syncing || !clientId} size="sm">
