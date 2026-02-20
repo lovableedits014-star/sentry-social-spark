@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, MessageSquare, Settings, LogOut, Shield, Link2, Users, TrendingUp, Crown } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Settings, LogOut, Shield, Link2, Users, TrendingUp, Crown, CalendarCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -73,6 +73,7 @@ const DashboardLayout = () => {
     { icon: MessageSquare, label: "Comentários", path: "/comments" },
     { icon: Users, label: "Apoiadores", path: "/supporters" },
     { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
+    { icon: CalendarCheck, label: "Presenças", path: "/checkins" },
     { icon: Link2, label: "Integrações", path: "/integrations" },
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];

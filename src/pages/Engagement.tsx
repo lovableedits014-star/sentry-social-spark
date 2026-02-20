@@ -25,13 +25,9 @@ import {
   AlertTriangle,
   History,
   Calendar,
-  CalendarCheck,
   Link2,
   Link2Off,
-  Bell,
 } from "lucide-react";
-import { SupporterCheckins } from "./SupporterCheckins";
-import { PushNotificationsPanel } from "@/components/PushNotificationsPanel";
 
 type EngagementConfig = {
   id: string;
@@ -406,7 +402,7 @@ export default function Engagement() {
         </Card>
       </div>
 
-      {/* Tabs — labels more descriptive */}
+      {/* Tabs */}
       <Tabs defaultValue="ranking" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1 w-full sm:w-auto">
           <TabsTrigger value="ranking" className="text-xs sm:text-sm gap-1.5">
@@ -426,29 +422,12 @@ export default function Engagement() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="presencas" className="text-xs sm:text-sm gap-1.5">
-            <CalendarCheck className="h-4 w-4" />
-            Presenças
-          </TabsTrigger>
-          <TabsTrigger value="notificacoes" className="text-xs sm:text-sm gap-1.5">
-            <Bell className="h-4 w-4" />
-            Notificações
-          </TabsTrigger>
           <TabsTrigger value="config" className="text-xs sm:text-sm gap-1.5">
             <Settings className="h-4 w-4" />
             Config
           </TabsTrigger>
         </TabsList>
 
-        {/* Presencas Tab */}
-        <TabsContent value="presencas">
-          {client?.id && <SupporterCheckins clientId={client.id} />}
-        </TabsContent>
-
-        {/* Notificacoes Tab */}
-        <TabsContent value="notificacoes">
-          {client?.id && <PushNotificationsPanel clientId={client.id} />}
-        </TabsContent>
 
         {/* Ranking Tab */}
         <TabsContent value="ranking">
