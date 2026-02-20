@@ -31,6 +31,8 @@ import {
 import { EngagementPostCards } from "@/components/engagement/EngagementPostCards";
 import { DispatchLogsPanel } from "@/components/engagement/DispatchLogsPanel";
 import { RecurringNotificationsPanel } from "@/components/engagement/RecurringNotificationsPanel";
+import { SupporterCheckins } from "./SupporterCheckins";
+import { CalendarCheck } from "lucide-react";
 
 type EngagementConfig = {
   id: string;
@@ -393,6 +395,10 @@ export default function Engagement() {
             <BellRing className="mr-1 sm:mr-2 h-4 w-4" />
             Notificações
           </TabsTrigger>
+          <TabsTrigger value="presencas" className="text-xs sm:text-sm">
+            <CalendarCheck className="mr-1 sm:mr-2 h-4 w-4" />
+            Presenças
+          </TabsTrigger>
         </TabsList>
 
         {/* Central Tab - Post Cards */}
@@ -408,6 +414,11 @@ export default function Engagement() {
         {/* Logs Tab */}
         <TabsContent value="logs">
           <DispatchLogsPanel clientId={client?.id} />
+        </TabsContent>
+
+        {/* Presencas Tab */}
+        <TabsContent value="presencas">
+          {client?.id && <SupporterCheckins clientId={client.id} />}
         </TabsContent>
 
         {/* Ranking Tab */}

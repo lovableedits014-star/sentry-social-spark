@@ -701,6 +701,99 @@ export type Database = {
           },
         ]
       }
+      supporter_accounts: {
+        Row: {
+          client_id: string
+          created_at: string
+          email: string
+          facebook_username: string | null
+          id: string
+          instagram_username: string | null
+          name: string
+          supporter_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          email: string
+          facebook_username?: string | null
+          id?: string
+          instagram_username?: string | null
+          name: string
+          supporter_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          email?: string
+          facebook_username?: string | null
+          id?: string
+          instagram_username?: string | null
+          name?: string
+          supporter_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supporter_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supporter_accounts_supporter_id_fkey"
+            columns: ["supporter_id"]
+            isOneToOne: false
+            referencedRelation: "supporters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supporter_checkins: {
+        Row: {
+          checkin_at: string
+          checkin_date: string
+          client_id: string
+          id: string
+          supporter_account_id: string
+        }
+        Insert: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id: string
+          id?: string
+          supporter_account_id: string
+        }
+        Update: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id?: string
+          id?: string
+          supporter_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supporter_checkins_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supporter_checkins_supporter_account_id_fkey"
+            columns: ["supporter_account_id"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supporter_profiles: {
         Row: {
           created_at: string | null
