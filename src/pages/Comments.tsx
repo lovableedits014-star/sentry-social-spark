@@ -46,20 +46,10 @@ const Comments = () => {
     fetchComments();
   }, [postsLimit]);
 
-  useEffect(() => {
-    const onFocus = () => fetchComments();
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') fetchComments();
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [postsLimit]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchComments = async () => {
+  const fetchComments = async (showRefreshState = false) => {
+    if (showRefreshState) setRefreshing(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -181,6 +171,7 @@ const Comments = () => {
       toast.error("Erro ao carregar comentários");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -446,8 +437,8 @@ const Comments = () => {
         </div>
         {/* Action buttons: primary = Sincronizar, secondary = Atualizar */}
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" onClick={fetchComments} disabled={syncing} size="sm">
-            <RefreshCw className="w-4 h-4 mr-1.5" />
+          <Button variant="outline" onClick={() => fetchComments(true)} disabled={syncing || refreshing} size="sm">
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button onClick={handleSyncComments} disabled={syncing || !clientId} size="sm">
