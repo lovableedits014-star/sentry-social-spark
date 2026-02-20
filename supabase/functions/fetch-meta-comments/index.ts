@@ -394,12 +394,16 @@ async function persistComments(
   let updated = 0;
 
   if (inserts.length > 0) {
+    // Use upsert with onConflict to avoid duplicate key errors
     for (const chunk of chunkArray(inserts, 50)) {
-      const { error: insertError } = await supabase.from('comments').insert(chunk);
-      if (insertError) {
-        console.error('Batch insert failed:', insertError);
+      const { data: upserted, error: upsertError } = await supabase
+        .from('comments')
+        .upsert(chunk, { onConflict: 'comment_id,client_id', ignoreDuplicates: false })
+        .select('id');
+      if (upsertError) {
+        console.error('Batch upsert failed:', upsertError);
       } else {
-        inserted += chunk.length;
+        inserted += upserted?.length || 0;
       }
     }
   }
@@ -414,6 +418,59 @@ async function persistComments(
   }
 
   return { inserted, updated };
+}
+
+// ==== PERSIST POSTS (even without comments) ====
+// We use a synthetic comment_id = "post_stub_{post_id}" to store post metadata
+// so the post appears in the selector even before any real comments arrive.
+async function persistPostStubs(
+  supabase: SupabaseClient,
+  clientId: string,
+  posts: Array<{
+    post_id: string;
+    platform: string;
+    post_message: string | null;
+    post_permalink_url: string | null;
+    post_full_picture: string | null;
+    post_media_type: string | null;
+    post_created_time: string | null;
+  }>
+): Promise<void> {
+  if (posts.length === 0) return;
+
+  // Only store stubs for posts that have a permalink (needed by picker)
+  const stubs = posts
+    .filter(p => p.post_permalink_url)
+    .map(p => ({
+      client_id: clientId,
+      comment_id: `post_stub_${p.post_id}`,
+      post_id: p.post_id,
+      text: '__post_stub__',
+      author_name: null,
+      author_id: null,
+      author_profile_picture: null,
+      platform: p.platform,
+      platform_user_id: null,
+      social_profile_id: null,
+      author_unavailable: true,
+      author_unavailable_reason: 'post stub - no comment',
+      status: 'ignored',
+      sentiment: 'neutral',
+      post_message: p.post_message,
+      post_permalink_url: p.post_permalink_url,
+      post_full_picture: p.post_full_picture,
+      post_media_type: p.post_media_type,
+      comment_created_time: p.post_created_time,
+      parent_comment_id: null,
+      is_page_owner: false,
+      is_hidden: false,
+    }));
+
+  for (const chunk of chunkArray(stubs, 50)) {
+    await supabase
+      .from('comments')
+      .upsert(chunk, { onConflict: 'comment_id,client_id', ignoreDuplicates: true });
+  }
 }
 
 // ==== MAIN HANDLER ====
@@ -605,6 +662,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ==== PERSIST FB POST STUBS (so posts appear even without comments) ====
+    await persistPostStubs(supabaseClient, clientId, fbPosts.map(post => ({
+      post_id: post.id,
+      platform: 'facebook',
+      post_message: post.message || null,
+      post_permalink_url: post.permalink_url || null,
+      post_full_picture: post.full_picture || null,
+      post_media_type: post.attachments?.data?.[0]?.media_type || null,
+      post_created_time: post.created_time ? new Date(post.created_time).toISOString() : null,
+    })));
+    syncLog.push(`[FB] Persisted ${fbPosts.length} post stubs`);
+
     // ==== INSTAGRAM ====
     if (integration.meta_instagram_id && hasTimeLeft()) {
       console.log('--- Fetching Instagram media with comments ---');
@@ -689,6 +758,20 @@ Deno.serve(async (req) => {
           processIgComment(comment, null);
         }
       }
+      // ==== PERSIST IG POST STUBS ====
+      await persistPostStubs(supabaseClient, clientId, igMedia.map((m: any) => {
+        const isVideoMedia = m.media_type?.toLowerCase() === 'video';
+        return {
+          post_id: m.id,
+          platform: 'instagram',
+          post_message: m.caption || null,
+          post_permalink_url: m.permalink || null,
+          post_full_picture: isVideoMedia ? (m.thumbnail_url || m.media_url || null) : (m.media_url || m.thumbnail_url || null),
+          post_media_type: m.media_type?.toLowerCase() || null,
+          post_created_time: m.timestamp ? new Date(m.timestamp).toISOString() : null,
+        };
+      }));
+      syncLog.push(`[IG] Persisted ${igMedia.length} post stubs`);
     }
 
     // ==== BATCH PROFILE RESOLUTION ====

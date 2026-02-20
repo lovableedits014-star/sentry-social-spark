@@ -77,34 +77,71 @@ const Comments = () => {
       const clientIds = clients.map(c => c.id);
       setClientId(clientIds[0]);
 
-      // Step 1: Find the N most recent distinct post_ids
-      // Scan a large window to ensure we don't miss posts buried under high-comment posts
+      // Step 1: Find the N most recent distinct post_ids using post stubs first (most accurate date)
+      // Post stubs have comment_created_time = the actual post creation date
+      const { data: stubs } = await supabase
+        .from("comments")
+        .select("post_id, platform, comment_created_time")
+        .in("client_id", clientIds)
+        .like("comment_id", "post_stub_%")
+        .order("comment_created_time", { ascending: false })
+        .limit(postsLimit * 2); // fetch more to allow platform interleaving
+
+      // Build ordered post list from stubs (most recent first)
+      const seenFromStubs = new Set<string>();
+      const stubPostIds: Array<{post_id: string; platform: string; time: string}> = [];
+      for (const row of stubs || []) {
+        if (!row?.post_id || seenFromStubs.has(row.post_id)) continue;
+        seenFromStubs.add(row.post_id);
+        stubPostIds.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
+      }
+
+      // Also scan real comments for older posts not covered by stubs
       const scanLimit = Math.max(postsLimit * 200, 2000);
       const { data: recent, error: recentError } = await supabase
         .from("comments")
-        .select("post_id, comment_created_time")
+        .select("post_id, platform, comment_created_time")
         .in("client_id", clientIds)
+        .not("comment_id", "like", "post_stub_%")
+        .not("text", "eq", "__post_stub__")
         .order("comment_created_time", { ascending: false })
         .limit(scanLimit);
 
       if (recentError) throw recentError;
 
-      // Deduplicate post_ids preserving recency order
-      const seen = new Set<string>();
-      const recentPostIds: string[] = [];
+      // Merge all post candidates, stubs take priority (more accurate date)
+      const allCandidates: Array<{post_id: string; platform: string; time: string}> = [...stubPostIds];
+      const seenAll = new Set<string>(seenFromStubs);
       for (const row of recent || []) {
-        if (!row?.post_id || seen.has(row.post_id)) continue;
-        seen.add(row.post_id);
-        recentPostIds.push(row.post_id);
-        if (recentPostIds.length >= postsLimit) break;
+        if (!row?.post_id || seenAll.has(row.post_id)) continue;
+        seenAll.add(row.post_id);
+        allCandidates.push({ post_id: row.post_id, platform: row.platform || '', time: row.comment_created_time || '' });
       }
+
+      // Sort all candidates by date descending, then interleave FB and IG
+      allCandidates.sort((a, b) => b.time.localeCompare(a.time));
+
+      // Interleave: alternating Facebook and Instagram (same post same day = paired)
+      const fbCandidates = allCandidates.filter(p => p.platform === 'facebook');
+      const igCandidates = allCandidates.filter(p => p.platform === 'instagram');
+      const otherCandidates = allCandidates.filter(p => p.platform !== 'facebook' && p.platform !== 'instagram');
+
+      const interleaved: string[] = [];
+      const maxLen = Math.max(fbCandidates.length, igCandidates.length, otherCandidates.length);
+      for (let i = 0; i < maxLen && interleaved.length < postsLimit; i++) {
+        if (fbCandidates[i]) interleaved.push(fbCandidates[i].post_id);
+        if (igCandidates[i] && interleaved.length < postsLimit) interleaved.push(igCandidates[i].post_id);
+        if (otherCandidates[i] && interleaved.length < postsLimit) interleaved.push(otherCandidates[i].post_id);
+      }
+
+      const recentPostIds = interleaved.slice(0, postsLimit);
 
       if (recentPostIds.length === 0) {
         setComments([]);
         return;
       }
 
-      // Step 2: Fetch ALL comments for these posts using pagination
+      // Step 2: Fetch ALL comments for these posts (excluding stubs)
       const PAGE_SIZE = 1000;
       let allComments: Comment[] = [];
       let page = 0;
@@ -119,6 +156,7 @@ const Comments = () => {
           .select("*")
           .in("client_id", clientIds)
           .in("post_id", recentPostIds)
+          .not("text", "eq", "__post_stub__")
           .order("comment_created_time", { ascending: false })
           .range(from, to);
 
@@ -128,6 +166,14 @@ const Comments = () => {
         hasMore = (data?.length || 0) === PAGE_SIZE;
         page++;
       }
+
+      // Sort: keep recentPostIds order (interleaved), then comments within each post by date
+      const postOrder = new Map<string, number>(recentPostIds.map((id, idx) => [id, idx]));
+      allComments.sort((a, b) => {
+        const orderDiff = (postOrder.get(a.post_id) ?? 999) - (postOrder.get(b.post_id) ?? 999);
+        if (orderDiff !== 0) return orderDiff;
+        return (b.comment_created_time || '').localeCompare(a.comment_created_time || '');
+      });
 
       setComments(allComments);
     } catch (error: any) {
@@ -266,6 +312,9 @@ const Comments = () => {
   const postGroups = useMemo((): PostGroup[] => {
     const groups = new Map<string, PostGroup>();
 
+    // Also track the earliest comment_created_time per post (= post publication date from stubs)
+    const postDates = new Map<string, string>();
+
     filteredComments.forEach(comment => {
       const postId = comment.post_id;
       if (!groups.has(postId)) {
@@ -287,14 +336,50 @@ const Comments = () => {
       if (comment.sentiment === 'positive') group.sentimentCounts.positive++;
       else if (comment.sentiment === 'negative') group.sentimentCounts.negative++;
       else group.sentimentCounts.neutral++;
+
+      // Track best date for the post (most recent entry wins — stubs have real post date)
+      const t = comment.comment_created_time || comment.created_at || '';
+      if (t) {
+        const existing = postDates.get(postId) || '';
+        if (t > existing) postDates.set(postId, t);
+      }
     });
 
-    return Array.from(groups.values()).sort((a, b) => {
-      const aTime = a.comments[0]?.comment_created_time || a.comments[0]?.created_at || '';
-      const bTime = b.comments[0]?.comment_created_time || b.comments[0]?.created_at || '';
-      return bTime.localeCompare(aTime);
+    const allGroups = Array.from(groups.values());
+
+    // Sort each group's comments by date desc
+    allGroups.forEach(g => {
+      g.comments.sort((a, b) =>
+        (b.comment_created_time || '').localeCompare(a.comment_created_time || '')
+      );
     });
-  }, [filteredComments]);
+
+    // Sort groups by most recent post date desc
+    allGroups.sort((a, b) => {
+      const at = postDates.get(a.post_id) || '';
+      const bt = postDates.get(b.post_id) || '';
+      return bt.localeCompare(at);
+    });
+
+    // Interleave Facebook and Instagram posts when platformFilter is "all"
+    if (platformFilter === "all") {
+      const fb = allGroups.filter(g => g.platforms.has('facebook') && !g.platforms.has('instagram'));
+      const ig = allGroups.filter(g => g.platforms.has('instagram') && !g.platforms.has('facebook'));
+      const both = allGroups.filter(g => g.platforms.has('facebook') && g.platforms.has('instagram'));
+      const other = allGroups.filter(g => !g.platforms.has('facebook') && !g.platforms.has('instagram'));
+
+      // Interleave fb and ig lists
+      const interleaved: PostGroup[] = [...both, ...other];
+      const maxLen = Math.max(fb.length, ig.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (fb[i]) interleaved.push(fb[i]);
+        if (ig[i]) interleaved.push(ig[i]);
+      }
+      return interleaved;
+    }
+
+    return allGroups;
+  }, [filteredComments, platformFilter]);
 
   const stats = useMemo(() => {
     const facebookCount = comments.filter(c => c.platform === 'facebook').length;
