@@ -15,14 +15,11 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      strategies: "injectManifest",
-      srcDir: "public",
-      filename: "sw.js",
-      injectManifest: {
-        globPatterns: [],
-      },
+      strategies: "generateSW",
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
+        globPatterns: [],
+        importScripts: ["/push-handler.js"],
       },
       manifest: {
         name: "Portal do Apoiador",
