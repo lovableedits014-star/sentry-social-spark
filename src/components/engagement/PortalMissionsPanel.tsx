@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -16,8 +16,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Target, Plus, Pencil, Trash2, Facebook, Instagram, GripVertical,
-  ExternalLink, ToggleLeft, ToggleRight, Loader2, Info,
+  Target, Plus, Pencil, Trash2, Facebook, Instagram,
+  ExternalLink, ToggleLeft, ToggleRight, Loader2, Info, Check, Link,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +31,14 @@ interface Mission {
   display_order: number;
   is_active: boolean;
   created_at: string;
+}
+
+interface PostOption {
+  post_id: string;
+  post_message: string | null;
+  post_permalink_url: string | null;
+  post_full_picture: string | null;
+  platform: string;
 }
 
 interface PortalMissionsPanelProps {
@@ -57,6 +65,7 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editMission, setEditMission] = useState<Mission | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 
   const { data: missions = [], isLoading } = useQuery({
     queryKey: ["portal-missions", clientId],
@@ -71,6 +80,35 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
     },
     enabled: !!clientId,
   });
+
+  // Fetch posts from comments table (distinct post_ids with permalink)
+  const { data: postOptions = [] } = useQuery({
+    queryKey: ["post-options-for-missions", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("comments")
+        .select("post_id, post_message, post_permalink_url, post_full_picture, platform")
+        .eq("client_id", clientId)
+        .not("post_permalink_url", "is", null)
+        .order("comment_created_time", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      // Deduplicate by post_id
+      const seen = new Set<string>();
+      const unique: PostOption[] = [];
+      for (const row of data || []) {
+        if (!row.post_id || seen.has(row.post_id)) continue;
+        seen.add(row.post_id);
+        unique.push(row as PostOption);
+      }
+      return unique;
+    },
+    enabled: !!clientId && dialogOpen,
+  });
+
+  const fbPosts = postOptions.filter(p => p.platform === "facebook");
+  const igPosts = postOptions.filter(p => p.platform === "instagram");
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form & { id?: string }) => {
@@ -100,6 +138,7 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
       setDialogOpen(false);
       setEditMission(null);
       setForm(EMPTY_FORM);
+      setSelectedPostId(null);
       toast.success(editMission ? "Missão atualizada!" : "Missão adicionada!");
     },
     onError: () => toast.error("Erro ao salvar missão"),
@@ -132,6 +171,7 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   const openAdd = () => {
     setEditMission(null);
     setForm(EMPTY_FORM);
+    setSelectedPostId(null);
     setDialogOpen(true);
   };
 
@@ -143,16 +183,29 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
       title: m.title || "",
       description: m.description || "",
     });
+    setSelectedPostId(null);
     setDialogOpen(true);
   };
 
-  // Auto-detect platform from URL
   const handleUrlChange = (url: string) => {
     const detected = parsePlatformFromUrl(url);
     setForm((f) => ({
       ...f,
       post_url: url,
       ...(detected ? { platform: detected } : {}),
+    }));
+    setSelectedPostId(null);
+  };
+
+  const handleSelectPost = (post: PostOption) => {
+    const platform = (post.platform === "instagram" ? "instagram" : "facebook") as "facebook" | "instagram";
+    setSelectedPostId(post.post_id);
+    setForm((f) => ({
+      ...f,
+      post_url: post.post_permalink_url || "",
+      platform,
+      // pre-fill title from post message (first 60 chars)
+      title: f.title || (post.post_message ? post.post_message.slice(0, 60).trim() : ""),
     }));
   };
 
@@ -275,57 +328,87 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
         <CardContent className="p-3 flex items-start gap-2">
           <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground">
-            <strong>Dica:</strong> Adicione a missão com uma descrição motivacional como{" "}
-            <em>"Curta e comente esta postagem sobre [tema]!"</em> — o apoiador saberá exatamente o que fazer.
+            <strong>Dica:</strong> Você pode escolher posts das suas redes sincronizadas ou colar o link de qualquer publicação — até de outras páginas.
           </p>
         </CardContent>
       </Card>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditMission(null); setForm(EMPTY_FORM); } }}>
-        <DialogContent className="max-w-md">
+      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditMission(null); setForm(EMPTY_FORM); setSelectedPostId(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editMission ? "Editar Missão" : "Nova Missão de Engajamento"}</DialogTitle>
             <DialogDescription>
-              Cole o link da publicação que deseja que seus apoiadores interajam.
+              Escolha uma publicação das suas redes ou cole um link manualmente.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Post picker tabs */}
+            {!editMission && (
+              <Tabs defaultValue="facebook">
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Escolher publicação existente</p>
+                <TabsList className="mb-3">
+                  <TabsTrigger value="facebook" className="gap-1.5">
+                    <Facebook className="w-3.5 h-3.5 text-blue-600" />
+                    Facebook ({fbPosts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="instagram" className="gap-1.5">
+                    <Instagram className="w-3.5 h-3.5 text-pink-500" />
+                    Instagram ({igPosts.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="facebook">
+                  <PostPickerList
+                    posts={fbPosts}
+                    selectedPostId={selectedPostId}
+                    onSelect={handleSelectPost}
+                    platform="facebook"
+                  />
+                </TabsContent>
+                <TabsContent value="instagram">
+                  <PostPickerList
+                    posts={igPosts}
+                    selectedPostId={selectedPostId}
+                    onSelect={handleSelectPost}
+                    platform="instagram"
+                  />
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {/* Divider */}
+            {!editMission && (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Link className="w-3 h-3" /> ou cole um link manualmente
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            )}
+
+            {/* Manual URL */}
             <div className="space-y-2">
               <Label>URL da Publicação *</Label>
               <Input
                 value={form.post_url}
                 onChange={(e) => handleUrlChange(e.target.value)}
-                placeholder="https://www.facebook.com/..."
+                placeholder="https://www.facebook.com/... ou https://www.instagram.com/p/..."
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Cole o link direto da publicação no Facebook ou Instagram
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Plataforma</Label>
-              <Select
-                value={form.platform}
-                onValueChange={(v) => setForm((f) => ({ ...f, platform: v as "facebook" | "instagram" }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="facebook">
-                    <span className="flex items-center gap-2">
-                      <Facebook className="w-4 h-4 text-blue-600" /> Facebook
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="instagram">
-                    <span className="flex items-center gap-2">
-                      <Instagram className="w-4 h-4 text-pink-500" /> Instagram
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              {form.post_url && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  {parsePlatformFromUrl(form.post_url) === "facebook" && (
+                    <><Facebook className="w-3 h-3 text-blue-600" /> Facebook detectado</>
+                  )}
+                  {parsePlatformFromUrl(form.post_url) === "instagram" && (
+                    <><Instagram className="w-3 h-3 text-pink-500" /> Instagram detectado</>
+                  )}
+                  {!parsePlatformFromUrl(form.post_url) && "⚠️ Plataforma não reconhecida"}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -388,7 +471,83 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   );
 }
 
-// ── Sub-component: MissionCard ─────────────────────────────────────────────
+// ── PostPickerList ─────────────────────────────────────────────────────────
+function PostPickerList({
+  posts,
+  selectedPostId,
+  onSelect,
+  platform,
+}: {
+  posts: PostOption[];
+  selectedPostId: string | null;
+  onSelect: (post: PostOption) => void;
+  platform: "facebook" | "instagram";
+}) {
+  if (posts.length === 0) {
+    return (
+      <div className="text-center py-6 text-muted-foreground border rounded-lg bg-muted/20">
+        <p className="text-sm">Nenhuma publicação {platform === "facebook" ? "do Facebook" : "do Instagram"} sincronizada</p>
+        <p className="text-xs mt-1">Sincronize seus comentários primeiro, ou cole um link manualmente abaixo</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+      {posts.map((post) => {
+        const isSelected = selectedPostId === post.post_id;
+        const message = post.post_message?.trim();
+        const preview = message ? (message.length > 80 ? message.slice(0, 80) + "…" : message) : "Sem legenda";
+
+        return (
+          <button
+            key={post.post_id}
+            type="button"
+            onClick={() => onSelect(post)}
+            className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${
+              isSelected
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border hover:border-primary/40 hover:bg-muted/30"
+            }`}
+          >
+            {/* Thumbnail */}
+            {post.post_full_picture ? (
+              <img
+                src={post.post_full_picture}
+                alt=""
+                className="w-12 h-12 object-cover rounded-md shrink-0"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <div className={`w-12 h-12 rounded-md shrink-0 flex items-center justify-center ${
+                platform === "instagram" ? "bg-pink-500/10" : "bg-blue-500/10"
+              }`}>
+                {platform === "instagram"
+                  ? <Instagram className="w-5 h-5 text-pink-500" />
+                  : <Facebook className="w-5 h-5 text-blue-600" />}
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground line-clamp-2">{preview}</p>
+              {post.post_permalink_url && (
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{post.post_permalink_url}</p>
+              )}
+            </div>
+
+            {isSelected && (
+              <div className="shrink-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                <Check className="w-3 h-3 text-primary-foreground" />
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── MissionCard ─────────────────────────────────────────────────────────────
 function MissionCard({
   mission,
   onEdit,
