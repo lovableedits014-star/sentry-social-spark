@@ -356,8 +356,12 @@ export default function SupporterPortal() {
         <div className="w-full max-w-sm space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-              <Shield className="w-8 h-8 text-primary-foreground" />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-lg overflow-hidden bg-primary">
+              {clientInfo?.logo_url ? (
+                <img src={clientInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Shield className="w-8 h-8 text-primary-foreground" />
+              )}
             </div>
             {clientInfo && (
               <>
@@ -458,8 +462,12 @@ export default function SupporterPortal() {
       <header className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-4 h-4 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-primary flex items-center justify-center shrink-0">
+              {clientInfo?.logo_url ? (
+                <img src={clientInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Shield className="w-4 h-4 text-primary-foreground" />
+              )}
             </div>
             <div>
               <p className="text-sm font-semibold leading-none">{clientInfo?.name || "Portal"}</p>
