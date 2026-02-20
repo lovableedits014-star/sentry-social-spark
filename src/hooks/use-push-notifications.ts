@@ -77,8 +77,8 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
 
     setIsSubscribing(true);
     try {
-      // Register the custom SW that handles push events
-      const registration = await navigator.serviceWorker.register("/sw-custom.js", { scope: "/" });
+      // Register the vite-plugin-pwa generated SW (which imports push-handler.js)
+      const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       await navigator.serviceWorker.ready;
 
       const permission = await Notification.requestPermission();
