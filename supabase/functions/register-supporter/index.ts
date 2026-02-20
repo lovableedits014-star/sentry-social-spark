@@ -162,13 +162,22 @@ Deno.serve(async (req) => {
       await supabase.from("supporters").update(updateData).eq("id", supporterId);
     }
 
-    // Create profiles (link social accounts)
+    // Create profiles (link social accounts) - try to fetch avatar
     for (const p of profiles) {
+      let avatarUrl: string | null = null;
+
+      if (p.platform === "facebook") {
+        // Facebook public graph avatar (works for usernames and numeric IDs)
+        avatarUrl = `https://graph.facebook.com/${p.username}/picture?type=large&redirect=true`;
+      }
+      // Instagram does not allow public avatar fetching without API token — skip
+
       const { error: profileError } = await supabase.from("supporter_profiles").insert({
         supporter_id: supporterId,
         platform: p.platform,
         platform_user_id: p.username,
         platform_username: p.username,
+        profile_picture_url: avatarUrl,
       });
       if (profileError) console.error("Profile insert error:", profileError);
     }
