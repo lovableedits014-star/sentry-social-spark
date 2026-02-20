@@ -319,6 +319,13 @@ const Comments = () => {
     });
   }, [comments, searchTerm, sentimentFilter, platformFilter]);
 
+  // For the "Recentes" tab: purely sorted by comment_created_time desc, ignoring post grouping
+  const recentComments = useMemo(() => {
+    return [...filteredComments].sort((a, b) =>
+      (b.comment_created_time || b.created_at || '').localeCompare(a.comment_created_time || a.created_at || '')
+    );
+  }, [filteredComments]);
+
   const postGroups = useMemo((): PostGroup[] => {
     const groups = new Map<string, PostGroup>();
     // Track the post publication date per post (from stub: comment_created_time = post created_time)
@@ -591,7 +598,7 @@ const Comments = () => {
         {/* Tab: Últimos Comentários */}
         <TabsContent value="recent">
           <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
-            {filteredComments.length === 0 ? (
+            {recentComments.length === 0 ? (
               <div className="py-16">
                 <div className="text-center text-muted-foreground">
                   <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-20" />
@@ -601,10 +608,10 @@ const Comments = () => {
               </div>
             ) : (
               (() => {
-                // Show only top-level comments with their replies nested
-                const topLevel = filteredComments.filter(c => !c.parent_comment_id);
+                // Show only top-level comments sorted purely by date, with their replies nested
+                const topLevel = recentComments.filter(c => !c.parent_comment_id);
                 const repliesByParent = new Map<string, Comment[]>();
-                for (const c of filteredComments) {
+                for (const c of recentComments) {
                   if (c.parent_comment_id) {
                     const arr = repliesByParent.get(c.parent_comment_id) || [];
                     arr.push(c);
@@ -645,9 +652,9 @@ const Comments = () => {
               })()
             )}
           </div>
-          {filteredComments.length > 0 && (
+          {recentComments.length > 0 && (
             <p className="text-xs text-muted-foreground text-center mt-3">
-              {filteredComments.filter(c => !c.parent_comment_id).length} comentário{filteredComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''} listado{filteredComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''}
+              {recentComments.filter(c => !c.parent_comment_id).length} comentário{recentComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''} listado{recentComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''}
             </p>
           )}
         </TabsContent>
