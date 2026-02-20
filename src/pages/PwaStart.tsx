@@ -13,7 +13,15 @@ export default function PwaStart() {
   const [showChoice, setShowChoice] = useState(false);
 
   useEffect(() => {
-    const clientId = localStorage.getItem("pwa_client_id");
+    // Try localStorage first
+    let clientId = localStorage.getItem("pwa_client_id");
+
+    // Fallback: read from cookie (shared between Safari and iOS PWA standalone)
+    if (!clientId) {
+      const match = document.cookie.match(/(?:^|;\s*)pwa_client_id=([^;]+)/);
+      if (match) clientId = match[1];
+    }
+
     if (clientId) {
       navigate(`/portal/${clientId}`, { replace: true });
     } else {

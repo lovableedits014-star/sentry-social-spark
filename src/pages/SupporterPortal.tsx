@@ -52,9 +52,12 @@ export default function SupporterPortal() {
   const navigate = useNavigate();
 
   // Save clientId so the PWA installed shortcut knows where to redirect
+  // We use BOTH localStorage AND a cookie because iOS PWA standalone has isolated localStorage
   useEffect(() => {
     if (clientId) {
       localStorage.setItem("pwa_client_id", clientId);
+      // Cookie is shared between Safari and iOS PWA standalone mode
+      document.cookie = `pwa_client_id=${clientId}; path=/; max-age=31536000; SameSite=Lax`;
     }
   }, [clientId]);
 
