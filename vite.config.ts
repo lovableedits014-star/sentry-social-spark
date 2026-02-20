@@ -14,12 +14,17 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      // Use our custom sw.js directly - no Workbox generation
-      strategies: "injectManifest",
-      srcDir: "public",
-      filename: "sw.js",
-      // Don't register automatically - we register manually with our own sw.js
-      injectRegister: null,
+      registerType: "autoUpdate",
+      strategies: "generateSW",
+      workbox: {
+        navigateFallback: null,
+        navigateFallbackDenylist: [/^\/~oauth/],
+        globPatterns: [],
+        runtimeCaching: [],
+        skipWaiting: true,
+        clientsClaim: true,
+        importScripts: ["/push-handler.js"],
+      },
       manifest: {
         name: "Portal do Apoiador",
         short_name: "Apoiador",
@@ -37,9 +42,6 @@ export default defineConfig(({ mode }) => ({
             type: "image/x-icon",
           },
         ],
-      },
-      injectManifest: {
-        globPatterns: [],
       },
     }),
   ].filter(Boolean),
