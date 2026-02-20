@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
-  Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X
+  Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
+  Bell, BellOff, BellRing, Smartphone
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 interface Mission {
   id: string;
@@ -78,6 +80,10 @@ export default function SupporterPortal() {
   const [editInstagram, setEditInstagram] = useState("");
   const [editName, setEditName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Push notifications
+  const { status: pushStatus, isSubscribed, isSubscribing, isPushSupported, subscribe, unsubscribe } =
+    usePushNotifications(account?.id, clientId);
 
   useEffect(() => {
     supabase.auth.onAuthStateChange((_e, s) => {
@@ -513,6 +519,54 @@ export default function SupporterPortal() {
             </div>
           </CardContent>
         </Card>
+
+        {/* PUSH NOTIFICATION CARD */}
+        {isPushSupported && pushStatus !== "denied" && (
+          <Card className={isSubscribed ? "border-primary/30 bg-primary/5" : "border-muted"}>
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg shrink-0 ${isSubscribed ? "bg-primary/10" : "bg-muted"}`}>
+                  {isSubscribed ? (
+                    <BellRing className="w-5 h-5 text-primary" />
+                  ) : (
+                    <Bell className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">
+                    {isSubscribed ? "Notificações ativas ✅" : "Ativar notificações"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isSubscribed
+                      ? "Você será avisado quando houver nova missão"
+                      : "Receba avisos no celular quando houver nova postagem"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={isSubscribed ? "outline" : "default"}
+                  onClick={isSubscribed ? unsubscribe : subscribe}
+                  disabled={isSubscribing}
+                  className="shrink-0"
+                >
+                  {isSubscribing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isSubscribed ? (
+                    <><BellOff className="w-4 h-4 mr-1" /> Desativar</>
+                  ) : (
+                    <><Bell className="w-4 h-4 mr-1" /> Ativar</>
+                  )}
+                </Button>
+              </div>
+              {!isSubscribed && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                  <span>Para receber no celular, instale este portal na tela inicial do seu smartphone</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* MISSIONS */}
         <div>
