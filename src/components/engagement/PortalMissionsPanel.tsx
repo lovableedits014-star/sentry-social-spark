@@ -82,24 +82,38 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   });
 
   // Fetch posts from comments table (distinct post_ids with permalink)
+  // Priority: post stubs (most recent post date) come first, then dedup by post_id
   const { data: postOptions = [], isLoading: postsLoading, refetch: refetchPosts } = useQuery({
     queryKey: ["post-options-for-missions", clientId],
     queryFn: async () => {
-      // Fetch a large window to deduplicate properly
+      // First fetch post stubs (guaranteed to have the latest posts after sync)
+      const { data: stubs, error: stubsError } = await supabase
+        .from("comments")
+        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time")
+        .eq("client_id", clientId)
+        .like("comment_id", "post_stub_%")
+        .not("post_permalink_url", "is", null)
+        .order("comment_created_time", { ascending: false })
+        .limit(100);
+      if (stubsError) throw stubsError;
+
+      // Also scan real comments for posts not yet stub-persisted
       const PAGE_SIZE = 1000;
       let allRows: any[] = [];
       let page = 0;
       let hasMore = true;
 
-      while (hasMore && page < 5) { // max 5000 comments scanned
+      while (hasMore && page < 5) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
           .from("comments")
-          .select("post_id, post_message, post_permalink_url, post_full_picture, platform, created_at")
+          .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time")
           .eq("client_id", clientId)
           .not("post_permalink_url", "is", null)
-          .order("created_at", { ascending: false })
+          .not("comment_id", "like", "post_stub_%")
+          .not("text", "eq", "__post_stub__")
+          .order("comment_created_time", { ascending: false })
           .range(from, to);
         if (error) throw error;
         allRows = [...allRows, ...(data || [])];
@@ -107,14 +121,31 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
         page++;
       }
 
-      // Deduplicate by post_id (first occurrence = most recent)
+      // Merge: stubs first (they have the post's own created_time), then real comments
+      // Deduplicate by post_id - first occurrence wins (most recent date)
       const seen = new Set<string>();
       const unique: PostOption[] = [];
+
+      // Add stubs first — they represent the actual post date
+      for (const row of (stubs || [])) {
+        if (!row.post_id || seen.has(row.post_id)) continue;
+        seen.add(row.post_id);
+        unique.push(row as PostOption);
+      }
+      // Then fill in any posts discovered via real comments
       for (const row of allRows) {
         if (!row.post_id || seen.has(row.post_id)) continue;
         seen.add(row.post_id);
         unique.push(row as PostOption);
       }
+
+      // Sort by comment_created_time descending (most recent post first)
+      unique.sort((a: any, b: any) => {
+        const at = a.comment_created_time || "";
+        const bt = b.comment_created_time || "";
+        return bt.localeCompare(at);
+      });
+
       return unique;
     },
     enabled: !!clientId,
