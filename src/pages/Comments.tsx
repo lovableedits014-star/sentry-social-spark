@@ -418,19 +418,20 @@ const Comments = () => {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-8 space-y-5 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Comentários</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gerencie comentários organizados por postagem
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Posts em ordem cronológica · Facebook + Instagram intercalados
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Action buttons: primary = Sincronizar, secondary = Atualizar */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" onClick={fetchComments} disabled={syncing} size="sm">
             <RefreshCw className="w-4 h-4 mr-1.5" />
-            Atualizar
+            <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button onClick={handleSyncComments} disabled={syncing || !clientId} size="sm">
             <RefreshCw className={`w-4 h-4 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
@@ -439,38 +440,38 @@ const Comments = () => {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — compact row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-card rounded-xl border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <LayoutGrid className="w-5 h-5 text-primary" />
+        <div className="bg-card rounded-xl border p-3 sm:p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <LayoutGrid className="w-4 h-4 text-primary" />
           </div>
           <div>
             <p className="text-xl font-bold">{stats.totalPosts}</p>
             <p className="text-xs text-muted-foreground">Postagens</p>
           </div>
         </div>
-        <div className="bg-card rounded-xl border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-            <Facebook className="w-5 h-5 text-blue-600" />
+        <div className="bg-card rounded-xl border p-3 sm:p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Facebook className="w-4 h-4 text-primary" />
           </div>
           <div>
             <p className="text-xl font-bold">{stats.facebookCount}</p>
             <p className="text-xs text-muted-foreground">Facebook</p>
           </div>
         </div>
-        <div className="bg-card rounded-xl border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center">
-            <Instagram className="w-5 h-5 text-pink-500" />
+        <div className="bg-card rounded-xl border p-3 sm:p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-secondary/50 flex items-center justify-center shrink-0">
+            <Instagram className="w-4 h-4 text-secondary-foreground" />
           </div>
           <div>
             <p className="text-xl font-bold">{stats.instagramCount}</p>
             <p className="text-xs text-muted-foreground">Instagram</p>
           </div>
         </div>
-        <div className="bg-card rounded-xl border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-warning" />
+        <div className="bg-card rounded-xl border p-3 sm:p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+            <MessageSquare className="w-4 h-4 text-destructive" />
           </div>
           <div>
             <p className="text-xl font-bold">{stats.pendingCount}</p>
@@ -479,69 +480,71 @@ const Comments = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por texto ou autor..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-9"
-          />
-        </div>
-        <Select value={platformFilter} onValueChange={setPlatformFilter}>
-          <SelectTrigger className="w-full sm:w-[160px] h-9">
-            <SelectValue placeholder="Plataforma" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            <SelectItem value="facebook">Facebook</SelectItem>
-            <SelectItem value="instagram">Instagram</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={String(postsLimit)} onValueChange={(v) => setPostsLimit(Number(v))}>
-          <SelectTrigger className="w-full sm:w-[170px] h-9">
-            <SelectValue placeholder="Posts" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">Últimas 5 postagens</SelectItem>
-            <SelectItem value="10">Últimas 10 postagens</SelectItem>
-            <SelectItem value="15">Últimas 15 postagens</SelectItem>
-            <SelectItem value="20">Últimas 20 postagens</SelectItem>
-            <SelectItem value="30">Últimas 30 postagens</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
-          <SelectTrigger className="w-full sm:w-[150px] h-9">
-            <SelectValue placeholder="Sentimento" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="positive">Positivos</SelectItem>
-            <SelectItem value="neutral">Neutros</SelectItem>
-            <SelectItem value="negative">Negativos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Tabs */}
+      {/* Filters + Tabs integrated */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="posts" className="gap-1.5">
-            <LayoutGrid className="w-4 h-4" />
-            Por Postagem
-          </TabsTrigger>
-          <TabsTrigger value="recent" className="gap-1.5">
-            <List className="w-4 h-4" />
-            Últimos Comentários
-            {stats.pendingCount > 0 && (
-              <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
-                {stats.pendingCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        {/* Top bar: tabs on the left, filters on the right */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <TabsList className="shrink-0">
+            <TabsTrigger value="posts" className="gap-1.5">
+              <LayoutGrid className="w-4 h-4" />
+              <span>Por Postagem</span>
+            </TabsTrigger>
+            <TabsTrigger value="recent" className="gap-1.5">
+              <List className="w-4 h-4" />
+              <span>Recentes</span>
+              {stats.pendingCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+                  {stats.pendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Filters inline */}
+          <div className="flex flex-1 flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar comentário ou autor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <Select value={platformFilter} onValueChange={setPlatformFilter}>
+              <SelectTrigger className="w-[130px] h-9 text-sm">
+                <SelectValue placeholder="Plataforma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="facebook">Facebook</SelectItem>
+                <SelectItem value="instagram">Instagram</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(postsLimit)} onValueChange={(v) => setPostsLimit(Number(v))}>
+              <SelectTrigger className="w-[130px] h-9 text-sm">
+                <SelectValue placeholder="Posts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 postagens</SelectItem>
+                <SelectItem value="10">10 postagens</SelectItem>
+                <SelectItem value="20">20 postagens</SelectItem>
+                <SelectItem value="30">30 postagens</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
+              <SelectTrigger className="w-[120px] h-9 text-sm">
+                <SelectValue placeholder="Sentimento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="positive">Positivos</SelectItem>
+                <SelectItem value="neutral">Neutros</SelectItem>
+                <SelectItem value="negative">Negativos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* Tab: Por Postagem */}
         <TabsContent value="posts">
