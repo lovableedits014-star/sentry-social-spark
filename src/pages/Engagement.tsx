@@ -28,8 +28,10 @@ import {
   CalendarCheck,
   Link2,
   Link2Off,
+  Bell,
 } from "lucide-react";
 import { SupporterCheckins } from "./SupporterCheckins";
+import { PushNotificationsPanel } from "@/components/PushNotificationsPanel";
 
 type EngagementConfig = {
   id: string;
@@ -428,6 +430,10 @@ export default function Engagement() {
             <CalendarCheck className="h-4 w-4" />
             Presenças
           </TabsTrigger>
+          <TabsTrigger value="notificacoes" className="text-xs sm:text-sm gap-1.5">
+            <Bell className="h-4 w-4" />
+            Notificações
+          </TabsTrigger>
           <TabsTrigger value="config" className="text-xs sm:text-sm gap-1.5">
             <Settings className="h-4 w-4" />
             Config
@@ -437,6 +443,11 @@ export default function Engagement() {
         {/* Presencas Tab */}
         <TabsContent value="presencas">
           {client?.id && <SupporterCheckins clientId={client.id} />}
+        </TabsContent>
+
+        {/* Notificacoes Tab */}
+        <TabsContent value="notificacoes">
+          {client?.id && <PushNotificationsPanel clientId={client.id} />}
         </TabsContent>
 
         {/* Ranking Tab */}

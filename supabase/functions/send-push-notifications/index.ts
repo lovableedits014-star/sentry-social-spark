@@ -6,10 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ─── Concurrency control ──────────────────────────────────────────────────────
-const CONCURRENCY = 20;       // simultaneous push requests
-const BATCH_SIZE = 100;       // rows per DB page
-const MAX_RUNTIME_MS = 50_000; // leave 10s buffer before 60s timeout
+// ─── Concurrency & limits ─────────────────────────────────────────────────────
+const CONCURRENCY = 20;       // simultaneous push requests per job
+const DB_PAGE_SIZE = 500;     // rows per DB page (well under 1000 limit)
+const MAX_RUNTIME_MS = 50_000; // stop gracefully 10s before 60s timeout
 
 // ─── Base64url helpers ────────────────────────────────────────────────────────
 function b64urlDecode(s: string): Uint8Array {
@@ -40,7 +40,7 @@ function numToUint8Array(n: number, bytes: number): Uint8Array {
   return arr;
 }
 
-// ─── VAPID JWT — cached per audience to avoid redundant crypto ops ─────────────
+// ─── VAPID JWT — cached per audience ─────────────────────────────────────────
 const jwtCache = new Map<string, { jwt: string; exp: number }>();
 
 async function makeVapidJWT(
@@ -60,7 +60,6 @@ async function makeVapidJWT(
   const y = b64urlEncode(pubBytes.slice(33, 65));
   const jwk = { kty: "EC", crv: "P-256", x, y, d: privateKey, ext: true };
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-
   const exp = now + 43200;
   const enc = (o: unknown) => b64urlEncode(new TextEncoder().encode(JSON.stringify(o)));
   const header = enc({ typ: "JWT", alg: "ES256" });
@@ -73,12 +72,8 @@ async function makeVapidJWT(
   return jwt;
 }
 
-// ─── RFC 8291 (aes128gcm) encryption ─────────────────────────────────────────
-async function encryptPayload(
-  plaintext: string,
-  p256dh: string,
-  auth: string,
-): Promise<Uint8Array> {
+// ─── RFC 8291 encryption ──────────────────────────────────────────────────────
+async function encryptPayload(plaintext: string, p256dh: string, auth: string): Promise<Uint8Array> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const serverPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const serverPubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", serverPair.publicKey));
@@ -110,15 +105,10 @@ async function encryptPayload(
 }
 
 // ─── Send one push notification ───────────────────────────────────────────────
-async function sendPush(
-  endpoint: string,
-  p256dh: string,
-  auth: string,
-  payload: string,
-  vapidPublicKey: string,
-  vapidPrivateKey: string,
-  vapidEmail: string,
-): Promise<{ ok: boolean; status: number; body: string }> {
+async function sendOnePush(
+  endpoint: string, p256dh: string, auth: string, payload: string,
+  vapidPublicKey: string, vapidPrivateKey: string, vapidEmail: string,
+): Promise<{ ok: boolean; status: number }> {
   const jwt = await makeVapidJWT(endpoint, vapidPublicKey, vapidPrivateKey, vapidEmail);
   const encrypted = await encryptPayload(payload, p256dh, auth);
   const res = await fetch(endpoint, {
@@ -131,25 +121,124 @@ async function sendPush(
     },
     body: encrypted,
   });
-  const body = await res.text().catch(() => "");
-  return { ok: res.ok || res.status === 201, status: res.status, body };
+  await res.text().catch(() => ""); // consume body
+  return { ok: res.ok || res.status === 201, status: res.status };
 }
 
-// ─── Parallel batch processor ─────────────────────────────────────────────────
-async function processInParallel<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let i = 0; i < items.length; i += concurrency) {
-    const chunk = items.slice(i, i + concurrency);
-    const chunkResults = await Promise.allSettled(chunk.map(fn));
-    for (const r of chunkResults) {
-      if (r.status === "fulfilled") results.push(r.value);
+// ─── Core processing function (runs async via waitUntil) ──────────────────────
+async function processJob(
+  jobId: string,
+  clientId: string,
+  payloadStr: string,
+  supabase: ReturnType<typeof createClient>,
+  vapidPublicKey: string,
+  vapidPrivateKey: string,
+  vapidEmail: string,
+) {
+  const startTime = Date.now();
+
+  // Mark as processing
+  await supabase.from("push_dispatch_jobs").update({
+    status: "processing",
+    started_at: new Date().toISOString(),
+  }).eq("id", jobId);
+
+  // Paginate through ALL subscriptions (bypasses 1000-row limit)
+  const allSubs: any[] = [];
+  let page = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .eq("client_id", clientId)
+      .range(page * DB_PAGE_SIZE, (page + 1) * DB_PAGE_SIZE - 1);
+    if (!batch || batch.length === 0) break;
+    allSubs.push(...batch);
+    if (batch.length < DB_PAGE_SIZE) break;
+    page++;
+  }
+
+  // Update total count immediately
+  await supabase.from("push_dispatch_jobs").update({
+    total_subscribers: allSubs.length,
+  }).eq("id", jobId);
+
+  if (allSubs.length === 0) {
+    await supabase.from("push_dispatch_jobs").update({
+      status: "done",
+      completed_at: new Date().toISOString(),
+      elapsed_seconds: 0,
+    }).eq("id", jobId);
+    return;
+  }
+
+  let sent = 0, failed = 0, skipped = 0;
+  const expiredEndpoints: string[] = [];
+
+  // Process in parallel batches of CONCURRENCY
+  for (let i = 0; i < allSubs.length; i += CONCURRENCY) {
+    // Graceful timeout: stop if close to limit
+    if (Date.now() - startTime > MAX_RUNTIME_MS) {
+      skipped += allSubs.length - i;
+      console.warn(`⏱️ Timeout guard: skipping ${allSubs.length - i} remaining`);
+      break;
+    }
+
+    const chunk = allSubs.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map(async (sub) => {
+        try {
+          return await sendOnePush(
+            sub.endpoint, sub.p256dh, sub.auth, payloadStr,
+            vapidPublicKey, vapidPrivateKey, vapidEmail,
+          );
+        } catch {
+          return { ok: false, status: 0 };
+        }
+      })
+    );
+
+    for (const r of results) {
+      const result = r.status === "fulfilled" ? r.value : { ok: false, status: 0 };
+      if (result.ok) {
+        sent++;
+      } else if (result.status === 410 || result.status === 404) {
+        expiredEndpoints.push(chunk[results.indexOf(r)]?.endpoint);
+        failed++;
+      } else {
+        failed++;
+      }
+    }
+
+    // Update progress every 5 batches (every 100 subscribers)
+    if (i % (CONCURRENCY * 5) === 0) {
+      await supabase.from("push_dispatch_jobs").update({
+        sent_count: sent,
+        failed_count: failed,
+        skipped_count: skipped,
+      }).eq("id", jobId);
     }
   }
-  return results;
+
+  // Cleanup expired subscriptions
+  if (expiredEndpoints.length > 0) {
+    await supabase.from("push_subscriptions").delete().in("endpoint", expiredEndpoints);
+  }
+
+  const elapsed = Math.round((Date.now() - startTime) / 1000);
+  const finalStatus = skipped > 0 ? "partial" : "done";
+
+  await supabase.from("push_dispatch_jobs").update({
+    status: finalStatus,
+    sent_count: sent,
+    failed_count: failed,
+    skipped_count: skipped,
+    expired_removed: expiredEndpoints.length,
+    elapsed_seconds: elapsed,
+    completed_at: new Date().toISOString(),
+  }).eq("id", jobId);
+
+  console.log(`✅ Job ${jobId} done in ${elapsed}s: sent=${sent} failed=${failed} skipped=${skipped} expired=${expiredEndpoints.length}`);
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -158,7 +247,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const startTime = Date.now();
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -173,9 +261,10 @@ serve(async (req) => {
       return json({ error: "VAPID keys not configured" }, 500);
     }
 
+    // Use service role to bypass RLS when updating job status
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Auth
+    // Auth: validate the calling user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
     const token = authHeader.replace("Bearer ", "");
@@ -190,29 +279,26 @@ serve(async (req) => {
       .from("clients").select("id, name").eq("id", client_id).eq("user_id", user.id).maybeSingle();
     if (!client) return json({ error: "Client not found or unauthorized" }, 403);
 
-    // Load ALL subscriptions with pagination to bypass 1000-row limit
-    const allSubs: any[] = [];
-    let page = 0;
-    while (true) {
-      const { data: batch, error: subError } = await supabase
-        .from("push_subscriptions")
-        .select("*")
-        .eq("client_id", client_id)
-        .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1);
-      if (subError) throw subError;
-      if (!batch || batch.length === 0) break;
-      allSubs.push(...batch);
-      if (batch.length < BATCH_SIZE) break;
-      page++;
+    // ── QUEUE: Create job record first ──────────────────────────────────────
+    const { data: job, error: jobError } = await supabase
+      .from("push_dispatch_jobs")
+      .insert({
+        client_id,
+        user_id: user.id,
+        title: title || `🎯 Nova missão de ${client.name}!`,
+        message: message || "Há uma nova postagem para você interagir. Acesse o portal!",
+        url: url || `/portal/${client_id}`,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (jobError || !job) {
+      console.error("Failed to create job:", jobError);
+      return json({ error: "Falha ao criar job de envio" }, 500);
     }
 
-    if (allSubs.length === 0) {
-      return json({ success: true, sent: 0, message: "Nenhum apoiador com notificações ativas" });
-    }
-
-    console.log(`📤 Sending to ${allSubs.length} subscriptions (concurrency=${CONCURRENCY})`);
-
-    const payload = JSON.stringify({
+    const payloadStr = JSON.stringify({
       title: title || `🎯 Nova missão de ${client.name}!`,
       body: message || "Há uma nova postagem para você interagir. Acesse o portal!",
       icon: "/favicon.ico",
@@ -221,65 +307,35 @@ serve(async (req) => {
       tag: `missao-${client_id}-${Date.now()}`,
     });
 
-    let sent = 0;
-    let failed = 0;
-    let skipped = 0;
-    const expiredEndpoints: string[] = [];
-
-    type PushResult = { ok: boolean; status: number; endpoint: string };
-
-    const results = await processInParallel<any, PushResult>(
-      allSubs,
-      CONCURRENCY,
-      async (sub) => {
-        // Graceful timeout: stop processing new items if we're close to limit
-        if (Date.now() - startTime > MAX_RUNTIME_MS) {
-          return { ok: false, status: -1, endpoint: sub.endpoint };
-        }
-        try {
-          const result = await sendPush(
-            sub.endpoint, sub.p256dh, sub.auth, payload,
-            vapidPublicKey, vapidPrivateKey, vapidEmail,
-          );
-          return { ...result, endpoint: sub.endpoint };
-        } catch (err) {
-          console.error(`❌ Exception:`, err);
-          return { ok: false, status: 0, endpoint: sub.endpoint };
-        }
-      }
+    // ── ASYNC: Process in background, return immediately ────────────────────
+    // EdgeRuntime.waitUntil keeps the worker alive after response is sent
+    // This allows 10 concurrent users to each get an instant response
+    // while their jobs process independently without blocking each other
+    (globalThis as any).EdgeRuntime?.waitUntil(
+      processJob(job.id, client_id, payloadStr, supabase, vapidPublicKey, vapidPrivateKey, vapidEmail)
+        .catch(async (err) => {
+          console.error(`Job ${job.id} failed:`, err);
+          await supabase.from("push_dispatch_jobs").update({
+            status: "failed",
+            error_message: String(err),
+            completed_at: new Date().toISOString(),
+          }).eq("id", job.id);
+        })
     );
 
-    for (const r of results) {
-      if (r.status === -1) {
-        skipped++;
-      } else if (r.ok) {
-        sent++;
-      } else if (r.status === 410 || r.status === 404) {
-        expiredEndpoints.push(r.endpoint);
-        failed++;
-      } else {
-        failed++;
-      }
+    // If EdgeRuntime.waitUntil not available (local dev), process inline
+    if (!(globalThis as any).EdgeRuntime) {
+      processJob(job.id, client_id, payloadStr, supabase, vapidPublicKey, vapidPrivateKey, vapidEmail)
+        .catch(console.error);
     }
 
-    // Cleanup expired subscriptions in one query
-    if (expiredEndpoints.length > 0) {
-      await supabase.from("push_subscriptions").delete().in("endpoint", expiredEndpoints);
-      console.log(`🗑️ Removed ${expiredEndpoints.length} expired subscriptions`);
-    }
-
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(`✅ Done in ${elapsed}s: sent=${sent} failed=${failed} skipped=${skipped} expired=${expiredEndpoints.length}`);
-
+    // Return immediately with job_id — frontend polls for progress
     return json({
       success: true,
-      sent,
-      failed,
-      skipped,
-      expired_removed: expiredEndpoints.length,
-      total: allSubs.length,
-      elapsed_seconds: elapsed,
+      job_id: job.id,
+      message: "Envio iniciado! Acompanhe o progresso na tela.",
     });
+
   } catch (error) {
     console.error("Unhandled error:", error);
     return json({ error: String(error) }, 500);
