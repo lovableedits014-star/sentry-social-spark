@@ -1,19 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Search, Plus, Star, TrendingUp, Merge, AlertTriangle, Instagram, Facebook, Link, Share2, Copy, CalendarCheck } from "lucide-react";
+import { Users, Search, Star, TrendingUp, Merge, AlertTriangle, Instagram, Facebook, Share2, Copy, ExternalLink, Link2Off } from "lucide-react";
 import { toast } from "sonner";
 import { SupporterCard, Supporter } from "@/components/supporters/SupporterCard";
 import { SupporterDetailDialog } from "@/components/supporters/SupporterDetailDialog";
 import { MergeSupportersDialog } from "@/components/supporters/MergeSupportersDialog";
-import { AddByProfileLink } from "@/components/supporters/AddByProfileLink";
 
 const Supporters = () => {
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -22,7 +21,6 @@ const Supporters = () => {
   const [classificationFilter, setClassificationFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [clientId, setClientId] = useState<string>("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedSupporter, setSelectedSupporter] = useState<Supporter | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -31,9 +29,6 @@ const Supporters = () => {
   const [mergeMode, setMergeMode] = useState(false);
   const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
-  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
-
-  const [newSupporter, setNewSupporter] = useState({ name: "", classification: "neutro", notes: "" });
 
   useEffect(() => { fetchSupporters(); }, []);
 
@@ -61,25 +56,6 @@ const Supporters = () => {
       toast.error("Erro ao carregar apoiadores");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAddSupporter = async () => {
-    if (!newSupporter.name.trim()) { toast.error("Nome é obrigatório"); return; }
-    try {
-      const { error } = await supabase.from("supporters").insert({
-        client_id: clientId,
-        name: newSupporter.name,
-        classification: newSupporter.classification as any,
-        notes: newSupporter.notes || null,
-      } as any);
-      if (error) throw error;
-      toast.success("Apoiador adicionado!");
-      setIsAddDialogOpen(false);
-      setNewSupporter({ name: "", classification: "neutro", notes: "" });
-      fetchSupporters();
-    } catch (error: any) {
-      toast.error("Erro ao adicionar apoiador");
     }
   };
 
@@ -129,7 +105,6 @@ const Supporters = () => {
         const b = supporters[j];
         const nameA = a.name.toLowerCase().trim();
         const nameB = b.name.toLowerCase().trim();
-        // Simple similarity: check if one name contains the other, or first names match
         const firstA = nameA.split(" ")[0];
         const firstB = nameB.split(" ")[0];
         if (
@@ -137,7 +112,6 @@ const Supporters = () => {
           nameA.includes(nameB) ||
           nameB.includes(nameA)
         ) {
-          // Only suggest if they're on different platforms
           const platformsA = new Set(a.supporter_profiles?.map(p => p.platform) || []);
           const platformsB = new Set(b.supporter_profiles?.map(p => p.platform) || []);
           const overlap = [...platformsA].some(p => platformsB.has(p));
@@ -173,6 +147,9 @@ const Supporters = () => {
     ? supporters.filter(s => selectedForMerge.includes(s.id))
     : [];
 
+  const cadastroUrl = `${window.location.origin}/cadastro/${clientId}`;
+  const portalUrl = `${window.location.origin}/portal/${clientId}`;
+
   if (loading) {
     return (
       <div className="p-8">
@@ -194,81 +171,45 @@ const Supporters = () => {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Apoiadores</h1>
           <p className="text-sm text-muted-foreground mt-1">CRM político — gerencie e unifique perfis</p>
         </div>
-        {/* Actions: grouped by purpose */}
         <div className="flex flex-wrap gap-2">
-          {/* Links para compartilhar */}
+          {/* Links de cadastro e portal */}
           {clientId && (
-            <div className="flex gap-2">
+            <>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const url = `${window.location.origin}/portal/${clientId}`;
-                  navigator.clipboard.writeText(url);
+                  navigator.clipboard.writeText(portalUrl);
                   toast.success("Link do Portal copiado!", { description: "Apoiadores entram aqui todo dia para marcar presença." });
                 }}
                 title="Copiar link do portal diário"
               >
                 <Copy className="w-4 h-4 mr-1.5" />
-                Portal
+                Copiar Portal
               </Button>
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={() => {
-                  const url = `${window.location.origin}/cadastro/${clientId}`;
-                  navigator.clipboard.writeText(url);
-                  toast.success("Link de cadastro copiado!");
+                  navigator.clipboard.writeText(cadastroUrl);
+                  toast.success("Link de cadastro copiado!", { description: "Apoiadores se cadastram por aqui com o perfil social vinculado." });
                 }}
                 title="Copiar link de cadastro"
               >
                 <Share2 className="w-4 h-4 mr-1.5" />
-                Cadastro
+                Copiar Link de Cadastro
               </Button>
-            </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(cadastroUrl, "_blank")}
+                title="Abrir página de cadastro"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            </>
           )}
-          {/* Adicionar */}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsLinkDialogOpen(true)} title="Adicionar por link de perfil social">
-              <Link className="w-4 h-4 mr-1.5" />
-              Por Link
-            </Button>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm"><Plus className="w-4 h-4 mr-1.5" />Novo</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Adicionar Apoiador</DialogTitle>
-                  <DialogDescription>Cadastre um novo apoiador manualmente</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Nome</Label>
-                    <Input value={newSupporter.name} onChange={(e) => setNewSupporter({ ...newSupporter, name: e.target.value })} placeholder="Nome do apoiador" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Classificação</Label>
-                    <Select value={newSupporter.classification} onValueChange={(v) => setNewSupporter({ ...newSupporter, classification: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="apoiador_ativo">Apoiador Ativo</SelectItem>
-                        <SelectItem value="apoiador_passivo">Apoiador Passivo</SelectItem>
-                        <SelectItem value="neutro">Neutro</SelectItem>
-                        <SelectItem value="critico">Crítico/Oposição</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea value={newSupporter.notes} onChange={(e) => setNewSupporter({ ...newSupporter, notes: e.target.value })} placeholder="Anotações..." />
-                  </div>
-                  <Button onClick={handleAddSupporter} className="w-full">Adicionar</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-          {/* Modo unificação — destacado quando ativo */}
+          {/* Unificar */}
           <Button
             variant={mergeMode ? "default" : "outline"}
             size="sm"
@@ -280,6 +221,35 @@ const Supporters = () => {
           </Button>
         </div>
       </div>
+
+      {/* Sem perfil vinculado — alerta */}
+      {stats.semPerfil > 0 && !mergeMode && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <Link2Off className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-300">
+                  {stats.semPerfil} apoiador(es) sem perfil social vinculado
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                  Esses apoiadores têm score = 0 porque não há como rastrear as interações deles. 
+                  Peça para se cadastrarem pelo link de cadastro — ao entrar com o nome correto, 
+                  as interações passadas são recuperadas automaticamente.
+                </p>
+                {clientId && (
+                  <button
+                    className="text-xs text-amber-800 dark:text-amber-300 underline mt-2 font-medium"
+                    onClick={() => { navigator.clipboard.writeText(cadastroUrl); toast.success("Link copiado!"); }}
+                  >
+                    Copiar link de cadastro
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Merge mode bar */}
       {mergeMode && (
@@ -317,7 +287,7 @@ const Supporters = () => {
                   {possibleDuplicates.length} possível(is) duplicata(s) encontrada(s)
                 </p>
                 <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
-                  Detectamos apoiadores com nomes similares em plataformas diferentes. Use "Unificar Perfis" para combiná-los.
+                  Detectamos apoiadores com nomes similares. Use "Unificar" para combiná-los.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {possibleDuplicates.slice(0, 3).map(([a, b], i) => (
@@ -422,7 +392,7 @@ const Supporters = () => {
               <div className="text-center text-muted-foreground">
                 <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p>Nenhum apoiador encontrado</p>
-                <p className="text-sm mt-2">Adicione apoiadores manualmente ou a partir dos comentários</p>
+                <p className="text-sm mt-2">Compartilhe o link de cadastro para que apoiadores se registrem com o perfil social vinculado.</p>
               </div>
             </CardContent>
           </Card>
@@ -494,14 +464,6 @@ const Supporters = () => {
           }}
         />
       )}
-
-      {/* Add by Profile Link Dialog */}
-      <AddByProfileLink
-        clientId={clientId}
-        open={isLinkDialogOpen}
-        onOpenChange={setIsLinkDialogOpen}
-        onSuccess={fetchSupporters}
-      />
     </div>
   );
 };
