@@ -153,6 +153,12 @@ export default function SupporterRegister() {
             <p className="text-sm text-muted-foreground">
               Agora interaja nas publicações para ganhar pontos de engajamento! 🚀
             </p>
+
+            <Button asChild className="w-full mt-2">
+              <a href={`/portal/${clientId}`}>
+                Acessar Portal do Apoiador
+              </a>
+            </Button>
           </CardContent>
         </Card>
       </div>
