@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// VAPID public key configurável via env
-const VAPID_PUBLIC_KEY = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY || "";
-
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -17,6 +14,20 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export type PushStatus = "unsupported" | "denied" | "granted" | "default" | "loading";
+
+let cachedVapidKey: string | null = null;
+
+async function fetchVapidPublicKey(): Promise<string> {
+  if (cachedVapidKey !== null) return cachedVapidKey;
+  try {
+    const { data, error } = await supabase.functions.invoke("get-vapid-public-key");
+    if (error) throw error;
+    cachedVapidKey = data?.vapid_public_key || "";
+    return cachedVapidKey;
+  } catch {
+    return "";
+  }
+}
 
 export function usePushNotifications(supporterAccountId?: string, clientId?: string) {
   const [status, setStatus] = useState<PushStatus>("loading");
@@ -83,12 +94,15 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
         return false;
       }
 
+      // Fetch VAPID public key from backend (secret-safe)
+      const vapidPublicKey = await fetchVapidPublicKey();
+
       let subscription: PushSubscription;
       try {
-        if (VAPID_PUBLIC_KEY) {
+        if (vapidPublicKey) {
           subscription = await pm.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
           });
         } else {
           subscription = await pm.subscribe({ userVisibleOnly: true });
