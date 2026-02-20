@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getSWRegistration } from "./use-sw-registration";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -30,13 +31,6 @@ async function fetchVapidPublicKey(): Promise<string> {
   }
 }
 
-async function getOrRegisterSW(): Promise<ServiceWorkerRegistration> {
-  // Use existing SW registration if available, otherwise register
-  const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) return existing;
-  return await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-}
-
 export function usePushNotifications(supporterAccountId?: string, clientId?: string) {
   const [status, setStatus] = useState<PushStatus>("loading");
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -57,7 +51,7 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
 
     if (permission === "granted") {
       try {
-        const reg = await navigator.serviceWorker.ready;
+      const reg = await navigator.serviceWorker.ready;
         const pm = (reg as any).pushManager as PushManager | undefined;
         const sub = pm ? await pm.getSubscription() : null;
         setIsSubscribed(!!sub);
@@ -83,15 +77,15 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
 
     setIsSubscribing(true);
     try {
-      // Step 1: Get VAPID key FIRST — required for Chrome/FCM
+      // Step 1: Get VAPID key FIRST
       const vapidPublicKey = await fetchVapidPublicKey();
       if (!vapidPublicKey) {
         toast.error("Configuração de notificações não encontrada. Contate o suporte.");
         return false;
       }
 
-      // Step 2: Register / get SW
-      const registration = await getOrRegisterSW();
+      // Step 2: Register our sw.js (guaranteed to have push handler)
+      const registration = await getSWRegistration();
       await navigator.serviceWorker.ready;
 
       // Step 3: Request notification permission
@@ -102,19 +96,18 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
         return false;
       }
 
-      // Step 4: Unsubscribe any existing subscription (may be without VAPID key)
+      // Step 4: Unsubscribe any existing subscription
       const pm = (registration as any).pushManager as PushManager;
       const existing = await pm.getSubscription();
       if (existing) {
         await existing.unsubscribe();
-        // Remove old subscription from DB too
         await supabase
           .from("push_subscriptions" as any)
           .delete()
           .eq("endpoint", existing.endpoint);
       }
 
-      // Step 5: Create new subscription with VAPID key (REQUIRED for Chrome/FCM)
+      // Step 5: Create new subscription with VAPID key
       const appServerKey = urlBase64ToUint8Array(vapidPublicKey);
       const subscription = await pm.subscribe({
         userVisibleOnly: true,
@@ -126,7 +119,7 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
       const auth = (subJson as any).keys?.auth || "";
 
       if (!p256dh || !auth) {
-        toast.error("Falha ao obter chaves de criptografia da subscription. Tente em outro navegador.");
+        toast.error("Falha ao obter chaves de criptografia. Tente em outro navegador.");
         return false;
       }
 
@@ -158,7 +151,6 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
       return true;
     } catch (err: any) {
       console.error("Push subscribe error:", err);
-      // Common errors with friendly messages
       if (err?.message?.includes("applicationServerKey")) {
         toast.error("Erro de configuração VAPID. Recarregue a página e tente novamente.");
       } else if (err?.message?.includes("permission")) {

@@ -14,20 +14,12 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
-      strategies: "generateSW",
-      workbox: {
-        // No navigation fallback - prevents "offline copy" error on install
-        navigateFallback: null,
-        navigateFallbackDenylist: [/^\/~oauth/],
-        // No file caching - app always loads fresh from network
-        globPatterns: [],
-        runtimeCaching: [],
-        skipWaiting: true,
-        clientsClaim: true,
-        // Import our push notification handler
-        importScripts: ["/push-handler.js"],
-      },
+      // Use our custom sw.js directly - no Workbox generation
+      strategies: "injectManifest",
+      srcDir: "public",
+      filename: "sw.js",
+      // Don't register automatically - we register manually with our own sw.js
+      injectRegister: null,
       manifest: {
         name: "Portal do Apoiador",
         short_name: "Apoiador",
@@ -37,7 +29,6 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         orientation: "portrait",
         scope: "/",
-        // Opens PwaStart which redirects to /portal/:clientId via localStorage
         start_url: "/pwa-start",
         icons: [
           {
@@ -47,6 +38,9 @@ export default defineConfig(({ mode }) => ({
           },
         ],
       },
+      injectManifest: {
+        globPatterns: [],
+      },
     }),
   ].filter(Boolean),
   resolve: {
@@ -55,3 +49,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
+
