@@ -19,6 +19,7 @@ import PwaStart from "./pages/PwaStart";
 import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
+import Checkins from "./pages/Checkins";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/comments" element={<Comments />} />
             <Route path="/supporters" element={<Supporters />} />
             <Route path="/engagement" element={<Engagement />} />
+            <Route path="/checkins" element={<Checkins />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

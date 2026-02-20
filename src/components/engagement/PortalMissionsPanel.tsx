@@ -18,7 +18,6 @@ import {
 import {
   Target, Plus, Pencil, Trash2, Facebook, Instagram,
   ExternalLink, ToggleLeft, ToggleRight, Loader2, Info, Check, Link, RefreshCw,
-  Bell, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,10 +66,6 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   const [editMission, setEditMission] = useState<Mission | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
-  const [notifyTitle, setNotifyTitle] = useState("");
-  const [notifyMessage, setNotifyMessage] = useState("");
-  const [isSendingNotification, setIsSendingNotification] = useState(false);
 
   const { data: missions = [], isLoading } = useQuery({
     queryKey: ["portal-missions", clientId],
@@ -226,38 +221,6 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
     setDialogOpen(true);
   };
 
-  const handleSendNotification = async () => {
-    setIsSendingNotification(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error("Faça login novamente"); return; }
-
-      const response = await supabase.functions.invoke("send-push-notifications", {
-        body: {
-          client_id: clientId,
-          title: notifyTitle.trim() || undefined,
-          message: notifyMessage.trim() || undefined,
-          url: `/portal/${clientId}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      const result = response.data;
-      if (result?.vapid_configured === false) {
-        toast.warning(`Notificação simulada: ${result.sent} apoiadores receberiam. Configure as chaves VAPID para envio real.`);
-      } else {
-        toast.success(`✅ Notificação enviada para ${result?.sent || 0} apoiadores!`);
-      }
-      setNotifyDialogOpen(false);
-      setNotifyTitle("");
-      setNotifyMessage("");
-    } catch (err: any) {
-      toast.error("Erro ao enviar notificação: " + (err.message || "tente novamente"));
-    } finally {
-      setIsSendingNotification(false);
-    }
-  };
 
   const openEdit = (m: Mission) => {
     setEditMission(m);
@@ -315,16 +278,11 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
-            <Button size="sm" variant="outline" onClick={() => setNotifyDialogOpen(true)}>
-              <Bell className="w-4 h-4 mr-1" />
-              Notificar
-            </Button>
             <Button size="sm" onClick={openAdd}>
               <Plus className="w-4 h-4 mr-1" />
               Adicionar
             </Button>
           </div>
-
         </CardContent>
       </Card>
 
@@ -572,60 +530,6 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Notify Dialog */}
-      <Dialog open={notifyDialogOpen} onOpenChange={(v) => { setNotifyDialogOpen(v); if (!v) { setNotifyTitle(""); setNotifyMessage(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-primary" />
-              Notificar Apoiadores
-            </DialogTitle>
-            <DialogDescription>
-              Envie uma notificação push para todos os apoiadores que ativaram alertas no celular.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Título da notificação <span className="text-muted-foreground">(opcional)</span></Label>
-              <Input
-                value={notifyTitle}
-                onChange={(e) => setNotifyTitle(e.target.value)}
-                placeholder="🎯 Nova missão disponível!"
-                maxLength={80}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Mensagem <span className="text-muted-foreground">(opcional)</span></Label>
-              <Textarea
-                value={notifyMessage}
-                onChange={(e) => setNotifyMessage(e.target.value)}
-                placeholder="Há uma nova postagem esperando pela sua interação. Acesse agora!"
-                rows={3}
-                maxLength={200}
-              />
-            </div>
-            <div className="bg-muted/50 rounded-md px-3 py-2 text-xs text-muted-foreground">
-              <Bell className="w-3.5 h-3.5 inline mr-1" />
-              Apenas apoiadores que ativaram notificações no portal receberão este aviso.
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNotifyDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSendNotification} disabled={isSendingNotification}>
-              {isSendingNotification ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-              Enviar Notificação
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
