@@ -96,10 +96,41 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
         return false;
       }
 
-      // Step 4: Unsubscribe any existing subscription
+      // Step 4: Check for existing subscription — reuse if still valid
       const pm = (registration as any).pushManager as PushManager;
       const existing = await pm.getSubscription();
+
+      // If there's already a valid subscription, just save it to DB again (re-sync)
       if (existing) {
+        const subJson = existing.toJSON();
+        const existingP256dh = (subJson as any).keys?.p256dh || "";
+        const existingAuth = (subJson as any).keys?.auth || "";
+
+        if (existingP256dh && existingAuth) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            toast.error("Sessão expirada. Faça login novamente.");
+            return false;
+          }
+          const { error } = await supabase
+            .from("push_subscriptions" as any)
+            .upsert(
+              {
+                supporter_account_id: supporterAccountId,
+                client_id: clientId,
+                endpoint: existing.endpoint,
+                p256dh: existingP256dh,
+                auth: existingAuth,
+              },
+              { onConflict: "endpoint" }
+            );
+          if (!error) {
+            setIsSubscribed(true);
+            toast.success("🔔 Notificações ativadas!");
+            return true;
+          }
+        }
+        // If reuse failed, unsubscribe and create fresh
         await existing.unsubscribe();
         await supabase
           .from("push_subscriptions" as any)
