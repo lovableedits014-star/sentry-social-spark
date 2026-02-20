@@ -15,6 +15,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 import SupporterRegister from "./pages/SupporterRegister";
 import SupporterPortal from "./pages/SupporterPortal";
+import PwaStart from "./pages/PwaStart";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
+          <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/comments" element={<Comments />} />

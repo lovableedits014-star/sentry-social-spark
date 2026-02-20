@@ -51,6 +51,13 @@ export default function SupporterPortal() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
 
+  // Save clientId so the PWA installed shortcut knows where to redirect
+  useEffect(() => {
+    if (clientId) {
+      localStorage.setItem("pwa_client_id", clientId);
+    }
+  }, [clientId]);
+
   // Auth state
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);

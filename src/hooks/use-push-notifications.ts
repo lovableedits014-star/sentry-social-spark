@@ -77,7 +77,8 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
 
     setIsSubscribing(true);
     try {
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      // Register the custom SW that handles push events
+      const registration = await navigator.serviceWorker.register("/sw-custom.js", { scope: "/" });
       await navigator.serviceWorker.ready;
 
       const permission = await Notification.requestPermission();
