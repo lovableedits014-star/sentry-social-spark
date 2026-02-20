@@ -636,6 +636,74 @@ export type Database = {
         }
         Relationships: []
       }
+      push_dispatch_jobs: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          elapsed_seconds: number | null
+          error_message: string | null
+          expired_removed: number | null
+          failed_count: number | null
+          id: string
+          message: string | null
+          sent_count: number | null
+          skipped_count: number | null
+          started_at: string | null
+          status: string
+          title: string | null
+          total_subscribers: number | null
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          elapsed_seconds?: number | null
+          error_message?: string | null
+          expired_removed?: number | null
+          failed_count?: number | null
+          id?: string
+          message?: string | null
+          sent_count?: number | null
+          skipped_count?: number | null
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          total_subscribers?: number | null
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          elapsed_seconds?: number | null
+          error_message?: string | null
+          expired_removed?: number | null
+          failed_count?: number | null
+          id?: string
+          message?: string | null
+          sent_count?: number | null
+          skipped_count?: number | null
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          total_subscribers?: number | null
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_dispatch_jobs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth: string
