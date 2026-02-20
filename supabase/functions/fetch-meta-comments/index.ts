@@ -815,164 +815,21 @@ Deno.serve(async (req) => {
     stats.updatedComments = updated;
     syncLog.push(`Inserted: ${inserted}, Updated: ${updated}`);
 
-    // ==== ENGAGEMENT ACTIONS (batched) ====
+    // ==== ENGAGEMENT ACTIONS ====
+    // NOTE: engagement_actions are now created automatically via the DB trigger
+    // "trigger_auto_engagement_action" that fires on INSERT/UPDATE of comments.
+    // This guarantees 100% reliability - no more missed actions due to timeouts or bugs.
+    // Here we only need to: link orphans + recalculate scores.
     if (hasTimeLeft()) {
-      syncLog.push('--- ENGAGEMENT ACTIONS ---');
-      let engagementActionsCreated = 0;
+      syncLog.push('--- ENGAGEMENT SCORING ---');
 
-      const engageableComments = allComments.filter(c => !c.is_page_owner && c.platform_user_id);
-      syncLog.push(`Engageable comments (non-owner): ${engageableComments.length}`);
-      
-      // Batch check existing actions - with limit override to avoid 1000 row cap
-      const engageableIds = engageableComments.map(c => c.comment_id);
-      const existingActionIds = new Set<string>();
-      
-      for (const chunk of chunkArray(engageableIds, 200)) {
-        const { data: existingActions } = await supabaseClient
-          .from('engagement_actions')
-          .select('comment_id')
-          .eq('client_id', clientId)
-          .in('comment_id', chunk)
-          .limit(chunk.length);
-        for (const a of existingActions || []) {
-          if (a.comment_id) existingActionIds.add(a.comment_id);
-        }
-      }
-
-      syncLog.push(`Existing actions found: ${existingActionIds.size} / ${engageableIds.length}`);
-
-      // Batch get supporter links - key = "platform:platform_user_id" to avoid cross-platform collisions
-      const uniqueEngageables = [...new Map(engageableComments.map(c => [`${c.platform}:${c.platform_user_id}`, c])).values()];
-      // supporterMap key = "platform:platform_user_id"
-      const supporterMap = new Map<string, string>();
-
-      // Fetch all supporter_profiles for this client in one go (via supporters join)
-      const { data: allSupporterProfiles } = await supabaseClient
-        .from('supporters')
-        .select('id, supporter_profiles(platform, platform_user_id, platform_username)')
-        .eq('client_id', clientId);
-
-      for (const s of allSupporterProfiles || []) {
-        for (const sp of (s as any).supporter_profiles || []) {
-          if (sp.platform_user_id) {
-            supporterMap.set(`${sp.platform}:${sp.platform_user_id}`, s.id);
-          }
-          if (sp.platform_username) {
-            supporterMap.set(`${sp.platform}:${sp.platform_username}`, s.id);
-            supporterMap.set(`${sp.platform}:@${sp.platform_username}`, s.id);
-          }
-        }
-      }
-      syncLog.push(`Supporter profiles loaded: ${supporterMap.size} entries for ${(allSupporterProfiles || []).length} supporters`);
-
-      // Build and insert new engagement actions
-      const newActions = engageableComments
-        .filter(c => !existingActionIds.has(c.comment_id))
-        .map(c => {
-          const key = `${c.platform}:${c.platform_user_id}`;
-          const keyWithAt = `${c.platform}:${c.author_name}`;
-          return {
-            client_id: clientId,
-            supporter_id: supporterMap.get(key) || supporterMap.get(keyWithAt) || null,
-            platform: c.platform,
-            platform_user_id: c.platform_user_id,
-            platform_username: c.author_name,
-            action_type: 'comment',
-            comment_id: c.comment_id,
-            post_id: c.post_id,
-            action_date: c.comment_created_time || new Date().toISOString(),
-          };
-        });
-
-      syncLog.push(`New actions to insert: ${newActions.length}`);
-
-      for (const chunk of chunkArray(newActions, 50)) {
-        const { error, data: inserted_actions } = await supabaseClient
-          .from('engagement_actions')
-          .insert(chunk)
-          .select('id');
-        if (!error) {
-          engagementActionsCreated += inserted_actions?.length || 0;
-        } else {
-          console.error('Error inserting engagement actions:', error);
-          syncLog.push(`Action insert error: ${error.message}`);
-        }
-      }
-
-      syncLog.push(`Engagement actions created: ${engagementActionsCreated}`);
-
-      // BACKFILL: Also create actions for comments already in DB that have no action yet
-      // This catches comments saved in previous syncs that missed action creation
-      if (hasTimeLeft(15000)) {
-        try {
-          const { data: missingActionComments } = await supabaseClient
-            .from('comments')
-            .select('comment_id, post_id, platform, platform_user_id, author_name, comment_created_time')
-            .eq('client_id', clientId)
-            .eq('is_page_owner', false)
-            .not('platform_user_id', 'is', null)
-            .neq('text', '__post_stub__')
-            .limit(500);
-
-          if (missingActionComments && missingActionComments.length > 0) {
-            // Find which of these already have actions
-            const dbCommentIds = missingActionComments.map(c => c.comment_id);
-            const existingInDb = new Set<string>();
-            
-            for (const chunk of chunkArray(dbCommentIds, 200)) {
-              const { data: existing } = await supabaseClient
-                .from('engagement_actions')
-                .select('comment_id')
-                .eq('client_id', clientId)
-                .in('comment_id', chunk)
-                .limit(chunk.length);
-              for (const a of existing || []) {
-                if (a.comment_id) existingInDb.add(a.comment_id);
-              }
-            }
-
-            const backfillActions = missingActionComments
-              .filter(c => !existingInDb.has(c.comment_id))
-              .map(c => {
-                const key = `${c.platform}:${c.platform_user_id}`;
-                return {
-                  client_id: clientId,
-                  supporter_id: supporterMap.get(key) || null,
-                  platform: c.platform || 'unknown',
-                  platform_user_id: c.platform_user_id,
-                  platform_username: c.author_name,
-                  action_type: 'comment',
-                  comment_id: c.comment_id,
-                  post_id: c.post_id,
-                  action_date: c.comment_created_time || new Date().toISOString(),
-                };
-              });
-
-            if (backfillActions.length > 0) {
-              syncLog.push(`Backfilling ${backfillActions.length} missing engagement actions from DB`);
-              let backfilled = 0;
-              for (const chunk of chunkArray(backfillActions, 50)) {
-                const { error } = await supabaseClient.from('engagement_actions').insert(chunk);
-                if (!error) backfilled += chunk.length;
-                else console.error('Backfill insert error:', error.message);
-              }
-              syncLog.push(`Backfilled: ${backfilled} actions`);
-              engagementActionsCreated += backfilled;
-            }
-          }
-        } catch (backfillErr) {
-          syncLog.push(`Backfill error: ${backfillErr}`);
-        }
-      }
-
-      // Link orphans (also recalculates scores internally)
+      // Link any orphan actions that can now be matched to registered supporters
       try {
         const { data: linkedCount } = await supabaseClient.rpc('link_orphan_engagement_actions', { p_client_id: clientId });
         syncLog.push(`Orphan actions linked: ${linkedCount}`);
       } catch (e) { syncLog.push(`Error linking orphans: ${e}`); }
 
-      // Explicitly recalculate scores for ALL supporters of this client
-      // (ensures new actions are counted even if link_orphan_engagement_actions already ran)
+      // Recalculate scores for ALL supporters of this client
       try {
         const { data: allSupporters } = await supabaseClient
           .from('supporters')
@@ -980,8 +837,11 @@ Deno.serve(async (req) => {
           .eq('client_id', clientId);
         
         if (allSupporters && allSupporters.length > 0) {
-          for (const supporter of allSupporters) {
-            await supabaseClient.rpc('calculate_engagement_score', { p_supporter_id: supporter.id });
+          // Recalculate in parallel batches of 10 for speed
+          for (const chunk of chunkArray(allSupporters, 10)) {
+            await Promise.all(
+              chunk.map(s => supabaseClient.rpc('calculate_engagement_score', { p_supporter_id: s.id }))
+            );
           }
           syncLog.push(`Scores recalculated for ${allSupporters.length} supporters`);
         }
