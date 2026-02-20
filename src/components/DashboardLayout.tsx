@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, MessageSquare, Settings, LogOut, Shield, Link2, Users, TrendingUp } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Settings, LogOut, Shield, Link2, Users, TrendingUp, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -65,6 +65,9 @@ const DashboardLayout = () => {
     );
   }
 
+  const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
+  const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
+
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: MessageSquare, label: "Comentários", path: "/comments" },
@@ -106,6 +109,22 @@ const DashboardLayout = () => {
                 </Link>
               );
             })}
+
+            {isSuperAdmin && (
+              <div className="pt-2 mt-2 border-t border-sidebar-border">
+                <Link
+                  to="/super-admin"
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-sidebar-accent ${
+                    location.pathname === "/super-admin"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-amber-400/90 hover:text-amber-400"
+                  }`}
+                >
+                  <Crown className="w-5 h-5" />
+                  Super Admin
+                </Link>
+              </div>
+            )}
           </nav>
 
           {/* User Section */}
