@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Target, Plus, Pencil, Trash2, Facebook, Instagram,
-  ExternalLink, ToggleLeft, ToggleRight, Loader2, Info, Check, Link,
+  ExternalLink, ToggleLeft, ToggleRight, Loader2, Info, Check, Link, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -82,29 +82,43 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
   });
 
   // Fetch posts from comments table (distinct post_ids with permalink)
-  const { data: postOptions = [] } = useQuery({
+  const { data: postOptions = [], isLoading: postsLoading, refetch: refetchPosts } = useQuery({
     queryKey: ["post-options-for-missions", clientId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("comments")
-        .select("post_id, post_message, post_permalink_url, post_full_picture, platform")
-        .eq("client_id", clientId)
-        .not("post_permalink_url", "is", null)
-        .order("comment_created_time", { ascending: false })
-        .limit(500);
-      if (error) throw error;
+      // Fetch a large window to deduplicate properly
+      const PAGE_SIZE = 1000;
+      let allRows: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      // Deduplicate by post_id
+      while (hasMore && page < 3) { // max 3000 comments scanned
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from("comments")
+          .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time")
+          .eq("client_id", clientId)
+          .not("post_permalink_url", "is", null)
+          .order("comment_created_time", { ascending: false })
+          .range(from, to);
+        if (error) throw error;
+        allRows = [...allRows, ...(data || [])];
+        hasMore = (data?.length || 0) === PAGE_SIZE;
+        page++;
+      }
+
+      // Deduplicate by post_id (first occurrence = most recent)
       const seen = new Set<string>();
       const unique: PostOption[] = [];
-      for (const row of data || []) {
+      for (const row of allRows) {
         if (!row.post_id || seen.has(row.post_id)) continue;
         seen.add(row.post_id);
         unique.push(row as PostOption);
       }
       return unique;
     },
-    enabled: !!clientId && dialogOpen,
+    enabled: !!clientId,
+    staleTime: 60_000,
   });
 
   const fbPosts = postOptions.filter(p => p.platform === "facebook");
@@ -347,7 +361,20 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
             {/* Post picker tabs */}
             {!editMission && (
               <Tabs defaultValue="facebook">
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Escolher publicação existente</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Escolher publicação existente</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => refetchPosts()}
+                    disabled={postsLoading}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
+                    {postsLoading ? "Carregando..." : `${postOptions.length} posts`}
+                  </Button>
+                </div>
                 <TabsList className="mb-3">
                   <TabsTrigger value="facebook" className="gap-1.5">
                     <Facebook className="w-3.5 h-3.5 text-blue-600" />
