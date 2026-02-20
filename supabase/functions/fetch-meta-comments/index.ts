@@ -841,36 +841,48 @@ Deno.serve(async (req) => {
 
       syncLog.push(`Existing actions found: ${existingActionIds.size} / ${engageableIds.length}`);
 
-      // Batch get supporter links (filter by client via join through supporters table)
-      const uniquePlatformUserIds = [...new Set(engageableComments.map(c => c.platform_user_id!))];
+      // Batch get supporter links - key = "platform:platform_user_id" to avoid cross-platform collisions
+      const uniqueEngageables = [...new Map(engageableComments.map(c => [`${c.platform}:${c.platform_user_id}`, c])).values()];
+      // supporterMap key = "platform:platform_user_id"
       const supporterMap = new Map<string, string>();
-      
-      for (const chunk of chunkArray(uniquePlatformUserIds, 200)) {
-        const { data: links } = await supabaseClient
-          .from('supporter_profiles')
-          .select('platform_user_id, supporter_id, supporters!inner(client_id)')
-          .eq('supporters.client_id', clientId)
-          .in('platform_user_id', chunk)
-          .limit(chunk.length);
-        for (const l of links || []) {
-          supporterMap.set(l.platform_user_id, l.supporter_id);
+
+      // Fetch all supporter_profiles for this client in one go (via supporters join)
+      const { data: allSupporterProfiles } = await supabaseClient
+        .from('supporters')
+        .select('id, supporter_profiles(platform, platform_user_id, platform_username)')
+        .eq('client_id', clientId);
+
+      for (const s of allSupporterProfiles || []) {
+        for (const sp of (s as any).supporter_profiles || []) {
+          if (sp.platform_user_id) {
+            supporterMap.set(`${sp.platform}:${sp.platform_user_id}`, s.id);
+          }
+          if (sp.platform_username) {
+            supporterMap.set(`${sp.platform}:${sp.platform_username}`, s.id);
+            supporterMap.set(`${sp.platform}:@${sp.platform_username}`, s.id);
+          }
         }
       }
+      syncLog.push(`Supporter profiles loaded: ${supporterMap.size} entries for ${(allSupporterProfiles || []).length} supporters`);
 
       // Build and insert new engagement actions
       const newActions = engageableComments
         .filter(c => !existingActionIds.has(c.comment_id))
-        .map(c => ({
-          client_id: clientId,
-          supporter_id: supporterMap.get(c.platform_user_id!) || null,
-          platform: c.platform,
-          platform_user_id: c.platform_user_id,
-          platform_username: c.author_name,
-          action_type: 'comment',
-          comment_id: c.comment_id,
-          post_id: c.post_id,
-          action_date: c.comment_created_time || new Date().toISOString(),
-        }));
+        .map(c => {
+          const key = `${c.platform}:${c.platform_user_id}`;
+          const keyWithAt = `${c.platform}:${c.author_name}`;
+          return {
+            client_id: clientId,
+            supporter_id: supporterMap.get(key) || supporterMap.get(keyWithAt) || null,
+            platform: c.platform,
+            platform_user_id: c.platform_user_id,
+            platform_username: c.author_name,
+            action_type: 'comment',
+            comment_id: c.comment_id,
+            post_id: c.post_id,
+            action_date: c.comment_created_time || new Date().toISOString(),
+          };
+        });
 
       syncLog.push(`New actions to insert: ${newActions.length}`);
 
@@ -921,17 +933,20 @@ Deno.serve(async (req) => {
 
             const backfillActions = missingActionComments
               .filter(c => !existingInDb.has(c.comment_id))
-              .map(c => ({
-                client_id: clientId,
-                supporter_id: supporterMap.get(c.platform_user_id!) || null,
-                platform: c.platform || 'unknown',
-                platform_user_id: c.platform_user_id,
-                platform_username: c.author_name,
-                action_type: 'comment',
-                comment_id: c.comment_id,
-                post_id: c.post_id,
-                action_date: c.comment_created_time || new Date().toISOString(),
-              }));
+              .map(c => {
+                const key = `${c.platform}:${c.platform_user_id}`;
+                return {
+                  client_id: clientId,
+                  supporter_id: supporterMap.get(key) || null,
+                  platform: c.platform || 'unknown',
+                  platform_user_id: c.platform_user_id,
+                  platform_username: c.author_name,
+                  action_type: 'comment',
+                  comment_id: c.comment_id,
+                  post_id: c.post_id,
+                  action_date: c.comment_created_time || new Date().toISOString(),
+                };
+              });
 
             if (backfillActions.length > 0) {
               syncLog.push(`Backfilling ${backfillActions.length} missing engagement actions from DB`);
