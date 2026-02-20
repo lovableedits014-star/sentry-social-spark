@@ -2,7 +2,7 @@
 const CACHE_NAME = 'apoiador-portal-v1';
 
 // Required by vite-plugin-pwa injectManifest strategy
-self.__WB_MANIFEST;
+const WB_MANIFEST = self.__WB_MANIFEST || [];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -60,14 +60,12 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Se já tem uma janela aberta, focar nela
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.navigate(url);
           return client.focus();
         }
       }
-      // Senão, abrir nova janela
       if (clients.openWindow) {
         return clients.openWindow(url);
       }
