@@ -6,77 +6,185 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Web Push usando VAPID - implementação manual sem biblioteca externa
-async function generateVapidHeaders(
-  endpoint: string,
+function base64UrlToBase64(base64url: string): string {
+  return base64url.replace(/-/g, "+").replace(/_/g, "/");
+}
+
+function base64UrlDecode(base64url: string): Uint8Array {
+  const base64 = base64UrlToBase64(base64url);
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob(base64 + padding);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+// Import VAPID private key using JWK format (most reliable across runtimes)
+async function importVapidPrivateKey(
   vapidPublicKey: string,
-  vapidPrivateKey: string,
-  vapidEmail: string
-): Promise<Record<string, string>> {
-  const url = new URL(endpoint);
-  const audience = `${url.protocol}//${url.host}`;
+  vapidPrivateKey: string
+): Promise<CryptoKey> {
+  // The VAPID public key is an uncompressed EC point: 0x04 || x (32 bytes) || y (32 bytes)
+  const pubKeyBytes = base64UrlDecode(vapidPublicKey);
 
-  const now = Math.floor(Date.now() / 1000);
-  const exp = now + 12 * 3600;
+  // Skip the 0x04 uncompressed point prefix
+  const x = base64UrlEncode(pubKeyBytes.slice(1, 33));
+  const y = base64UrlEncode(pubKeyBytes.slice(33, 65));
+  const d = vapidPrivateKey; // Already base64url encoded 32-byte scalar
 
-  const header = { typ: "JWT", alg: "ES256" };
-  const payload = { aud: audience, exp, sub: `mailto:${vapidEmail}` };
-
-  const encodeBase64Url = (data: Uint8Array) =>
-    btoa(String.fromCharCode(...data))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-  const encode = (obj: unknown) => {
-    const json = JSON.stringify(obj);
-    const bytes = new TextEncoder().encode(json);
-    return encodeBase64Url(bytes);
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    x,
+    y,
+    d,
+    ext: true,
   };
 
-  const headerEncoded = encode(header);
-  const payloadEncoded = encode(payload);
-  const signingInput = `${headerEncoded}.${payloadEncoded}`;
-
-  // Import private key - VAPID keys are raw 32-byte scalars, must be wrapped in PKCS8
-  const privateKeyBytes = Uint8Array.from(
-    atob(vapidPrivateKey.replace(/-/g, "+").replace(/_/g, "/")),
-    (c) => c.charCodeAt(0)
-  );
-
-  // PKCS8 wrapper for P-256 raw private key (RFC 5958)
-  const pkcs8Prefix = new Uint8Array([
-    0x30, 0x41, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06,
-    0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
-    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03,
-    0x01, 0x07, 0x04, 0x27, 0x30, 0x25, 0x02, 0x01,
-    0x01, 0x04, 0x20,
-  ]);
-  const pkcs8Key = new Uint8Array(pkcs8Prefix.length + privateKeyBytes.length);
-  pkcs8Key.set(pkcs8Prefix);
-  pkcs8Key.set(privateKeyBytes, pkcs8Prefix.length);
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    pkcs8Key,
+  return await crypto.subtle.importKey(
+    "jwk",
+    jwk,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"]
   );
+}
 
-  const signature = await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
+async function generateVapidJWT(
+  endpoint: string,
+  vapidPublicKey: string,
+  vapidPrivateKey: string,
+  vapidEmail: string
+): Promise<string> {
+  const url = new URL(endpoint);
+  const audience = `${url.protocol}//${url.host}`;
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 12 * 3600;
+
+  const headerObj = { typ: "JWT", alg: "ES256" };
+  const payloadObj = { aud: audience, exp, sub: `mailto:${vapidEmail}` };
+
+  const encode = (obj: unknown): string => {
+    const json = JSON.stringify(obj);
+    const bytes = new TextEncoder().encode(json);
+    return base64UrlEncode(bytes);
+  };
+
+  const headerEncoded = encode(headerObj);
+  const payloadEncoded = encode(payloadObj);
+  const signingInput = `${headerEncoded}.${payloadEncoded}`;
+
+  const cryptoKey = await importVapidPrivateKey(vapidPublicKey, vapidPrivateKey);
+
+  const signatureBuffer = await crypto.subtle.sign(
+    { name: "ECDSA", hash: { name: "SHA-256" } },
     cryptoKey,
     new TextEncoder().encode(signingInput)
   );
 
-  const signatureEncoded = encodeBase64Url(new Uint8Array(signature));
-  const jwt = `${signingInput}.${signatureEncoded}`;
+  const signatureEncoded = base64UrlEncode(new Uint8Array(signatureBuffer));
+  return `${signingInput}.${signatureEncoded}`;
+}
 
-  return {
-    Authorization: `vapid t=${jwt}, k=${vapidPublicKey}`,
-    "Content-Type": "application/json",
-  };
+// Encrypt push payload using ECDH + AES-GCM (Web Push encryption per RFC 8291)
+async function encryptPayload(
+  payload: string,
+  p256dh: string,
+  auth: string
+): Promise<{ encryptedBody: ArrayBuffer; salt: Uint8Array; serverPublicKey: Uint8Array }> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // Generate ephemeral server key pair
+  const serverKeyPair = await crypto.subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    ["deriveBits"]
+  );
+
+  // Import subscriber's public key
+  const clientPublicKeyBytes = base64UrlDecode(p256dh);
+  const clientPublicKey = await crypto.subtle.importKey(
+    "raw",
+    clientPublicKeyBytes,
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    []
+  );
+
+  // Export server public key in raw format
+  const serverPublicKeyRaw = new Uint8Array(
+    await crypto.subtle.exportKey("raw", serverKeyPair.publicKey)
+  );
+
+  // Derive shared secret via ECDH
+  const sharedSecret = await crypto.subtle.deriveBits(
+    { name: "ECDH", public: clientPublicKey },
+    serverKeyPair.privateKey,
+    256
+  );
+
+  const authBytes = base64UrlDecode(auth);
+
+  // HKDF to derive PRK
+  const hkdfSalt = await crypto.subtle.importKey("raw", authBytes, "HKDF", false, ["deriveBits"]);
+  const hkdfInfo = new TextEncoder().encode("WebPush: info\0");
+  const hkdfInfoWithKeys = new Uint8Array(hkdfInfo.length + clientPublicKeyBytes.length + serverPublicKeyRaw.length);
+  hkdfInfoWithKeys.set(hkdfInfo);
+  hkdfInfoWithKeys.set(clientPublicKeyBytes, hkdfInfo.length);
+  hkdfInfoWithKeys.set(serverPublicKeyRaw, hkdfInfo.length + clientPublicKeyBytes.length);
+
+  const sharedSecretKey = await crypto.subtle.importKey(
+    "raw",
+    sharedSecret,
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+
+  const prk = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: authBytes, info: hkdfInfoWithKeys },
+    sharedSecretKey,
+    256
+  );
+
+  const prkKey = await crypto.subtle.importKey("raw", prk, "HKDF", false, ["deriveBits"]);
+
+  // Derive content encryption key
+  const cekInfo = new TextEncoder().encode("Content-Encoding: aes128gcm\0");
+  const cekBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info: cekInfo },
+    prkKey,
+    128
+  );
+
+  // Derive nonce
+  const nonceInfo = new TextEncoder().encode("Content-Encoding: nonce\0");
+  const nonceBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info: nonceInfo },
+    prkKey,
+    96
+  );
+
+  const cekKey = await crypto.subtle.importKey("raw", cekBits, "AES-GCM", false, ["encrypt"]);
+
+  // Encrypt with AES-GCM, adding padding delimiter (0x02 = last record)
+  const payloadBytes = new TextEncoder().encode(payload);
+  const paddedPayload = new Uint8Array(payloadBytes.length + 1);
+  paddedPayload.set(payloadBytes);
+  paddedPayload[payloadBytes.length] = 0x02; // padding delimiter
+
+  const encryptedBody = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonceBits },
+    cekKey,
+    paddedPayload
+  );
+
+  return { encryptedBody, salt, serverPublicKey: serverPublicKeyRaw };
 }
 
 serve(async (req) => {
@@ -93,7 +201,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verificar autenticação do usuário que está enviando
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -121,7 +228,6 @@ serve(async (req) => {
       });
     }
 
-    // Verificar se o usuário é dono do client
     const { data: client } = await supabase
       .from("clients")
       .select("id, name")
@@ -136,7 +242,6 @@ serve(async (req) => {
       });
     }
 
-    // Buscar todas as push subscriptions do client
     const { data: subscriptions, error: subError } = await supabase
       .from("push_subscriptions")
       .select("*")
@@ -148,6 +253,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: true, sent: 0, message: "Nenhum apoiador com notificações ativas" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      return new Response(
+        JSON.stringify({ error: "VAPID keys not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -165,41 +277,52 @@ serve(async (req) => {
 
     for (const sub of subscriptions) {
       try {
-        if (!vapidPublicKey || !vapidPrivateKey) {
-          // Sem VAPID configurado — não é possível enviar push real
-          // Mas registramos como "simulado" para teste
-          console.log(`[VAPID não configurado] Simulando push para: ${sub.endpoint}`);
-          sent++;
-          continue;
-        }
+        const jwt = await generateVapidJWT(sub.endpoint, vapidPublicKey, vapidPrivateKey, vapidEmail);
 
-        // Encriptar payload com as chaves do subscriber
-        // Para simplificar, enviamos como texto simples sem criptografia E2E
-        // (funciona com alguns servidores de push, mas o ideal é usar web-push lib)
-        const headers = await generateVapidHeaders(
-          sub.endpoint,
-          vapidPublicKey,
-          vapidPrivateKey,
-          vapidEmail
+        // Encrypt payload using Web Push encryption
+        const { encryptedBody, salt, serverPublicKey } = await encryptPayload(
+          notificationPayload,
+          sub.p256dh,
+          sub.auth
         );
+
+        // Build the encrypted content per RFC 8291
+        // Header: salt (16) + record_size (4) + key_length (1) + server_public_key (65) + encrypted_body
+        const recordSize = encryptedBody.byteLength + 65 + 21; // approximation
+        const header = new Uint8Array(16 + 4 + 1 + 65);
+        header.set(salt, 0);
+        // Record size (big-endian uint32) - use 4096 as standard
+        header[16] = 0x00;
+        header[17] = 0x00;
+        header[18] = 0x10;
+        header[19] = 0x00;
+        header[20] = serverPublicKey.length; // key length = 65
+        header.set(serverPublicKey, 21);
+
+        const fullBody = new Uint8Array(header.length + encryptedBody.byteLength);
+        fullBody.set(header, 0);
+        fullBody.set(new Uint8Array(encryptedBody), header.length);
 
         const response = await fetch(sub.endpoint, {
           method: "POST",
           headers: {
-            ...headers,
-            "TTL": "86400",
+            Authorization: `vapid t=${jwt}, k=${vapidPublicKey}`,
+            "Content-Type": "application/octet-stream",
+            "Content-Encoding": "aes128gcm",
+            TTL: "86400",
           },
-          body: notificationPayload,
+          body: fullBody,
         });
 
         if (response.ok || response.status === 201) {
           sent++;
         } else if (response.status === 410 || response.status === 404) {
-          // Subscription expirada/inválida — remover
           failedEndpoints.push(sub.endpoint);
           failed++;
+          console.log(`Subscription expired for ${sub.endpoint}, removing.`);
         } else {
-          console.error(`Push failed for ${sub.endpoint}: ${response.status}`);
+          const responseText = await response.text();
+          console.error(`Push failed for ${sub.endpoint}: ${response.status} - ${responseText}`);
           failed++;
         }
       } catch (err) {
@@ -208,7 +331,6 @@ serve(async (req) => {
       }
     }
 
-    // Remover subscriptions inválidas
     if (failedEndpoints.length > 0) {
       await supabase
         .from("push_subscriptions")
@@ -217,13 +339,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        sent,
-        failed,
-        total: subscriptions.length,
-        vapid_configured: !!(vapidPublicKey && vapidPrivateKey),
-      }),
+      JSON.stringify({ success: true, sent, failed, total: subscriptions.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
