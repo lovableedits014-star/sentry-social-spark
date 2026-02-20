@@ -91,15 +91,15 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
       let page = 0;
       let hasMore = true;
 
-      while (hasMore && page < 3) { // max 3000 comments scanned
+      while (hasMore && page < 5) { // max 5000 comments scanned
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
           .from("comments")
-          .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time")
+          .select("post_id, post_message, post_permalink_url, post_full_picture, platform, created_at")
           .eq("client_id", clientId)
           .not("post_permalink_url", "is", null)
-          .order("comment_created_time", { ascending: false })
+          .order("created_at", { ascending: false })
           .range(from, to);
         if (error) throw error;
         allRows = [...allRows, ...(data || [])];
@@ -118,7 +118,8 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
       return unique;
     },
     enabled: !!clientId,
-    staleTime: 60_000,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const fbPosts = postOptions.filter(p => p.platform === "facebook");
