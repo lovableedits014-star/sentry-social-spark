@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { 
   TrendingUp, 
@@ -25,6 +26,8 @@ import {
   History,
   Calendar,
   CalendarCheck,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import { SupporterCheckins } from "./SupporterCheckins";
 
@@ -113,12 +116,30 @@ export default function Engagement() {
         .from("supporters")
         .select(`
           id, name, classification, engagement_score, last_interaction_date,
-          supporter_profiles (platform, platform_username, profile_picture_url)
+          supporter_profiles (platform, platform_username, profile_picture_url, platform_user_id)
         `)
         .eq("client_id", client.id)
         .order("engagement_score", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data || []) as SupporterWithScore[];
+    },
+    enabled: !!client?.id
+  });
+
+  const { data: orphanStats } = useQuery({
+    queryKey: ["orphan-stats", client?.id],
+    queryFn: async () => {
+      if (!client?.id) return null;
+      const { count: orphan } = await supabase
+        .from("engagement_actions" as any)
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", client.id)
+        .is("supporter_id", null);
+      const { count: total } = await supabase
+        .from("engagement_actions" as any)
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", client.id);
+      return { orphan: orphan || 0, total: total || 0 };
     },
     enabled: !!client?.id
   });
@@ -397,6 +418,22 @@ export default function Engagement() {
 
         {/* Ranking Tab */}
         <TabsContent value="ranking">
+          {/* Orphan actions alert */}
+          {orphanStats && orphanStats.orphan > 0 && (
+            <Alert className="mb-4 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-400 text-sm font-semibold">
+                {orphanStats.orphan} ações sem apoiador vinculado ({Math.round(orphanStats.orphan / orphanStats.total * 100)}% do total)
+              </AlertTitle>
+              <AlertDescription className="text-amber-700 dark:text-amber-500 text-xs mt-1">
+                Essas interações são de pessoas que ainda não se cadastraram pelo portal. 
+                Peça para seus apoiadores se cadastrarem em <strong>/cadastro/{"{clientId}"}</strong> — ao cadastrar, 
+                as interações anteriores serão vinculadas automaticamente e os pontos contabilizados.
+                <br/>
+                <span className="mt-1 block">Apoiadores com ícone <Link2Off className="inline h-3 w-3" /> não têm perfil social vinculado e têm score = 0.</span>
+              </AlertDescription>
+            </Alert>
+          )}
           <Card>
             <CardHeader className="px-3 sm:px-6">
               <CardTitle className="text-lg sm:text-xl">Ranking de Engajamento</CardTitle>
@@ -448,6 +485,7 @@ export default function Engagement() {
                     <TableRow>
                       <TableHead className="w-[50px]">#</TableHead>
                       <TableHead>Apoiador</TableHead>
+                      <TableHead>Vínculo</TableHead>
                       <TableHead>Classificação</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Score</TableHead>
@@ -456,8 +494,9 @@ export default function Engagement() {
                   <TableBody>
                     {supporters?.map((supporter, index) => {
                       const status = getActivityStatus(supporter.engagement_score, supporter.last_interaction_date);
+                      const hasProfile = supporter.supporter_profiles && supporter.supporter_profiles.length > 0;
                       return (
-                        <TableRow key={supporter.id}>
+                        <TableRow key={supporter.id} className={!hasProfile ? "opacity-70" : ""}>
                           <TableCell>
                             {index < 3 ? (
                               <Trophy className={`h-5 w-5 ${
@@ -476,12 +515,25 @@ export default function Engagement() {
                               <div>
                                 <p className="font-medium">{supporter.name}</p>
                                 {supporter.supporter_profiles?.[0]?.platform_username && (
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="text-xs text-muted-foreground">
                                     @{supporter.supporter_profiles[0].platform_username}
                                   </p>
                                 )}
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {hasProfile ? (
+                              <div className="flex items-center gap-1 text-emerald-600">
+                                <Link2 className="h-4 w-4" />
+                                <span className="text-xs">Vinculado</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Link2Off className="h-4 w-4" />
+                                <span className="text-xs">Sem vínculo</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className={classificationColors[supporter.classification || 'neutro']}>
@@ -496,7 +548,7 @@ export default function Engagement() {
                               <span className="font-bold text-lg">{supporter.engagement_score || 0}</span>
                               {(supporter.engagement_score || 0) > 50 ? (
                                 <TrendingUp className="h-4 w-4 text-emerald-500" />
-                              ) : (supporter.engagement_score || 0) < 10 ? (
+                              ) : (supporter.engagement_score || 0) < 10 && hasProfile ? (
                                 <TrendingDown className="h-4 w-4 text-destructive" />
                               ) : null}
                             </div>
@@ -506,7 +558,7 @@ export default function Engagement() {
                     })}
                     {(!supporters || supporters.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           Nenhum apoiador cadastrado.
                         </TableCell>
                       </TableRow>

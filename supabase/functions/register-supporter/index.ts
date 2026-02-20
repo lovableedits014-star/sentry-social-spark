@@ -40,6 +40,28 @@ function parseProfileUrl(url: string): { platform: "facebook" | "instagram"; use
   return null;
 }
 
+// Normalize name for fuzzy comparison
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/\s+/g, " ");
+}
+
+// Check if two names are similar enough to match
+function namesMatch(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (na === nb) return true;
+  // Check if all words of the shorter name are contained in the longer
+  const wordsA = na.split(" ").filter(w => w.length > 2);
+  const wordsB = nb.split(" ").filter(w => w.length > 2);
+  if (wordsA.length === 0 || wordsB.length === 0) return false;
+  const shorter = wordsA.length <= wordsB.length ? wordsA : wordsB;
+  const longer = wordsA.length <= wordsB.length ? wordsB : wordsA;
+  const matchCount = shorter.filter(w => longer.some(lw => lw.includes(w) || w.includes(lw))).length;
+  return matchCount >= Math.ceil(shorter.length * 0.7); // 70%+ words match
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -81,7 +103,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if any profile already exists
+    // Check if any profile username already exists
     if (profiles.length > 0) {
       const { data: existing } = await supabase
         .from("supporter_profiles")
@@ -98,36 +120,73 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create supporter — auto-cadastro via link = apoiador_ativo
-    const { data: supporter, error: supError } = await supabase
+    // Try to find an existing supporter by name (fuzzy match)
+    // This links manually registered supporters to their real social profiles
+    const { data: existingSupporters } = await supabase
       .from("supporters")
-      .insert({
-        client_id,
-        name: name.trim(),
-        classification: "apoiador_ativo",
-        notes: [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ") || null,
-      })
-      .select()
-      .single();
+      .select("id, name")
+      .eq("client_id", client_id);
 
-    if (supError) throw supError;
+    let supporterId: string | null = null;
+    let isExisting = false;
 
-    // Create profiles
+    if (existingSupporters && existingSupporters.length > 0) {
+      const matched = existingSupporters.find(s => namesMatch(s.name, name.trim()));
+      if (matched) {
+        supporterId = matched.id;
+        isExisting = true;
+        console.log(`Matched existing supporter: "${matched.name}" for name "${name.trim()}"`);
+      }
+    }
+
+    if (!supporterId) {
+      // Create new supporter
+      const { data: supporter, error: supError } = await supabase
+        .from("supporters")
+        .insert({
+          client_id,
+          name: name.trim(),
+          classification: "apoiador_ativo",
+          notes: [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ") || null,
+        })
+        .select()
+        .single();
+
+      if (supError) throw supError;
+      supporterId = supporter.id;
+    } else {
+      // Update existing supporter to active and add notes if any
+      const updateData: Record<string, unknown> = { classification: "apoiador_ativo" };
+      const extraNotes = [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ");
+      if (extraNotes) updateData.notes = extraNotes;
+      await supabase.from("supporters").update(updateData).eq("id", supporterId);
+    }
+
+    // Create profiles (link social accounts)
     for (const p of profiles) {
-      await supabase.from("supporter_profiles").insert({
-        supporter_id: supporter.id,
+      const { error: profileError } = await supabase.from("supporter_profiles").insert({
+        supporter_id: supporterId,
         platform: p.platform,
         platform_user_id: p.username,
         platform_username: p.username,
       });
+      if (profileError) console.error("Profile insert error:", profileError);
     }
 
-    // Link orphan actions
+    // Link orphan actions with the new profile info
     await supabase.rpc("link_orphan_engagement_actions", { p_client_id: client_id });
+
+    // Recalculate score for this supporter
+    await supabase.rpc("calculate_engagement_score", { p_supporter_id: supporterId, p_days: 30 });
+
+    const message = isExisting
+      ? `Obrigado, ${name.trim()}! Seu perfil foi vinculado com sucesso. Suas interações anteriores foram contabilizadas!`
+      : `Obrigado, ${name.trim()}! Você foi cadastrado(a) com sucesso como apoiador(a) de ${client.name}.`;
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Obrigado, ${name.trim()}! Você foi cadastrado(a) com sucesso como apoiador(a) de ${client.name}.`,
+      message,
+      is_existing: isExisting,
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
