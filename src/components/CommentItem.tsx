@@ -11,7 +11,7 @@ import {
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
-  Trash2, EyeOff, Eye, Ban, Loader2,
+  Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 
@@ -111,6 +111,8 @@ export function CommentItem({
   const isPageOwner = comment.is_page_owner;
   const isHidden = comment.is_hidden;
   const isManaging = managingComment === comment.id;
+  const [showManualReply, setShowManualReply] = useState(false);
+  const [manualText, setManualText] = useState("");
 
   return (
     <div className={`p-4 transition-colors ${
@@ -257,54 +259,120 @@ export function CommentItem({
 
       {/* Actions */}
       {!isPageOwner && (
-        <div className="flex flex-wrap gap-2 ml-12">
-          {/* Standard response actions - hidden when responded */}
-          {!isResponded && (
-            <>
-              {comment.author_id && <AddToSupportersButton comment={comment} />}
-
-              {!comment.ai_response && (
+        <div className="ml-12 space-y-2">
+          {/* Manual reply box */}
+          {showManualReply && !isResponded && (
+            <div className="border border-border rounded-lg p-3 bg-background space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <PenLine className="w-3.5 h-3.5" />
+                  Sua resposta
+                </span>
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => onGenerateResponse(comment.id, false)}
-                  disabled={generatingResponse === comment.id}
-                  className="h-8 text-xs"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 text-muted-foreground"
+                  onClick={() => { setShowManualReply(false); setManualText(""); }}
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                  {generatingResponse === comment.id ? "Gerando..." : "Gerar Resposta"}
+                  <X className="w-3.5 h-3.5" />
                 </Button>
-              )}
+              </div>
+              <Textarea
+                value={manualText}
+                onChange={(e) => setManualText(e.target.value)}
+                placeholder="Escreva sua resposta aqui..."
+                className="min-h-[80px] text-sm resize-none"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs"
+                  onClick={() => { setShowManualReply(false); setManualText(""); }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    onSendResponse(comment.id, manualText, comment.platform || 'facebook');
+                    setShowManualReply(false);
+                    setManualText("");
+                  }}
+                  disabled={!manualText.trim() || responding === comment.id}
+                >
+                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                  {responding === comment.id ? "Publicando..." : "Publicar"}
+                </Button>
+              </div>
+            </div>
+          )}
 
-              {comment.ai_response && (
-                <>
+          <div className="flex flex-wrap gap-2">
+            {/* Standard response actions - hidden when responded */}
+            {!isResponded && (
+              <>
+                {comment.author_id && <AddToSupportersButton comment={comment} />}
+
+                {/* Manual reply button — always visible when not responded */}
+                {!showManualReply && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onGenerateResponse(comment.id, true)}
+                    onClick={() => setShowManualReply(true)}
+                    className="h-8 text-xs"
+                  >
+                    <PenLine className="w-3.5 h-3.5 mr-1.5" />
+                    Responder
+                  </Button>
+                )}
+
+                {!comment.ai_response && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGenerateResponse(comment.id, false)}
                     disabled={generatingResponse === comment.id}
                     className="h-8 text-xs"
                   >
                     <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                    {generatingResponse === comment.id ? "Regenerando..." : "Nova Resposta"}
+                    {generatingResponse === comment.id ? "Gerando..." : "Usar IA"}
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => onSendResponse(
-                      comment.id,
-                      editingResponse[comment.id] || comment.ai_response!,
-                      comment.platform || 'facebook'
-                    )}
-                    disabled={responding === comment.id}
-                    className="h-8 text-xs"
-                  >
-                    <Send className="w-3.5 h-3.5 mr-1.5" />
-                    {responding === comment.id ? "Publicando..." : "Publicar"}
-                  </Button>
-                </>
-              )}
-            </>
-          )}
+                )}
+
+                {comment.ai_response && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onGenerateResponse(comment.id, true)}
+                      disabled={generatingResponse === comment.id}
+                      className="h-8 text-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                      {generatingResponse === comment.id ? "Regenerando..." : "Nova Resposta IA"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => onSendResponse(
+                        comment.id,
+                        editingResponse[comment.id] || comment.ai_response!,
+                        comment.platform || 'facebook'
+                      )}
+                      disabled={responding === comment.id}
+                      className="h-8 text-xs"
+                    >
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      {responding === comment.id ? "Publicando..." : "Publicar IA"}
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+
+          </div>{/* end flex flex-wrap gap-2 */}
 
           {/* Moderation actions - always visible */}
           {onManageComment && (
