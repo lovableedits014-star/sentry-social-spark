@@ -33,7 +33,7 @@ const Comments = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
-  const [postsLimit, setPostsLimit] = useState<number>(5);
+  const [postsLimit, setPostsLimit] = useState<number>(30);
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
@@ -311,9 +311,10 @@ const Comments = () => {
 
   const postGroups = useMemo((): PostGroup[] => {
     const groups = new Map<string, PostGroup>();
-
-    // Also track the earliest comment_created_time per post (= post publication date from stubs)
+    // Track the post publication date per post (from stub: comment_created_time = post created_time)
     const postDates = new Map<string, string>();
+    // Track platform per post
+    const postPlatform = new Map<string, string>();
 
     filteredComments.forEach(comment => {
       const postId = comment.post_id;
@@ -332,29 +333,35 @@ const Comments = () => {
 
       const group = groups.get(postId)!;
       group.comments.push(comment);
-      if (comment.platform) group.platforms.add(comment.platform);
+      if (comment.platform) {
+        group.platforms.add(comment.platform);
+        postPlatform.set(postId, comment.platform);
+      }
       if (comment.sentiment === 'positive') group.sentimentCounts.positive++;
       else if (comment.sentiment === 'negative') group.sentimentCounts.negative++;
       else group.sentimentCounts.neutral++;
 
-      // Track best date for the post (most recent entry wins — stubs have real post date)
+      // The stub row has comment_created_time = actual post publication date
+      // We want the EARLIEST time per post (stub date = post creation, real comments are later)
       const t = comment.comment_created_time || comment.created_at || '';
       if (t) {
-        const existing = postDates.get(postId) || '';
-        if (t > existing) postDates.set(postId, t);
+        const existing = postDates.get(postId);
+        // Use stub date if present (stubs are __post_stub__ entries with post creation date)
+        // Otherwise keep the earliest known date (proxy for post date)
+        if (!existing || t < existing) postDates.set(postId, t);
       }
     });
 
     const allGroups = Array.from(groups.values());
 
-    // Sort each group's comments by date desc
+    // Sort each group's comments by date desc (latest comment first)
     allGroups.forEach(g => {
       g.comments.sort((a, b) =>
         (b.comment_created_time || '').localeCompare(a.comment_created_time || '')
       );
     });
 
-    // Sort groups by most recent post date desc
+    // Sort groups by post publication date desc (most recent post first)
     allGroups.sort((a, b) => {
       const at = postDates.get(a.post_id) || '';
       const bt = postDates.get(b.post_id) || '';
@@ -362,19 +369,24 @@ const Comments = () => {
     });
 
     // Interleave Facebook and Instagram posts when platformFilter is "all"
+    // Since posts are published simultaneously on both platforms, pair them by date rank
     if (platformFilter === "all") {
       const fb = allGroups.filter(g => g.platforms.has('facebook') && !g.platforms.has('instagram'));
       const ig = allGroups.filter(g => g.platforms.has('instagram') && !g.platforms.has('facebook'));
-      const both = allGroups.filter(g => g.platforms.has('facebook') && g.platforms.has('instagram'));
-      const other = allGroups.filter(g => !g.platforms.has('facebook') && !g.platforms.has('instagram'));
+      // both/other go at bottom since they're mixed
+      const other = allGroups.filter(g =>
+        (!g.platforms.has('facebook') && !g.platforms.has('instagram')) ||
+        (g.platforms.has('facebook') && g.platforms.has('instagram'))
+      );
 
-      // Interleave fb and ig lists
-      const interleaved: PostGroup[] = [...both, ...other];
+      // Interleave by rank: FB[0], IG[0], FB[1], IG[1], ...
+      const interleaved: PostGroup[] = [];
       const maxLen = Math.max(fb.length, ig.length);
       for (let i = 0; i < maxLen; i++) {
         if (fb[i]) interleaved.push(fb[i]);
         if (ig[i]) interleaved.push(ig[i]);
       }
+      interleaved.push(...other);
       return interleaved;
     }
 
