@@ -132,9 +132,24 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       let errorMessage = 'Falha ao responder comentário';
       try {
-        const error = JSON.parse(responseBody);
-        errorMessage = error.error?.message || error.error?.error_user_msg || errorMessage;
-        console.error('❌ Meta API error:', error);
+        const errorData = JSON.parse(responseBody);
+        const code = errorData.error?.code;
+        const subcode = errorData.error?.error_subcode;
+        console.error('❌ Meta API error:', errorData);
+
+        // Facebook temporary rate limit / spam block
+        if (code === 32 || code === 368 || subcode === 1404104 || subcode === 2207001) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: '⏳ Facebook bloqueou temporariamente as respostas por excesso de ações. Aguarde alguns minutos antes de tentar novamente.',
+              code: 'RATE_LIMITED'
+            }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        errorMessage = errorData.error?.error_user_msg || errorData.error?.message || errorMessage;
       } catch {
         console.error('❌ Meta API error (non-JSON):', responseBody);
       }

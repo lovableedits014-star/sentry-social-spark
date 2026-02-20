@@ -264,12 +264,22 @@ const Comments = () => {
           delete newState[commentId];
           return newState;
         });
+      } else if (data.code === 'RATE_LIMITED') {
+        toast.warning(data.error, { duration: 10000 });
       } else {
         toast.error(data.error || 'Falha ao publicar');
       }
     } catch (error: any) {
       console.error("Error sending response:", error);
-      toast.error(error.message || "Erro ao publicar resposta");
+      const msg = error.message || "Erro ao publicar resposta";
+      // Detect Facebook temporary block
+      const isRateLimit = msg.includes('32') || msg.includes('368') || msg.includes('rate') || 
+                          msg.includes('temporarily') || msg.includes('spam') || msg.includes('block');
+      if (isRateLimit) {
+        toast.error("Facebook bloqueou temporariamente seu acesso. Aguarde alguns minutos e tente novamente.", { duration: 8000 });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setResponding(null);
     }
