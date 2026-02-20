@@ -1028,10 +1028,10 @@ Deno.serve(async (req) => {
       user_id: user.id,
       action: 'fetch_meta_comments',
       status: 'success',
-      details: { ...stats, posts_limit: postsLimit, sentiment_analyzed: sentimentAnalyzed, runtime_ms: Date.now() - FUNCTION_START },
+      details: { ...stats, posts_limit: postsLimit, sentiment_analyzed: sentimentAnalyzed, runtime_ms: Date.now() - REQUEST_START },
     });
 
-    console.log('=== fetch-meta-comments END ===', stats, `Runtime: ${Date.now() - FUNCTION_START}ms`);
+    console.log('=== fetch-meta-comments END ===', stats, `Runtime: ${Date.now() - REQUEST_START}ms`);
 
     const warnings: string[] = [];
     if (stats.facebookComments > 0 && stats.facebookMissingAuthors > 0) {
@@ -1067,7 +1067,7 @@ Deno.serve(async (req) => {
         await sb.from('action_logs').insert({
           client_id: clientIdVar, user_id: userIdVar,
           action: 'fetch_meta_comments', status: 'error',
-          details: { error: errorMessage, sync_log: syncLog, runtime_ms: Date.now() - FUNCTION_START },
+          details: { error: errorMessage, sync_log: syncLog, runtime_ms: Date.now() - REQUEST_START },
         });
       }
     } catch (logErr) {
