@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-function urlBase64ToUint8Array(base64String: string) {
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
@@ -24,9 +24,17 @@ async function fetchVapidPublicKey(): Promise<string> {
     if (error) throw error;
     cachedVapidKey = data?.vapid_public_key || "";
     return cachedVapidKey;
-  } catch {
+  } catch (e) {
+    console.error("Failed to fetch VAPID key:", e);
     return "";
   }
+}
+
+async function getOrRegisterSW(): Promise<ServiceWorkerRegistration> {
+  // Use existing SW registration if available, otherwise register
+  const existing = await navigator.serviceWorker.getRegistration("/");
+  if (existing) return existing;
+  return await navigator.serviceWorker.register("/sw.js", { scope: "/" });
 }
 
 export function usePushNotifications(supporterAccountId?: string, clientId?: string) {
@@ -44,7 +52,6 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
       setStatus("unsupported");
       return;
     }
-
     const permission = Notification.permission;
     setStatus(permission as PushStatus);
 
@@ -69,7 +76,6 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
       toast.error("Faça login para ativar notificações");
       return false;
     }
-
     if (!isPushSupported) {
       toast.error("Seu navegador não suporta notificações push");
       return false;
@@ -77,51 +83,61 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
 
     setIsSubscribing(true);
     try {
-      // Register the vite-plugin-pwa generated SW (which imports push-handler.js)
-      const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      // Step 1: Get VAPID key FIRST — required for Chrome/FCM
+      const vapidPublicKey = await fetchVapidPublicKey();
+      if (!vapidPublicKey) {
+        toast.error("Configuração de notificações não encontrada. Contate o suporte.");
+        return false;
+      }
+
+      // Step 2: Register / get SW
+      const registration = await getOrRegisterSW();
       await navigator.serviceWorker.ready;
 
+      // Step 3: Request notification permission
       const permission = await Notification.requestPermission();
       setStatus(permission as PushStatus);
-
       if (permission !== "granted") {
-        toast.error("Permissão de notificação negada");
+        toast.error("Permissão de notificação negada. Habilite nas configurações do navegador.");
         return false;
       }
 
+      // Step 4: Unsubscribe any existing subscription (may be without VAPID key)
       const pm = (registration as any).pushManager as PushManager;
-      if (!pm) {
-        toast.error("PushManager não disponível neste navegador");
-        return false;
+      const existing = await pm.getSubscription();
+      if (existing) {
+        await existing.unsubscribe();
+        // Remove old subscription from DB too
+        await supabase
+          .from("push_subscriptions" as any)
+          .delete()
+          .eq("endpoint", existing.endpoint);
       }
 
-      // Fetch VAPID public key from backend (secret-safe)
-      const vapidPublicKey = await fetchVapidPublicKey();
-
-      let subscription: PushSubscription;
-      try {
-        if (vapidPublicKey) {
-          subscription = await pm.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-          });
-        } else {
-          subscription = await pm.subscribe({ userVisibleOnly: true });
-        }
-      } catch {
-        subscription = await pm.subscribe({ userVisibleOnly: true });
-      }
+      // Step 5: Create new subscription with VAPID key (REQUIRED for Chrome/FCM)
+      const appServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      const subscription = await pm.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey.buffer as ArrayBuffer,
+      });
 
       const subJson = subscription.toJSON();
       const p256dh = (subJson as any).keys?.p256dh || "";
       const auth = (subJson as any).keys?.auth || "";
 
+      if (!p256dh || !auth) {
+        toast.error("Falha ao obter chaves de criptografia da subscription. Tente em outro navegador.");
+        return false;
+      }
+
+      // Step 6: Verify user session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error("Sessão expirada. Faça login novamente.");
         return false;
       }
 
+      // Step 7: Save subscription to DB
       const { error } = await supabase
         .from("push_subscriptions" as any)
         .upsert(
@@ -142,7 +158,14 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
       return true;
     } catch (err: any) {
       console.error("Push subscribe error:", err);
-      toast.error("Erro ao ativar notificações: " + (err.message || "tente novamente"));
+      // Common errors with friendly messages
+      if (err?.message?.includes("applicationServerKey")) {
+        toast.error("Erro de configuração VAPID. Recarregue a página e tente novamente.");
+      } else if (err?.message?.includes("permission")) {
+        toast.error("Permissão bloqueada. Habilite nas configurações do navegador.");
+      } else {
+        toast.error("Erro ao ativar notificações: " + (err.message || "tente novamente"));
+      }
       return false;
     } finally {
       setIsSubscribing(false);
@@ -153,14 +176,15 @@ export function usePushNotifications(supporterAccountId?: string, clientId?: str
     setIsSubscribing(true);
     try {
       const reg = await navigator.serviceWorker.ready;
-      const pm = (reg as any).pushManager as PushManager | undefined;
-      const sub = pm ? await pm.getSubscription() : null;
+      const pm2 = (reg as any).pushManager as PushManager | undefined;
+      const sub = pm2 ? await pm2.getSubscription() : null;
       if (sub) {
+        const endpoint = sub.endpoint;
         await sub.unsubscribe();
         await supabase
           .from("push_subscriptions" as any)
           .delete()
-          .eq("endpoint", sub.endpoint);
+          .eq("endpoint", endpoint);
       }
       setIsSubscribed(false);
       toast.success("Notificações desativadas");
