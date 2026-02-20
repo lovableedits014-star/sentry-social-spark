@@ -18,8 +18,10 @@ export default defineConfig(({ mode }) => ({
       strategies: "generateSW",
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: [],
+        globPatterns: [], // Don't precache anything
         importScripts: ["/push-handler.js"],
+        navigateFallback: null, // Never serve offline fallback page
+        runtimeCaching: [], // No runtime caching - always fetch from network
       },
       manifest: {
         name: "Portal do Apoiador",
