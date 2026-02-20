@@ -189,14 +189,16 @@ const Supporters = () => {
   return (
     <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Apoiadores</h1>
-          <p className="text-sm text-muted-foreground mt-1">CRM político — Gerencie e unifique perfis</p>
+          <p className="text-sm text-muted-foreground mt-1">CRM político — gerencie e unifique perfis</p>
         </div>
+        {/* Actions: grouped by purpose */}
         <div className="flex flex-wrap gap-2">
+          {/* Links para compartilhar */}
           {clientId && (
-            <>
+            <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -205,9 +207,10 @@ const Supporters = () => {
                   navigator.clipboard.writeText(url);
                   toast.success("Link do Portal copiado!", { description: "Apoiadores entram aqui todo dia para marcar presença." });
                 }}
+                title="Copiar link do portal diário"
               >
-                <Copy className="w-4 h-4 mr-1 sm:mr-2" />
-                Portal Diário
+                <Copy className="w-4 h-4 mr-1.5" />
+                Portal
               </Button>
               <Button
                 variant="outline"
@@ -215,63 +218,66 @@ const Supporters = () => {
                 onClick={() => {
                   const url = `${window.location.origin}/cadastro/${clientId}`;
                   navigator.clipboard.writeText(url);
-                  toast.success("Link de cadastro copiado!", { description: "Envie para seus apoiadores se cadastrarem." });
+                  toast.success("Link de cadastro copiado!");
                 }}
+                title="Copiar link de cadastro"
               >
-                <Share2 className="w-4 h-4 mr-1 sm:mr-2" />
-                Link de Cadastro
+                <Share2 className="w-4 h-4 mr-1.5" />
+                Cadastro
               </Button>
-            </>
+            </div>
           )}
+          {/* Adicionar */}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsLinkDialogOpen(true)} title="Adicionar por link de perfil social">
+              <Link className="w-4 h-4 mr-1.5" />
+              Por Link
+            </Button>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="w-4 h-4 mr-1.5" />Novo</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Adicionar Apoiador</DialogTitle>
+                  <DialogDescription>Cadastre um novo apoiador manualmente</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Nome</Label>
+                    <Input value={newSupporter.name} onChange={(e) => setNewSupporter({ ...newSupporter, name: e.target.value })} placeholder="Nome do apoiador" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Classificação</Label>
+                    <Select value={newSupporter.classification} onValueChange={(v) => setNewSupporter({ ...newSupporter, classification: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="apoiador_ativo">Apoiador Ativo</SelectItem>
+                        <SelectItem value="apoiador_passivo">Apoiador Passivo</SelectItem>
+                        <SelectItem value="neutro">Neutro</SelectItem>
+                        <SelectItem value="critico">Crítico/Oposição</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <Textarea value={newSupporter.notes} onChange={(e) => setNewSupporter({ ...newSupporter, notes: e.target.value })} placeholder="Anotações..." />
+                  </div>
+                  <Button onClick={handleAddSupporter} className="w-full">Adicionar</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+          {/* Modo unificação — destacado quando ativo */}
           <Button
             variant={mergeMode ? "default" : "outline"}
             size="sm"
-            onClick={() => {
-              setMergeMode(!mergeMode);
-              setSelectedForMerge([]);
-            }}
+            onClick={() => { setMergeMode(!mergeMode); setSelectedForMerge([]); }}
+            title="Unificar dois perfis duplicados"
           >
-            <Merge className="w-4 h-4 mr-1 sm:mr-2" />
+            <Merge className="w-4 h-4 mr-1.5" />
             {mergeMode ? "Cancelar" : "Unificar"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsLinkDialogOpen(true)}>
-            <Link className="w-4 h-4 mr-1 sm:mr-2" />
-            Por Link
-          </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Plus className="w-4 h-4 mr-1 sm:mr-2" />Novo</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Apoiador</DialogTitle>
-                <DialogDescription>Cadastre um novo apoiador manualmente</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Nome</Label>
-                  <Input value={newSupporter.name} onChange={(e) => setNewSupporter({ ...newSupporter, name: e.target.value })} placeholder="Nome do apoiador" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Classificação</Label>
-                  <Select value={newSupporter.classification} onValueChange={(v) => setNewSupporter({ ...newSupporter, classification: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="apoiador_ativo">Apoiador Ativo</SelectItem>
-                      <SelectItem value="apoiador_passivo">Apoiador Passivo</SelectItem>
-                      <SelectItem value="neutro">Neutro</SelectItem>
-                      <SelectItem value="critico">Crítico/Oposição</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Observações</Label>
-                  <Textarea value={newSupporter.notes} onChange={(e) => setNewSupporter({ ...newSupporter, notes: e.target.value })} placeholder="Anotações..." />
-                </div>
-                <Button onClick={handleAddSupporter} className="w-full">Adicionar</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 

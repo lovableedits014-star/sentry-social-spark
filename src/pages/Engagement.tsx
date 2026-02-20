@@ -289,9 +289,10 @@ export default function Engagement() {
             Acompanhe o desempenho dos apoiadores
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Controls: period filter + recalculate */}
+        <div className="flex items-center gap-2 shrink-0">
           <Select value={periodDays} onValueChange={setPeriodDays}>
-            <SelectTrigger className="w-[140px] sm:w-[180px]">
+            <SelectTrigger className="w-[120px] h-9 text-sm">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
@@ -301,9 +302,9 @@ export default function Engagement() {
               <SelectItem value="60">60 dias</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={recalculateScores} disabled={isRecalculating} variant="outline" size="sm">
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRecalculating ? 'animate-spin' : ''}`} />
-            Recalcular
+          <Button onClick={recalculateScores} disabled={isRecalculating} size="sm">
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+            {isRecalculating ? "Calculando..." : "Recalcular"}
           </Button>
         </div>
       </div>
@@ -341,7 +342,7 @@ export default function Engagement() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-6 sm:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Compartilhar</CardTitle>
-            <Share2 className="h-4 w-4 text-emerald-500" />
+            <Share2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
             <div className="text-xl sm:text-2xl font-bold">{stats?.shares || 0}</div>
@@ -359,27 +360,33 @@ export default function Engagement() {
         </Card>
       </div>
 
+      {/* Tabs — labels more descriptive */}
       <Tabs defaultValue="ranking" className="space-y-4">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="ranking" className="text-xs sm:text-sm">
-            <Trophy className="mr-1 sm:mr-2 h-4 w-4" />
+        <TabsList className="flex flex-wrap h-auto gap-1 w-full sm:w-auto">
+          <TabsTrigger value="ranking" className="text-xs sm:text-sm gap-1.5">
+            <Trophy className="h-4 w-4" />
             Ranking
           </TabsTrigger>
-          <TabsTrigger value="historico" className="text-xs sm:text-sm">
-            <History className="mr-1 sm:mr-2 h-4 w-4" />
+          <TabsTrigger value="historico" className="text-xs sm:text-sm gap-1.5">
+            <History className="h-4 w-4" />
             Histórico
           </TabsTrigger>
-          <TabsTrigger value="inativos" className="text-xs sm:text-sm">
-            <AlertTriangle className="mr-1 sm:mr-2 h-4 w-4" />
-            Inativos ({inactiveSupporters.length})
+          <TabsTrigger value="inativos" className="text-xs sm:text-sm gap-1.5">
+            <AlertTriangle className="h-4 w-4" />
+            Inativos
+            {inactiveSupporters.length > 0 && (
+              <Badge variant="destructive" className="h-5 min-w-[20px] text-[10px] px-1.5 ml-0.5">
+                {inactiveSupporters.length}
+              </Badge>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="config" className="text-xs sm:text-sm">
-            <Settings className="mr-1 sm:mr-2 h-4 w-4" />
-            Config
-          </TabsTrigger>
-          <TabsTrigger value="presencas" className="text-xs sm:text-sm">
-            <CalendarCheck className="mr-1 sm:mr-2 h-4 w-4" />
+          <TabsTrigger value="presencas" className="text-xs sm:text-sm gap-1.5">
+            <CalendarCheck className="h-4 w-4" />
             Presenças
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs sm:text-sm gap-1.5">
+            <Settings className="h-4 w-4" />
+            Config
           </TabsTrigger>
         </TabsList>
 
