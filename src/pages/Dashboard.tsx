@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,89 +51,83 @@ interface TimelineData {
 }
 
 const Dashboard = () => {
-  const [allComments, setAllComments] = useState<DashboardComment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [analyzingSentiments, setAnalyzingSentiments] = useState(false);
   const [periodDays, setPeriodDays] = useState<number>(30);
   const [clientId, setClientId] = useState<string>("");
-  const [supportersCount, setSupportersCount] = useState(0);
-  const [respondedCount, setRespondedCount] = useState(0);
-  const [pendingCount, setPendingCount] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [editingResponse, setEditingResponse] = useState<{ [key: string]: string }>({});
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Load cached data from DB only (no auto-sync)
-  const loadData = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  const fetchDashboardData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No user");
 
-      const { data: clients } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("user_id", user.id);
+    const { data: clients } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", user.id);
 
-      if (!clients || clients.length === 0) {
-        setLoading(false);
-        return;
-      }
+    if (!clients || clients.length === 0) return { allComments: [] as DashboardComment[], supportersCount: 0, clientId: "" };
 
-      const cId = clients[0].id;
-      setClientId(cId);
+    const cId = clients[0].id;
 
-      // Fetch ALL comments (paginated, no 1000 limit)
-      const PAGE_SIZE = 1000;
-      let allData: DashboardComment[] = [];
-      let page = 0;
-      let hasMore = true;
+    // Fetch ALL comments (paginated)
+    const PAGE_SIZE = 1000;
+    let allData: DashboardComment[] = [];
+    let page = 0;
+    let hasMore = true;
 
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data } = await supabase
-          .from("comments")
-          .select("id, comment_id, post_id, client_id, sentiment, status, created_at, comment_created_time, author_name, author_id, author_profile_picture, text, platform, platform_user_id, social_profile_id, author_unavailable, author_unavailable_reason, ai_response, final_response, post_message, post_permalink_url, post_full_picture, post_media_type, parent_comment_id, is_page_owner, is_hidden")
-          .eq("client_id", cId)
-          .not("text", "eq", "__post_stub__")
-          .eq("is_page_owner", false)
-          .order("comment_created_time", { ascending: false })
-          .range(from, to);
+    while (hasMore) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data } = await supabase
+        .from("comments")
+        .select("id, comment_id, post_id, client_id, sentiment, status, created_at, comment_created_time, author_name, author_id, author_profile_picture, text, platform, platform_user_id, social_profile_id, author_unavailable, author_unavailable_reason, ai_response, final_response, post_message, post_permalink_url, post_full_picture, post_media_type, parent_comment_id, is_page_owner, is_hidden")
+        .eq("client_id", cId)
+        .not("text", "eq", "__post_stub__")
+        .eq("is_page_owner", false)
+        .order("comment_created_time", { ascending: false })
+        .range(from, to);
 
-        if (data) allData = [...allData, ...data as DashboardComment[]];
-        hasMore = (data?.length || 0) === PAGE_SIZE;
-        page++;
-      }
-
-      setAllComments(allData);
-
-      // Fetch supporters count
-      const { count: supCount } = await supabase
-        .from("supporters")
-        .select("id", { count: "exact", head: true })
-        .eq("client_id", cId);
-      setSupportersCount(supCount || 0);
-
-      // Responded and pending counts
-      const responded = allData.filter(c => c.status === "responded").length;
-      const pending = allData.filter(c => c.status === "pending").length;
-      setRespondedCount(responded);
-      setPendingCount(pending);
-
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
+      if (data) allData = [...allData, ...data as DashboardComment[]];
+      hasMore = (data?.length || 0) === PAGE_SIZE;
+      page++;
     }
+
+    // Fetch supporters count
+    const { count: supCount } = await supabase
+      .from("supporters")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", cId);
+
+    return { allComments: allData, supportersCount: supCount || 0, clientId: cId };
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { data: dashData, isLoading: loading } = useQuery({
+    queryKey: ["dashboard-data"],
+    queryFn: fetchDashboardData,
+    staleTime: Infinity, // Never auto-refetch — only manual
+    gcTime: 1000 * 60 * 30, // Keep in cache 30 min
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+  });
+
+  const allComments = dashData?.allComments ?? [];
+  const supportersCount = dashData?.supportersCount ?? 0;
+
+  // Keep clientId in state for actions
+  if (dashData?.clientId && dashData.clientId !== clientId) {
+    setClientId(dashData.clientId);
+  }
+
+  const reloadData = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["dashboard-data"] });
+  }, [queryClient]);
 
   // Manual sync only
   const handleManualSync = async () => {
@@ -149,7 +144,7 @@ const Dashboard = () => {
         if (data.warnings?.length > 0) {
           for (const w of data.warnings) toast.warning(w, { duration: 8000 });
         }
-        await loadData();
+        reloadData();
       } else {
         const errMsg = data?.error || "Erro na sincronização";
         if (errMsg.includes('expirado') || errMsg.includes('expired')) {
@@ -180,7 +175,7 @@ const Dashboard = () => {
         if (data.remaining > 0) {
           toast.info(`Restam ${data.remaining} comentários. Execute novamente para continuar.`, { duration: 8000 });
         }
-        await loadData();
+        reloadData();
       } else {
         toast.error(data?.error || "Erro ao analisar sentimentos");
       }
@@ -201,7 +196,7 @@ const Dashboard = () => {
       });
       if (error) throw error;
       if (data.success) {
-        await loadData();
+        reloadData();
         toast.success(isRegenerate ? "Nova resposta gerada!" : "Resposta gerada!");
       } else {
         toast.error(data.error || 'Erro ao gerar resposta.');
@@ -222,7 +217,7 @@ const Dashboard = () => {
       });
       if (error) throw error;
       if (data.success) {
-        await loadData();
+        reloadData();
         toast.success("Resposta publicada!");
         setEditingResponse(prev => { const n = { ...prev }; delete n[commentId]; return n; });
       } else if (data.code === 'RATE_LIMITED') {
@@ -246,7 +241,7 @@ const Dashboard = () => {
       if (error) throw error;
       if (data.success) {
         toast.success(data.message);
-        await loadData();
+        reloadData();
       } else {
         toast.error(data.error || 'Erro na operação');
       }
@@ -277,7 +272,9 @@ const Dashboard = () => {
     const posPercent = total > 0 ? Math.round((positive / total) * 100) : 0;
     const negPercent = total > 0 ? Math.round((negative / total) * 100) : 0;
     const neuPercent = total > 0 ? Math.round((neutral / total) * 100) : 0;
-    return { total, positive, neutral, negative, unanalyzed, posPercent, negPercent, neuPercent };
+    const respondedCount = filteredComments.filter(c => c.status === "responded").length;
+    const pendingCount = filteredComments.filter(c => c.status === "pending").length;
+    return { total, positive, neutral, negative, unanalyzed, posPercent, negPercent, neuPercent, respondedCount, pendingCount };
   }, [filteredComments]);
 
   // Negative comments for crisis section
@@ -447,7 +444,7 @@ const Dashboard = () => {
           <CardContent>
             <div className="text-2xl font-bold text-primary">{supportersCount}</div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {respondedCount} respondidos · {pendingCount} pendentes
+              {stats.respondedCount} respondidos · {stats.pendingCount} pendentes
             </p>
           </CardContent>
         </Card>
