@@ -73,7 +73,7 @@ const DashboardLayout = () => {
     { icon: MessageSquare, label: "Comentários", path: "/comments" },
     { icon: Users, label: "Apoiadores", path: "/supporters" },
     { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
-    { icon: CalendarCheck, label: "Presenças", path: "/checkins" },
+    { icon: CalendarCheck, label: "Presenças / Disparos", path: "/checkins" },
     { icon: Link2, label: "Integrações", path: "/integrations" },
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];
