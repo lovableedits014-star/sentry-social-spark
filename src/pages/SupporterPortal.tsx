@@ -95,6 +95,17 @@ export default function SupporterPortal() {
   const { status: pushStatus, isSubscribed, isSubscribing, isPushSupported, subscribe, unsubscribe } =
     usePushNotifications(account?.id, clientId);
 
+  // Load client info as soon as clientId is available (before login)
+  useEffect(() => {
+    if (!clientId) return;
+    supabase
+      .from("clients")
+      .select("name, logo_url, cargo")
+      .eq("id", clientId)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setClientInfo(data); });
+  }, [clientId]);
+
   useEffect(() => {
     supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
