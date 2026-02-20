@@ -6,6 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ─── Concurrency control ──────────────────────────────────────────────────────
+const CONCURRENCY = 20;       // simultaneous push requests
+const BATCH_SIZE = 100;       // rows per DB page
+const MAX_RUNTIME_MS = 50_000; // leave 10s buffer before 60s timeout
+
 // ─── Base64url helpers ────────────────────────────────────────────────────────
 function b64urlDecode(s: string): Uint8Array {
   const base64 = s.replace(/-/g, "+").replace(/_/g, "/");
@@ -35,30 +40,37 @@ function numToUint8Array(n: number, bytes: number): Uint8Array {
   return arr;
 }
 
-// ─── VAPID JWT ────────────────────────────────────────────────────────────────
+// ─── VAPID JWT — cached per audience to avoid redundant crypto ops ─────────────
+const jwtCache = new Map<string, { jwt: string; exp: number }>();
+
 async function makeVapidJWT(
   endpoint: string,
   publicKey: string,
   privateKey: string,
   email: string,
 ): Promise<string> {
-  // Import private key from JWK (derive x/y from public key bytes)
+  const { protocol, host } = new URL(endpoint);
+  const aud = `${protocol}//${host}`;
+  const cached = jwtCache.get(aud);
+  const now = Math.floor(Date.now() / 1000);
+  if (cached && cached.exp > now + 60) return cached.jwt;
+
   const pubBytes = b64urlDecode(publicKey);
   const x = b64urlEncode(pubBytes.slice(1, 33));
   const y = b64urlEncode(pubBytes.slice(33, 65));
   const jwk = { kty: "EC", crv: "P-256", x, y, d: privateKey, ext: true };
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
 
-  const { protocol, host } = new URL(endpoint);
-  const aud = `${protocol}//${host}`;
-  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 43200;
   const enc = (o: unknown) => b64urlEncode(new TextEncoder().encode(JSON.stringify(o)));
   const header = enc({ typ: "JWT", alg: "ES256" });
-  const payload = enc({ aud, exp: now + 43200, sub: `mailto:${email}` });
+  const payload = enc({ aud, exp, sub: `mailto:${email}` });
   const sig = new Uint8Array(
     await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(`${header}.${payload}`))
   );
-  return `${header}.${payload}.${b64urlEncode(sig)}`;
+  const jwt = `${header}.${payload}.${b64urlEncode(sig)}`;
+  jwtCache.set(aud, { jwt, exp });
+  return jwt;
 }
 
 // ─── RFC 8291 (aes128gcm) encryption ─────────────────────────────────────────
@@ -68,30 +80,18 @@ async function encryptPayload(
   auth: string,
 ): Promise<Uint8Array> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  // Ephemeral server ECDH key pair
   const serverPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const serverPubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", serverPair.publicKey));
-
-  // Client's public key
   const clientPubRaw = b64urlDecode(p256dh);
   const clientPub = await crypto.subtle.importKey("raw", clientPubRaw, { name: "ECDH", namedCurve: "P-256" }, false, []);
-
-  // ECDH shared secret
   const sharedBits = await crypto.subtle.deriveBits({ name: "ECDH", public: clientPub }, serverPair.privateKey, 256);
   const sharedKey = await crypto.subtle.importKey("raw", sharedBits, "HKDF", false, ["deriveBits"]);
-
   const authBytes = b64urlDecode(auth);
-
-  // PRK via HKDF (RFC 8291 §3.3)
   const ikm = await crypto.subtle.deriveBits(
     { name: "HKDF", hash: "SHA-256", salt: authBytes, info: concat(new TextEncoder().encode("WebPush: info\0"), clientPubRaw, serverPubRaw) },
-    sharedKey,
-    256,
+    sharedKey, 256,
   );
   const prkKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
-
-  // CEK (128 bit) and nonce (96 bit)
   const cekBits = await crypto.subtle.deriveBits(
     { name: "HKDF", hash: "SHA-256", salt, info: new TextEncoder().encode("Content-Encoding: aes128gcm\0") },
     prkKey, 128,
@@ -100,15 +100,10 @@ async function encryptPayload(
     { name: "HKDF", hash: "SHA-256", salt, info: new TextEncoder().encode("Content-Encoding: nonce\0") },
     prkKey, 96,
   );
-
   const cek = await crypto.subtle.importKey("raw", cekBits, "AES-GCM", false, ["encrypt"]);
-
-  // Pad + encrypt
   const msg = new TextEncoder().encode(plaintext);
-  const padded = concat(msg, new Uint8Array([0x02])); // record delimiter
+  const padded = concat(msg, new Uint8Array([0x02]));
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonceBits }, cek, padded));
-
-  // aes128gcm content encoding header: salt(16) + rs(4) + idlen(1) + server_pub(65)
   const rs = numToUint8Array(4096, 4);
   const header = concat(salt, rs, new Uint8Array([serverPubRaw.length]), serverPubRaw);
   return concat(header, ciphertext);
@@ -126,7 +121,6 @@ async function sendPush(
 ): Promise<{ ok: boolean; status: number; body: string }> {
   const jwt = await makeVapidJWT(endpoint, vapidPublicKey, vapidPrivateKey, vapidEmail);
   const encrypted = await encryptPayload(payload, p256dh, auth);
-
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -137,9 +131,25 @@ async function sendPush(
     },
     body: encrypted,
   });
-
   const body = await res.text().catch(() => "");
   return { ok: res.ok || res.status === 201, status: res.status, body };
+}
+
+// ─── Parallel batch processor ─────────────────────────────────────────────────
+async function processInParallel<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const chunkResults = await Promise.allSettled(chunk.map(fn));
+    for (const r of chunkResults) {
+      if (r.status === "fulfilled") results.push(r.value);
+    }
+  }
+  return results;
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -148,6 +158,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -179,13 +190,27 @@ serve(async (req) => {
       .from("clients").select("id, name").eq("id", client_id).eq("user_id", user.id).maybeSingle();
     if (!client) return json({ error: "Client not found or unauthorized" }, 403);
 
-    // Load subscriptions
-    const { data: subs, error: subError } = await supabase
-      .from("push_subscriptions").select("*").eq("client_id", client_id);
-    if (subError) throw subError;
-    if (!subs || subs.length === 0) {
+    // Load ALL subscriptions with pagination to bypass 1000-row limit
+    const allSubs: any[] = [];
+    let page = 0;
+    while (true) {
+      const { data: batch, error: subError } = await supabase
+        .from("push_subscriptions")
+        .select("*")
+        .eq("client_id", client_id)
+        .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1);
+      if (subError) throw subError;
+      if (!batch || batch.length === 0) break;
+      allSubs.push(...batch);
+      if (batch.length < BATCH_SIZE) break;
+      page++;
+    }
+
+    if (allSubs.length === 0) {
       return json({ success: true, sent: 0, message: "Nenhum apoiador com notificações ativas" });
     }
+
+    console.log(`📤 Sending to ${allSubs.length} subscriptions (concurrency=${CONCURRENCY})`);
 
     const payload = JSON.stringify({
       title: title || `🎯 Nova missão de ${client.name}!`,
@@ -198,43 +223,63 @@ serve(async (req) => {
 
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
     const expiredEndpoints: string[] = [];
 
-    for (const sub of subs) {
-      try {
-        const result = await sendPush(
-          sub.endpoint,
-          sub.p256dh,
-          sub.auth,
-          payload,
-          vapidPublicKey,
-          vapidPrivateKey,
-          vapidEmail,
-        );
+    type PushResult = { ok: boolean; status: number; endpoint: string };
 
-        if (result.ok) {
-          sent++;
-          console.log(`✅ Sent to ${sub.endpoint.slice(0, 60)}...`);
-        } else if (result.status === 410 || result.status === 404) {
-          expiredEndpoints.push(sub.endpoint);
-          failed++;
-          console.log(`🗑️  Expired subscription removed: ${result.status}`);
-        } else {
-          failed++;
-          console.error(`❌ Push failed ${result.status}: ${result.body.slice(0, 200)}`);
+    const results = await processInParallel<any, PushResult>(
+      allSubs,
+      CONCURRENCY,
+      async (sub) => {
+        // Graceful timeout: stop processing new items if we're close to limit
+        if (Date.now() - startTime > MAX_RUNTIME_MS) {
+          return { ok: false, status: -1, endpoint: sub.endpoint };
         }
-      } catch (err) {
+        try {
+          const result = await sendPush(
+            sub.endpoint, sub.p256dh, sub.auth, payload,
+            vapidPublicKey, vapidPrivateKey, vapidEmail,
+          );
+          return { ...result, endpoint: sub.endpoint };
+        } catch (err) {
+          console.error(`❌ Exception:`, err);
+          return { ok: false, status: 0, endpoint: sub.endpoint };
+        }
+      }
+    );
+
+    for (const r of results) {
+      if (r.status === -1) {
+        skipped++;
+      } else if (r.ok) {
+        sent++;
+      } else if (r.status === 410 || r.status === 404) {
+        expiredEndpoints.push(r.endpoint);
         failed++;
-        console.error(`❌ Exception sending push:`, err);
+      } else {
+        failed++;
       }
     }
 
-    // Cleanup expired subscriptions
+    // Cleanup expired subscriptions in one query
     if (expiredEndpoints.length > 0) {
       await supabase.from("push_subscriptions").delete().in("endpoint", expiredEndpoints);
+      console.log(`🗑️ Removed ${expiredEndpoints.length} expired subscriptions`);
     }
 
-    return json({ success: true, sent, failed, total: subs.length });
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    console.log(`✅ Done in ${elapsed}s: sent=${sent} failed=${failed} skipped=${skipped} expired=${expiredEndpoints.length}`);
+
+    return json({
+      success: true,
+      sent,
+      failed,
+      skipped,
+      expired_removed: expiredEndpoints.length,
+      total: allSubs.length,
+      elapsed_seconds: elapsed,
+    });
   } catch (error) {
     console.error("Unhandled error:", error);
     return json({ error: String(error) }, 500);
