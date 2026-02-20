@@ -98,13 +98,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create supporter
+    // Create supporter — auto-cadastro via link = apoiador_ativo
     const { data: supporter, error: supError } = await supabase
       .from("supporters")
       .insert({
         client_id,
         name: name.trim(),
-        classification: "apoiador_passivo",
+        classification: "apoiador_ativo",
         notes: [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ") || null,
       })
       .select()
