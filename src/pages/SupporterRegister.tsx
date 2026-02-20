@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 type ParsedProfile = {
@@ -57,6 +57,9 @@ export default function SupporterRegister() {
   const [instagramUrl, setInstagramUrl] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -71,6 +74,14 @@ export default function SupporterRegister() {
     e.preventDefault();
     if (!name.trim()) {
       setError("Por favor, informe seu nome.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Por favor, informe seu e-mail para criar sua conta.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
     if (!facebookUrl.trim() && !instagramUrl.trim()) {
@@ -108,6 +119,22 @@ export default function SupporterRegister() {
         if (fbParsed) profiles.push(fbParsed);
         if (igParsed) profiles.push(igParsed);
         setLinkedProfiles(profiles);
+
+        // Create auth account so supporter can access portal immediately
+        try {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: { data: { full_name: name.trim() } },
+          });
+          if (signUpError) {
+            console.error("Auth signup error:", signUpError);
+            // Don't block success - supporter was created, just auth failed
+          }
+        } catch (authErr) {
+          console.error("Auth error:", authErr);
+        }
+
         setSuccess(true);
         setSuccessMessage(data.message);
       } else {
@@ -151,12 +178,13 @@ export default function SupporterRegister() {
             )}
 
             <p className="text-sm text-muted-foreground">
-              Agora interaja nas publicações para ganhar pontos de engajamento! 🚀
+              Sua conta foi criada com o e-mail <strong>{email}</strong>. Use-a para acessar o portal e interagir nas publicações! 🚀
             </p>
 
-            <Button asChild className="w-full mt-2">
+            <Button asChild className="w-full mt-2" size="lg">
               <a href={`/portal/${clientId}`}>
-                Acessar Portal do Apoiador
+                <LogIn className="w-4 h-4 mr-2" />
+                Entrar no Portal do Apoiador
               </a>
             </Button>
           </CardContent>
@@ -188,6 +216,45 @@ export default function SupporterRegister() {
                 placeholder="Ex: João da Silva"
                 required
               />
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                E-mail *
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                placeholder="seu@email.com"
+                required
+              />
+            </div>
+
+            {/* Password */}
+            <div className="space-y-2">
+              <Label htmlFor="password" className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-muted-foreground" />
+                Criar senha *
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  placeholder="Mínimo 6 caracteres"
+                  minLength={6}
+                  required
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Essa senha será usada para acessar o Portal do Apoiador</p>
             </div>
 
             {/* Facebook */}
