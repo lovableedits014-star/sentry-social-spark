@@ -27,7 +27,9 @@ import {
   Calendar,
   Link2,
   Link2Off,
+  Users,
 } from "lucide-react";
+import { MultiplierRanking } from "@/components/referral/MultiplierRanking";
 
 type EngagementConfig = {
   id: string;
@@ -421,6 +423,10 @@ export default function Engagement() {
                 {inactiveSupporters.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="multiplicadores" className="text-xs sm:text-sm gap-1.5">
+            <Users className="h-4 w-4" />
+            Multiplicadores
           </TabsTrigger>
           <TabsTrigger value="config" className="text-xs sm:text-sm gap-1.5">
             <Settings className="h-4 w-4" />
@@ -841,6 +847,11 @@ export default function Engagement() {
               <Button onClick={saveConfig}>Salvar Configuração</Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Multiplicadores Tab */}
+        <TabsContent value="multiplicadores">
+          {client?.id && <MultiplierRanking clientId={client.id} />}
         </TabsContent>
       </Tabs>
     </div>
