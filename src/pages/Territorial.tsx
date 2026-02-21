@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from "recharts";
 import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -82,6 +84,16 @@ export default function Territorial() {
   }, [supporters]);
 
   const maxCount = groups.length > 0 ? groups[0].count : 1;
+
+  // Chart data: top 15 regions
+  const chartData = useMemo(() => {
+    return groups.slice(0, 15).map(g => ({
+      name: g.neighborhood ? `${g.neighborhood}` : g.city,
+      fullName: g.neighborhood ? `${g.neighborhood}, ${g.city}` : g.city,
+      count: g.count,
+      ratio: g.count / maxCount,
+    }));
+  }, [groups, maxCount]);
 
   const filtered = search
     ? groups.filter(g =>
@@ -169,6 +181,65 @@ export default function Territorial() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Distribution Chart */}
+      {chartData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              Distribuição por Região
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Top {chartData.length} regiões com mais apoiadores. As cores indicam a intensidade: verde = zona quente, amarelo = zona morna, vermelho = zona fria.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                count: { label: "Apoiadores", color: "hsl(var(--primary))" },
+              }}
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 16, top: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={11}
+                    width={120}
+                    tick={{ fill: "hsl(var(--foreground))" }}
+                  />
+                  <ChartTooltip
+                    content={<ChartTooltipContent />}
+                    formatter={(value: number, _name: string, props: any) => [
+                      `${value} apoiadores`,
+                      props.payload.fullName,
+                    ]}
+                  />
+                  <Bar dataKey="count" name="Apoiadores" radius={[0, 4, 4, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.ratio >= 0.7
+                            ? "hsl(var(--primary))"
+                            : entry.ratio >= 0.4
+                            ? "hsl(38, 92%, 50%)"
+                            : "hsl(var(--destructive))"
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <div className="relative">
