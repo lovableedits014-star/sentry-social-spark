@@ -53,6 +53,7 @@ function getPlatformIcon(platform: string) {
   return <Facebook className="w-4 h-4 text-blue-600" />;
 }
 
+// Memoized to prevent re-renders when parent state changes
 export const PostCard = memo(function PostCard({
   group,
   authorStats,
