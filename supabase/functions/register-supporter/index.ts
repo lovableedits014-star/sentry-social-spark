@@ -82,6 +82,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (!city?.trim() || !neighborhood?.trim()) {
+      return new Response(JSON.stringify({ success: false, error: "Cidade e bairro são obrigatórios" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const profiles: { platform: "facebook" | "instagram"; username: string }[] = [];
     if (facebook_url) {
       const parsed = parseProfileUrl(facebook_url);

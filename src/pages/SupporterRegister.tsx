@@ -109,6 +109,14 @@ export default function SupporterRegister() {
       setError("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
+    if (!city.trim()) {
+      setError("Por favor, informe sua cidade.");
+      return;
+    }
+    if (!neighborhood.trim()) {
+      setError("Por favor, informe seu bairro.");
+      return;
+    }
     if (!facebookUrl.trim() && !instagramUrl.trim()) {
       setError("Por favor, informe pelo menos um perfil (Facebook ou Instagram).");
       return;
@@ -397,18 +405,20 @@ export default function SupporterRegister() {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-muted-foreground" />
-                Localização (opcional)
+                Localização *
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Cidade"
+                  onChange={(e) => { setCity(e.target.value); setError(""); }}
+                  placeholder="Cidade *"
+                  required
                 />
                 <Input
                   value={neighborhood}
-                  onChange={(e) => setNeighborhood(e.target.value)}
-                  placeholder="Bairro"
+                  onChange={(e) => { setNeighborhood(e.target.value); setError(""); }}
+                  placeholder="Bairro *"
+                  required
                 />
               </div>
               <Select value={state} onValueChange={setState}>
