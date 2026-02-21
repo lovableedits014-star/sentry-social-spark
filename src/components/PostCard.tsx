@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   MessageSquare, TrendingUp, TrendingDown, Minus,
@@ -53,7 +53,7 @@ function getPlatformIcon(platform: string) {
   return <Facebook className="w-4 h-4 text-blue-600" />;
 }
 
-export function PostCard({
+export const PostCard = memo(function PostCard({
   group,
   authorStats,
   registeredSupporters,
@@ -212,4 +212,4 @@ export function PostCard({
       )}
     </div>
   );
-}
+});

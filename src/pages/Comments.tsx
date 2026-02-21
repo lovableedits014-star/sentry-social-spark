@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +37,7 @@ const Comments = () => {
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
-  const [clientId, setClientId] = useState<string>("");
+  const clientIdRef = useRef<string>("");
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
   const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
@@ -158,10 +158,11 @@ const Comments = () => {
 
   const comments = commentsData?.comments ?? [];
 
-  // Keep clientId in sync
-  if (commentsData?.clientId && commentsData.clientId !== clientId) {
-    setClientId(commentsData.clientId);
+  // Keep clientId in sync via ref (no re-render)
+  if (commentsData?.clientId && commentsData.clientId !== clientIdRef.current) {
+    clientIdRef.current = commentsData.clientId;
   }
+  const clientId = clientIdRef.current;
 
   // Fetch registered supporters for this client
   const { data: registeredSupportersMap } = useQuery({
@@ -196,8 +197,9 @@ const Comments = () => {
     queryClient.invalidateQueries({ queryKey: ["comments-data"] });
   }, [queryClient]);
 
-  const handleSyncComments = async () => {
-    if (!clientId) {
+  const handleSyncComments = useCallback(async () => {
+    const cid = clientIdRef.current;
+    if (!cid) {
       toast.error("Cliente não encontrado");
       return;
     }
@@ -205,7 +207,7 @@ const Comments = () => {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('fetch-meta-comments', {
-        body: { clientId, postsLimit }
+        body: { clientId: cid, postsLimit }
       });
 
       if (error) throw error;
@@ -229,13 +231,13 @@ const Comments = () => {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [postsLimit, reloadComments]);
 
-  const handleGenerateResponse = async (commentId: string, isRegenerate = false) => {
+  const handleGenerateResponse = useCallback(async (commentId: string, isRegenerate = false) => {
     setGeneratingResponse(commentId);
     try {
       const { data, error } = await supabase.functions.invoke('generate-response', {
-        body: { commentId, clientId }
+        body: { commentId, clientId: clientIdRef.current }
       });
 
       if (error) throw error;
@@ -252,9 +254,9 @@ const Comments = () => {
     } finally {
       setGeneratingResponse(null);
     }
-  };
+  }, [reloadComments]);
 
-  const handleSendResponse = async (commentId: string, responseText: string, platform: string) => {
+  const handleSendResponse = useCallback(async (commentId: string, responseText: string, platform: string) => {
     if (!responseText || responseText.trim().length === 0) {
       toast.error("A resposta não pode estar vazia");
       return;
@@ -263,7 +265,7 @@ const Comments = () => {
     setResponding(commentId);
     try {
       const { data, error } = await supabase.functions.invoke('respond-to-comment', {
-        body: { commentId, clientId, responseText }
+        body: { commentId, clientId: clientIdRef.current, responseText }
       });
 
       if (error) throw error;
@@ -279,7 +281,6 @@ const Comments = () => {
     } catch (error: any) {
       console.error("Error sending response:", error);
       const msg = error.message || "Erro ao publicar resposta";
-      // Detect Facebook temporary block
       const isRateLimit = msg.includes('32') || msg.includes('368') || msg.includes('rate') || 
                           msg.includes('temporarily') || msg.includes('spam') || msg.includes('block');
       if (isRateLimit) {
@@ -290,13 +291,13 @@ const Comments = () => {
     } finally {
       setResponding(null);
     }
-  };
+  }, [reloadComments]);
 
-  const handleManageComment = async (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => {
+  const handleManageComment = useCallback(async (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => {
     setManagingComment(commentId);
     try {
       const { data, error } = await supabase.functions.invoke('manage-comment', {
-        body: { commentId, clientId, action }
+        body: { commentId, clientId: clientIdRef.current, action }
       });
 
       if (error) throw error;
@@ -313,9 +314,9 @@ const Comments = () => {
     } finally {
       setManagingComment(null);
     }
-  };
+  }, [reloadComments]);
 
-  const handleClassifySentiment = async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
+  const handleClassifySentiment = useCallback(async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
     setClassifyingSentiment(commentId);
     try {
       const { error } = await supabase
@@ -342,7 +343,7 @@ const Comments = () => {
     } finally {
       setClassifyingSentiment(null);
     }
-  };
+  }, [queryClient, postsLimit]);
 
   // Compute author recurrence stats across ALL comments
   const authorStats = useMemo(() => {
@@ -375,10 +376,28 @@ const Comments = () => {
 
   // For the "Recentes" tab: purely sorted by comment_created_time desc, ignoring post grouping
   const recentComments = useMemo(() => {
-    return [...filteredComments].sort((a, b) =>
+    const sorted = [...filteredComments].sort((a, b) =>
       (b.comment_created_time || b.created_at || '').localeCompare(a.comment_created_time || a.created_at || '')
     );
+    return sorted;
   }, [filteredComments]);
+
+  // Pre-compute filtered + grouped data for recent tab to avoid recalculating in render
+  const recentViewData = useMemo(() => {
+    const source = hideResponded
+      ? recentComments.filter(c => c.status !== 'responded')
+      : recentComments;
+    const topLevel = source.filter(c => !c.parent_comment_id);
+    const repliesByParent = new Map<string, Comment[]>();
+    for (const c of source) {
+      if (c.parent_comment_id) {
+        const arr = repliesByParent.get(c.parent_comment_id) || [];
+        arr.push(c);
+        repliesByParent.set(c.parent_comment_id, arr);
+      }
+    }
+    return { topLevel, repliesByParent };
+  }, [recentComments, hideResponded]);
 
   const postGroups = useMemo((): PostGroup[] => {
     const groups = new Map<string, PostGroup>();
@@ -675,7 +694,7 @@ const Comments = () => {
             </Button>
           </div>
           <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
-            {recentComments.length === 0 ? (
+            {recentViewData.topLevel.length === 0 ? (
               <div className="py-16">
                 <div className="text-center text-muted-foreground">
                   <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-20" />
@@ -684,61 +703,46 @@ const Comments = () => {
                 </div>
               </div>
             ) : (
-              (() => {
-                const source = hideResponded
-                  ? recentComments.filter(c => c.status !== 'responded')
-                  : recentComments;
-                // Show only top-level comments sorted purely by date, with their replies nested
-                const topLevel = source.filter(c => !c.parent_comment_id);
-                const repliesByParent = new Map<string, Comment[]>();
-                for (const c of source) {
-                  if (c.parent_comment_id) {
-                    const arr = repliesByParent.get(c.parent_comment_id) || [];
-                    arr.push(c);
-                    repliesByParent.set(c.parent_comment_id, arr);
-                  }
-                }
-                return topLevel.map((comment) => (
-                  <div key={comment.id}>
-                    <CommentItem
-                      comment={comment}
-                      authorStats={authorStats}
-                      registeredSupporters={registeredSupportersMap}
-                      onGenerateResponse={handleGenerateResponse}
-                      onSendResponse={handleSendResponse}
-                      onManageComment={handleManageComment}
-                      onClassifySentiment={handleClassifySentiment}
-                      isGenerating={generatingResponse === comment.id}
-                      isResponding={responding === comment.id}
-                      isManaging={managingComment === comment.id}
-                      isClassifying={classifyingSentiment === comment.id}
-                      showPostInfo
-                    />
-                    {repliesByParent.get(comment.comment_id)?.map((reply) => (
-                      <div key={reply.id} className="ml-8 border-l-2 border-primary/20">
-                        <CommentItem
-                          comment={reply}
-                          authorStats={authorStats}
-                          registeredSupporters={registeredSupportersMap}
-                          onGenerateResponse={handleGenerateResponse}
-                          onSendResponse={handleSendResponse}
-                          onManageComment={handleManageComment}
-                          onClassifySentiment={handleClassifySentiment}
-                          isGenerating={generatingResponse === reply.id}
-                          isResponding={responding === reply.id}
-                          isManaging={managingComment === reply.id}
-                          isClassifying={classifyingSentiment === reply.id}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ));
-              })()
+              recentViewData.topLevel.map((comment) => (
+                <div key={comment.id}>
+                  <CommentItem
+                    comment={comment}
+                    authorStats={authorStats}
+                    registeredSupporters={registeredSupportersMap}
+                    onGenerateResponse={handleGenerateResponse}
+                    onSendResponse={handleSendResponse}
+                    onManageComment={handleManageComment}
+                    onClassifySentiment={handleClassifySentiment}
+                    isGenerating={generatingResponse === comment.id}
+                    isResponding={responding === comment.id}
+                    isManaging={managingComment === comment.id}
+                    isClassifying={classifyingSentiment === comment.id}
+                    showPostInfo
+                  />
+                  {recentViewData.repliesByParent.get(comment.comment_id)?.map((reply) => (
+                    <div key={reply.id} className="ml-8 border-l-2 border-primary/20">
+                      <CommentItem
+                        comment={reply}
+                        authorStats={authorStats}
+                        registeredSupporters={registeredSupportersMap}
+                        onGenerateResponse={handleGenerateResponse}
+                        onSendResponse={handleSendResponse}
+                        onManageComment={handleManageComment}
+                        onClassifySentiment={handleClassifySentiment}
+                        isGenerating={generatingResponse === reply.id}
+                        isResponding={responding === reply.id}
+                        isManaging={managingComment === reply.id}
+                        isClassifying={classifyingSentiment === reply.id}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))
             )}
           </div>
-          {recentComments.length > 0 && (
+          {recentViewData.topLevel.length > 0 && (
             <p className="text-xs text-muted-foreground text-center mt-3">
-              {recentComments.filter(c => !c.parent_comment_id).length} comentário{recentComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''} listado{recentComments.filter(c => !c.parent_comment_id).length !== 1 ? 's' : ''}
+              {recentViewData.topLevel.length} comentário{recentViewData.topLevel.length !== 1 ? 's' : ''} listado{recentViewData.topLevel.length !== 1 ? 's' : ''}
             </p>
           )}
         </TabsContent>
