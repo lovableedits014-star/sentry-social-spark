@@ -33,7 +33,7 @@ const Comments = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
-  const [postsLimit, setPostsLimit] = useState<number>(30);
+  const [postsLimit, setPostsLimit] = useState<number>(6);
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
