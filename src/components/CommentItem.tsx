@@ -11,9 +11,11 @@ import {
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
-  Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X, Repeat,
+  Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X, Repeat, UserCheck,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
+
+export type RegisteredSupportersMap = Map<string, { name: string; classification: string }>;
 
 export interface CommentData {
   id: string;
@@ -49,6 +51,7 @@ export type AuthorStatsMap = Map<string, { total: number; positive: number; neut
 export interface CommentItemProps {
   comment: CommentData;
   authorStats?: AuthorStatsMap;
+  registeredSupporters?: RegisteredSupportersMap;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -112,6 +115,7 @@ function getStatusBadge(status: string) {
 export function CommentItem({
   comment,
   authorStats,
+  registeredSupporters,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -132,6 +136,16 @@ export function CommentItem({
   // Author recurrence stats
   const authorKey = comment.platform_user_id ? `${comment.platform}:${comment.platform_user_id}` : null;
   const stats = authorKey && authorStats ? authorStats.get(authorKey) : null;
+  // Check if author is already a registered supporter
+  const registeredSupporter = authorKey && registeredSupporters ? registeredSupporters.get(authorKey) : null;
+
+  const classificationLabels: Record<string, string> = {
+    apoiador_ativo: "Apoiador Ativo",
+    apoiador_passivo: "Apoiador Passivo",
+    neutro: "Neutro",
+    critico: "Crítico",
+  };
+
   const isRecurrent = stats && stats.total >= 3;
   const dominantSentiment = stats ? (
     stats.positive >= stats.negative && stats.positive >= stats.neutral ? "positive" :
@@ -229,6 +243,27 @@ export function CommentItem({
                 {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
               </span>
               {getPlatformIcon(comment.platform || 'facebook')}
+              {/* Registered supporter badge */}
+              {registeredSupporter && !isPageOwner && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex cursor-help">
+                        <Badge className="text-[10px] gap-1 px-1.5 h-5 bg-green-600 hover:bg-green-700 text-white border-transparent">
+                          <UserCheck className="w-3 h-3" />
+                          Apoiador
+                        </Badge>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[220px]">
+                      <p className="text-xs font-semibold mb-1">✅ Apoiador cadastrado</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        <strong>{registeredSupporter.name}</strong> · {classificationLabels[registeredSupporter.classification] || registeredSupporter.classification}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {/* Recurrence badge */}
               {stats && stats.total >= 2 && !isPageOwner && (
                 <TooltipProvider>
@@ -392,7 +427,7 @@ export function CommentItem({
             {/* Standard response actions - hidden when responded */}
             {!isResponded && (
               <>
-                {comment.author_id && <AddToSupportersButton comment={comment} />}
+                {comment.author_id && !registeredSupporter && <AddToSupportersButton comment={comment} />}
 
                 {/* Manual reply button — always visible when not responded */}
                 {!showManualReply && (
