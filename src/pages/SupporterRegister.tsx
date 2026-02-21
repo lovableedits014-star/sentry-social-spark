@@ -1,12 +1,13 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 type ParsedProfile = {
@@ -50,8 +51,12 @@ function parseProfileUrl(url: string): ParsedProfile | null {
   return null;
 }
 
+const UF_OPTIONS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+
 export default function SupporterRegister() {
   const { clientId } = useParams<{ clientId: string }>();
+  const [searchParams] = useSearchParams();
+  const refCode = searchParams.get("ref") || "";
   const [name, setName] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
@@ -60,11 +65,31 @@ export default function SupporterRegister() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [city, setCity] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [state, setState] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [linkedProfiles, setLinkedProfiles] = useState<ParsedProfile[]>([]);
   const [error, setError] = useState("");
+  const [referrerName, setReferrerName] = useState<string | null>(null);
+
+  // Validate referral code on mount
+  useEffect(() => {
+    if (!refCode || !clientId) return;
+    supabase
+      .from("referral_codes")
+      .select("code, supporter_accounts!inner(name)")
+      .eq("code", refCode.toUpperCase())
+      .eq("client_id", clientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setReferrerName((data as any).supporter_accounts?.name || null);
+        }
+      });
+  }, [refCode, clientId]);
 
   // Real-time parse preview
   const fbParsed = parseProfileUrl(facebookUrl);
@@ -109,6 +134,10 @@ export default function SupporterRegister() {
           instagram_url: instagramUrl.trim() || null,
           phone: phone.trim() || null,
           notes: notes.trim() || null,
+          referral_code: refCode || null,
+          city: city.trim() || null,
+          neighborhood: neighborhood.trim() || null,
+          state: state || null,
         },
       });
 
@@ -120,16 +149,57 @@ export default function SupporterRegister() {
         if (igParsed) profiles.push(igParsed);
         setLinkedProfiles(profiles);
 
-        // Create auth account so supporter can access portal immediately
+        // Create auth account
         try {
-          const { error: signUpError } = await supabase.auth.signUp({
+          const { data: authData, error: signUpError } = await supabase.auth.signUp({
             email: email.trim(),
             password,
             options: { data: { full_name: name.trim() } },
           });
           if (signUpError) {
             console.error("Auth signup error:", signUpError);
-            // Don't block success - supporter was created, just auth failed
+          } else if (authData?.user && data.supporter_id) {
+            // Create supporter_account and link referral using service-side data
+            const { data: newAccount } = await supabase
+              .from("supporter_accounts")
+              .insert({
+                user_id: authData.user.id,
+                client_id: clientId!,
+                name: name.trim(),
+                email: email.trim(),
+                facebook_username: fbParsed?.username || null,
+                instagram_username: igParsed?.username || null,
+                referred_by: data.referrer_account_id || null,
+                city: city.trim() || null,
+                neighborhood: neighborhood.trim() || null,
+                state: state || null,
+              } as any)
+              .select()
+              .single();
+
+            // Create referral record if there was a referrer
+            if (newAccount && data.referrer_account_id) {
+              await supabase.from("referrals").insert({
+                client_id: clientId!,
+                referrer_account_id: data.referrer_account_id,
+                referred_account_id: newAccount.id,
+              } as any);
+
+              // Increment referral_count on the referrer's supporter
+              // Find supporter linked to referrer account
+              const { data: refAccount } = await supabase
+                .from("supporter_accounts")
+                .select("supporter_id")
+                .eq("id", data.referrer_account_id)
+                .maybeSingle();
+              
+              if (refAccount?.supporter_id) {
+                await supabase.rpc("calculate_engagement_score" as any, {
+                  p_supporter_id: refAccount.supporter_id,
+                  p_days: 30,
+                });
+              }
+            }
           }
         } catch (authErr) {
           console.error("Auth error:", authErr);
@@ -207,6 +277,13 @@ export default function SupporterRegister() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Referral badge */}
+            {referrerName && (
+              <div className="flex items-center gap-2 bg-primary/10 rounded-lg p-3 text-sm">
+                <Users className="w-4 h-4 text-primary shrink-0" />
+                <span>Indicado por <strong className="text-primary">{referrerName}</strong></span>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">Seu nome completo *</Label>
               <Input
@@ -316,6 +393,36 @@ export default function SupporterRegister() {
               )}
             </div>
 
+            {/* Location fields */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-muted-foreground" />
+                Localização (opcional)
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Cidade"
+                />
+                <Input
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                  placeholder="Bairro"
+                />
+              </div>
+              <Select value={state} onValueChange={setState}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Estado (UF)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {UF_OPTIONS.map(uf => (
+                    <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="phone" className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-muted-foreground" />
@@ -338,7 +445,7 @@ export default function SupporterRegister() {
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Bairro, cidade, como soube de nós..."
+                placeholder="Como soube de nós..."
                 maxLength={300}
               />
             </div>

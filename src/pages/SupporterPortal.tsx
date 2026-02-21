@@ -10,10 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
-  Bell, BellOff, BellRing, Smartphone
+  Bell, BellOff, BellRing, Smartphone, Users
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { ReferralPanel } from "@/components/referral/ReferralPanel";
 
 interface Mission {
   id: string;
@@ -492,6 +493,15 @@ export default function SupporterPortal() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
+        {/* Tabs: Presença / Convidar / Perfil */}
+        <Tabs defaultValue="presenca">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsTrigger value="presenca" className="text-xs gap-1"><CalendarCheck className="w-3.5 h-3.5" /> Presença</TabsTrigger>
+            <TabsTrigger value="convidar" className="text-xs gap-1"><Users className="w-3.5 h-3.5" /> Convidar</TabsTrigger>
+            <TabsTrigger value="perfil" className="text-xs gap-1"><Edit2 className="w-3.5 h-3.5" /> Perfil</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="presenca" className="space-y-4">
         {/* CHECK-IN CARD */}
         <Card className={checkedInToday ? "border-emerald-500/50 bg-emerald-500/5" : "border-primary/30 bg-primary/5"}>
           <CardContent className="pt-6 pb-5">
@@ -714,87 +724,96 @@ export default function SupporterPortal() {
             </div>
           )}
         </div>
+          </TabsContent>
 
-
-        {/* PROFILE */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Meu Perfil</CardTitle>
-              {!editMode ? (
-                <Button variant="ghost" size="sm" onClick={() => setEditMode(true)}>
-                  <Edit2 className="w-4 h-4 mr-1" /> Editar
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setEditMode(false)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
-                    {savingProfile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
-                    Salvar
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {!editMode ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center font-bold text-primary">
-                    {account?.name?.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium">{account?.name}</p>
-                    <p className="text-xs text-muted-foreground">{account?.email}</p>
-                  </div>
-                  <Badge variant="secondary" className="ml-auto text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                    Ativo
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {account?.facebook_username && (
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <Facebook className="w-3 h-3 text-blue-600" />
-                      @{account.facebook_username}
-                    </Badge>
-                  )}
-                  {account?.instagram_username && (
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <Instagram className="w-3 h-3 text-pink-500" />
-                      @{account.instagram_username}
-                    </Badge>
-                  )}
-                  {!account?.facebook_username && !account?.instagram_username && (
-                    <p className="text-xs text-muted-foreground">Nenhuma rede social vinculada. Clique em Editar para adicionar.</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Nome</Label>
-                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Seu nome" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs flex items-center gap-1">
-                    <Facebook className="w-3 h-3 text-blue-600" /> Facebook (username)
-                  </Label>
-                  <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva (sem @)" />
-                  <p className="text-xs text-muted-foreground">Ex: se seu perfil é facebook.com/joaosilva, coloque "joaosilva"</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs flex items-center gap-1">
-                    <Instagram className="w-3 h-3 text-pink-500" /> Instagram (username)
-                  </Label>
-                  <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva (sem @)" />
-                  <p className="text-xs text-muted-foreground">Ex: se seu perfil é instagram.com/joaosilva, coloque "joaosilva"</p>
-                </div>
-              </div>
+          <TabsContent value="convidar">
+            {account && clientId && (
+              <ReferralPanel accountId={account.id} clientId={clientId} />
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="perfil">
+            {/* PROFILE */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Meu Perfil</CardTitle>
+                  {!editMode ? (
+                    <Button variant="ghost" size="sm" onClick={() => setEditMode(true)}>
+                      <Edit2 className="w-4 h-4 mr-1" /> Editar
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setEditMode(false)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
+                        {savingProfile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {!editMode ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center font-bold text-primary">
+                        {account?.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium">{account?.name}</p>
+                        <p className="text-xs text-muted-foreground">{account?.email}</p>
+                      </div>
+                      <Badge variant="secondary" className="ml-auto text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                        Ativo
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {account?.facebook_username && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <Facebook className="w-3 h-3 text-blue-600" />
+                          @{account.facebook_username}
+                        </Badge>
+                      )}
+                      {account?.instagram_username && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <Instagram className="w-3 h-3 text-pink-500" />
+                          @{account.instagram_username}
+                        </Badge>
+                      )}
+                      {!account?.facebook_username && !account?.instagram_username && (
+                        <p className="text-xs text-muted-foreground">Nenhuma rede social vinculada. Clique em Editar para adicionar.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nome</Label>
+                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Seu nome" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Facebook className="w-3 h-3 text-blue-600" /> Facebook (username)
+                      </Label>
+                      <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva (sem @)" />
+                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é facebook.com/joaosilva, coloque "joaosilva"</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Instagram className="w-3 h-3 text-pink-500" /> Instagram (username)
+                      </Label>
+                      <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva (sem @)" />
+                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é instagram.com/joaosilva, coloque "joaosilva"</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
