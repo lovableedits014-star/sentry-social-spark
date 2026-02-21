@@ -14,7 +14,7 @@ interface LocationGroup {
   count: number;
 }
 
-export default function Territorial() {
+export default function Territorial() { 
   const [search, setSearch] = useState("");
 
   const { data: client } = useQuery({
