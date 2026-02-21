@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   MessageSquare, Search, TrendingUp, TrendingDown,
   Instagram, Facebook, RefreshCw, LayoutGrid, List,
+  EyeOff, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "@/components/PostCard";
@@ -40,6 +41,7 @@ const Comments = () => {
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
   const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
+  const [hideResponded, setHideResponded] = useState(true);
   const queryClient = useQueryClient();
 
   const fetchCommentsData = useCallback(async (limit: number) => {
@@ -651,6 +653,27 @@ const Comments = () => {
 
         {/* Tab: Últimos Comentários */}
         <TabsContent value="recent">
+          {/* Toggle buttons */}
+          <div className="flex items-center gap-2 mb-3">
+            <Button
+              variant={hideResponded ? "default" : "outline"}
+              size="sm"
+              onClick={() => setHideResponded(true)}
+              className="gap-1.5"
+            >
+              <EyeOff className="w-3.5 h-3.5" />
+              Ocultar respondidos
+            </Button>
+            <Button
+              variant={!hideResponded ? "default" : "outline"}
+              size="sm"
+              onClick={() => setHideResponded(false)}
+              className="gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Mostrar respondidos
+            </Button>
+          </div>
           <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
             {recentComments.length === 0 ? (
               <div className="py-16">
@@ -662,10 +685,13 @@ const Comments = () => {
               </div>
             ) : (
               (() => {
+                const source = hideResponded
+                  ? recentComments.filter(c => c.status !== 'responded')
+                  : recentComments;
                 // Show only top-level comments sorted purely by date, with their replies nested
-                const topLevel = recentComments.filter(c => !c.parent_comment_id);
+                const topLevel = source.filter(c => !c.parent_comment_id);
                 const repliesByParent = new Map<string, Comment[]>();
-                for (const c of recentComments) {
+                for (const c of source) {
                   if (c.parent_comment_id) {
                     const arr = repliesByParent.get(c.parent_comment_id) || [];
                     arr.push(c);
