@@ -393,6 +393,53 @@ export type Database = {
           },
         ]
       }
+      ied_scores: {
+        Row: {
+          checkin_score: number
+          client_id: string
+          created_at: string
+          details: Json | null
+          engagement_score: number
+          growth_score: number
+          id: string
+          score: number
+          sentiment_score: number
+          week_start: string
+        }
+        Insert: {
+          checkin_score?: number
+          client_id: string
+          created_at?: string
+          details?: Json | null
+          engagement_score?: number
+          growth_score?: number
+          id?: string
+          score?: number
+          sentiment_score?: number
+          week_start: string
+        }
+        Update: {
+          checkin_score?: number
+          client_id?: string
+          created_at?: string
+          details?: Json | null
+          engagement_score?: number
+          growth_score?: number
+          id?: string
+          score?: number
+          sentiment_score?: number
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ied_scores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integrations: {
         Row: {
           ai_custom_prompt: string | null
