@@ -11,7 +11,7 @@ import {
 import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
-  Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X,
+  Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X, Repeat,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 
@@ -44,8 +44,11 @@ export interface CommentData {
   is_hidden?: boolean;
 }
 
+export type AuthorStatsMap = Map<string, { total: number; positive: number; neutral: number; negative: number; name: string }>;
+
 export interface CommentItemProps {
   comment: CommentData;
+  authorStats?: AuthorStatsMap;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -97,6 +100,7 @@ function getStatusBadge(status: string) {
 
 export function CommentItem({
   comment,
+  authorStats,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -113,6 +117,15 @@ export function CommentItem({
   const isManaging = managingComment === comment.id;
   const [showManualReply, setShowManualReply] = useState(false);
   const [manualText, setManualText] = useState("");
+
+  // Author recurrence stats
+  const authorKey = comment.platform_user_id ? `${comment.platform}:${comment.platform_user_id}` : null;
+  const stats = authorKey && authorStats ? authorStats.get(authorKey) : null;
+  const isRecurrent = stats && stats.total >= 3;
+  const dominantSentiment = stats ? (
+    stats.positive >= stats.negative && stats.positive >= stats.neutral ? "positive" :
+    stats.negative >= stats.positive && stats.negative >= stats.neutral ? "negative" : "neutral"
+  ) : null;
 
   return (
     <div className={`p-4 transition-colors ${
@@ -200,11 +213,47 @@ export function CommentItem({
           </TooltipProvider>
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">
                 {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
               </span>
               {getPlatformIcon(comment.platform || 'facebook')}
+              {/* Recurrence badge */}
+              {stats && stats.total >= 2 && !isPageOwner && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant={isRecurrent ? "default" : "secondary"}
+                        className="text-[10px] gap-1 px-1.5 h-5"
+                      >
+                        <Repeat className="w-3 h-3" />
+                        {stats.total}x
+                        {dominantSentiment === "positive" && <TrendingUp className="w-3 h-3" />}
+                        {dominantSentiment === "negative" && <TrendingDown className="w-3 h-3" />}
+                        {dominantSentiment === "neutral" && <Minus className="w-3 h-3" />}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[250px]">
+                      <p className="text-xs font-semibold mb-1">
+                        {comment.author_name} — {stats.total} comentários
+                      </p>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-green-600">👍 {stats.positive}</span>
+                        <span className="text-muted-foreground">😐 {stats.neutral}</span>
+                        <span className="text-destructive">👎 {stats.negative}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Perfil predominante: <strong>{
+                          dominantSentiment === "positive" ? "Positivo" :
+                          dominantSentiment === "negative" ? "Negativo" : "Neutro"
+                        }</strong>
+                        {isRecurrent ? " · Seguidor recorrente ✓" : ""}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="w-3 h-3" />

@@ -289,6 +289,24 @@ const Comments = () => {
     }
   };
 
+  // Compute author recurrence stats across ALL comments
+  const authorStats = useMemo(() => {
+    const map = new Map<string, { total: number; positive: number; neutral: number; negative: number; name: string }>();
+    for (const c of comments) {
+      if (c.is_page_owner || !c.platform_user_id) continue;
+      const key = `${c.platform}:${c.platform_user_id}`;
+      if (!map.has(key)) {
+        map.set(key, { total: 0, positive: 0, neutral: 0, negative: 0, name: c.author_name || "" });
+      }
+      const s = map.get(key)!;
+      s.total++;
+      if (c.sentiment === "positive") s.positive++;
+      else if (c.sentiment === "negative") s.negative++;
+      else s.neutral++;
+    }
+    return map;
+  }, [comments]);
+
   // Filtered comments (shared between both tabs)
   const filteredComments = useMemo(() => {
     return comments.filter((comment) => {
@@ -562,6 +580,7 @@ const Comments = () => {
                 <PostCard
                   key={group.post_id}
                   group={group}
+                  authorStats={authorStats}
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
@@ -603,6 +622,7 @@ const Comments = () => {
                   <div key={comment.id}>
                     <CommentItem
                       comment={comment}
+                      authorStats={authorStats}
                       onGenerateResponse={handleGenerateResponse}
                       onSendResponse={handleSendResponse}
                       onManageComment={handleManageComment}
@@ -617,6 +637,7 @@ const Comments = () => {
                       <div key={reply.id} className="ml-8 border-l-2 border-primary/20">
                         <CommentItem
                           comment={reply}
+                          authorStats={authorStats}
                           onGenerateResponse={handleGenerateResponse}
                           onSendResponse={handleSendResponse}
                           onManageComment={handleManageComment}
