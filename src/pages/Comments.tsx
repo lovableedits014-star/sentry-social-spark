@@ -384,17 +384,13 @@ const Comments = () => {
 
   // Pre-compute filtered + grouped data for recent tab to avoid recalculating in render
   const recentViewData = useMemo(() => {
-    const source = hideResponded
-      ? recentComments.filter(c => {
-          // Hide page owner's own replies
-          if (c.is_page_owner) return false;
-          // Hide comments explicitly marked as responded
-          if (c.status === 'responded') return false;
-          // Hide comments that have been responded to (final_response or responded_at set)
-          if (c.final_response || c.responded_at) return false;
-          return true;
-        })
-      : recentComments;
+    const pendingOnly = recentComments.filter(c => {
+      if (c.is_page_owner) return false;
+      if (c.status === 'responded') return false;
+      if (c.final_response || c.responded_at) return false;
+      return true;
+    });
+    const source = hideResponded ? pendingOnly : recentComments;
     const topLevel = source.filter(c => !c.parent_comment_id);
     const repliesByParent = new Map<string, Comment[]>();
     for (const c of source) {
@@ -404,7 +400,10 @@ const Comments = () => {
         repliesByParent.set(c.parent_comment_id, arr);
       }
     }
-    return { topLevel, repliesByParent };
+    const totalCount = recentComments.filter(c => !c.parent_comment_id).length;
+    const pendingTopLevel = pendingOnly.filter(c => !c.parent_comment_id).length;
+    const respondedCount = totalCount - pendingTopLevel;
+    return { topLevel, repliesByParent, totalCount, pendingTopLevel, respondedCount };
   }, [recentComments, hideResponded]);
 
   const postGroups = useMemo((): PostGroup[] => {
@@ -690,6 +689,11 @@ const Comments = () => {
             >
               <EyeOff className="w-3.5 h-3.5" />
               Ocultar respondidos
+              {recentViewData.respondedCount > 0 && (
+                <Badge variant={hideResponded ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+                  {recentViewData.respondedCount}
+                </Badge>
+              )}
             </Button>
             <Button
               variant={!hideResponded ? "default" : "outline"}
@@ -698,8 +702,14 @@ const Comments = () => {
               className="gap-1.5"
             >
               <Eye className="w-3.5 h-3.5" />
-              Mostrar respondidos
+              Mostrar todos
+              <Badge variant={!hideResponded ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+                {recentViewData.totalCount}
+              </Badge>
             </Button>
+            <span className="text-xs text-muted-foreground ml-2">
+              Exibindo {recentViewData.topLevel.length} comentário{recentViewData.topLevel.length !== 1 ? 's' : ''}
+            </span>
           </div>
           <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
             {recentViewData.topLevel.length === 0 ? (
