@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { 
   TrendingUp, 
@@ -28,8 +29,10 @@ import {
   Link2,
   Link2Off,
   Users,
+  ExternalLink,
 } from "lucide-react";
 import { MultiplierRanking } from "@/components/referral/MultiplierRanking";
+import { getSocialProfileUrl } from "@/lib/social-url";
 
 type EngagementConfig = {
   id: string;
@@ -43,6 +46,7 @@ type EngagementConfig = {
 
 type SupporterProfile = {
   platform: string;
+  platform_user_id: string;
   platform_username: string | null;
   profile_picture_url: string | null;
 };
@@ -484,6 +488,21 @@ export default function Engagement() {
                         <p className="font-medium text-sm truncate">{supporter.name}</p>
                         <p className={`text-xs ${status.color}`}>{status.label}</p>
                       </div>
+                      {/* Social link on mobile */}
+                      {supporter.supporter_profiles?.[0] && (() => {
+                        const p = supporter.supporter_profiles[0];
+                        const url = getSocialProfileUrl(p.platform, p.platform_user_id, p.platform_username);
+                        return url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent text-muted-foreground"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        ) : null;
+                      })()}
                       <div className="text-right shrink-0">
                         <span className="font-bold text-lg">{supporter.engagement_score || 0}</span>
                         {(supporter.engagement_score || 0) > 50 ? (
@@ -539,6 +558,31 @@ export default function Engagement() {
                                   </p>
                                 )}
                               </div>
+                              {/* Social profile links */}
+                              {supporter.supporter_profiles?.map((p) => {
+                                const url = getSocialProfileUrl(p.platform, p.platform_user_id, p.platform_username);
+                                if (!url) return null;
+                                return (
+                                  <TooltipProvider key={`${p.platform}-${p.platform_user_id}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Abrir perfil no {p.platform === 'instagram' ? 'Instagram' : 'Facebook'}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })}
                             </div>
                           </TableCell>
                           <TableCell>
