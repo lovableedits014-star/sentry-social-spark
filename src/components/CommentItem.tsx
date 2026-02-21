@@ -44,6 +44,7 @@ export interface CommentData {
   parent_comment_id: string | null;
   is_page_owner: boolean;
   is_hidden?: boolean;
+  responded_at?: string | null;
 }
 
 export type AuthorStatsMap = Map<string, { total: number; positive: number; neutral: number; negative: number; name: string }>;

@@ -385,7 +385,15 @@ const Comments = () => {
   // Pre-compute filtered + grouped data for recent tab to avoid recalculating in render
   const recentViewData = useMemo(() => {
     const source = hideResponded
-      ? recentComments.filter(c => c.status !== 'responded')
+      ? recentComments.filter(c => {
+          // Hide page owner's own replies
+          if (c.is_page_owner) return false;
+          // Hide comments explicitly marked as responded
+          if (c.status === 'responded') return false;
+          // Hide comments that have been responded to (final_response or responded_at set)
+          if (c.final_response || c.responded_at) return false;
+          return true;
+        })
       : recentComments;
     const topLevel = source.filter(c => !c.parent_comment_id);
     const repliesByParent = new Map<string, Comment[]>();
