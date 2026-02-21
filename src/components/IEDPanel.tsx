@@ -92,7 +92,7 @@ const ScoreRing = ({ score, size = 140 }: { score: number; size?: number }) => {
   );
 };
 
-const ComponentBar = ({ label, score, icon: Icon }: { label: string; score: number; icon: any }) => (
+const ComponentBar = ({ label, description, score, icon: Icon }: { label: string; description: string; score: number; icon: any }) => (
   <div className="space-y-1.5">
     <div className="flex items-center justify-between text-sm">
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -101,6 +101,7 @@ const ComponentBar = ({ label, score, icon: Icon }: { label: string; score: numb
       </div>
       <span className={`font-semibold ${getScoreColor(score)}`}>{score}</span>
     </div>
+    <p className="text-[11px] text-muted-foreground/70 leading-tight">{description}</p>
     <div className="h-2 rounded-full bg-muted overflow-hidden">
       <div
         className={`h-full rounded-full transition-all duration-700 ease-out ${getProgressColor(score)}`}
@@ -241,10 +242,10 @@ export const IEDPanel = ({ clientId }: IEDPanelProps) => {
 
               {/* Component Breakdown */}
               <div className="space-y-4">
-                <ComponentBar label="Sentimento" score={current.sentiment_score} icon={Heart} />
-                <ComponentBar label="Crescimento" score={current.growth_score} icon={Users} />
-                <ComponentBar label="Engajamento" score={current.engagement_score} icon={Activity} />
-                <ComponentBar label="Presenças" score={current.checkin_score} icon={CalendarCheck} />
+                <ComponentBar label="Sentimento" description="Análise dos comentários positivos, neutros e negativos nas redes sociais" score={current.sentiment_score} icon={Heart} />
+                <ComponentBar label="Crescimento" description="Ritmo de entrada de novos apoiadores na base nos últimos 30 dias" score={current.growth_score} icon={Users} />
+                <ComponentBar label="Engajamento" description="Nível de interação dos apoiadores com curtidas, comentários e compartilhamentos" score={current.engagement_score} icon={Activity} />
+                <ComponentBar label="Presenças" description="Frequência de check-ins dos apoiadores no portal nos últimos 7 dias" score={current.checkin_score} icon={CalendarCheck} />
               </div>
             </div>
 
