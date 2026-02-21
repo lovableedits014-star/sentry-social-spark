@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
+import { IEDPanel } from "@/components/IEDPanel";
 
 interface DashboardComment {
   id: string;
@@ -449,6 +450,9 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* IED Panel */}
+      {clientId && <IEDPanel clientId={clientId} />}
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
