@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { MapPin, Users, TrendingUp, AlertTriangle, Search } from "lucide-react";
+import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 
 interface LocationGroup {
@@ -14,7 +14,7 @@ interface LocationGroup {
   count: number;
 }
 
-export default function Territorial() { 
+export default function Territorial() {
   const [search, setSearch] = useState("");
 
   const { data: client } = useQuery({
@@ -37,9 +37,9 @@ export default function Territorial() {
       if (!client?.id) return [];
       const { data } = await supabase
         .from("supporter_accounts")
-        .select("id, name, city, neighborhood, state")
+        .select("id, name, city, neighborhood, state, created_at")
         .eq("client_id", client.id);
-      return (data || []) as Array<{ id: string; name: string; city: string | null; neighborhood: string | null; state: string | null }>;
+      return (data || []) as Array<{ id: string; name: string; city: string | null; neighborhood: string | null; state: string | null; created_at: string }>;
     },
     enabled: !!client?.id,
   });
@@ -66,6 +66,21 @@ export default function Territorial() {
     return { groups: sorted, totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
   }, [supporters]);
 
+  // Growth: compare supporters with location created in last 30 days vs previous 30 days
+  const growthStats = useMemo(() => {
+    if (!supporters) return null;
+    const now = Date.now();
+    const d30 = 30 * 24 * 60 * 60 * 1000;
+    const withLoc = supporters.filter(s => s.city || s.neighborhood);
+    const last30 = withLoc.filter(s => now - new Date(s.created_at).getTime() < d30).length;
+    const prev30 = withLoc.filter(s => {
+      const diff = now - new Date(s.created_at).getTime();
+      return diff >= d30 && diff < d30 * 2;
+    }).length;
+    const change = prev30 > 0 ? Math.round(((last30 - prev30) / prev30) * 100) : last30 > 0 ? 100 : 0;
+    return { last30, prev30, change };
+  }, [supporters]);
+
   const maxCount = groups.length > 0 ? groups[0].count : 1;
 
   const filtered = search
@@ -77,8 +92,8 @@ export default function Territorial() {
 
   const getHeatColor = (count: number) => {
     const ratio = count / maxCount;
-    if (ratio >= 0.7) return "bg-emerald-500";
-    if (ratio >= 0.4) return "bg-amber-500";
+    if (ratio >= 0.7) return "bg-primary";
+    if (ratio >= 0.4) return "bg-accent-foreground/50";
     return "bg-destructive";
   };
 
@@ -109,7 +124,7 @@ export default function Territorial() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <p className="text-xs text-muted-foreground">Total</p>
@@ -134,6 +149,25 @@ export default function Territorial() {
             <p className="text-2xl font-bold">{groups.length}</p>
           </CardContent>
         </Card>
+        <Card className="col-span-2 sm:col-span-1">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground">Crescimento 30d</p>
+            <div className="flex items-center gap-1">
+              <p className="text-2xl font-bold">{growthStats?.last30 || 0}</p>
+              {growthStats && growthStats.change !== 0 && (
+                <Badge variant={growthStats.change > 0 ? "default" : "destructive"} className="text-[10px] px-1.5 h-5">
+                  {growthStats.change > 0 ? (
+                    <TrendingUp className="w-3 h-3 mr-0.5" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 mr-0.5" />
+                  )}
+                  {growthStats.change > 0 ? "+" : ""}{growthStats.change}%
+                </Badge>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">vs {growthStats?.prev30 || 0} mês anterior</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search */}
@@ -149,9 +183,9 @@ export default function Territorial() {
 
       {/* Cold zones alert */}
       {groups.filter(g => g.count / maxCount < 0.4).length > 0 && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
+        <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="pt-4 pb-3 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-sm">Zonas frias identificadas</p>
               <p className="text-xs text-muted-foreground">

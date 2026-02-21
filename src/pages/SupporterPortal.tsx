@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
-  Bell, BellOff, BellRing, Smartphone, Users
+  Bell, BellOff, BellRing, Smartphone, Users, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -39,6 +39,9 @@ interface SupporterAccount {
   email: string;
   facebook_username: string | null;
   instagram_username: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  state: string | null;
   client_id: string;
 }
 
@@ -90,6 +93,9 @@ export default function SupporterPortal() {
   const [editFacebook, setEditFacebook] = useState("");
   const [editInstagram, setEditInstagram] = useState("");
   const [editName, setEditName] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editNeighborhood, setEditNeighborhood] = useState("");
+  const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Push notifications
@@ -148,6 +154,9 @@ export default function SupporterPortal() {
       setEditFacebook(existingAccount.facebook_username || "");
       setEditInstagram(existingAccount.instagram_username || "");
       setEditName(existingAccount.name || "");
+      setEditCity(existingAccount.city || "");
+      setEditNeighborhood(existingAccount.neighborhood || "");
+      setEditState(existingAccount.state || "");
       checkTodayCheckin(existingAccount.id);
       loadCheckinStats(existingAccount.id);
     } else {
@@ -313,6 +322,9 @@ export default function SupporterPortal() {
           name: editName.trim() || account.name,
           facebook_username: editFacebook.replace("@", "").trim() || null,
           instagram_username: editInstagram.replace("@", "").trim() || null,
+          city: editCity.trim() || null,
+          neighborhood: editNeighborhood.trim() || null,
+          state: editState.trim() || null,
         } as any)
         .eq("id", account.id);
 
@@ -323,6 +335,9 @@ export default function SupporterPortal() {
         name: editName.trim() || account.name,
         facebook_username: editFacebook.replace("@", "").trim() || null,
         instagram_username: editInstagram.replace("@", "").trim() || null,
+        city: editCity.trim() || null,
+        neighborhood: editNeighborhood.trim() || null,
+        state: editState.trim() || null,
       });
 
       // Update supporter name too if linked
@@ -783,6 +798,12 @@ export default function SupporterPortal() {
                           @{account.instagram_username}
                         </Badge>
                       )}
+                      {(account?.city || account?.neighborhood) && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <MapPin className="w-3 h-3 text-primary" />
+                          {[account.neighborhood, account.city, account.state].filter(Boolean).join(", ")}
+                        </Badge>
+                      )}
                       {!account?.facebook_username && !account?.instagram_username && (
                         <p className="text-xs text-muted-foreground">Nenhuma rede social vinculada. Clique em Editar para adicionar.</p>
                       )}
@@ -807,6 +828,25 @@ export default function SupporterPortal() {
                       </Label>
                       <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva (sem @)" />
                       <p className="text-xs text-muted-foreground">Ex: se seu perfil é instagram.com/joaosilva, coloque "joaosilva"</p>
+                    </div>
+                    <div className="border-t pt-3 mt-2">
+                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> Localização
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cidade</Label>
+                          <Input value={editCity} onChange={(e) => setEditCity(e.target.value)} placeholder="São Paulo" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Estado (UF)</Label>
+                          <Input value={editState} onChange={(e) => setEditState(e.target.value)} placeholder="SP" maxLength={2} />
+                        </div>
+                      </div>
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-xs">Bairro</Label>
+                        <Input value={editNeighborhood} onChange={(e) => setEditNeighborhood(e.target.value)} placeholder="Centro" />
+                      </div>
                     </div>
                   </div>
                 )}
