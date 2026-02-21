@@ -897,6 +897,91 @@ export type Database = {
           },
         ]
       }
+      referral_codes: {
+        Row: {
+          client_id: string
+          code: string
+          created_at: string
+          id: string
+          supporter_account_id: string
+        }
+        Insert: {
+          client_id: string
+          code: string
+          created_at?: string
+          id?: string
+          supporter_account_id: string
+        }
+        Update: {
+          client_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          supporter_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_codes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_codes_supporter_account_id_fkey"
+            columns: ["supporter_account_id"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          referred_account_id: string
+          referrer_account_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          referred_account_id: string
+          referrer_account_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          referred_account_id?: string
+          referrer_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referred_account_id_fkey"
+            columns: ["referred_account_id"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_account_id_fkey"
+            columns: ["referrer_account_id"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_profiles: {
         Row: {
           avatar_url: string | null
@@ -946,6 +1031,7 @@ export type Database = {
       }
       supporter_accounts: {
         Row: {
+          city: string | null
           client_id: string
           created_at: string
           email: string
@@ -953,11 +1039,15 @@ export type Database = {
           id: string
           instagram_username: string | null
           name: string
+          neighborhood: string | null
+          referred_by: string | null
+          state: string | null
           supporter_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          city?: string | null
           client_id: string
           created_at?: string
           email: string
@@ -965,11 +1055,15 @@ export type Database = {
           id?: string
           instagram_username?: string | null
           name: string
+          neighborhood?: string | null
+          referred_by?: string | null
+          state?: string | null
           supporter_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          city?: string | null
           client_id?: string
           created_at?: string
           email?: string
@@ -977,6 +1071,9 @@ export type Database = {
           id?: string
           instagram_username?: string | null
           name?: string
+          neighborhood?: string | null
+          referred_by?: string | null
+          state?: string | null
           supporter_id?: string | null
           updated_at?: string
           user_id?: string
@@ -987,6 +1084,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supporter_accounts_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -1088,6 +1192,7 @@ export type Database = {
           last_interaction_date: string | null
           name: string
           notes: string | null
+          referral_count: number
           updated_at: string | null
         }
         Insert: {
@@ -1102,6 +1207,7 @@ export type Database = {
           last_interaction_date?: string | null
           name: string
           notes?: string | null
+          referral_count?: number
           updated_at?: string | null
         }
         Update: {
@@ -1116,6 +1222,7 @@ export type Database = {
           last_interaction_date?: string | null
           name?: string
           notes?: string | null
+          referral_count?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -1213,6 +1320,44 @@ export type Database = {
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      territorial_zones: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          supporter_count: number
+          updated_at: string
+          zone_name: string
+          zone_type: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          supporter_count?: number
+          updated_at?: string
+          zone_name: string
+          zone_type?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          supporter_count?: number
+          updated_at?: string
+          zone_name?: string
+          zone_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "territorial_zones_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]

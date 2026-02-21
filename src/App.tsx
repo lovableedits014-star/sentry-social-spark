@@ -20,6 +20,7 @@ import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
 import Checkins from "./pages/Checkins";
+import Territorial from "./pages/Territorial";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/supporters" element={<Supporters />} />
             <Route path="/engagement" element={<Engagement />} />
             <Route path="/checkins" element={<Checkins />} />
+            <Route path="/territorial" element={<Territorial />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
