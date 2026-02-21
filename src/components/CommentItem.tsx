@@ -74,17 +74,26 @@ function getSentimentIcon(sentiment: string) {
 }
 
 function getSentimentBadge(sentiment: string) {
-  const config: Record<string, { variant: "default" | "destructive" | "secondary"; label: string }> = {
-    positive: { variant: "default", label: "Positivo" },
-    negative: { variant: "destructive", label: "Negativo" },
-    neutral: { variant: "secondary", label: "Neutro" },
+  const config: Record<string, { variant: "default" | "destructive" | "secondary"; label: string; tip: string }> = {
+    positive: { variant: "default", label: "Positivo", tip: "A IA analisou este comentário e identificou um tom positivo ou de apoio" },
+    negative: { variant: "destructive", label: "Negativo", tip: "A IA analisou este comentário e identificou um tom crítico ou negativo" },
+    neutral: { variant: "secondary", label: "Neutro", tip: "A IA analisou este comentário e identificou um tom neutro, sem opinião forte" },
   };
   const c = config[sentiment] || config.neutral;
   return (
-    <Badge variant={c.variant} className="gap-1 text-xs">
-      {getSentimentIcon(sentiment)}
-      {c.label}
-    </Badge>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant={c.variant} className="gap-1 text-xs cursor-help">
+            {getSentimentIcon(sentiment)}
+            {c.label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-[220px]">
+          <p className="text-xs">{c.tip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -225,7 +234,7 @@ export function CommentItem({
                     <TooltipTrigger asChild>
                       <Badge
                         variant={isRecurrent ? "default" : "secondary"}
-                        className="text-[10px] gap-1 px-1.5 h-5"
+                        className="text-[10px] gap-1 px-1.5 h-5 cursor-help"
                       >
                         <Repeat className="w-3 h-3" />
                         {stats.total}x
@@ -234,22 +243,38 @@ export function CommentItem({
                         {dominantSentiment === "neutral" && <Minus className="w-3 h-3" />}
                       </Badge>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-[250px]">
-                      <p className="text-xs font-semibold mb-1">
-                        {comment.author_name} — {stats.total} comentários
+                    <TooltipContent side="bottom" className="max-w-[280px]">
+                      <p className="text-xs font-semibold mb-1.5">
+                        🔄 {comment.author_name} comentou {stats.total} vezes
                       </p>
-                      <div className="flex items-center gap-3 text-xs">
-                        <span className="text-green-600">👍 {stats.positive}</span>
-                        <span className="text-muted-foreground">😐 {stats.neutral}</span>
-                        <span className="text-destructive">👎 {stats.negative}</span>
+                      <p className="text-[10px] text-muted-foreground mb-2">
+                        Este número mostra quantas vezes esta pessoa comentou nas suas publicações. Quanto mais vezes, mais engajada ela é.
+                      </p>
+                      <div className="space-y-1 mb-2">
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <TrendingUp className="w-3 h-3 text-green-600 flex-shrink-0" />
+                          <span><strong className="text-green-600">{stats.positive}</strong> positivo{stats.positive !== 1 ? 's' : ''} — comentários de apoio ou elogio</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <Minus className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <span><strong>{stats.neutral}</strong> neutro{stats.neutral !== 1 ? 's' : ''} — perguntas ou observações</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <TrendingDown className="w-3 h-3 text-destructive flex-shrink-0" />
+                          <span><strong className="text-destructive">{stats.negative}</strong> negativo{stats.negative !== 1 ? 's' : ''} — críticas ou reclamações</span>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        Perfil predominante: <strong>{
-                          dominantSentiment === "positive" ? "Positivo" :
-                          dominantSentiment === "negative" ? "Negativo" : "Neutro"
-                        }</strong>
-                        {isRecurrent ? " · Seguidor recorrente ✓" : ""}
-                      </p>
+                      <div className="border-t border-border/50 pt-1.5">
+                        <p className="text-[10px] text-muted-foreground">
+                          Perfil predominante: <strong>{
+                            dominantSentiment === "positive" ? "👍 Positivo — tende a apoiar" :
+                            dominantSentiment === "negative" ? "👎 Negativo — tende a criticar" : "😐 Neutro — sem padrão claro"
+                          }</strong>
+                        </p>
+                        {isRecurrent && (
+                          <p className="text-[10px] text-primary mt-0.5">✓ Seguidor recorrente — considere cadastrá-lo como apoiador</p>
+                        )}
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
