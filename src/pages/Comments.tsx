@@ -40,6 +40,7 @@ const Comments = () => {
   const [clientId, setClientId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
+  const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const fetchCommentsData = useCallback(async (limit: number) => {
@@ -315,6 +316,35 @@ const Comments = () => {
       toast.error(error.message || 'Erro ao gerenciar comentário');
     } finally {
       setManagingComment(null);
+    }
+  };
+
+  const handleClassifySentiment = async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
+    setClassifyingSentiment(commentId);
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ sentiment })
+        .eq("id", commentId);
+
+      if (error) throw error;
+
+      // Update local cache optimistically
+      queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          comments: old.comments.map((c: any) =>
+            c.id === commentId ? { ...c, sentiment } : c
+          ),
+        };
+      });
+      toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
+    } catch (error: any) {
+      console.error("Error classifying sentiment:", error);
+      toast.error("Erro ao classificar sentimento");
+    } finally {
+      setClassifyingSentiment(null);
     }
   };
 
@@ -614,9 +644,11 @@ const Comments = () => {
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
+                  onClassifySentiment={handleClassifySentiment}
                   generatingResponse={generatingResponse}
                   responding={responding}
                   managingComment={managingComment}
+                  classifyingSentiment={classifyingSentiment}
                   editingResponse={editingResponse}
                   setEditingResponse={setEditingResponse}
                 />
@@ -657,9 +689,11 @@ const Comments = () => {
                       onGenerateResponse={handleGenerateResponse}
                       onSendResponse={handleSendResponse}
                       onManageComment={handleManageComment}
+                      onClassifySentiment={handleClassifySentiment}
                       generatingResponse={generatingResponse}
                       responding={responding}
                       managingComment={managingComment}
+                      classifyingSentiment={classifyingSentiment}
                       editingResponse={editingResponse}
                       setEditingResponse={setEditingResponse}
                       showPostInfo
@@ -673,9 +707,11 @@ const Comments = () => {
                           onGenerateResponse={handleGenerateResponse}
                           onSendResponse={handleSendResponse}
                           onManageComment={handleManageComment}
+                          onClassifySentiment={handleClassifySentiment}
                           generatingResponse={generatingResponse}
                           responding={responding}
                           managingComment={managingComment}
+                          classifyingSentiment={classifyingSentiment}
                           editingResponse={editingResponse}
                           setEditingResponse={setEditingResponse}
                         />

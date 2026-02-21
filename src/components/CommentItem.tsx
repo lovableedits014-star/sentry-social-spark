@@ -55,9 +55,11 @@ export interface CommentItemProps {
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
+  onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
   generatingResponse: string | null;
   responding: string | null;
   managingComment?: string | null;
+  classifyingSentiment?: string | null;
   editingResponse: { [key: string]: string };
   setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
   showPostInfo?: boolean;
@@ -119,9 +121,11 @@ export function CommentItem({
   onGenerateResponse,
   onSendResponse,
   onManageComment,
+  onClassifySentiment,
   generatingResponse,
   responding,
   managingComment,
+  classifyingSentiment,
   editingResponse,
   setEditingResponse,
   showPostInfo = false,
@@ -334,6 +338,59 @@ export function CommentItem({
               <EyeOff className="w-3 h-3" />
               Oculto
             </Badge>
+          )}
+          {/* Manual sentiment classification */}
+          {!isPageOwner && onClassifySentiment && (
+            <div className="flex items-center gap-0.5">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant={comment.sentiment === 'positive' ? 'default' : 'ghost'}
+                      className={`h-6 w-6 p-0 ${comment.sentiment === 'positive' ? 'bg-green-600 hover:bg-green-700 text-white' : 'text-muted-foreground hover:text-green-600'}`}
+                      onClick={() => onClassifySentiment(comment.id, 'positive')}
+                      disabled={classifyingSentiment === comment.id}
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Classificar como positivo</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant={comment.sentiment === 'neutral' ? 'default' : 'ghost'}
+                      className={`h-6 w-6 p-0 ${comment.sentiment === 'neutral' ? 'bg-muted-foreground hover:bg-muted-foreground/80 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                      onClick={() => onClassifySentiment(comment.id, 'neutral')}
+                      disabled={classifyingSentiment === comment.id}
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Classificar como neutro</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant={comment.sentiment === 'negative' ? 'default' : 'ghost'}
+                      className={`h-6 w-6 p-0 ${comment.sentiment === 'negative' ? 'bg-destructive hover:bg-destructive/80 text-destructive-foreground' : 'text-muted-foreground hover:text-destructive'}`}
+                      onClick={() => onClassifySentiment(comment.id, 'negative')}
+                      disabled={classifyingSentiment === comment.id}
+                    >
+                      <TrendingDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Classificar como negativo</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           )}
           {comment.sentiment && getSentimentBadge(comment.sentiment)}
           {comment.status && getStatusBadge(comment.status)}
