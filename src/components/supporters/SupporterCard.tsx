@@ -3,7 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Instagram, Facebook, Calendar, TrendingUp, Eye, Edit2, Trash2, Merge } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Instagram, Facebook, Calendar, TrendingUp, Eye, Edit2, Trash2, Merge, ExternalLink } from "lucide-react";
+import { getSocialProfileUrl } from "@/lib/social-url";
 
 export type SupporterProfile = {
   id: string;
@@ -98,14 +100,36 @@ export const SupporterCard = ({ supporter, isSelected, onSelect, onView, onEdit,
 
               {/* Platform profiles */}
               <div className="flex flex-wrap gap-1.5">
-                {supporter.supporter_profiles?.map((profile) => (
-                  <Badge key={profile.id} variant="outline" className="gap-1 text-xs">
-                    {profile.platform === "instagram" ? <Instagram className="w-3 h-3" /> : <Facebook className="w-3 h-3" />}
-                    <span className="truncate max-w-[120px] sm:max-w-[180px]">
-                      {profile.platform_username || profile.platform_user_id}
-                    </span>
-                  </Badge>
-                ))}
+                {supporter.supporter_profiles?.map((profile) => {
+                  const profileUrl = getSocialProfileUrl(profile.platform, profile.platform_user_id, profile.platform_username);
+                  return (
+                    <TooltipProvider key={profile.id}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-xs ${profileUrl ? 'cursor-pointer hover:bg-accent' : ''}`}
+                            onClick={(e) => {
+                              if (profileUrl) {
+                                e.stopPropagation();
+                                window.open(profileUrl, "_blank", "noopener,noreferrer");
+                              }
+                            }}
+                          >
+                            {profile.platform === "instagram" ? <Instagram className="w-3 h-3" /> : <Facebook className="w-3 h-3" />}
+                            <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                              {profile.platform_username || profile.platform_user_id}
+                            </span>
+                            {profileUrl && <ExternalLink className="w-2.5 h-2.5 opacity-50" />}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">{profileUrl ? "Abrir perfil na rede social" : "Perfil vinculado"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })}
                 {(!supporter.supporter_profiles || supporter.supporter_profiles.length === 0) && (
                   <span className="text-xs text-muted-foreground">Sem perfis vinculados</span>
                 )}
