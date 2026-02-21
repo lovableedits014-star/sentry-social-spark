@@ -29,9 +29,11 @@ interface PostCardProps {
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
+  onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
   generatingResponse: string | null;
   responding: string | null;
   managingComment?: string | null;
+  classifyingSentiment?: string | null;
   editingResponse: { [key: string]: string };
   setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
 }
@@ -60,9 +62,11 @@ export function PostCard({
   onGenerateResponse,
   onSendResponse,
   onManageComment,
+  onClassifySentiment,
   generatingResponse,
   responding,
   managingComment,
+  classifyingSentiment,
   editingResponse,
   setEditingResponse,
 }: PostCardProps) {
@@ -182,9 +186,11 @@ export function PostCard({
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
+                onClassifySentiment={onClassifySentiment}
                 generatingResponse={generatingResponse}
                 responding={responding}
                 managingComment={managingComment}
+                classifyingSentiment={classifyingSentiment}
                 editingResponse={editingResponse}
                 setEditingResponse={setEditingResponse}
               />
@@ -198,9 +204,11 @@ export function PostCard({
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
+                    onClassifySentiment={onClassifySentiment}
                     generatingResponse={generatingResponse}
                     responding={responding}
                     managingComment={managingComment}
+                    classifyingSentiment={classifyingSentiment}
                     editingResponse={editingResponse}
                     setEditingResponse={setEditingResponse}
                   />
