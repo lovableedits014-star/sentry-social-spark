@@ -84,10 +84,12 @@ function getSentimentBadge(sentiment: string) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant={c.variant} className="gap-1 text-xs cursor-help">
-            {getSentimentIcon(sentiment)}
-            {c.label}
-          </Badge>
+          <span className="inline-flex cursor-help">
+            <Badge variant={c.variant} className="gap-1 text-xs">
+              {getSentimentIcon(sentiment)}
+              {c.label}
+            </Badge>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[220px]">
           <p className="text-xs">{c.tip}</p>
@@ -232,16 +234,18 @@ export function CommentItem({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge
-                        variant={isRecurrent ? "default" : "secondary"}
-                        className="text-[10px] gap-1 px-1.5 h-5 cursor-help"
-                      >
-                        <Repeat className="w-3 h-3" />
-                        {stats.total}x
-                        {dominantSentiment === "positive" && <TrendingUp className="w-3 h-3" />}
-                        {dominantSentiment === "negative" && <TrendingDown className="w-3 h-3" />}
-                        {dominantSentiment === "neutral" && <Minus className="w-3 h-3" />}
-                      </Badge>
+                      <span className="inline-flex cursor-help">
+                        <Badge
+                          variant={isRecurrent ? "default" : "secondary"}
+                          className="text-[10px] gap-1 px-1.5 h-5"
+                        >
+                          <Repeat className="w-3 h-3" />
+                          {stats.total}x
+                          {dominantSentiment === "positive" && <TrendingUp className="w-3 h-3" />}
+                          {dominantSentiment === "negative" && <TrendingDown className="w-3 h-3" />}
+                          {dominantSentiment === "neutral" && <Minus className="w-3 h-3" />}
+                        </Badge>
+                      </span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[280px]">
                       <p className="text-xs font-semibold mb-1.5">
