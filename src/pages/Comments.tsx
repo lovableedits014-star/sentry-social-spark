@@ -161,6 +161,35 @@ const Comments = () => {
     setClientId(commentsData.clientId);
   }
 
+  // Fetch registered supporters for this client
+  const { data: registeredSupportersMap } = useQuery({
+    queryKey: ["registered-supporters", commentsData?.clientId],
+    queryFn: async () => {
+      if (!commentsData?.clientId) return new Map<string, { name: string; classification: string }>();
+      const { data: profiles } = await supabase
+        .from("supporter_profiles")
+        .select("platform, platform_user_id, supporter_id, supporters!inner(name, classification, client_id)")
+        .eq("supporters.client_id", commentsData.clientId);
+
+      const map = new Map<string, { name: string; classification: string }>();
+      if (profiles) {
+        for (const p of profiles) {
+          const supporter = (p as any).supporters;
+          if (supporter) {
+            const key = `${p.platform}:${p.platform_user_id}`;
+            map.set(key, {
+              name: supporter.name,
+              classification: supporter.classification || "neutro",
+            });
+          }
+        }
+      }
+      return map;
+    },
+    enabled: !!commentsData?.clientId,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const reloadComments = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["comments-data"] });
   }, [queryClient]);
@@ -581,6 +610,7 @@ const Comments = () => {
                   key={group.post_id}
                   group={group}
                   authorStats={authorStats}
+                  registeredSupporters={registeredSupportersMap}
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
@@ -623,6 +653,7 @@ const Comments = () => {
                     <CommentItem
                       comment={comment}
                       authorStats={authorStats}
+                      registeredSupporters={registeredSupportersMap}
                       onGenerateResponse={handleGenerateResponse}
                       onSendResponse={handleSendResponse}
                       onManageComment={handleManageComment}
@@ -638,6 +669,7 @@ const Comments = () => {
                         <CommentItem
                           comment={reply}
                           authorStats={authorStats}
+                          registeredSupporters={registeredSupportersMap}
                           onGenerateResponse={handleGenerateResponse}
                           onSendResponse={handleSendResponse}
                           onManageComment={handleManageComment}

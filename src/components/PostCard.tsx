@@ -20,9 +20,12 @@ interface PostGroup {
   sentimentCounts: { positive: number; neutral: number; negative: number };
 }
 
+export type RegisteredSupportersMap = Map<string, { name: string; classification: string }>;
+
 interface PostCardProps {
   group: PostGroup;
   authorStats?: AuthorStatsMap;
+  registeredSupporters?: RegisteredSupportersMap;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -53,6 +56,7 @@ function getPlatformIcon(platform: string) {
 export function PostCard({
   group,
   authorStats,
+  registeredSupporters,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -174,6 +178,7 @@ export function PostCard({
               <CommentItem
                 comment={comment}
                 authorStats={authorStats}
+                registeredSupporters={registeredSupporters}
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
@@ -189,6 +194,7 @@ export function PostCard({
                   <CommentItem
                     comment={reply}
                     authorStats={authorStats}
+                    registeredSupporters={registeredSupporters}
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
