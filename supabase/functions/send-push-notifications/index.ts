@@ -118,6 +118,7 @@ async function sendOnePush(
       "Content-Type": "application/octet-stream",
       "Content-Encoding": "aes128gcm",
       "TTL": "86400",
+      "Urgency": "high",
     },
     body: encrypted,
   });
