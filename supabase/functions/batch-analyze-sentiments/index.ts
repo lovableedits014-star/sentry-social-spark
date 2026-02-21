@@ -186,24 +186,65 @@ async function analyzeBatch(
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Você é um analista de sentimentos especializado em comentários de redes sociais de políticos e figuras públicas brasileiras.
+      content: `Você é um analista de sentimentos RIGOROSO especializado em comentários de redes sociais de políticos brasileiros.
 
-REGRAS DE CLASSIFICAÇÃO:
-- "negative": Críticas, reclamações, xingamentos, ironias destrutivas, cobranças agressivas, ameaças, descontentamento, decepção, ataques pessoais, ofensas, sarcasmo negativo, pedidos de renúncia, acusações. QUALQUER tom hostil ou insatisfeito.
-- "positive": Elogios, apoio, incentivo, gratidão, concordância, defesa do político, comemorações, emojis positivos (👏❤️🙏), palavras de carinho.
-- "neutral": Perguntas neutras sem tom emocional, marcações de amigos sem opinião, emojis sem contexto claro, comentários puramente informativos sem julgamento.
+REGRA PRINCIPAL: A maioria dos comentários em redes sociais expressa alguma opinião. "neutral" é RARO — use apenas quando realmente não há sentimento.
 
-IMPORTANTE:
-- Comentários com ironia ou sarcasmo devem ser classificados pelo sentimento REAL (geralmente negative)
-- Comentários que parecem neutros mas contêm crítica velada = negative
-- Na dúvida entre neutral e negative, prefira negative (gestão de crise)
-- Comentários curtos como "kk", "😂" com contexto de deboche = negative
-- Emojis de palhaço 🤡, lixeira 🗑️, nojo 🤮 = negative`
+CLASSIFICAÇÃO:
+
+"positive" — QUALQUER forma de apoio, elogio, incentivo, gratidão, concordância, defesa, admiração, carinho, esperança, torcida. Inclui:
+  • Elogios diretos: "parabéns", "muito bom", "excelente trabalho", "orgulho"
+  • Apoio implícito: "tamo junto", "conte comigo", "vai dar certo", "força"
+  • Emojis positivos: 👏❤️🙏💪🔥👍😍🥰✅💙💚
+  • Agradecimentos: "obrigado", "gratidão", "Deus abençoe"
+  • Defesa: "deixa ele trabalhar", "melhor prefeito", "tá certo"
+  • Pedidos com tom positivo: "continua assim", "não desista"
+  • Marcações com tom de apoio: "@amigo olha que legal"
+
+"negative" — QUALQUER forma de crítica, reclamação, ataque, ironia destrutiva, cobrança agressiva, deboche, desprezo. Inclui:
+  • Críticas: "não faz nada", "só promessa", "cadê?", "vergonha"
+  • Ironia/sarcasmo: "ah claro, vai resolver sim 🤡", "tá de parabéns hein"
+  • Cobranças hostis: "e o asfalto?", "minha rua tá abandonada"
+  • Emojis negativos: 🤡🗑️🤮😡💩👎🤦‍♂️
+  • Xingamentos e ofensas de qualquer tipo
+  • Deboche: "kkkk", "😂" quando zombando
+
+"neutral" — SOMENTE quando não há nenhum sentimento detectável:
+  • Marcação pura sem opinião: "@fulano"
+  • Pergunta factual sem tom: "que horas é o evento?"
+  • Comentário puramente informativo: "o endereço é rua X"
+
+REGRAS OBRIGATÓRIAS:
+1. Se há QUALQUER palavra de apoio, elogio ou carinho → positive
+2. Se há QUALQUER crítica, reclamação ou ironia → negative  
+3. "neutral" SÓ quando é impossível detectar sentimento
+4. Emojis sozinhos (❤️👏🙏💪) → positive
+5. Risadas em contexto de deboche → negative
+6. Na dúvida entre positive e neutral → positive
+7. Na dúvida entre negative e neutral → negative
+8. Comentários religiosos de apoio ("Deus abençoe") → positive`
     },
     {
       role: 'user',
-      content: `Classifique cada comentário abaixo como "positive", "negative" ou "neutral".
-Responda APENAS no formato: número|sentimento (um por linha)
+      content: `EXEMPLOS DE REFERÊNCIA:
+"Parabéns pelo trabalho" → positive
+"Deus abençoe sua gestão" → positive  
+"👏👏👏" → positive
+"Tamo junto prefeito!" → positive
+"Continua assim, tá no caminho certo" → positive
+"Meu voto é seu" → positive
+"❤️🙏" → positive
+"Obrigado por tudo" → positive
+"Que Deus te proteja" → positive
+"Só promessa e nada de ação" → negative
+"Cadê o asfalto da minha rua?" → negative
+"Vergonha 🤡" → negative
+"kkkk tá de brincadeira né" → negative
+"Pior prefeito da história" → negative
+"@maria" → neutral
+"Que horas começa?" → neutral
+
+Agora classifique cada comentário abaixo. Responda APENAS no formato: número|sentimento (um por linha)
 
 ${commentList}
 

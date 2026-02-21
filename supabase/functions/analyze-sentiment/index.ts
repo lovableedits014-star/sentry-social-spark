@@ -112,12 +112,18 @@ async function analyzeSentiment(
 ): Promise<string> {
   const messages: LLMMessage[] = [
     {
+      role: 'system',
+      content: `Você classifica sentimentos de comentários em redes sociais de políticos brasileiros. A maioria dos comentários expressa opinião — "neutral" é RARO.
+- positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
+- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮)  
+- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
+Na dúvida entre neutral e positive/negative, escolha positive ou negative.`,
+    },
+    {
       role: 'user',
-      content: `Analise o sentimento do seguinte comentário e responda APENAS com uma palavra: "positive", "negative" ou "neutral".
+      content: `Classifique o sentimento e responda APENAS "positive", "negative" ou "neutral":
 
-Comentário: "${text}"
-
-Resposta:`,
+"${text}"`,
     },
   ];
 
