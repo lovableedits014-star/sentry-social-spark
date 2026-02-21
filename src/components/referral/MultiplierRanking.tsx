@@ -61,6 +61,16 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
 
   return (
     <div className="space-y-4">
+      {/* Intro explanation */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardContent className="pt-4 pb-3 px-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            <strong className="text-foreground">Multiplicadores</strong> são apoiadores que compartilham seu link de convite e trazem novos cadastros para a base.
+            Quanto mais indicações um apoiador faz, maior seu poder de multiplicação. Acompanhe aqui o impacto orgânico vs. indicação e quem são seus maiores multiplicadores.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
@@ -70,6 +80,7 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
               <p className="text-xs text-muted-foreground">Total Base</p>
             </div>
             <p className="text-2xl font-bold">{referralStats?.total || 0}</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Todos os apoiadores cadastrados no portal</p>
           </CardContent>
         </Card>
         <Card>
@@ -79,6 +90,7 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
               <p className="text-xs text-muted-foreground">Por Indicação</p>
             </div>
             <p className="text-2xl font-bold text-primary">{referralStats?.referred || 0}</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Vieram através do link de um multiplicador</p>
           </CardContent>
         </Card>
         <Card>
@@ -88,6 +100,7 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
               <p className="text-xs text-muted-foreground">Orgânico</p>
             </div>
             <p className="text-2xl font-bold">{referralStats?.organic || 0}</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Cadastraram-se sem link de indicação</p>
           </CardContent>
         </Card>
         <Card>
@@ -97,6 +110,7 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
               <p className="text-xs text-muted-foreground">% Indicação</p>
             </div>
             <p className="text-2xl font-bold">{referralStats?.percentage || 0}%</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Proporção da base vinda por indicação</p>
           </CardContent>
         </Card>
       </div>
@@ -105,7 +119,8 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
       {referralStats && referralStats.total > 0 && (
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Crescimento: Orgânico vs Indicação</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Crescimento: Orgânico vs Indicação</p>
+            <p className="text-[10px] text-muted-foreground/70 mb-2">Visualize de onde vem o crescimento da sua base de apoiadores</p>
             <div className="flex rounded-full overflow-hidden h-4">
               <div
                 className="bg-primary transition-all"
@@ -140,7 +155,7 @@ export function MultiplierRanking({ clientId }: MultiplierRankingProps) {
             Top Multiplicadores
           </CardTitle>
           <CardDescription className="text-xs">
-            Apoiadores que mais trouxeram novos cadastros por indicação
+            Apoiadores que mais trouxeram novos cadastros por indicação. A barra mostra a proporção em relação ao maior multiplicador.
           </CardDescription>
         </CardHeader>
         <CardContent>
