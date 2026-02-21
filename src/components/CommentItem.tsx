@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,12 +56,10 @@ export interface CommentItemProps {
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
   onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
-  generatingResponse: string | null;
-  responding: string | null;
-  managingComment?: string | null;
-  classifyingSentiment?: string | null;
-  editingResponse: { [key: string]: string };
-  setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
+  isGenerating?: boolean;
+  isResponding?: boolean;
+  isManaging?: boolean;
+  isClassifying?: boolean;
   showPostInfo?: boolean;
 }
 
@@ -114,7 +112,7 @@ function getStatusBadge(status: string) {
   return <Badge variant="outline" className={`text-xs ${c.className}`}>{c.label}</Badge>;
 }
 
-export function CommentItem({
+export const CommentItem = memo(function CommentItem({
   comment,
   authorStats,
   registeredSupporters,
@@ -122,20 +120,18 @@ export function CommentItem({
   onSendResponse,
   onManageComment,
   onClassifySentiment,
-  generatingResponse,
-  responding,
-  managingComment,
-  classifyingSentiment,
-  editingResponse,
-  setEditingResponse,
+  isGenerating = false,
+  isResponding = false,
+  isManaging = false,
+  isClassifying = false,
   showPostInfo = false,
 }: CommentItemProps) {
   const isResponded = comment.status === 'responded';
   const isPageOwner = comment.is_page_owner;
   const isHidden = comment.is_hidden;
-  const isManaging = managingComment === comment.id;
   const [showManualReply, setShowManualReply] = useState(false);
   const [manualText, setManualText] = useState("");
+  const [localEditText, setLocalEditText] = useState("");
 
   // Author recurrence stats
   const authorKey = comment.platform_user_id ? `${comment.platform}:${comment.platform_user_id}` : null;
@@ -350,7 +346,7 @@ export function CommentItem({
                       variant={comment.sentiment === 'positive' ? 'default' : 'ghost'}
                       className={`h-6 w-6 p-0 ${comment.sentiment === 'positive' ? 'bg-green-600 hover:bg-green-700 text-white' : 'text-muted-foreground hover:text-green-600'}`}
                       onClick={() => onClassifySentiment(comment.id, 'positive')}
-                      disabled={classifyingSentiment === comment.id}
+                      disabled={isClassifying}
                     >
                       <TrendingUp className="w-3.5 h-3.5" />
                     </Button>
@@ -366,7 +362,7 @@ export function CommentItem({
                       variant={comment.sentiment === 'neutral' ? 'default' : 'ghost'}
                       className={`h-6 w-6 p-0 ${comment.sentiment === 'neutral' ? 'bg-muted-foreground hover:bg-muted-foreground/80 text-white' : 'text-muted-foreground hover:text-foreground'}`}
                       onClick={() => onClassifySentiment(comment.id, 'neutral')}
-                      disabled={classifyingSentiment === comment.id}
+                      disabled={isClassifying}
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </Button>
@@ -382,7 +378,7 @@ export function CommentItem({
                       variant={comment.sentiment === 'negative' ? 'default' : 'ghost'}
                       className={`h-6 w-6 p-0 ${comment.sentiment === 'negative' ? 'bg-destructive hover:bg-destructive/80 text-destructive-foreground' : 'text-muted-foreground hover:text-destructive'}`}
                       onClick={() => onClassifySentiment(comment.id, 'negative')}
-                      disabled={classifyingSentiment === comment.id}
+                      disabled={isClassifying}
                     >
                       <TrendingDown className="w-3.5 h-3.5" />
                     </Button>
@@ -410,8 +406,8 @@ export function CommentItem({
             <span className="text-xs font-medium text-primary">Resposta sugerida</span>
           </div>
           <Textarea
-            value={editingResponse[comment.id] ?? comment.ai_response}
-            onChange={(e) => setEditingResponse({ ...editingResponse, [comment.id]: e.target.value })}
+            value={localEditText || comment.ai_response}
+            onChange={(e) => setLocalEditText(e.target.value)}
             className="min-h-[60px] text-sm"
           />
         </div>
@@ -471,10 +467,10 @@ export function CommentItem({
                     setShowManualReply(false);
                     setManualText("");
                   }}
-                  disabled={!manualText.trim() || responding === comment.id}
+                  disabled={!manualText.trim() || isResponding}
                 >
                   <Send className="w-3.5 h-3.5 mr-1.5" />
-                  {responding === comment.id ? "Publicando..." : "Publicar"}
+                  {isResponding ? "Publicando..." : "Publicar"}
                 </Button>
               </div>
             </div>
@@ -504,11 +500,11 @@ export function CommentItem({
                     size="sm"
                     variant="outline"
                     onClick={() => onGenerateResponse(comment.id, false)}
-                    disabled={generatingResponse === comment.id}
+                    disabled={isGenerating}
                     className="h-8 text-xs"
                   >
                     <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                    {generatingResponse === comment.id ? "Gerando..." : "Usar IA"}
+                    {isGenerating ? "Gerando..." : "Usar IA"}
                   </Button>
                 )}
 
@@ -518,24 +514,24 @@ export function CommentItem({
                       size="sm"
                       variant="outline"
                       onClick={() => onGenerateResponse(comment.id, true)}
-                      disabled={generatingResponse === comment.id}
+                      disabled={isGenerating}
                       className="h-8 text-xs"
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                      {generatingResponse === comment.id ? "Regenerando..." : "Nova Resposta IA"}
+                      {isGenerating ? "Regenerando..." : "Nova Resposta IA"}
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => onSendResponse(
                         comment.id,
-                        editingResponse[comment.id] || comment.ai_response!,
+                        localEditText || comment.ai_response!,
                         comment.platform || 'facebook'
                       )}
-                      disabled={responding === comment.id}
+                      disabled={isResponding}
                       className="h-8 text-xs"
                     >
                       <Send className="w-3.5 h-3.5 mr-1.5" />
-                      {responding === comment.id ? "Publicando..." : "Publicar IA"}
+                      {isResponding ? "Publicando..." : "Publicar IA"}
                     </Button>
                   </>
                 )}
@@ -658,4 +654,4 @@ export function CommentItem({
       )}
     </div>
   );
-}
+});

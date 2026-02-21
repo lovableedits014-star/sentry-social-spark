@@ -34,8 +34,6 @@ interface PostCardProps {
   responding: string | null;
   managingComment?: string | null;
   classifyingSentiment?: string | null;
-  editingResponse: { [key: string]: string };
-  setEditingResponse: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
 }
 
 function isVideoUrl(url: string | null): boolean {
@@ -67,8 +65,6 @@ export function PostCard({
   responding,
   managingComment,
   classifyingSentiment,
-  editingResponse,
-  setEditingResponse,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const media = getPostMedia(group);
@@ -187,12 +183,10 @@ export function PostCard({
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
                 onClassifySentiment={onClassifySentiment}
-                generatingResponse={generatingResponse}
-                responding={responding}
-                managingComment={managingComment}
-                classifyingSentiment={classifyingSentiment}
-                editingResponse={editingResponse}
-                setEditingResponse={setEditingResponse}
+                isGenerating={generatingResponse === comment.id}
+                isResponding={responding === comment.id}
+                isManaging={managingComment === comment.id}
+                isClassifying={classifyingSentiment === comment.id}
               />
               {/* Nested replies */}
               {repliesByParent.get(comment.comment_id)?.map((reply) => (
@@ -205,12 +199,10 @@ export function PostCard({
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
                     onClassifySentiment={onClassifySentiment}
-                    generatingResponse={generatingResponse}
-                    responding={responding}
-                    managingComment={managingComment}
-                    classifyingSentiment={classifyingSentiment}
-                    editingResponse={editingResponse}
-                    setEditingResponse={setEditingResponse}
+                    isGenerating={generatingResponse === reply.id}
+                    isResponding={responding === reply.id}
+                    isManaging={managingComment === reply.id}
+                    isClassifying={classifyingSentiment === reply.id}
                   />
                 </div>
               ))}
