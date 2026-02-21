@@ -5,7 +5,7 @@ import {
   Instagram, Facebook, ExternalLink, Image as ImageIcon, Play,
   ChevronDown, ChevronUp,
 } from "lucide-react";
-import { CommentItem, type CommentData } from "@/components/CommentItem";
+import { CommentItem, type CommentData, type AuthorStatsMap } from "@/components/CommentItem";
 
 type Comment = CommentData;
 
@@ -22,6 +22,7 @@ interface PostGroup {
 
 interface PostCardProps {
   group: PostGroup;
+  authorStats?: AuthorStatsMap;
   onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -51,6 +52,7 @@ function getPlatformIcon(platform: string) {
 
 export function PostCard({
   group,
+  authorStats,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -171,6 +173,7 @@ export function PostCard({
             <div key={comment.id}>
               <CommentItem
                 comment={comment}
+                authorStats={authorStats}
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
@@ -185,6 +188,7 @@ export function PostCard({
                 <div key={reply.id} className="ml-8 border-l-2 border-primary/20">
                   <CommentItem
                     comment={reply}
+                    authorStats={authorStats}
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
