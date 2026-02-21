@@ -36,7 +36,6 @@ const Comments = () => {
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
-  const [editingResponse, setEditingResponse] = useState<{ [key: string]: string }>({});
   const [clientId, setClientId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
@@ -270,11 +269,6 @@ const Comments = () => {
       if (data.success) {
         reloadComments();
         toast.success(`Resposta publicada no ${platform === 'instagram' ? 'Instagram' : 'Facebook'}!`);
-        setEditingResponse(prev => {
-          const newState = { ...prev };
-          delete newState[commentId];
-          return newState;
-        });
       } else if (data.code === 'RATE_LIMITED') {
         toast.warning(data.error, { duration: 10000 });
       } else {
@@ -649,8 +643,6 @@ const Comments = () => {
                   responding={responding}
                   managingComment={managingComment}
                   classifyingSentiment={classifyingSentiment}
-                  editingResponse={editingResponse}
-                  setEditingResponse={setEditingResponse}
                 />
               ))
             )}
@@ -690,12 +682,10 @@ const Comments = () => {
                       onSendResponse={handleSendResponse}
                       onManageComment={handleManageComment}
                       onClassifySentiment={handleClassifySentiment}
-                      generatingResponse={generatingResponse}
-                      responding={responding}
-                      managingComment={managingComment}
-                      classifyingSentiment={classifyingSentiment}
-                      editingResponse={editingResponse}
-                      setEditingResponse={setEditingResponse}
+                      isGenerating={generatingResponse === comment.id}
+                      isResponding={responding === comment.id}
+                      isManaging={managingComment === comment.id}
+                      isClassifying={classifyingSentiment === comment.id}
                       showPostInfo
                     />
                     {repliesByParent.get(comment.comment_id)?.map((reply) => (
@@ -708,12 +698,10 @@ const Comments = () => {
                           onSendResponse={handleSendResponse}
                           onManageComment={handleManageComment}
                           onClassifySentiment={handleClassifySentiment}
-                          generatingResponse={generatingResponse}
-                          responding={responding}
-                          managingComment={managingComment}
-                          classifyingSentiment={classifyingSentiment}
-                          editingResponse={editingResponse}
-                          setEditingResponse={setEditingResponse}
+                          isGenerating={generatingResponse === reply.id}
+                          isResponding={responding === reply.id}
+                          isManaging={managingComment === reply.id}
+                          isClassifying={classifyingSentiment === reply.id}
                         />
                       </div>
                     ))}

@@ -57,7 +57,6 @@ const Dashboard = () => {
   const [periodDays, setPeriodDays] = useState<number>(30);
   const [clientId, setClientId] = useState<string>("");
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [editingResponse, setEditingResponse] = useState<{ [key: string]: string }>({});
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
@@ -220,7 +219,6 @@ const Dashboard = () => {
       if (data.success) {
         reloadData();
         toast.success("Resposta publicada!");
-        setEditingResponse(prev => { const n = { ...prev }; delete n[commentId]; return n; });
       } else if (data.code === 'RATE_LIMITED') {
         toast.warning(data.error, { duration: 10000 });
       } else {
@@ -564,11 +562,9 @@ const Dashboard = () => {
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
-                  generatingResponse={generatingResponse}
-                  responding={responding}
-                  managingComment={managingComment}
-                  editingResponse={editingResponse}
-                  setEditingResponse={setEditingResponse}
+                  isGenerating={generatingResponse === comment.id}
+                  isResponding={responding === comment.id}
+                  isManaging={managingComment === comment.id}
                   showPostInfo={true}
                 />
               ))}
