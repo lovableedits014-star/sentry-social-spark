@@ -103,7 +103,25 @@ function getSentimentBadge(sentiment: string) {
   );
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, respondedExternally?: boolean) {
+  if (status === 'responded' && respondedExternally) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-help">
+              <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-600 bg-blue-50 gap-1">
+                📱 Respondido externo
+              </Badge>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[250px]">
+            <p className="text-xs">Este comentário foi respondido fora do sistema (pelo celular, Meta Business Suite ou outro usuário logado).</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
   const config: Record<string, { label: string; className: string }> = {
     pending: { label: "Pendente", className: "border-warning/50 text-warning bg-warning/10" },
     responded: { label: "Respondido", className: "border-green-500/50 text-green-600 bg-green-50" },
@@ -146,6 +164,7 @@ export const CommentItem = memo(function CommentItem({
     neutro: "Neutro",
     critico: "Crítico",
   };
+  const isRespondedExternally = isResponded && !comment.final_response;
 
   const isRecurrent = stats && stats.total >= 3;
   const dominantSentiment = stats ? (
@@ -390,7 +409,7 @@ export const CommentItem = memo(function CommentItem({
             </div>
           )}
           {comment.sentiment && getSentimentBadge(comment.sentiment)}
-          {comment.status && getStatusBadge(comment.status)}
+          {comment.status && getStatusBadge(comment.status, isRespondedExternally)}
         </div>
       </div>
 
