@@ -294,8 +294,9 @@ const Comments = () => {
       if (error) throw error;
 
       if (data.success) {
-        reloadComments();
         toast.success(`Resposta publicada no ${platform === 'instagram' ? 'Instagram' : 'Facebook'}!`);
+        // Delay reload so user can see sentiment classification before comment hides
+        setTimeout(() => reloadComments(), 3000);
       } else if (data.code === 'RATE_LIMITED') {
         toast.warning(data.error, { duration: 10000 });
       } else {
