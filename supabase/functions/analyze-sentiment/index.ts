@@ -134,11 +134,15 @@ Na dúvida entre neutral e positive/negative, escolha positive ou negative.`,
       temperature: 0,
     });
 
-    const result = response.content.toLowerCase().trim();
+    const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
     
     if (['positive', 'negative', 'neutral'].includes(result)) {
       return result;
     }
+    // Extract from longer responses
+    if (result.includes('positive')) return 'positive';
+    if (result.includes('negative')) return 'negative';
+    if (result.includes('neutral')) return 'neutral';
     return 'neutral';
   } catch (error) {
     console.error('Sentiment analysis failed:', error);
