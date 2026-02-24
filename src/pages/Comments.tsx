@@ -233,11 +233,13 @@ const Comments = () => {
     }
   }, [postsLimit, reloadComments]);
 
-  const handleGenerateResponse = useCallback(async (commentId: string, isRegenerate = false) => {
+  const handleGenerateResponse = useCallback(async (commentId: string, isRegenerate = false, userGuidance?: string) => {
     setGeneratingResponse(commentId);
     try {
+      const body: any = { commentId, clientId: clientIdRef.current };
+      if (userGuidance) body.userGuidance = userGuidance;
       const { data, error } = await supabase.functions.invoke('generate-response', {
-        body: { commentId, clientId: clientIdRef.current }
+        body
       });
 
       if (error) throw error;

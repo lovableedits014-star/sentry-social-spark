@@ -10,6 +10,7 @@ const corsHeaders = {
 const RequestSchema = z.object({
   commentId: z.string().uuid(),
   clientId: z.string().uuid(),
+  userGuidance: z.string().max(500).optional(),
 });
 
 Deno.serve(async (req) => {
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     }
 
     const body = RequestSchema.parse(await req.json());
-    const { commentId, clientId } = body;
+    const { commentId, clientId, userGuidance } = body;
 
     // Verify user owns this client
     const { data: client, error: clientError } = await supabaseClient
@@ -97,7 +98,8 @@ Deno.serve(async (req) => {
       comment.post_full_picture,
       comment.post_media_type,
       comment.author_name,
-      customPrompt
+      customPrompt,
+      userGuidance
     );
 
     // Update comment with AI response
@@ -145,7 +147,8 @@ async function generateResponse(
   postFullPicture?: string,
   postMediaType?: string,
   authorName?: string,
-  customPrompt?: string | null
+  customPrompt?: string | null,
+  userGuidance?: string
 ): Promise<string> {
   const sentimentContext = sentiment === 'positive' 
     ? 'O comentário é POSITIVO. Agradeça de forma institucional e empática.'
@@ -165,9 +168,13 @@ async function generateResponse(
     ? `\n\n📋 INSTRUÇÕES PERSONALIZADAS DO CLIENTE:\n${customPrompt}`
     : '';
 
+  const guidanceInstructions = userGuidance
+    ? `\n\n🎯 ORIENTAÇÃO DO OPERADOR PARA ESTA RESPOSTA:\n${userGuidance}\n⚠️ PRIORIZE esta orientação ao gerar a resposta.`
+    : '';
+
   const systemPrompt = `Você é o assistente digital de ${clientName}${cargo ? `, que é ${cargo}` : ''}.
 
-${sentimentContext}${postContext}${authorContext}${customInstructions}
+${sentimentContext}${postContext}${authorContext}${customInstructions}${guidanceInstructions}
 
 ✅ REGRAS OBRIGATÓRIAS:
 - Máximo 2-3 frases (não seja prolixo)
