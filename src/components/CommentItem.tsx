@@ -503,13 +503,13 @@ export const CommentItem = memo(function CommentItem({
             </div>
           )}
 
-          {/* AI Guidance box */}
+          {/* AI Guidance box — opens when clicking "Usar IA" */}
           {showGuidance && !isResponded && (
             <div className="border border-primary/20 rounded-lg p-3 bg-primary/5 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-primary flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Orientar a IA
+                  {comment.ai_response ? 'Nova resposta IA' : 'Usar IA'}
                 </span>
                 <Button
                   size="sm"
@@ -523,37 +523,45 @@ export const CommentItem = memo(function CommentItem({
               <Textarea
                 value={guidanceText}
                 onChange={(e) => setGuidanceText(e.target.value)}
-                placeholder="Ex: Responda de forma mais informal, mencione nosso evento de sábado, agradeça pelo apoio..."
+                placeholder="Opcional: oriente a IA (ex: responda de forma informal, mencione o evento de sábado...)"
                 className="min-h-[60px] text-sm resize-none"
                 autoFocus
               />
               <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-8 text-xs"
-                  onClick={() => { setShowGuidance(false); setGuidanceText(""); }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  size="sm"
+                  variant="outline"
                   className="h-8 text-xs"
                   onClick={() => {
-                    onGenerateResponse(comment.id, !!comment.ai_response, guidanceText.trim() || undefined);
+                    onGenerateResponse(comment.id, !!comment.ai_response);
                     setShowGuidance(false);
+                    setGuidanceText("");
                   }}
-                  disabled={!guidanceText.trim() || isGenerating}
+                  disabled={isGenerating}
                 >
                   <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                  {isGenerating ? "Gerando..." : "Gerar com orientação"}
+                  {isGenerating ? "Gerando..." : "Gerar resposta"}
                 </Button>
+                {guidanceText.trim() && (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      onGenerateResponse(comment.id, !!comment.ai_response, guidanceText.trim());
+                      setShowGuidance(false);
+                    }}
+                    disabled={isGenerating}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    {isGenerating ? "Gerando..." : "Gerar com orientação"}
+                  </Button>
+                )}
               </div>
             </div>
           )}
 
           <div className="flex flex-wrap gap-2">
-            {/* Like/React button - visible for non-page-owner comments */}
+            {/* Like/React button */}
             {!isPageOwner && onReactToComment && comment.platform === 'facebook' && (
               <TooltipProvider>
                 <Tooltip>
@@ -576,12 +584,11 @@ export const CommentItem = memo(function CommentItem({
               </TooltipProvider>
             )}
 
-            {/* Standard response actions - hidden when responded */}
+            {/* Standard response actions */}
             {!isResponded && (
               <>
                 {comment.author_id && !registeredSupporter && <AddToSupportersButton comment={comment} />}
 
-                {/* Manual reply button — always visible when not responded */}
                 {!showManualReply && (
                   <Button
                     size="sm"
@@ -594,69 +601,33 @@ export const CommentItem = memo(function CommentItem({
                   </Button>
                 )}
 
-                {!comment.ai_response && !showGuidance && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onGenerateResponse(comment.id, false)}
-                      disabled={isGenerating}
-                      className="h-8 text-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                      {isGenerating ? "Gerando..." : "Usar IA"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowGuidance(true)}
-                      disabled={isGenerating}
-                      className="h-8 text-xs text-muted-foreground"
-                    >
-                      <PenLine className="w-3.5 h-3.5 mr-1.5" />
-                      Orientar IA
-                    </Button>
-                  </>
+                {!showGuidance && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowGuidance(true)}
+                    disabled={isGenerating}
+                    className="h-8 text-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    {comment.ai_response ? "Nova Resposta IA" : "Usar IA"}
+                  </Button>
                 )}
 
                 {comment.ai_response && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onGenerateResponse(comment.id, true, guidanceText.trim() || undefined)}
-                      disabled={isGenerating}
-                      className="h-8 text-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                      {isGenerating ? "Regenerando..." : "Nova Resposta IA"}
-                    </Button>
-                    {!showGuidance && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowGuidance(true)}
-                        disabled={isGenerating}
-                        className="h-8 text-xs text-muted-foreground"
-                      >
-                        <PenLine className="w-3.5 h-3.5 mr-1.5" />
-                        Orientar IA
-                      </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onSendResponse(
+                      comment.id,
+                      localEditText || comment.ai_response!,
+                      comment.platform || 'facebook'
                     )}
-                    <Button
-                      size="sm"
-                      onClick={() => onSendResponse(
-                        comment.id,
-                        localEditText || comment.ai_response!,
-                        comment.platform || 'facebook'
-                      )}
-                      disabled={isResponding}
-                      className="h-8 text-xs"
-                    >
-                      <Send className="w-3.5 h-3.5 mr-1.5" />
-                      {isResponding ? "Publicando..." : "Publicar IA"}
-                    </Button>
-                  </>
+                    disabled={isResponding}
+                    className="h-8 text-xs"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    {isResponding ? "Publicando..." : "Publicar IA"}
+                  </Button>
                 )}
               </>
             )}
