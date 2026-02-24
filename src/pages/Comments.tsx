@@ -41,6 +41,7 @@ const Comments = () => {
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
   const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
+  const [reactingComment, setReactingComment] = useState<string | null>(null);
   const [hideResponded, setHideResponded] = useState(true);
   const queryClient = useQueryClient();
 
@@ -257,6 +258,25 @@ const Comments = () => {
       setGeneratingResponse(null);
     }
   }, [reloadComments]);
+
+  const handleReactToComment = useCallback(async (commentId: string) => {
+    setReactingComment(commentId);
+    try {
+      const { data, error } = await supabase.functions.invoke('react-to-comment', {
+        body: { commentId, clientId: clientIdRef.current }
+      });
+      if (error) throw error;
+      if (data.success) {
+        toast.success("Comentário curtido! 👍");
+      } else {
+        toast.error(data.error || 'Erro ao curtir comentário.');
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao curtir comentário.");
+    } finally {
+      setReactingComment(null);
+    }
+  }, []);
 
   const handleSendResponse = useCallback(async (commentId: string, responseText: string, platform: string) => {
     if (!responseText || responseText.trim().length === 0) {
@@ -668,10 +688,12 @@ const Comments = () => {
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
+                  onReactToComment={handleReactToComment}
                   onClassifySentiment={handleClassifySentiment}
                   generatingResponse={generatingResponse}
                   responding={responding}
                   managingComment={managingComment}
+                  reactingComment={reactingComment}
                   classifyingSentiment={classifyingSentiment}
                 />
               ))
@@ -732,10 +754,12 @@ const Comments = () => {
                     onGenerateResponse={handleGenerateResponse}
                     onSendResponse={handleSendResponse}
                     onManageComment={handleManageComment}
+                    onReactToComment={handleReactToComment}
                     onClassifySentiment={handleClassifySentiment}
                     isGenerating={generatingResponse === comment.id}
                     isResponding={responding === comment.id}
                     isManaging={managingComment === comment.id}
+                    isReacting={reactingComment === comment.id}
                     isClassifying={classifyingSentiment === comment.id}
                     showPostInfo
                   />
@@ -748,10 +772,12 @@ const Comments = () => {
                         onGenerateResponse={handleGenerateResponse}
                         onSendResponse={handleSendResponse}
                         onManageComment={handleManageComment}
+                        onReactToComment={handleReactToComment}
                         onClassifySentiment={handleClassifySentiment}
                         isGenerating={generatingResponse === reply.id}
                         isResponding={responding === reply.id}
                         isManaging={managingComment === reply.id}
+                        isReacting={reactingComment === reply.id}
                         isClassifying={classifyingSentiment === reply.id}
                       />
                     </div>

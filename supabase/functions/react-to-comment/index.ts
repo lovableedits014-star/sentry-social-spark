@@ -9,7 +9,6 @@ const corsHeaders = {
 const RequestSchema = z.object({
   commentId: z.string().uuid(),
   clientId: z.string().uuid(),
-  responseText: z.string().min(1).max(5000),
 });
 
 Deno.serve(async (req) => {
@@ -42,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     const body = RequestSchema.parse(await req.json());
-    const { commentId, clientId, responseText } = body;
+    const { commentId, clientId } = body;
 
     // Verify user owns this client
     const { data: client, error: clientError } = await supabaseClient
@@ -54,15 +53,15 @@ Deno.serve(async (req) => {
 
     if (clientError || !client) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Acesso não autorizado a este cliente' }),
+        JSON.stringify({ success: false, error: 'Acesso não autorizado' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get comment (also verify it belongs to this client)
+    // Get comment
     const { data: comment, error: commentError } = await supabaseClient
       .from('comments')
-      .select('comment_id, post_id, platform')
+      .select('comment_id, platform')
       .eq('id', commentId)
       .eq('client_id', clientId)
       .single();
@@ -75,20 +74,20 @@ Deno.serve(async (req) => {
     }
 
     // Get integration
-    const { data: integration, error: intError } = await supabaseClient
+    const { data: integration } = await supabaseClient
       .from('integrations')
       .select('meta_access_token, meta_page_id')
       .eq('client_id', clientId)
       .single();
 
-    if (intError || !integration?.meta_access_token) {
+    if (!integration?.meta_access_token) {
       return new Response(
         JSON.stringify({ success: false, error: 'Integração Meta não configurada' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Derive page access token if needed
+    // Derive page access token
     let pageAccessToken = integration.meta_access_token;
     try {
       const pageTokenResp = await fetch(
@@ -101,119 +100,64 @@ Deno.serve(async (req) => {
         }
       }
     } catch (e) {
-      console.warn('Could not derive page token, using stored token:', e);
+      console.warn('Could not derive page token:', e);
     }
 
-    console.log('📡 Posting reply to Meta Graph API...', {
-      comment_id: comment.comment_id,
-      platform: comment.platform,
-      response_length: responseText.length
-    });
-
-    // Use correct endpoint based on platform
     const isInstagram = comment.platform === 'instagram';
-    const metaApiUrl = isInstagram
-      ? `https://graph.facebook.com/v21.0/${comment.comment_id}/replies`
-      : `https://graph.facebook.com/v21.0/${comment.comment_id}/comments`;
-    
-    const params = new URLSearchParams({
-      message: responseText,
-      access_token: pageAccessToken
-    });
 
-    const response = await fetch(`${metaApiUrl}?${params.toString()}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-
-    const responseBody = await response.text();
-    console.log('📥 Meta API response status:', response.status);
-
-    if (!response.ok) {
-      let errorMessage = 'Falha ao responder comentário';
-      try {
-        const errorData = JSON.parse(responseBody);
-        const code = errorData.error?.code;
-        const subcode = errorData.error?.error_subcode;
-        console.error('❌ Meta API error:', errorData);
-
-        // Facebook temporary rate limit / spam block
-        if (code === 32 || code === 368 || subcode === 1404104 || subcode === 2207001) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: '⏳ Facebook bloqueou temporariamente as respostas por excesso de ações. Aguarde alguns minutos antes de tentar novamente.',
-              code: 'RATE_LIMITED'
-            }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        errorMessage = errorData.error?.error_user_msg || errorData.error?.message || errorMessage;
-      } catch {
-        console.error('❌ Meta API error (non-JSON):', responseBody);
-      }
+    if (isInstagram) {
+      // Instagram doesn't support liking comments via API
       return new Response(
-        JSON.stringify({ success: false, error: `Erro Meta API: ${errorMessage}` }),
+        JSON.stringify({ success: false, error: 'A API do Instagram não permite curtir comentários. Esta ação só está disponível para Facebook.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = JSON.parse(responseBody);
-    console.log('✅ Reply posted successfully:', data);
+    // Facebook: POST /{comment-id}/likes
+    console.log(`👍 Liking comment ${comment.comment_id}...`);
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${comment.comment_id}/likes?access_token=${pageAccessToken}`,
+      { method: 'POST' }
+    );
 
-    // Auto-like the comment (Facebook only)
-    if (comment.platform !== 'instagram') {
+    const responseBody = await response.text();
+
+    if (!response.ok) {
+      let errorMessage = 'Falha ao curtir comentário';
       try {
-        const likeResp = await fetch(
-          `https://graph.facebook.com/v21.0/${comment.comment_id}/likes?access_token=${pageAccessToken}`,
-          { method: 'POST' }
-        );
-        if (likeResp.ok) {
-          console.log('👍 Auto-liked comment successfully');
-        } else {
-          console.warn('⚠️ Auto-like failed (non-critical):', await likeResp.text());
-        }
-      } catch (e) {
-        console.warn('⚠️ Auto-like error (non-critical):', e);
+        const errorData = JSON.parse(responseBody);
+        console.error('❌ Meta API error:', errorData);
+        errorMessage = errorData.error?.message || errorMessage;
+      } catch {
+        console.error('❌ Meta API error (non-JSON):', responseBody);
       }
+      return new Response(
+        JSON.stringify({ success: false, error: errorMessage }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Update comment status
-    await supabaseClient
-      .from('comments')
-      .update({ 
-        status: 'responded',
-        final_response: responseText,
-        responded_at: new Date().toISOString()
-      })
-      .eq('id', commentId);
+    console.log('✅ Comment liked successfully');
 
     // Log action
     await supabaseClient.from('action_logs').insert({
       client_id: clientId,
       user_id: user.id,
-      action: 'respond_to_comment',
+      action: 'react_to_comment',
       status: 'success',
-      details: { comment_id: commentId, reply_id: data.id }
+      details: { comment_id: commentId, platform: comment.platform }
     });
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        reply_id: data.id,
-        message: 'Resposta enviada com sucesso!'
-      }),
+      JSON.stringify({ success: true, message: 'Comentário curtido!' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error responding to comment:', error);
+    console.error('Error reacting to comment:', error);
     const errorMessage = error instanceof z.ZodError 
-      ? 'Dados inválidos: ' + error.errors.map(e => e.message).join(', ')
-      : error instanceof Error
-      ? error.message
-      : 'Erro desconhecido';
+      ? 'Dados inválidos'
+      : error instanceof Error ? error.message : 'Erro desconhecido';
     
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),

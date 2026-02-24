@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
   Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X, Repeat, UserCheck,
+  ThumbsUp,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 
@@ -56,11 +57,13 @@ export interface CommentItemProps {
   onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
+  onReactToComment?: (commentId: string) => void;
   onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
   isGenerating?: boolean;
   isResponding?: boolean;
   isManaging?: boolean;
   isClassifying?: boolean;
+  isReacting?: boolean;
   showPostInfo?: boolean;
 }
 
@@ -138,11 +141,13 @@ export const CommentItem = memo(function CommentItem({
   onGenerateResponse,
   onSendResponse,
   onManageComment,
+  onReactToComment,
   onClassifySentiment,
   isGenerating = false,
   isResponding = false,
   isManaging = false,
   isClassifying = false,
+  isReacting = false,
   showPostInfo = false,
 }: CommentItemProps) {
   const isResponded = comment.status === 'responded';
@@ -548,6 +553,29 @@ export const CommentItem = memo(function CommentItem({
           )}
 
           <div className="flex flex-wrap gap-2">
+            {/* Like/React button - visible for non-page-owner comments */}
+            {!isPageOwner && onReactToComment && comment.platform === 'facebook' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onReactToComment(comment.id)}
+                      disabled={isReacting}
+                      className="h-8 text-xs"
+                    >
+                      {isReacting ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />}
+                      Curtir
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Curtir este comentário como sua página</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
             {/* Standard response actions - hidden when responded */}
             {!isResponded && (
               <>
