@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   MessageSquare, Search, TrendingUp, TrendingDown,
   Instagram, Facebook, RefreshCw, LayoutGrid, List,
-  EyeOff, Eye,
+  EyeOff, Eye, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "@/components/PostCard";
@@ -43,6 +43,7 @@ const Comments = () => {
   const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
   const [reactingComment, setReactingComment] = useState<string | null>(null);
   const [hideResponded, setHideResponded] = useState(true);
+  const [reanalyzingSentiments, setReanalyzingSentiments] = useState(false);
   const queryClient = useQueryClient();
 
   const fetchCommentsData = useCallback(async (limit: number) => {
@@ -704,7 +705,7 @@ const Comments = () => {
         {/* Tab: Últimos Comentários */}
         <TabsContent value="recent">
           {/* Toggle buttons */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <Button
               variant={hideResponded ? "default" : "outline"}
               size="sm"
@@ -731,7 +732,37 @@ const Comments = () => {
                 {recentViewData.totalCount}
               </Badge>
             </Button>
-            <span className="text-xs text-muted-foreground ml-2">
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                disabled={reanalyzingSentiments || !clientId}
+                onClick={async () => {
+                  setReanalyzingSentiments(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke('batch-analyze-sentiments', {
+                      body: { clientId, reanalyzeAll: true }
+                    });
+                    if (error) throw error;
+                    if (data.success) {
+                      toast.success(data.message);
+                      reloadComments();
+                    } else {
+                      toast.error(data.error || 'Erro ao reanalisar');
+                    }
+                  } catch (err: any) {
+                    toast.error(err.message || 'Erro ao reanalisar sentimentos');
+                  } finally {
+                    setReanalyzingSentiments(false);
+                  }
+                }}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${reanalyzingSentiments ? 'animate-spin' : ''}`} />
+                {reanalyzingSentiments ? 'Reanalisando...' : 'Reanalisar Sentimentos'}
+              </Button>
+            </div>
+            <span className="text-xs text-muted-foreground w-full sm:w-auto sm:ml-2">
               Exibindo {recentViewData.topLevel.length} comentário{recentViewData.topLevel.length !== 1 ? 's' : ''}
             </span>
           </div>
