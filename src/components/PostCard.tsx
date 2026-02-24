@@ -26,13 +26,15 @@ interface PostCardProps {
   group: PostGroup;
   authorStats?: AuthorStatsMap;
   registeredSupporters?: RegisteredSupportersMap;
-  onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
+  onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
+  onReactToComment?: (commentId: string) => void;
   onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
   generatingResponse: string | null;
   responding: string | null;
   managingComment?: string | null;
+  reactingComment?: string | null;
   classifyingSentiment?: string | null;
 }
 
@@ -61,10 +63,12 @@ export const PostCard = memo(function PostCard({
   onGenerateResponse,
   onSendResponse,
   onManageComment,
+  onReactToComment,
   onClassifySentiment,
   generatingResponse,
   responding,
   managingComment,
+  reactingComment,
   classifyingSentiment,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -183,10 +187,12 @@ export const PostCard = memo(function PostCard({
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
+                onReactToComment={onReactToComment}
                 onClassifySentiment={onClassifySentiment}
                 isGenerating={generatingResponse === comment.id}
                 isResponding={responding === comment.id}
                 isManaging={managingComment === comment.id}
+                isReacting={reactingComment === comment.id}
                 isClassifying={classifyingSentiment === comment.id}
               />
               {/* Nested replies */}
@@ -199,10 +205,12 @@ export const PostCard = memo(function PostCard({
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
+                    onReactToComment={onReactToComment}
                     onClassifySentiment={onClassifySentiment}
                     isGenerating={generatingResponse === reply.id}
                     isResponding={responding === reply.id}
                     isManaging={managingComment === reply.id}
+                    isReacting={reactingComment === reply.id}
                     isClassifying={classifyingSentiment === reply.id}
                   />
                 </div>

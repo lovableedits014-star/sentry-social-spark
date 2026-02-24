@@ -60,6 +60,7 @@ const Dashboard = () => {
   const [generatingResponse, setGeneratingResponse] = useState<string | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
+  const [reactingComment, setReactingComment] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const fetchDashboardData = useCallback(async () => {
@@ -250,6 +251,25 @@ const Dashboard = () => {
       toast.error(error.message || 'Erro ao gerenciar comentário');
     } finally {
       setManagingComment(null);
+    }
+  };
+
+  const handleReactToComment = async (commentId: string) => {
+    setReactingComment(commentId);
+    try {
+      const { data, error } = await supabase.functions.invoke('react-to-comment', {
+        body: { commentId, clientId }
+      });
+      if (error) throw error;
+      if (data.success) {
+        toast.success("Comentário curtido! 👍");
+      } else {
+        toast.error(data.error || 'Erro ao curtir comentário.');
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao curtir comentário.");
+    } finally {
+      setReactingComment(null);
     }
   };
 
@@ -564,9 +584,11 @@ const Dashboard = () => {
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
+                  onReactToComment={handleReactToComment}
                   isGenerating={generatingResponse === comment.id}
                   isResponding={responding === comment.id}
                   isManaging={managingComment === comment.id}
+                  isReacting={reactingComment === comment.id}
                   showPostInfo={true}
                 />
               ))}
