@@ -53,7 +53,7 @@ export interface CommentItemProps {
   comment: CommentData;
   authorStats?: AuthorStatsMap;
   registeredSupporters?: RegisteredSupportersMap;
-  onGenerateResponse: (commentId: string, isRegenerate: boolean) => void;
+  onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
   onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
@@ -151,6 +151,8 @@ export const CommentItem = memo(function CommentItem({
   const [showManualReply, setShowManualReply] = useState(false);
   const [manualText, setManualText] = useState("");
   const [localEditText, setLocalEditText] = useState("");
+  const [showGuidance, setShowGuidance] = useState(false);
+  const [guidanceText, setGuidanceText] = useState("");
 
   // Author recurrence stats
   const authorKey = comment.platform_user_id ? `${comment.platform}:${comment.platform_user_id}` : null;
@@ -496,6 +498,55 @@ export const CommentItem = memo(function CommentItem({
             </div>
           )}
 
+          {/* AI Guidance box */}
+          {showGuidance && !isResponded && (
+            <div className="border border-primary/20 rounded-lg p-3 bg-primary/5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-primary flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Orientar a IA
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 text-muted-foreground"
+                  onClick={() => { setShowGuidance(false); setGuidanceText(""); }}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <Textarea
+                value={guidanceText}
+                onChange={(e) => setGuidanceText(e.target.value)}
+                placeholder="Ex: Responda de forma mais informal, mencione nosso evento de sábado, agradeça pelo apoio..."
+                className="min-h-[60px] text-sm resize-none"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs"
+                  onClick={() => { setShowGuidance(false); setGuidanceText(""); }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    onGenerateResponse(comment.id, !!comment.ai_response, guidanceText.trim() || undefined);
+                    setShowGuidance(false);
+                  }}
+                  disabled={!guidanceText.trim() || isGenerating}
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                  {isGenerating ? "Gerando..." : "Gerar com orientação"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {/* Standard response actions - hidden when responded */}
             {!isResponded && (
@@ -515,17 +566,29 @@ export const CommentItem = memo(function CommentItem({
                   </Button>
                 )}
 
-                {!comment.ai_response && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onGenerateResponse(comment.id, false)}
-                    disabled={isGenerating}
-                    className="h-8 text-xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                    {isGenerating ? "Gerando..." : "Usar IA"}
-                  </Button>
+                {!comment.ai_response && !showGuidance && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onGenerateResponse(comment.id, false)}
+                      disabled={isGenerating}
+                      className="h-8 text-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                      {isGenerating ? "Gerando..." : "Usar IA"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowGuidance(true)}
+                      disabled={isGenerating}
+                      className="h-8 text-xs text-muted-foreground"
+                    >
+                      <PenLine className="w-3.5 h-3.5 mr-1.5" />
+                      Orientar IA
+                    </Button>
+                  </>
                 )}
 
                 {comment.ai_response && (
@@ -533,13 +596,25 @@ export const CommentItem = memo(function CommentItem({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => onGenerateResponse(comment.id, true)}
+                      onClick={() => onGenerateResponse(comment.id, true, guidanceText.trim() || undefined)}
                       disabled={isGenerating}
                       className="h-8 text-xs"
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                       {isGenerating ? "Regenerando..." : "Nova Resposta IA"}
                     </Button>
+                    {!showGuidance && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowGuidance(true)}
+                        disabled={isGenerating}
+                        className="h-8 text-xs text-muted-foreground"
+                      >
+                        <PenLine className="w-3.5 h-3.5 mr-1.5" />
+                        Orientar IA
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       onClick={() => onSendResponse(

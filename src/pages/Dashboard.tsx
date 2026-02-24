@@ -188,11 +188,13 @@ const Dashboard = () => {
   };
 
   // Comment actions (for crisis section)
-  const handleGenerateResponse = async (commentId: string, isRegenerate = false) => {
+  const handleGenerateResponse = async (commentId: string, isRegenerate = false, userGuidance?: string) => {
     setGeneratingResponse(commentId);
     try {
+      const body: any = { commentId, clientId };
+      if (userGuidance) body.userGuidance = userGuidance;
       const { data, error } = await supabase.functions.invoke('generate-response', {
-        body: { commentId, clientId }
+        body
       });
       if (error) throw error;
       if (data.success) {
