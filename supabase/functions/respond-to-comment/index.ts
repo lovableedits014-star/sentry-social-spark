@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { getClientLLMConfig, callLLM, type LLMMessage } from '../_shared/llm-router.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,7 +63,7 @@ Deno.serve(async (req) => {
     // Get comment (also verify it belongs to this client)
     const { data: comment, error: commentError } = await supabaseClient
       .from('comments')
-      .select('comment_id, post_id, platform')
+      .select('comment_id, post_id, platform, text, sentiment')
       .eq('id', commentId)
       .eq('client_id', clientId)
       .single();
@@ -180,13 +181,27 @@ Deno.serve(async (req) => {
     }
 
     // Update comment status
+    const updateData: Record<string, any> = { 
+      status: 'responded',
+      final_response: responseText,
+      responded_at: new Date().toISOString()
+    };
+
+    // Auto-analyze sentiment if not yet classified
+    if (!comment.sentiment) {
+      try {
+        const llmConfig = await getClientLLMConfig(supabaseClient, clientId);
+        const sentiment = await analyzeSentiment(llmConfig, comment.text);
+        updateData.sentiment = sentiment;
+        console.log(`🎯 Auto-classified sentiment: ${sentiment}`);
+      } catch (e) {
+        console.warn('⚠️ Auto-sentiment failed (non-critical):', e);
+      }
+    }
+
     await supabaseClient
       .from('comments')
-      .update({ 
-        status: 'responded',
-        final_response: responseText,
-        responded_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', commentId);
 
     // Log action
@@ -221,3 +236,36 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+async function analyzeSentiment(
+  llmConfig: { provider: string; apiKey: string; model: string },
+  text: string
+): Promise<string> {
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `Classifique o sentimento de comentários em redes sociais de políticos brasileiros.
+- positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
+- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
+- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
+Na dúvida, escolha positive ou negative. Neutral é RARO.
+Responda APENAS com uma palavra: positive, negative ou neutral.`,
+    },
+    {
+      role: 'user',
+      content: `"${text}"`,
+    },
+  ];
+
+  const response = await callLLM(llmConfig as any, {
+    messages,
+    maxTokens: 10,
+    temperature: 0,
+  });
+
+  const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
+  if (['positive', 'negative', 'neutral'].includes(result)) return result;
+  if (result.includes('positive')) return 'positive';
+  if (result.includes('negative')) return 'negative';
+  return 'neutral';
+}
