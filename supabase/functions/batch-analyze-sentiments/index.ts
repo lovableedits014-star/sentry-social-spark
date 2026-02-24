@@ -258,27 +258,92 @@ Resposta:`
     temperature: 0,
   });
 
-  // Parse response
-  const lines = response.content.trim().split('\n');
+  // Parse response - try multiple formats the LLM might use
+  const responseText = response.content.trim();
+  console.log(`🔍 Raw LLM response (first 500 chars): ${responseText.substring(0, 500)}`);
+  
+  const lines = responseText.split('\n').filter(l => l.trim());
   const results: { id: string; sentiment: string }[] = [];
+  const matchedIndices = new Set<number>();
 
   for (const line of lines) {
-    const match = line.match(/\[?(\d+)\]?\s*[|:\-]\s*(positive|negative|neutral)/i);
-    if (match) {
-      const idx = parseInt(match[1]) - 1;
-      const sentiment = match[2].toLowerCase();
-      if (idx >= 0 && idx < comments.length && ['positive', 'negative', 'neutral'].includes(sentiment)) {
-        results.push({ id: comments[idx].id, sentiment });
+    // Try multiple regex patterns for different LLM output formats
+    const patterns = [
+      /\[?(\d+)\]?\s*[|:\-–—]\s*(positive|negative|neutral)/i,
+      /(\d+)\.\s*(positive|negative|neutral)/i,
+      /(\d+)\s*[)]\s*(positive|negative|neutral)/i,
+      /(\d+)\s+(positive|negative|neutral)/i,
+      /^(\d+)\s*[|:\-–—.)\s]\s*["']?.*?["']?\s*[|:\-–—]\s*(positive|negative|neutral)/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match) {
+        const idx = parseInt(match[1]) - 1;
+        const sentiment = match[2].toLowerCase();
+        if (idx >= 0 && idx < comments.length && ['positive', 'negative', 'neutral'].includes(sentiment)) {
+          if (!matchedIndices.has(idx)) {
+            results.push({ id: comments[idx].id, sentiment });
+            matchedIndices.add(idx);
+          }
+        }
+        break;
       }
     }
   }
 
-  // For any comments not matched, default to neutral
-  for (let i = 0; i < comments.length; i++) {
-    if (!results.find(r => r.id === comments[i].id)) {
-      results.push({ id: comments[i].id, sentiment: 'neutral' });
+  console.log(`📊 Parsed ${results.length}/${comments.length} from batch response`);
+
+  // For unmatched comments, analyze individually instead of defaulting to neutral
+  const unmatchedComments = comments.filter((_, i) => !matchedIndices.has(i));
+  if (unmatchedComments.length > 0) {
+    console.log(`🔄 Analyzing ${unmatchedComments.length} unmatched comments individually`);
+    for (const comment of unmatchedComments) {
+      try {
+        const sentiment = await analyzeSingle(llmConfig, comment.text);
+        results.push({ id: comment.id, sentiment });
+      } catch (e) {
+        console.error(`Failed individual analysis for ${comment.id}:`, e);
+        results.push({ id: comment.id, sentiment: 'neutral' });
+      }
     }
   }
 
   return results;
+}
+
+async function analyzeSingle(
+  llmConfig: { provider: string; apiKey: string; model: string },
+  text: string
+): Promise<string> {
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `Classifique o sentimento de comentários em redes sociais de políticos brasileiros.
+- positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
+- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
+- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
+Na dúvida, escolha positive ou negative. Neutral é RARO.
+Responda APENAS com uma palavra: positive, negative ou neutral.`,
+    },
+    {
+      role: 'user',
+      content: `"${text}"`,
+    },
+  ];
+
+  const response = await callLLM(llmConfig as any, {
+    messages,
+    maxTokens: 10,
+    temperature: 0,
+  });
+
+  const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
+  if (['positive', 'negative', 'neutral'].includes(result)) {
+    return result;
+  }
+  // Try to extract from longer response
+  if (result.includes('positive')) return 'positive';
+  if (result.includes('negative')) return 'negative';
+  return 'neutral';
 }
