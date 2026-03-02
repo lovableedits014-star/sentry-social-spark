@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   MessageSquare, Search, TrendingUp, TrendingDown,
   Instagram, Facebook, RefreshCw, LayoutGrid, List,
-  EyeOff, Eye, Sparkles,
+  EyeOff, Eye, Sparkles, SkipForward,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "@/components/PostCard";
@@ -43,6 +43,7 @@ const Comments = () => {
   const [classifyingSentiment, setClassifyingSentiment] = useState<string | null>(null);
   const [reactingComment, setReactingComment] = useState<string | null>(null);
   const [hideResponded, setHideResponded] = useState(true);
+  const [showIgnored, setShowIgnored] = useState(false);
   const [reanalyzingSentiments, setReanalyzingSentiments] = useState(false);
   const queryClient = useQueryClient();
 
@@ -340,6 +341,57 @@ const Comments = () => {
     }
   }, [reloadComments]);
 
+  const handleIgnoreComment = useCallback(async (commentId: string) => {
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ status: 'ignored' as any })
+        .eq("id", commentId);
+
+      if (error) throw error;
+
+      // Update local cache optimistically
+      queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          comments: old.comments.map((c: any) =>
+            c.id === commentId ? { ...c, status: 'ignored' } : c
+          ),
+        };
+      });
+      toast.success("Comentário ignorado — removido da fila");
+    } catch (error: any) {
+      console.error("Error ignoring comment:", error);
+      toast.error("Erro ao ignorar comentário");
+    }
+  }, [queryClient, postsLimit]);
+
+  const handleUnignoreComment = useCallback(async (commentId: string) => {
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ status: 'pending' as any })
+        .eq("id", commentId);
+
+      if (error) throw error;
+
+      queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          comments: old.comments.map((c: any) =>
+            c.id === commentId ? { ...c, status: 'pending' } : c
+          ),
+        };
+      });
+      toast.success("Comentário restaurado para a fila");
+    } catch (error: any) {
+      console.error("Error unignoring comment:", error);
+      toast.error("Erro ao restaurar comentário");
+    }
+  }, [queryClient, postsLimit]);
+
   const handleClassifySentiment = useCallback(async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
     setClassifyingSentiment(commentId);
     try {
@@ -411,10 +463,22 @@ const Comments = () => {
     const pendingOnly = recentComments.filter(c => {
       if (c.is_page_owner) return false;
       if (c.status === 'responded') return false;
+      if (c.status === 'ignored') return false;
       if (c.final_response || c.responded_at) return false;
       return true;
     });
-    const source = hideResponded ? pendingOnly : recentComments;
+    const ignoredOnly = recentComments.filter(c => !c.is_page_owner && c.status === 'ignored');
+    const ignoredCount = ignoredOnly.filter(c => !c.parent_comment_id).length;
+    
+    let source: Comment[];
+    if (showIgnored) {
+      source = ignoredOnly;
+    } else if (hideResponded) {
+      source = pendingOnly;
+    } else {
+      source = recentComments;
+    }
+    
     const topLevel = source.filter(c => !c.parent_comment_id);
     const repliesByParent = new Map<string, Comment[]>();
     for (const c of source) {
@@ -426,9 +490,9 @@ const Comments = () => {
     }
     const totalCount = recentComments.filter(c => !c.parent_comment_id).length;
     const pendingTopLevel = pendingOnly.filter(c => !c.parent_comment_id).length;
-    const respondedCount = totalCount - pendingTopLevel;
-    return { topLevel, repliesByParent, totalCount, pendingTopLevel, respondedCount };
-  }, [recentComments, hideResponded]);
+    const respondedCount = totalCount - pendingTopLevel - ignoredCount;
+    return { topLevel, repliesByParent, totalCount, pendingTopLevel, respondedCount, ignoredCount };
+  }, [recentComments, hideResponded, showIgnored]);
 
   const postGroups = useMemo((): PostGroup[] => {
     const groups = new Map<string, PostGroup>();
@@ -708,31 +772,45 @@ const Comments = () => {
           {/* Toggle buttons */}
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Button
-              variant={hideResponded ? "default" : "outline"}
+              variant={hideResponded && !showIgnored ? "default" : "outline"}
               size="sm"
-              onClick={() => setHideResponded(true)}
+              onClick={() => { setHideResponded(true); setShowIgnored(false); }}
               className="gap-1.5"
             >
               <EyeOff className="w-3.5 h-3.5" />
-              Ocultar respondidos
-              {recentViewData.respondedCount > 0 && (
-                <Badge variant={hideResponded ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
-                  {recentViewData.respondedCount}
+              Pendentes
+              {recentViewData.pendingTopLevel > 0 && (
+                <Badge variant={hideResponded && !showIgnored ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+                  {recentViewData.pendingTopLevel}
                 </Badge>
               )}
             </Button>
             <Button
-              variant={!hideResponded ? "default" : "outline"}
+              variant={!hideResponded && !showIgnored ? "default" : "outline"}
               size="sm"
-              onClick={() => setHideResponded(false)}
+              onClick={() => { setHideResponded(false); setShowIgnored(false); }}
               className="gap-1.5"
             >
               <Eye className="w-3.5 h-3.5" />
-              Mostrar todos
-              <Badge variant={!hideResponded ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+              Todos
+              <Badge variant={!hideResponded && !showIgnored ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
                 {recentViewData.totalCount}
               </Badge>
             </Button>
+            {recentViewData.ignoredCount > 0 && (
+              <Button
+                variant={showIgnored ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setShowIgnored(!showIgnored); setHideResponded(false); }}
+                className="gap-1.5"
+              >
+                <SkipForward className="w-3.5 h-3.5" />
+                Ignorados
+                <Badge variant={showIgnored ? "secondary" : "outline"} className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">
+                  {recentViewData.ignoredCount}
+                </Badge>
+              </Button>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <Button
                 variant="outline"
@@ -788,6 +866,8 @@ const Comments = () => {
                     onManageComment={handleManageComment}
                     onReactToComment={handleReactToComment}
                     onClassifySentiment={handleClassifySentiment}
+                    onIgnoreComment={handleIgnoreComment}
+                    onUnignoreComment={handleUnignoreComment}
                     isGenerating={generatingResponse === comment.id}
                     isResponding={responding === comment.id}
                     isManaging={managingComment === comment.id}

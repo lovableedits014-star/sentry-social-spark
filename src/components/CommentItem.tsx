@@ -12,7 +12,7 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, Send,
   Instagram, Facebook, Calendar, AlertTriangle, ExternalLink,
   Trash2, EyeOff, Eye, Ban, Loader2, PenLine, X, Repeat, UserCheck,
-  ThumbsUp,
+  ThumbsUp, SkipForward, Undo2,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 
@@ -59,6 +59,8 @@ export interface CommentItemProps {
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
   onReactToComment?: (commentId: string) => void;
   onClassifySentiment?: (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => Promise<void>;
+  onIgnoreComment?: (commentId: string) => Promise<void>;
+  onUnignoreComment?: (commentId: string) => Promise<void>;
   isGenerating?: boolean;
   isResponding?: boolean;
   isManaging?: boolean;
@@ -143,6 +145,8 @@ export const CommentItem = memo(function CommentItem({
   onManageComment,
   onReactToComment,
   onClassifySentiment,
+  onIgnoreComment,
+  onUnignoreComment,
   isGenerating = false,
   isResponding = false,
   isManaging = false,
@@ -151,6 +155,7 @@ export const CommentItem = memo(function CommentItem({
   showPostInfo = false,
 }: CommentItemProps) {
   const isResponded = comment.status === 'responded';
+  const isIgnored = comment.status === 'ignored';
   const isPageOwner = comment.is_page_owner;
   const isHidden = comment.is_hidden;
   const [showManualReply, setShowManualReply] = useState(false);
@@ -585,7 +590,7 @@ export const CommentItem = memo(function CommentItem({
             )}
 
             {/* Standard response actions */}
-            {!isResponded && (
+            {!isResponded && !isIgnored && (
               <>
                 {comment.author_id && !registeredSupporter && <AddToSupportersButton comment={comment} />}
 
@@ -629,7 +634,42 @@ export const CommentItem = memo(function CommentItem({
                     {isResponding ? "Publicando..." : "Publicar IA"}
                   </Button>
                 )}
+
+                {/* Ignore button */}
+                {onIgnoreComment && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onIgnoreComment(comment.id)}
+                          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <SkipForward className="w-3.5 h-3.5 mr-1.5" />
+                          Ignorar
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Pular este comentário — remove da fila de pendentes</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </>
+            )}
+
+            {/* Restore ignored comment */}
+            {isIgnored && onUnignoreComment && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onUnignoreComment(comment.id)}
+                className="h-8 text-xs gap-1.5"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                Restaurar
+              </Button>
             )}
 
           </div>{/* end flex flex-wrap gap-2 */}
