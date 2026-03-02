@@ -102,10 +102,25 @@ Deno.serve(async (req) => {
       userGuidance
     );
 
-    // Update comment with AI response
+    // Auto-classify sentiment if not yet classified
+    let sentiment = comment.sentiment;
+    if (!sentiment) {
+      try {
+        sentiment = await analyzeSentimentQuick(llmConfig, comment.text);
+        console.log(`🎯 Auto-classified sentiment: ${sentiment}`);
+      } catch (e) {
+        console.warn('⚠️ Auto-sentiment failed (non-critical):', e);
+      }
+    }
+
+    // Update comment with AI response + sentiment
+    const updateData: Record<string, any> = { ai_response: aiResponse };
+    if (sentiment && !comment.sentiment) {
+      updateData.sentiment = sentiment;
+    }
     await supabaseClient
       .from('comments')
-      .update({ ai_response: aiResponse })
+      .update(updateData)
       .eq('id', commentId);
 
     // Log action
@@ -210,4 +225,34 @@ ${sentimentContext}${postContext}${authorContext}${customInstructions}${guidance
     console.error('❌ LLM call failed:', error);
     return `Obrigado pelo seu comentário! Estamos analisando sua mensagem e retornaremos em breve.`;
   }
+}
+
+async function analyzeSentimentQuick(
+  llmConfig: { provider: string; apiKey: string; model: string },
+  text: string
+): Promise<string> {
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `Classifique o sentimento de comentários em redes sociais de políticos brasileiros.
+- positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
+- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
+- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
+Na dúvida, escolha positive ou negative. Neutral é RARO.
+Responda APENAS com uma palavra: positive, negative ou neutral.`,
+    },
+    { role: 'user', content: `"${text}"` },
+  ];
+
+  const response = await callLLM(llmConfig as any, {
+    messages,
+    maxTokens: 10,
+    temperature: 0,
+  });
+
+  const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
+  if (['positive', 'negative', 'neutral'].includes(result)) return result;
+  if (result.includes('positive')) return 'positive';
+  if (result.includes('negative')) return 'negative';
+  return 'neutral';
 }
