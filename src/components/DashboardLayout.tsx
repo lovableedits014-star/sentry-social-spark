@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { isPathAllowed, type AccessProfile } from "@/lib/access-control";
+import { isPathAllowed, getRoleLabels, type AccessProfile } from "@/lib/access-control";
 
 type MenuSection = {
   label: string;
