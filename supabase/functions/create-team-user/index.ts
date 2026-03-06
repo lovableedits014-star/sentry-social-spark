@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
         user_id: newUser.user.id,
         name,
         email,
-        role,
+        role: normalizedRole,
         status: "active",
       });
 
