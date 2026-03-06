@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { isPathAllowed, type AccessProfile } from "@/lib/access-control";
+import { isPathAllowed, getRoleLabels, type AccessProfile } from "@/lib/access-control";
 
 type MenuSection = {
   label: string;
@@ -215,8 +215,8 @@ const DashboardLayout = () => {
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium truncate text-sidebar-foreground/80">{user?.email}</p>
           {accessProfile && (
-            <p className="text-[10px] text-sidebar-foreground/50 truncate capitalize">
-              {accessProfile.replace('_', ' ')}
+            <p className="text-[10px] text-sidebar-foreground/50 truncate">
+              {getRoleLabels(accessProfile).join(' · ')}
             </p>
           )}
         </div>

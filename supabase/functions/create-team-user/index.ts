@@ -51,12 +51,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Validate roles (supports comma-separated multi-role e.g. "gestor_social,operacional")
     const validRoles = ["gestor_social", "gestor_campanha", "operacional"];
-    if (!validRoles.includes(role)) {
-      return new Response(JSON.stringify({ error: `Perfil inválido. Use: ${validRoles.join(", ")}` }), {
+    const roles = (role as string).split(",").map((r: string) => r.trim()).filter(Boolean);
+    const invalidRoles = roles.filter((r: string) => !validRoles.includes(r));
+    if (roles.length === 0 || invalidRoles.length > 0) {
+      return new Response(JSON.stringify({ error: `Perfil(is) inválido(s): ${invalidRoles.join(", ")}. Use: ${validRoles.join(", ")}` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Store as comma-separated string
+    const normalizedRole = roles.join(",");
 
     // Create auth user
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
@@ -81,7 +86,7 @@ Deno.serve(async (req) => {
         user_id: newUser.user.id,
         name,
         email,
-        role,
+        role: normalizedRole,
         status: "active",
       });
 
@@ -103,7 +108,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       user_id: newUser.user.id,
-      message: `Usuário ${name} criado com perfil ${role}` 
+      message: `Usuário ${name} criado com perfil(is): ${normalizedRole}` 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

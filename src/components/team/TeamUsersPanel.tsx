@@ -5,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { UserPlus, Eye, EyeOff, Trash2, Loader2, Users } from "lucide-react";
+import { UserPlus, Eye, EyeOff, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ACCESS_PROFILES, type AccessProfile } from "@/lib/access-control";
+import { ACCESS_PROFILES, parseRoles, type AccessProfile } from "@/lib/access-control";
 
 interface TeamMember {
   id: string;
@@ -21,12 +21,21 @@ interface TeamMember {
   created_at: string;
 }
 
+const ROLE_COLORS: Record<string, string> = {
+  gestor_social: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  gestor_campanha: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  operacional: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+};
+
+const profileOptions = Object.entries(ACCESS_PROFILES).filter(([key]) => key !== "admin");
+
 export default function TeamUsersPanel({ clientId }: { clientId: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "gestor_social" });
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(["gestor_social"]);
 
   const { data: members = [], isLoading } = useQuery<TeamMember[]>({
     queryKey: ["team-members", clientId],
@@ -42,6 +51,12 @@ export default function TeamUsersPanel({ clientId }: { clientId: string }) {
     enabled: !!clientId,
   });
 
+  const toggleRole = (role: string) => {
+    setSelectedRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  };
+
   const handleCreate = async () => {
     if (!form.name || !form.email || !form.password) {
       toast.error("Preencha todos os campos");
@@ -51,18 +66,24 @@ export default function TeamUsersPanel({ clientId }: { clientId: string }) {
       toast.error("A senha deve ter no mínimo 6 caracteres");
       return;
     }
+    if (selectedRoles.length === 0) {
+      toast.error("Selecione ao menos um perfil de acesso");
+      return;
+    }
 
     setCreating(true);
     try {
+      const role = selectedRoles.join(",");
       const { data, error } = await supabase.functions.invoke("create-team-user", {
-        body: { name: form.name, email: form.email, password: form.password, role: form.role },
+        body: { name: form.name, email: form.email, password: form.password, role },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       toast.success(`Usuário ${form.name} criado com sucesso!`);
-      setForm({ name: "", email: "", password: "", role: "gestor_social" });
+      setForm({ name: "", email: "", password: "" });
+      setSelectedRoles(["gestor_social"]);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
     } catch (err: any) {
@@ -87,20 +108,16 @@ export default function TeamUsersPanel({ clientId }: { clientId: string }) {
     }
   };
 
-  const profileOptions = Object.entries(ACCESS_PROFILES).filter(([key]) => key !== "admin");
-
-  const getRoleBadge = (role: string) => {
-    const profile = ACCESS_PROFILES[role as AccessProfile];
-    const colors: Record<string, string> = {
-      gestor_social: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-      gestor_campanha: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-      operacional: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-    };
-    return (
-      <Badge variant="outline" className={colors[role] || ""}>
-        {profile?.label || role}
-      </Badge>
-    );
+  const renderRoleBadges = (roleStr: string) => {
+    const roles = parseRoles(roleStr);
+    return roles.map(role => {
+      const profile = ACCESS_PROFILES[role as AccessProfile];
+      return (
+        <Badge key={role} variant="outline" className={ROLE_COLORS[role] || ""}>
+          {profile?.label || role}
+        </Badge>
+      );
+    });
   };
 
   return (
@@ -165,23 +182,29 @@ export default function TeamUsersPanel({ clientId }: { clientId: string }) {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Perfil de Acesso</Label>
-                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profileOptions.map(([key, config]) => (
-                        <SelectItem key={key} value={key}>
-                          <div>
-                            <span className="font-medium">{config.label}</span>
-                            <span className="text-xs text-muted-foreground ml-2">— {config.description}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3">
+                  <Label>Perfis de Acesso</Label>
+                  <p className="text-xs text-muted-foreground">Selecione um ou mais perfis. Os acessos serão combinados.</p>
+                  <div className="space-y-2">
+                    {profileOptions.map(([key, config]) => (
+                      <label
+                        key={key}
+                        className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                          selectedRoles.includes(key) ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedRoles.includes(key)}
+                          onCheckedChange={() => toggleRole(key)}
+                          className="mt-0.5"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">{config.label}</p>
+                          <p className="text-xs text-muted-foreground">{config.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <Button className="w-full" onClick={handleCreate} disabled={creating}>
                   {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -218,8 +241,8 @@ export default function TeamUsersPanel({ clientId }: { clientId: string }) {
                     <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {getRoleBadge(member.role)}
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  {renderRoleBadges(member.role)}
                   <Badge variant={member.status === "active" ? "default" : "secondary"} className="text-[10px]">
                     {member.status === "active" ? "Ativo" : "Inativo"}
                   </Badge>
