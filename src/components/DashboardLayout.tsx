@@ -215,8 +215,8 @@ const DashboardLayout = () => {
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium truncate text-sidebar-foreground/80">{user?.email}</p>
           {accessProfile && (
-            <p className="text-[10px] text-sidebar-foreground/50 truncate capitalize">
-              {accessProfile.replace('_', ' ')}
+            <p className="text-[10px] text-sidebar-foreground/50 truncate">
+              {getRoleLabels(accessProfile).join(' · ')}
             </p>
           )}
         </div>
