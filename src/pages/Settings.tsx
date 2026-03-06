@@ -203,6 +203,9 @@ const Settings = () => {
         </CardContent>
       </Card>
 
+      {/* Team Users Management */}
+      {clientId && <TeamUsersPanel clientId={clientId} />}
+
       {/* Mais configurações em breve */}
       <Card>
         <CardHeader>
