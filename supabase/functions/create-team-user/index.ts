@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       user_id: newUser.user.id,
-      message: `Usuário ${name} criado com perfil ${role}` 
+      message: `Usuário ${name} criado com perfil(is): ${normalizedRole}` 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
