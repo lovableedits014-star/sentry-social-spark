@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Copy, ExternalLink, Users, UserPlus, Shield, Info, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
