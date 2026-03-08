@@ -160,7 +160,7 @@ export default function Disparos() {
   const [tipoDisparo, setTipoDisparo] = useState("manual");
   const [tagFiltro, setTagFiltro] = useState("_all");
   const [sending, setSending] = useState(false);
-
+  const [politica, setPolitica] = useState<PolicyKey>("conservador");
   const handleUseMissions = () => {
     const links = activeMissions.map((m: any, i: number) => {
       const platformLabel = m.platform === "instagram" ? "📸 Instagram" : "📘 Facebook";
