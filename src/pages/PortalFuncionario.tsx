@@ -237,33 +237,14 @@ export default function PortalFuncionario() {
       });
       if (error) throw error;
 
-      // Create or find the tag and link to pessoa
+      // Tag the pessoa with the ação's tag
       if (pessoaId) {
-        let tagId: string | null = null;
-        const { data: existingTag } = await supabase
-          .from("tags" as any)
-          .select("id")
-          .eq("client_id", clientId!)
-          .eq("nome", acao.tag_nome)
-          .maybeSingle();
-        
-        if (existingTag) {
-          tagId = (existingTag as any).id;
-        } else {
-          const { data: newTag } = await supabase
-            .from("tags" as any)
-            .insert({ client_id: clientId!, nome: acao.tag_nome, descricao: `Ação externa: ${acao.titulo}` })
-            .select("id")
-            .single();
-          tagId = (newTag as any)?.id;
-        }
-
-        if (tagId) {
-          await supabase.from("pessoas_tags" as any).insert({
-            pessoa_id: pessoaId,
-            tag_id: tagId,
-          });
-        }
+        await supabase.rpc("tag_pessoa_acao_externa" as any, {
+          p_client_id: clientId!,
+          p_pessoa_id: pessoaId,
+          p_tag_nome: acao.tag_nome,
+          p_tag_descricao: `Ação externa: ${acao.titulo}`,
+        });
       }
 
       const assignment = acaoAssignments.find((a: any) => a.acao_id === collectingAcaoId);
