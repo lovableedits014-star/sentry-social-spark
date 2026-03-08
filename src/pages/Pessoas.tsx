@@ -171,6 +171,22 @@ export default function Pessoas() {
     setPage(0);
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    // Delete related pessoa_social first, then the pessoa
+    await supabase.from("pessoa_social").delete().eq("pessoa_id", deleteTarget.id);
+    const { error } = await supabase.from("pessoas").delete().eq("id", deleteTarget.id);
+    if (error) {
+      toast.error("Erro ao excluir pessoa");
+      console.error(error);
+    } else {
+      toast.success("Pessoa excluída com sucesso");
+      fetchPessoas();
+      fetchFilterOptions();
+    }
+    setDeleteTarget(null);
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
