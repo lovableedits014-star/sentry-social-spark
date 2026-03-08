@@ -22,6 +22,9 @@ Deno.serve(async (req) => {
       is_lider,
     } = await req.json();
 
+    // Auto-determine: if no lider_id, this person is a líder
+    const finalIsLider = is_lider === true || !lider_id;
+
     if (!client_id || !nome || !telefone || !email || !senha) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios: nome, telefone, email, senha" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
