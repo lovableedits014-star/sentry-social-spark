@@ -776,6 +776,42 @@ export type Database = {
           },
         ]
       }
+      pessoas_tags: {
+        Row: {
+          criado_em: string
+          id: string
+          pessoa_id: string
+          tag_id: string
+        }
+        Insert: {
+          criado_em?: string
+          id?: string
+          pessoa_id: string
+          tag_id: string
+        }
+        Update: {
+          criado_em?: string
+          id?: string
+          pessoa_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pessoas_tags_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pessoas_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portal_missions: {
         Row: {
           client_id: string
@@ -1395,6 +1431,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "supporters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          client_id: string
+          criado_em: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          client_id: string
+          criado_em?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          client_id?: string
+          criado_em?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tags_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
