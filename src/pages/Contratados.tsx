@@ -450,9 +450,10 @@ export default function Contratados() {
     c.nome.toLowerCase().includes(search.toLowerCase()) || c.telefone.includes(search) || (c.zona_eleitoral || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  // Group by leader
-  const leaders = [...new Set(contratados.filter(c => c.lider_id).map(c => c.lider_id!))];
-  const withoutLeader = contratados.filter(c => !c.lider_id);
+  // Group by leader: leaders are contratados with is_lider=true
+  const leaderContratados = contratados.filter(c => (c as any).is_lider);
+  const leaders = leaderContratados.map(c => c.id);
+  const withoutLeader = contratados.filter(c => !c.lider_id && !(c as any).is_lider);
 
   // Indicado stats per contratado
   const indicadosByContratado = (cid: string) => indicados.filter(i => i.contratado_id === cid);
