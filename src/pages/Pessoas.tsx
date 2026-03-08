@@ -7,28 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
 
 const TIPO_LABELS: Record<string, string> = {
-  eleitor: "Eleitor",
-  apoiador: "Apoiador",
-  lideranca: "Liderança",
-  jornalista: "Jornalista",
-  influenciador: "Influenciador",
-  voluntario: "Voluntário",
-  adversario: "Adversário",
-  cidadao: "Cidadão",
+  eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
+  jornalista: "Jornalista", influenciador: "Influenciador", voluntario: "Voluntário",
+  adversario: "Adversário", cidadao: "Cidadão",
 };
 
 const NIVEL_LABELS: Record<string, string> = {
-  desconhecido: "Desconhecido",
-  simpatizante: "Simpatizante",
-  apoiador: "Apoiador",
-  militante: "Militante",
-  opositor: "Opositor",
+  desconhecido: "Desconhecido", simpatizante: "Simpatizante",
+  apoiador: "Apoiador", militante: "Militante", opositor: "Opositor",
 };
 
 const NIVEL_COLORS: Record<string, string> = {
@@ -40,20 +33,39 @@ const NIVEL_COLORS: Record<string, string> = {
 };
 
 const ORIGEM_LABELS: Record<string, string> = {
-  rede_social: "Rede Social",
-  formulario: "Formulário",
-  evento: "Evento",
-  importacao: "Importação",
-  manual: "Manual",
+  rede_social: "Rede Social", formulario: "Formulário", evento: "Evento",
+  importacao: "Importação", manual: "Manual",
 };
 
-const PAGE_SIZE = 20;
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  apoiador_ativo: "Ativo",
+  apoiador_passivo: "Passivo",
+  neutro: "Neutro",
+  critico: "Crítico",
+};
 
+const CLASSIFICATION_COLORS: Record<string, string> = {
+  apoiador_ativo: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  apoiador_passivo: "bg-sky-500/10 text-sky-600 border-sky-500/20",
+  neutro: "bg-muted text-muted-foreground",
+  critico: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+};
+
+function getScoreColor(score: number | null) {
+  if (!score || score === 0) return "text-muted-foreground";
+  if (score >= 20) return "text-emerald-600";
+  if (score >= 10) return "text-sky-600";
+  if (score >= 5) return "text-amber-600";
+  return "text-muted-foreground";
+}
+
+const PAGE_SIZE = 20;
 type SortField = "created_at" | "nome";
 
 export default function Pessoas() {
   const navigate = useNavigate();
   const [pessoas, setPessoas] = useState<any[]>([]);
+  const [supporterMap, setSupporterMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCidade, setFilterCidade] = useState("all");
@@ -68,14 +80,10 @@ export default function Pessoas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
-
-  // Distinct values for filters
   const [cidades, setCidades] = useState<string[]>([]);
   const [bairros, setBairros] = useState<string[]>([]);
 
-  useEffect(() => {
-    resolveClient();
-  }, []);
+  useEffect(() => { resolveClient(); }, []);
 
   useEffect(() => {
     if (clientId) {
@@ -87,35 +95,15 @@ export default function Pessoas() {
   async function resolveClient() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-
-    if (client) {
-      setClientId(client.id);
-      return;
-    }
-
-    const { data: tm } = await supabase
-      .from("team_members")
-      .select("client_id")
-      .eq("user_id", session.user.id)
-      .eq("status", "active")
-      .maybeSingle();
-
+    const { data: client } = await supabase.from("clients").select("id").eq("user_id", session.user.id).maybeSingle();
+    if (client) { setClientId(client.id); return; }
+    const { data: tm } = await supabase.from("team_members").select("client_id").eq("user_id", session.user.id).eq("status", "active").maybeSingle();
     if (tm) setClientId(tm.client_id);
   }
 
   async function fetchFilterOptions() {
     if (!clientId) return;
-    const { data } = await supabase
-      .from("pessoas")
-      .select("cidade, bairro")
-      .eq("client_id", clientId);
-
+    const { data } = await supabase.from("pessoas").select("cidade, bairro").eq("client_id", clientId);
     if (data) {
       const cidSet = new Set<string>();
       const baiSet = new Set<string>();
@@ -132,53 +120,58 @@ export default function Pessoas() {
     if (!clientId) return;
     setLoading(true);
 
-    let query = supabase
-      .from("pessoas")
-      .select("*", { count: "exact" })
-      .eq("client_id", clientId);
-
-    if (search.trim()) {
-      query = query.ilike("nome", `%${search.trim()}%`);
-    }
+    let query = supabase.from("pessoas").select("*", { count: "exact" }).eq("client_id", clientId);
+    if (search.trim()) query = query.ilike("nome", `%${search.trim()}%`);
     if (filterCidade !== "all") query = query.eq("cidade", filterCidade);
     if (filterBairro !== "all") query = query.eq("bairro", filterBairro);
     if (filterTipo !== "all") query = query.eq("tipo_pessoa", filterTipo as any);
     if (filterNivel !== "all") query = query.eq("nivel_apoio", filterNivel as any);
     if (filterOrigem !== "all") query = query.eq("origem_contato", filterOrigem as any);
-
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
     const { data, count, error } = await query;
-
     if (error) {
       toast.error("Erro ao carregar pessoas");
-      console.error(error);
     } else {
       setPessoas(data || []);
       setTotal(count || 0);
+      // Fetch supporter data for linked pessoas
+      const supporterIds = (data || []).map((p: any) => p.supporter_id).filter(Boolean);
+      if (supporterIds.length > 0) {
+        const { data: supporters } = await supabase
+          .from("supporters")
+          .select("id, engagement_score, classification")
+          .in("id", supporterIds);
+        if (supporters) {
+          const map: Record<string, any> = {};
+          supporters.forEach(s => { map[s.id] = s; });
+          setSupporterMap(map);
+        }
+      } else {
+        setSupporterMap({});
+      }
     }
     setLoading(false);
   }
 
   function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortAsc(!sortAsc);
-    } else {
-      setSortField(field);
-      setSortAsc(field === "nome");
-    }
+    if (sortField === field) { setSortAsc(!sortAsc); } 
+    else { setSortField(field); setSortAsc(field === "nome"); }
     setPage(0);
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    // Delete related pessoa_social first, then the pessoa
+    // Also delete linked supporter + profiles if exists
+    if (deleteTarget.supporter_id) {
+      await supabase.from("supporter_profiles").delete().eq("supporter_id", deleteTarget.supporter_id);
+      await supabase.from("supporters").delete().eq("id", deleteTarget.supporter_id);
+    }
     await supabase.from("pessoa_social").delete().eq("pessoa_id", deleteTarget.id);
     const { error } = await supabase.from("pessoas").delete().eq("id", deleteTarget.id);
     if (error) {
       toast.error("Erro ao excluir pessoa");
-      console.error(error);
     } else {
       toast.success("Pessoa excluída com sucesso");
       fetchPessoas();
@@ -196,7 +189,7 @@ export default function Pessoas() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Pessoas</h1>
           <p className="text-sm text-muted-foreground">
-            {total} {total === 1 ? "pessoa cadastrada" : "pessoas cadastradas"}
+            {total} {total === 1 ? "pessoa cadastrada" : "pessoas cadastradas"} — Base política unificada com ranking de engajamento
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">
@@ -216,7 +209,6 @@ export default function Pessoas() {
             className="pl-9"
           />
         </div>
-
         <Select value={filterCidade} onValueChange={(v) => { setFilterCidade(v); setPage(0); }}>
           <SelectTrigger><SelectValue placeholder="Cidade" /></SelectTrigger>
           <SelectContent>
@@ -224,7 +216,6 @@ export default function Pessoas() {
             {cidades.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <Select value={filterTipo} onValueChange={(v) => { setFilterTipo(v); setPage(0); }}>
           <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
@@ -232,7 +223,6 @@ export default function Pessoas() {
             {Object.entries(TIPO_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <Select value={filterNivel} onValueChange={(v) => { setFilterNivel(v); setPage(0); }}>
           <SelectTrigger><SelectValue placeholder="Nível" /></SelectTrigger>
           <SelectContent>
@@ -240,7 +230,6 @@ export default function Pessoas() {
             {Object.entries(NIVEL_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <Select value={filterOrigem} onValueChange={(v) => { setFilterOrigem(v); setPage(0); }}>
           <SelectTrigger><SelectValue placeholder="Origem" /></SelectTrigger>
           <SelectContent>
@@ -260,11 +249,35 @@ export default function Pessoas() {
                   <div className="flex items-center gap-1">Nome <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead>Cidade</TableHead>
-                <TableHead>Bairro</TableHead>
+                <TableHead>Cidade / Bairro</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead>Nível de Apoio</TableHead>
-                <TableHead>Origem</TableHead>
+                <TableHead>Nível</TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-help">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        Score
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">Pontuação de engajamento nas redes sociais (curtidas, comentários, compartilhamentos)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-help">
+                        <Star className="w-3.5 h-3.5" />
+                        Status
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">Classificação baseada no engajamento: Ativo, Passivo, Neutro ou Crítico</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
@@ -274,51 +287,63 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                    Carregando...
-                  </TableCell>
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                    Nenhuma pessoa encontrada
-                  </TableCell>
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
                 </TableRow>
               ) : (
-                pessoas.map((p) => (
-                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
-                    <TableCell className="font-medium">{p.nome}</TableCell>
-                    <TableCell>{p.telefone || "—"}</TableCell>
-                    <TableCell>{p.cidade || "—"}</TableCell>
-                    <TableCell>{p.bairro || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {TIPO_LABELS[p.tipo_pessoa] || p.tipo_pessoa}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-xs ${NIVEL_COLORS[p.nivel_apoio] || ""}`}>
-                        {NIVEL_LABELS[p.nivel_apoio] || p.nivel_apoio}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {ORIGEM_LABELS[p.origem_contato] || p.origem_contato}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {format(new Date(p.created_at), "dd/MM/yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                pessoas.map((p) => {
+                  const supporter = p.supporter_id ? supporterMap[p.supporter_id] : null;
+                  const score = supporter?.engagement_score ?? null;
+                  const classification = supporter?.classification ?? null;
+                  return (
+                    <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
+                      <TableCell className="font-medium">{p.nome}</TableCell>
+                      <TableCell className="text-sm">{p.telefone || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {p.cidade || "—"}{p.bairro ? ` / ${p.bairro}` : ""}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{TIPO_LABELS[p.tipo_pessoa] || p.tipo_pessoa}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${NIVEL_COLORS[p.nivel_apoio] || ""}`}>
+                          {NIVEL_LABELS[p.nivel_apoio] || p.nivel_apoio}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {score !== null && score > 0 ? (
+                          <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {classification ? (
+                          <Badge variant="outline" className={`text-xs ${CLASSIFICATION_COLORS[classification] || ""}`}>
+                            {CLASSIFICATION_LABELS[classification] || classification}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {format(new Date(p.created_at), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost" size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -328,9 +353,7 @@ export default function Pessoas() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Página {page + 1} de {totalPages}
-          </p>
+          <p className="text-sm text-muted-foreground">Página {page + 1} de {totalPages}</p>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
               <ChevronLeft className="w-4 h-4" />
@@ -342,23 +365,18 @@ export default function Pessoas() {
         </div>
       )}
 
-      {/* Dialog */}
       {clientId && (
-        <NovaPessoaDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          clientId={clientId}
-          onSuccess={() => { fetchPessoas(); fetchFilterOptions(); }}
-        />
+        <NovaPessoaDialog open={dialogOpen} onOpenChange={setDialogOpen} clientId={clientId} onSuccess={() => { fetchPessoas(); fetchFilterOptions(); }} />
       )}
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir pessoa</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>?
+              {deleteTarget?.supporter_id && " O perfil de engajamento vinculado também será removido."}
+              {" "}Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
