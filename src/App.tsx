@@ -22,6 +22,7 @@ import SuperAdmin from "./pages/SuperAdmin";
 import Checkins from "./pages/Checkins";
 import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
+import PessoaPerfil from "./pages/PessoaPerfil";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/checkins" element={<Checkins />} />
             <Route path="/territorial" element={<Territorial />} />
             <Route path="/pessoas" element={<Pessoas />} />
+            <Route path="/pessoas/:id" element={<PessoaPerfil />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

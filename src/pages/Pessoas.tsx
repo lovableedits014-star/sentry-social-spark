@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ const PAGE_SIZE = 20;
 type SortField = "created_at" | "nome";
 
 export default function Pessoas() {
+  const navigate = useNavigate();
   const [pessoas, setPessoas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -265,7 +267,7 @@ export default function Pessoas() {
                 </TableRow>
               ) : (
                 pessoas.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
                     <TableCell className="font-medium">{p.nome}</TableCell>
                     <TableCell>{p.telefone || "—"}</TableCell>
                     <TableCell>{p.cidade || "—"}</TableCell>
