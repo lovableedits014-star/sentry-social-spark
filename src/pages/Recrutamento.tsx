@@ -68,6 +68,66 @@ export default function Recrutamento() {
         from += PAGE;
       }
 
+      // Fetch contratados (líderes + liderados) not already in pessoas
+      const pessoaIds = new Set(allPessoas.map(p => p.id));
+      from = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("contratados")
+          .select("id, nome, cidade, bairro, telefone, is_lider, created_at")
+          .eq("client_id", cId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        for (const c of data) {
+          if (!pessoaIds.has(c.id)) {
+            allPessoas.push({
+              id: c.id,
+              nome: c.nome,
+              cidade: c.cidade,
+              bairro: c.bairro,
+              telefone: c.telefone,
+              tipo_pessoa: c.is_lider ? "lider" : "contratado",
+              origem_contato: "formulario",
+              created_at: c.created_at,
+            });
+          }
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Fetch indicados not already in pessoas
+      from = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("contratado_indicados")
+          .select("id, nome, cidade, bairro, telefone, created_at")
+          .eq("client_id", cId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        for (const ind of data) {
+          if (!pessoaIds.has(ind.id)) {
+            allPessoas.push({
+              id: ind.id,
+              nome: ind.nome,
+              cidade: ind.cidade,
+              bairro: ind.bairro,
+              telefone: ind.telefone,
+              tipo_pessoa: "indicado",
+              origem_contato: "formulario",
+              created_at: ind.created_at,
+            });
+          }
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Sort all by created_at descending
+      allPessoas.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
       setPessoas(allPessoas);
       setLoading(false);
     };
@@ -155,6 +215,7 @@ export default function Recrutamento() {
     eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
     voluntario: "Voluntário", cidadao: "Cidadão", jornalista: "Jornalista",
     influenciador: "Influenciador", adversario: "Adversário",
+    lider: "Líder", contratado: "Contratado", indicado: "Indicado", liderado: "Liderado",
   };
 
   if (loading) {
@@ -173,7 +234,7 @@ export default function Recrutamento() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">Recrutamento</h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Painel analítico de crescimento da base. Aqui você monitora quantas pessoas estão entrando na sua base política e de onde vêm — os cadastros são feitos pela rota pública (QR Code em eventos) ou manualmente em <strong>Pessoas</strong>.
+          Painel analítico de crescimento da base. Consolida dados de <strong>Pessoas</strong>, <strong>Contratados</strong>, <strong>Líderes</strong> e <strong>Indicados</strong> — todos os cadastros do sistema em uma única visão.
         </p>
       </div>
 
