@@ -2148,6 +2148,41 @@ export type Database = {
           },
         ]
       }
+      telemarketing_operadores: {
+        Row: {
+          ativo: boolean
+          client_id: string
+          created_at: string
+          id: string
+          nome: string
+          senha: string
+        }
+        Insert: {
+          ativo?: boolean
+          client_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          senha: string
+        }
+        Update: {
+          ativo?: boolean
+          client_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          senha?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telemarketing_operadores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       territorial_zones: {
         Row: {
           client_id: string

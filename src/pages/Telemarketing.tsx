@@ -27,6 +27,7 @@ interface ContatoTele {
 export default function Telemarketing() {
   const { clientId } = useParams<{ clientId: string }>();
   const [operadorNome, setOperadorNome] = useState("");
+  const [operadorSenha, setOperadorSenha] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [contatos, setContatos] = useState<ContatoTele[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,11 +57,27 @@ export default function Telemarketing() {
   }, [clientId]);
 
   const handleLogin = async () => {
-    if (!operadorNome.trim()) {
-      toast.error("Informe seu nome para continuar");
+    if (!operadorNome.trim() || !operadorSenha.trim()) {
+      toast.error("Informe nome e senha para continuar");
       return;
     }
     setLoading(true);
+
+    // Validate operator credentials
+    const { data: opData } = await supabase
+      .from("telemarketing_operadores")
+      .select("id, nome")
+      .eq("client_id", clientId!)
+      .eq("nome", operadorNome.trim())
+      .eq("senha", operadorSenha.trim())
+      .eq("ativo", true)
+      .maybeSingle();
+
+    if (!opData) {
+      toast.error("Nome ou senha inválidos");
+      setLoading(false);
+      return;
+    }
 
     // Fetch contratados (líderes + liderados)
     const { data: contratadosData } = await supabase
@@ -257,12 +274,21 @@ export default function Telemarketing() {
                 placeholder="Digite seu nome..."
                 value={operadorNome}
                 onChange={(e) => setOperadorNome(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Senha</label>
+              <Input
+                type="password"
+                placeholder="Digite sua senha..."
+                value={operadorSenha}
+                onChange={(e) => setOperadorSenha(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               />
             </div>
             <Button onClick={handleLogin} className="w-full" disabled={loading}>
               <LogIn className="w-4 h-4 mr-2" />
-              {loading ? "Carregando..." : "Entrar"}
+              {loading ? "Validando..." : "Entrar"}
             </Button>
           </CardContent>
         </Card>
