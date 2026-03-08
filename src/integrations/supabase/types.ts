@@ -1284,69 +1284,87 @@ export type Database = {
       pessoas: {
         Row: {
           bairro: string | null
+          candidato_alternativo: string | null
           cidade: string | null
           classificacao_politica: string
           client_id: string
+          contratado_id: string | null
           created_at: string
           data_nascimento: string | null
           email: string | null
           endereco: string | null
           id: string
+          lider_id: string | null
           nivel_apoio: Database["public"]["Enums"]["nivel_apoio"]
           nome: string
           notas_internas: string | null
           origem_contato: Database["public"]["Enums"]["origem_contato"]
+          secao_eleitoral: string | null
           status_lead: string
           supporter_id: string | null
           tags: string[] | null
           telefone: string | null
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at: string
+          vota_candidato: string | null
           whatsapp_confirmado: boolean
+          zona_eleitoral: string | null
         }
         Insert: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           classificacao_politica?: string
           client_id: string
+          contratado_id?: string | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
+          lider_id?: string | null
           nivel_apoio?: Database["public"]["Enums"]["nivel_apoio"]
           nome: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          secao_eleitoral?: string | null
           status_lead?: string
           supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          vota_candidato?: string | null
           whatsapp_confirmado?: boolean
+          zona_eleitoral?: string | null
         }
         Update: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           classificacao_politica?: string
           client_id?: string
+          contratado_id?: string | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
+          lider_id?: string | null
           nivel_apoio?: Database["public"]["Enums"]["nivel_apoio"]
           nome?: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          secao_eleitoral?: string | null
           status_lead?: string
           supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          vota_candidato?: string | null
           whatsapp_confirmado?: boolean
+          zona_eleitoral?: string | null
         }
         Relationships: [
           {
@@ -1354,6 +1372,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pessoas_contratado_id_fkey"
+            columns: ["contratado_id"]
+            isOneToOne: false
+            referencedRelation: "contratados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pessoas_lider_id_fkey"
+            columns: ["lider_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
             referencedColumns: ["id"]
           },
           {
@@ -2372,6 +2404,10 @@ export type Database = {
         | "voluntario"
         | "adversario"
         | "cidadao"
+        | "contratado"
+        | "liderado"
+        | "indicado"
+        | "lider"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2539,6 +2575,10 @@ export const Constants = {
         "voluntario",
         "adversario",
         "cidadao",
+        "contratado",
+        "liderado",
+        "indicado",
+        "lider",
       ],
     },
   },

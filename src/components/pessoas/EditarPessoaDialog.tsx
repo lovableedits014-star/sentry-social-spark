@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -17,10 +18,17 @@ interface Props {
 }
 
 const TIPO_OPTIONS = [
-  { value: "cidadao", label: "Cidadão" }, { value: "eleitor", label: "Eleitor" },
-  { value: "apoiador", label: "Apoiador" }, { value: "lideranca", label: "Liderança" },
-  { value: "jornalista", label: "Jornalista" }, { value: "influenciador", label: "Influenciador" },
-  { value: "voluntario", label: "Voluntário" }, { value: "adversario", label: "Adversário" },
+  { value: "cidadao", label: "Cidadão" },
+  { value: "eleitor", label: "Eleitor" },
+  { value: "apoiador", label: "Apoiador" },
+  { value: "lideranca", label: "Liderança" },
+  { value: "lider", label: "Líder (Contratado)" },
+  { value: "contratado", label: "Contratado (Liderado)" },
+  { value: "indicado", label: "Indicado" },
+  { value: "jornalista", label: "Jornalista" },
+  { value: "influenciador", label: "Influenciador" },
+  { value: "voluntario", label: "Voluntário" },
+  { value: "adversario", label: "Adversário" },
 ];
 
 const NIVEL_OPTIONS = [
@@ -42,10 +50,13 @@ const STATUS_LEAD_OPTIONS = [
 ];
 
 const CLASSIF_POLITICA_OPTIONS = [
-  { value: "apoiador", label: "Apoiador" }, { value: "simpatizante", label: "Simpatizante" },
-  { value: "indefinido", label: "Indefinido" }, { value: "oposicao", label: "Oposição" },
+  { value: "indefinido", label: "Indefinido" }, { value: "apoiador", label: "Apoiador" },
+  { value: "simpatizante", label: "Simpatizante" }, { value: "oposicao", label: "Oposição" },
   { value: "lideranca", label: "Liderança" },
 ];
+
+const TIPOS_COM_DADOS_ELEITORAIS = ["lider", "contratado", "liderado", "indicado", "eleitor"];
+const TIPOS_COM_VOTO = ["indicado", "contratado", "liderado", "lider"];
 
 export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
@@ -63,6 +74,13 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [notasInternas, setNotasInternas] = useState("");
   const [statusLead, setStatusLead] = useState("novo");
   const [classificacaoPolitica, setClassificacaoPolitica] = useState("indefinido");
+  const [zonaEleitoral, setZonaEleitoral] = useState("");
+  const [secaoEleitoral, setSecaoEleitoral] = useState("");
+  const [votaCandidato, setVotaCandidato] = useState("");
+  const [candidatoAlternativo, setCandidatoAlternativo] = useState("");
+
+  const showEleitoral = TIPOS_COM_DADOS_ELEITORAIS.includes(tipoPessoa);
+  const showVoto = TIPOS_COM_VOTO.includes(tipoPessoa);
 
   useEffect(() => {
     if (open && pessoa) {
@@ -80,6 +98,10 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setNotasInternas(pessoa.notas_internas || "");
       setStatusLead(pessoa.status_lead || "novo");
       setClassificacaoPolitica(pessoa.classificacao_politica || "indefinido");
+      setZonaEleitoral(pessoa.zona_eleitoral || "");
+      setSecaoEleitoral(pessoa.secao_eleitoral || "");
+      setVotaCandidato(pessoa.vota_candidato || "");
+      setCandidatoAlternativo(pessoa.candidato_alternativo || "");
     }
   }, [open, pessoa]);
 
@@ -104,6 +126,10 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       notas_internas: notasInternas.trim() || null,
       status_lead: statusLead,
       classificacao_politica: classificacaoPolitica,
+      zona_eleitoral: zonaEleitoral.trim() || null,
+      secao_eleitoral: secaoEleitoral.trim() || null,
+      vota_candidato: votaCandidato.trim() || null,
+      candidato_alternativo: candidatoAlternativo.trim() || null,
     } as any).eq("id", pessoa.id);
 
     setSaving(false);
@@ -141,9 +167,12 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
             <Label>Data de Nascimento</Label>
             <Input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} max={format(new Date(), "yyyy-MM-dd")} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+
+          <Separator />
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Tipo</Label>
+              <Label>Tipo de Pessoa</Label>
               <Select value={tipoPessoa} onValueChange={setTipoPessoa}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{TIPO_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
@@ -156,6 +185,8 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
                 <SelectContent>{NIVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <Label>Origem</Label>
               <Select value={origemContato} onValueChange={setOrigemContato}>
@@ -163,21 +194,55 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
                 <SelectContent>{ORIGEM_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Status Lead</Label>
+              <Select value={statusLead} onValueChange={setStatusLead}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{STATUS_LEAD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Classif. Política</Label>
+              <Select value={classificacaoPolitica} onValueChange={setClassificacaoPolitica}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CLASSIF_POLITICA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <Label>Status do Lead</Label>
-            <Select value={statusLead} onValueChange={setStatusLead}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{STATUS_LEAD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Classificação Política</Label>
-            <Select value={classificacaoPolitica} onValueChange={setClassificacaoPolitica}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{CLASSIF_POLITICA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
+
+          {showEleitoral && (
+            <>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Dados Eleitorais</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Zona Eleitoral</Label><Input value={zonaEleitoral} onChange={e => setZonaEleitoral(e.target.value)} maxLength={20} /></div>
+                <div><Label>Seção Eleitoral</Label><Input value={secaoEleitoral} onChange={e => setSecaoEleitoral(e.target.value)} maxLength={20} /></div>
+              </div>
+            </>
+          )}
+
+          {showVoto && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Vota no candidato?</Label>
+                <Select value={votaCandidato} onValueChange={setVotaCandidato}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                    <SelectItem value="indeciso">Indeciso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Candidato alternativo</Label>
+                <Input value={candidatoAlternativo} onChange={e => setCandidatoAlternativo(e.target.value)} maxLength={100} />
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
           <div><Label>Tags (separadas por vírgula)</Label><Input value={tagsStr} onChange={e => setTagsStr(e.target.value)} maxLength={500} /></div>
           <div><Label>Notas Internas</Label><Textarea value={notasInternas} onChange={e => setNotasInternas(e.target.value)} rows={3} maxLength={2000} /></div>
           <div className="flex justify-end gap-2 pt-2">

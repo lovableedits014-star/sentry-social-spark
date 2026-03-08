@@ -15,9 +15,10 @@ import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
 import { getWhatsAppLink } from "@/lib/social-url";
 
 const TIPO_LABELS: Record<string, string> = {
-  eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
+  cidadao: "Cidadão", eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
+  lider: "Líder", contratado: "Contratado", indicado: "Indicado", liderado: "Liderado",
   jornalista: "Jornalista", influenciador: "Influenciador", voluntario: "Voluntário",
-  adversario: "Adversário", cidadao: "Cidadão",
+  adversario: "Adversário",
 };
 
 const NIVEL_LABELS: Record<string, string> = {
