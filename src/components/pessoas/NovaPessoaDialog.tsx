@@ -150,24 +150,15 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
 
           <div>
             <Label>Data de Nascimento</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dataNascimento && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dataNascimento ? format(dataNascimento, "dd/MM/yyyy") : "Selecionar data"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dataNascimento}
-                  onSelect={setDataNascimento}
-                  disabled={(date) => date > new Date()}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
+            <Input
+              type="date"
+              value={dataNascimento ? format(dataNascimento, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDataNascimento(val ? new Date(val + "T00:00:00") : undefined);
+              }}
+              max={format(new Date(), "yyyy-MM-dd")}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
