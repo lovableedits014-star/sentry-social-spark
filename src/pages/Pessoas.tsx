@@ -307,6 +307,16 @@ export default function Pessoas() {
                     <TableCell className="text-xs text-muted-foreground">
                       {format(new Date(p.created_at), "dd/MM/yyyy")}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
