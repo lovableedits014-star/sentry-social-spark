@@ -67,7 +67,7 @@ const App = () => (
             <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/pessoas/:id" element={<PessoaPerfil />} />
             <Route path="/recrutamento" element={<Recrutamento />} />
-            <Route path="/funil" element={<FunilLeads />RadarTemas />} />
+            <Route path="/radar" element={<RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
             
             <Route path="/multiplicadores" element={<Multiplicadores />} />
