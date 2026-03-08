@@ -271,6 +271,7 @@ export default function RegistroContratado() {
         secao_eleitoral: secaoEleitoral.trim(),
         notas: notas.trim() || null,
         redes_sociais: socials,
+        is_lider: isLider,
       },
     });
 
