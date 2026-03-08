@@ -2644,6 +2644,15 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: number
       }
+      tag_pessoa_acao_externa: {
+        Args: {
+          p_client_id: string
+          p_pessoa_id: string
+          p_tag_descricao?: string
+          p_tag_nome: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "client" | "team_member" | "funcionario"
