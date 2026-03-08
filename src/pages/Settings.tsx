@@ -170,6 +170,9 @@ const Settings = () => {
         </CardContent>
       </Card>
 
+      {/* WhatsApp Instance (UAZAPI) */}
+      {clientId && <WhatsAppInstanceCard clientId={clientId} />}
+
       {/* WhatsApp + QR Code */}
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
       {clientId && <QRCodeLinksCard clientId={clientId} />}

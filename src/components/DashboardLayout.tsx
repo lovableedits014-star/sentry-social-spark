@@ -45,7 +45,7 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: "Operacional",
     items: [
-      { icon: CalendarCheck, label: "Presenças / Disparos", path: "/checkins" },
+      { icon: Send, label: "Disparos WhatsApp", path: "/disparos" },
       { icon: Briefcase, label: "Contratados", path: "/contratados" },
       { icon: MapPin, label: "Territorial", path: "/territorial" },
     ],

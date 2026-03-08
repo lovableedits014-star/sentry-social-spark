@@ -286,6 +286,9 @@ export default function SuperAdmin() {
             )}
           </CardContent>
         </Card>
+
+        {/* UAZAPI Configuration */}
+        <UazapiConfigPanel />
       </div>
     </div>
   );
