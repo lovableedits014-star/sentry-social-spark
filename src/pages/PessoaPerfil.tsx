@@ -486,6 +486,44 @@ export default function PessoaPerfil() {
             </CardContent>
           </Card>
 
+          {/* Classificação Política */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Classificação Política</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">Atual:</span>
+                <Badge variant="outline" className={`text-xs ${CLASSIF_POLITICA_COLORS[(pessoa as any).classificacao_politica] || ""}`}>
+                  {CLASSIF_POLITICA_LABELS[(pessoa as any).classificacao_politica] || (pessoa as any).classificacao_politica || "Indefinido"}
+                </Badge>
+              </div>
+              <Select
+                value={(pessoa as any).classificacao_politica || "indefinido"}
+                onValueChange={async (value) => {
+                  const { error } = await supabase
+                    .from("pessoas")
+                    .update({ classificacao_politica: value } as any)
+                    .eq("id", pessoa.id);
+                  if (error) toast.error("Erro ao atualizar classificação");
+                  else {
+                    setPessoa({ ...pessoa, classificacao_politica: value });
+                    toast.success("Classificação atualizada!");
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Redes Sociais</CardTitle>
