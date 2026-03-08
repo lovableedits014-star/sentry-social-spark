@@ -176,9 +176,49 @@ function DispatchRunner({ job, contratados, clientId, onComplete }: {
 }
 
 // ─── Contract Generator ──────────────────────────────────────────────────────
-function ContractPrintDialog({ contratado, clientName, liderName }: { contratado: Contratado; clientName: string; liderName?: string }) {
+interface TemplateOption {
+  id: string;
+  titulo: string;
+  tipo: string;
+  conteudo: string;
+}
+
+function ContractPrintDialog({ contratado, clientName, liderName, clientId }: { contratado: Contratado; clientName: string; liderName?: string; clientId: string }) {
   const printRef = useRef<HTMLDivElement>(null);
   const today = new Date().toLocaleDateString("pt-BR");
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [renderedContent, setRenderedContent] = useState<string>("");
+
+  useEffect(() => {
+    supabase.from("contract_templates").select("id, titulo, tipo, conteudo")
+      .eq("client_id", clientId).order("tipo").order("created_at")
+      .then(({ data }) => {
+        const tpls = (data || []) as any as TemplateOption[];
+        setTemplates(tpls);
+        if (tpls.length > 0) setSelectedTemplate(tpls[0].id);
+      });
+  }, [clientId]);
+
+  useEffect(() => {
+    const tpl = templates.find(t => t.id === selectedTemplate);
+    if (!tpl) { setRenderedContent(""); return; }
+    const socials = Array.isArray(contratado.redes_sociais) ? contratado.redes_sociais : [];
+    const socialsStr = socials.map((s: any) => `@${s.usuario} (${s.plataforma})`).join(", ") || "Não informado";
+    const content = tpl.conteudo
+      .replace(/\{nome\}/g, contratado.nome)
+      .replace(/\{telefone\}/g, contratado.telefone)
+      .replace(/\{email\}/g, contratado.email || "Não informado")
+      .replace(/\{endereco\}/g, contratado.endereco || "Não informado")
+      .replace(/\{cidade\}/g, contratado.cidade || "Não informada")
+      .replace(/\{bairro\}/g, contratado.bairro || "Não informado")
+      .replace(/\{zona_eleitoral\}/g, contratado.zona_eleitoral || "Não informada")
+      .replace(/\{lider\}/g, liderName || "Sem líder")
+      .replace(/\{contratante\}/g, clientName)
+      .replace(/\{data\}/g, today)
+      .replace(/\{redes_sociais\}/g, socialsStr);
+    setRenderedContent(content);
+  }, [selectedTemplate, templates, contratado, clientName, liderName, today]);
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -188,17 +228,10 @@ function ContractPrintDialog({ contratado, clientName, liderName }: { contratado
     win.document.write(`
       <html><head><title>Contrato - ${contratado.nome}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; line-height: 1.6; color: #222; }
-        h1 { text-align: center; font-size: 18px; margin-bottom: 30px; text-transform: uppercase; letter-spacing: 1px; }
-        .section { margin: 20px 0; }
-        .field { margin: 4px 0; }
-        .field strong { display: inline-block; min-width: 140px; }
-        .signature { margin-top: 60px; display: flex; justify-content: space-between; }
-        .signature div { text-align: center; width: 45%; }
-        .signature .line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+        body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; line-height: 1.6; color: #222; white-space: pre-wrap; }
         @media print { body { padding: 20px; } }
       </style></head><body>
-      ${content.innerHTML}
+      ${content.innerText}
       </body></html>
     `);
     win.document.close();
@@ -213,8 +246,6 @@ function ContractPrintDialog({ contratado, clientName, liderName }: { contratado
     toast.success("Contrato marcado como assinado!");
   };
 
-  const socials = Array.isArray(contratado.redes_sociais) ? contratado.redes_sociais : [];
-
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -223,81 +254,44 @@ function ContractPrintDialog({ contratado, clientName, liderName }: { contratado
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><FileText className="w-5 h-5" />Contrato de {contratado.nome}</DialogTitle>
-          <DialogDescription>Imprima o contrato para assinatura presencial</DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2 mb-4">
-          <Button onClick={handlePrint} className="gap-2"><Printer className="w-4 h-4" />Imprimir Contrato</Button>
-          {!contratado.contrato_aceito && (
-            <Button variant="outline" onClick={handleAcceptContract} className="gap-2"><CheckCircle2 className="w-4 h-4" />Marcar como Assinado</Button>
-          )}
-          {contratado.contrato_aceito && (
-            <Badge className="gap-1 self-center"><CheckCircle2 className="w-3 h-3" />Assinado em {new Date(contratado.contrato_aceito_em!).toLocaleDateString("pt-BR")}</Badge>
-          )}
-        </div>
-
-        {/* Print content (hidden but used for print) */}
-        <div ref={printRef} className="border rounded-lg p-6 bg-white text-foreground text-sm leading-relaxed">
-          <h1 style={{ textAlign: "center", fontSize: "16px", fontWeight: "bold", marginBottom: "24px" }}>
-            CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE MOBILIZAÇÃO DIGITAL
-          </h1>
-
-          <div className="section">
-            <p><strong>Data:</strong> {today}</p>
+        {templates.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p>Nenhum modelo de contrato criado.</p>
+            <p className="text-xs mt-1">Crie um modelo na seção "Modelos de Contrato" abaixo da lista.</p>
           </div>
-
-          <div className="section" style={{ marginTop: "16px" }}>
-            <p style={{ fontWeight: "bold", marginBottom: "8px" }}>CONTRATADO(A):</p>
-            <p><strong>Nome:</strong> {contratado.nome}</p>
-            <p><strong>Telefone:</strong> {contratado.telefone}</p>
-            {contratado.email && <p><strong>E-mail:</strong> {contratado.email}</p>}
-            <p><strong>Endereço:</strong> {contratado.endereco || "Não informado"}</p>
-            <p><strong>Cidade:</strong> {contratado.cidade || "Não informada"}</p>
-            {contratado.bairro && <p><strong>Bairro:</strong> {contratado.bairro}</p>}
-            {contratado.zona_eleitoral && <p><strong>Zona Eleitoral:</strong> {contratado.zona_eleitoral}</p>}
-            {liderName && <p><strong>Indicado por:</strong> {liderName}</p>}
-            {socials.length > 0 && <p><strong>Redes Sociais:</strong> {socials.map((s: any) => `@${s.usuario} (${s.plataforma})`).join(", ")}</p>}
-          </div>
-
-          <div className="section" style={{ marginTop: "16px" }}>
-            <p style={{ fontWeight: "bold", marginBottom: "8px" }}>CONTRATANTE: {clientName}</p>
-          </div>
-
-          <div className="section" style={{ marginTop: "16px" }}>
-            <p style={{ fontWeight: "bold" }}>OBJETO DO CONTRATO:</p>
-            <p>O(A) CONTRATADO(A) se compromete a prestar serviços de mobilização digital, incluindo:</p>
-            <p>1. Interação em publicações nas redes sociais conforme missões recebidas;</p>
-            <p>2. Indicação de contatos de potenciais apoiadores com nome e telefone;</p>
-            <p>3. Cumprimento das metas de indicação estabelecidas pelo contratante;</p>
-            <p>4. Marcação diária de presença no sistema.</p>
-          </div>
-
-          <div className="section" style={{ marginTop: "16px" }}>
-            <p style={{ fontWeight: "bold" }}>OBRIGAÇÕES:</p>
-            <p>- Realizar as missões enviadas dentro do prazo solicitado;</p>
-            <p>- Fornecer indicações verdadeiras e verificáveis;</p>
-            <p>- Manter sigilo sobre estratégias e informações internas;</p>
-            <p>- Marcar presença diariamente no sistema.</p>
-          </div>
-
-          <div className="section" style={{ marginTop: "16px" }}>
-            <p style={{ fontWeight: "bold" }}>VIGÊNCIA:</p>
-            <p>Este contrato tem vigência a partir da data de assinatura até o término do período eleitoral ou rescisão por qualquer das partes.</p>
-          </div>
-
-          <div style={{ marginTop: "60px", display: "flex", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", width: "45%" }}>
-              <div style={{ borderTop: "1px solid #333", marginTop: "60px", paddingTop: "5px" }}>
-                CONTRATANTE
-              </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-2">
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione o modelo" /></SelectTrigger>
+                <SelectContent>
+                  {templates.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      [{t.tipo === "lider" ? "Líder" : "Liderado"}] {t.titulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div style={{ textAlign: "center", width: "45%" }}>
-              <div style={{ borderTop: "1px solid #333", marginTop: "60px", paddingTop: "5px" }}>
-                {contratado.nome}<br />CONTRATADO(A)
-              </div>
+
+            <div className="flex gap-2 mb-4">
+              <Button onClick={handlePrint} className="gap-2"><Printer className="w-4 h-4" />Imprimir</Button>
+              {!contratado.contrato_aceito && (
+                <Button variant="outline" onClick={handleAcceptContract} className="gap-2"><CheckCircle2 className="w-4 h-4" />Marcar como Assinado</Button>
+              )}
+              {contratado.contrato_aceito && (
+                <Badge className="gap-1 self-center"><CheckCircle2 className="w-3 h-3" />Assinado em {new Date(contratado.contrato_aceito_em!).toLocaleDateString("pt-BR")}</Badge>
+              )}
             </div>
-          </div>
-        </div>
+
+            <div ref={printRef} className="border rounded-lg p-6 bg-white text-foreground text-sm leading-relaxed whitespace-pre-wrap font-mono">
+              {renderedContent}
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
