@@ -310,8 +310,9 @@ export default function Disparos() {
             <MessageSquare className="h-5 w-5 text-primary" />
             Novo Disparo
           </CardTitle>
-          <CardDescription>
-            Política conservadora: 5-15s entre mensagens, lotes de 10, pausa de 60s entre lotes (~200 msgs/hora)
+          <CardDescription className="flex items-center gap-2">
+            <Settings2 className="h-3.5 w-3.5" />
+            {POLICIES[politica].label}: {POLICIES[politica].desc}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
