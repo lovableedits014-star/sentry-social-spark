@@ -706,6 +706,7 @@ export type Database = {
           nome: string
           notas_internas: string | null
           origem_contato: Database["public"]["Enums"]["origem_contato"]
+          status_lead: string
           supporter_id: string | null
           tags: string[] | null
           telefone: string | null
@@ -726,6 +727,7 @@ export type Database = {
           nome: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          status_lead?: string
           supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null
@@ -746,6 +748,7 @@ export type Database = {
           nome?: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          status_lead?: string
           supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null

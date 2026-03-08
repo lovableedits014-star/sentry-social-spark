@@ -35,6 +35,12 @@ const ORIGEM_OPTIONS = [
   { value: "importacao", label: "Importação" },
 ];
 
+const STATUS_LEAD_OPTIONS = [
+  { value: "novo", label: "Novo" }, { value: "contato_whatsapp", label: "Contato WhatsApp" },
+  { value: "em_conversa", label: "Em Conversa" }, { value: "proposta_enviada", label: "Proposta Enviada" },
+  { value: "fechado", label: "Fechado" }, { value: "perdido", label: "Perdido" },
+];
+
 export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
@@ -49,6 +55,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [origemContato, setOrigemContato] = useState("manual");
   const [tagsStr, setTagsStr] = useState("");
   const [notasInternas, setNotasInternas] = useState("");
+  const [statusLead, setStatusLead] = useState("novo");
 
   useEffect(() => {
     if (open && pessoa) {
@@ -64,6 +71,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setOrigemContato(pessoa.origem_contato || "manual");
       setTagsStr((pessoa.tags || []).join(", "));
       setNotasInternas(pessoa.notas_internas || "");
+      setStatusLead(pessoa.status_lead || "novo");
     }
   }, [open, pessoa]);
 
@@ -86,6 +94,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       origem_contato: origemContato,
       tags: tags.length > 0 ? tags : [],
       notas_internas: notasInternas.trim() || null,
+      status_lead: statusLead,
     } as any).eq("id", pessoa.id);
 
     setSaving(false);
@@ -145,6 +154,13 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
                 <SelectContent>{ORIGEM_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <Label>Status do Lead</Label>
+            <Select value={statusLead} onValueChange={setStatusLead}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{STATUS_LEAD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
           <div><Label>Tags (separadas por vírgula)</Label><Input value={tagsStr} onChange={e => setTagsStr(e.target.value)} maxLength={500} /></div>
           <div><Label>Notas Internas</Label><Textarea value={notasInternas} onChange={e => setNotasInternas(e.target.value)} rows={3} maxLength={2000} /></div>

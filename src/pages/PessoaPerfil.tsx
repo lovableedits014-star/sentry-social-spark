@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity, MessageCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -48,6 +49,19 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
   apoiador_passivo: "bg-sky-500/10 text-sky-600 border-sky-500/20",
   neutro: "bg-muted text-muted-foreground",
   critico: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+};
+
+const STATUS_LEAD_LABELS: Record<string, string> = {
+  novo: "Novo", contato_whatsapp: "Contato WhatsApp", em_conversa: "Em Conversa",
+  proposta_enviada: "Proposta Enviada", fechado: "Fechado", perdido: "Perdido",
+};
+const STATUS_LEAD_COLORS: Record<string, string> = {
+  novo: "bg-muted text-muted-foreground",
+  contato_whatsapp: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  em_conversa: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  proposta_enviada: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  fechado: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  perdido: "bg-red-500/10 text-red-600 border-red-500/20",
 };
 
 function getScoreColor(score: number) {
@@ -421,6 +435,45 @@ export default function PessoaPerfil() {
               )}
             </CardContent>
           </Card>
+
+          {/* Status do Lead */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Status do Lead</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">Atual:</span>
+                <Badge variant="outline" className={`text-xs ${STATUS_LEAD_COLORS[(pessoa as any).status_lead] || ""}`}>
+                  {STATUS_LEAD_LABELS[(pessoa as any).status_lead] || (pessoa as any).status_lead || "Novo"}
+                </Badge>
+              </div>
+              <Select
+                value={(pessoa as any).status_lead || "novo"}
+                onValueChange={async (value) => {
+                  const { error } = await supabase
+                    .from("pessoas")
+                    .update({ status_lead: value } as any)
+                    .eq("id", pessoa.id);
+                  if (error) toast.error("Erro ao atualizar status");
+                  else {
+                    setPessoa({ ...pessoa, status_lead: value });
+                    toast.success("Status atualizado!");
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Redes Sociais</CardTitle>
