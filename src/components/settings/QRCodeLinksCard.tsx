@@ -11,10 +11,8 @@ interface QRCodeLinksCardProps {
 
 export default function QRCodeLinksCard({ clientId }: QRCodeLinksCardProps) {
   const [copiedCRM, setCopiedCRM] = useState(false);
-  const [copiedTele, setCopiedTele] = useState(false);
 
   const crmUrl = `${window.location.origin}/registro/${clientId}`;
-  const teleUrl = `${window.location.origin}/telemarketing/${clientId}`;
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(crmUrl)}`;
 
   const copyToClipboard = () => {
@@ -22,13 +20,6 @@ export default function QRCodeLinksCard({ clientId }: QRCodeLinksCardProps) {
     setCopiedCRM(true);
     toast.success("Link de cadastro CRM copiado!");
     setTimeout(() => setCopiedCRM(false), 2000);
-  };
-
-  const copyTeleLink = () => {
-    navigator.clipboard.writeText(teleUrl);
-    setCopiedTele(true);
-    toast.success("Link do telemarketing copiado!");
-    setTimeout(() => setCopiedTele(false), 2000);
   };
 
   return (
