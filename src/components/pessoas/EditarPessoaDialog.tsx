@@ -79,6 +79,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setTagsStr((pessoa.tags || []).join(", "));
       setNotasInternas(pessoa.notas_internas || "");
       setStatusLead(pessoa.status_lead || "novo");
+      setClassificacaoPolitica(pessoa.classificacao_politica || "indefinido");
     }
   }, [open, pessoa]);
 
