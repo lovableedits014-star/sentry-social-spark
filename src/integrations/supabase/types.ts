@@ -661,6 +661,7 @@ export type Database = {
           nome: string
           notas_internas: string | null
           origem_contato: Database["public"]["Enums"]["origem_contato"]
+          supporter_id: string | null
           tags: string[] | null
           telefone: string | null
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
@@ -679,6 +680,7 @@ export type Database = {
           nome: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
@@ -697,6 +699,7 @@ export type Database = {
           nome?: string
           notas_internas?: string | null
           origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          supporter_id?: string | null
           tags?: string[] | null
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
@@ -708,6 +711,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pessoas_supporter_id_fkey"
+            columns: ["supporter_id"]
+            isOneToOne: false
+            referencedRelation: "supporters"
             referencedColumns: ["id"]
           },
         ]
