@@ -32,6 +32,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { MultiplierRanking } from "@/components/referral/MultiplierRanking";
+import InfluenciadoresTab from "@/components/engagement/InfluenciadoresTab";
 import { getSocialProfileUrl } from "@/lib/social-url";
 
 type EngagementConfig = {
