@@ -17,7 +17,7 @@ export const ACCESS_PROFILES: Record<AccessProfile, { label: string; description
   gestor_campanha: {
     label: 'Gestor de Campanha',
     description: 'Apoiadores, Presenças, Territorial',
-    allowedPaths: ['/dashboard', '/supporters', '/checkins', '/territorial'],
+    allowedPaths: ['/dashboard', '/supporters', '/checkins', '/territorial', '/pessoas'],
   },
   operacional: {
     label: 'Operacional',

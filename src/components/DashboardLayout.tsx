@@ -32,6 +32,12 @@ const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
+    label: "Base Política",
+    items: [
+      { icon: BookUser, label: "Pessoas", path: "/pessoas" },
+    ],
+  },
+  {
     label: "Sistema",
     items: [
       { icon: Link2, label: "Integrações", path: "/integrations" },

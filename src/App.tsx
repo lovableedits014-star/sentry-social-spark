@@ -47,6 +47,7 @@ const App = () => (
             <Route path="/engagement" element={<Engagement />} />
             <Route path="/checkins" element={<Checkins />} />
             <Route path="/territorial" element={<Territorial />} />
+            <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
