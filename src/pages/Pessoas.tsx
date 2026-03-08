@@ -202,7 +202,7 @@ export default function Pessoas() {
       </div>
 
       {/* Search + Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
         <div className="relative sm:col-span-2 lg:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -238,6 +238,14 @@ export default function Pessoas() {
           <SelectContent>
             <SelectItem value="all">Todas origens</SelectItem>
             {Object.entries(ORIGEM_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterWhatsapp} onValueChange={(v) => { setFilterWhatsapp(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="WhatsApp" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">WhatsApp: Todos</SelectItem>
+            <SelectItem value="sim">✅ Confirmado</SelectItem>
+            <SelectItem value="nao">⏳ Pendente</SelectItem>
           </SelectContent>
         </Select>
       </div>
