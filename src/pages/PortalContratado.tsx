@@ -360,6 +360,37 @@ export default function PortalContratado() {
           </div>
         )}
 
+        {/* Líder exclusive link for liderados */}
+        {(contratado as any).is_lider && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Crown className="w-5 h-5 text-primary" />
+                <p className="text-sm font-semibold">Seu Link de Cadastro para Liderados</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Envie este link para os seus contratados se cadastrarem vinculados a você.
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-background rounded-lg border px-3 py-2 text-xs truncate font-mono">
+                  {`${window.location.origin}/contratado/${clientId}/${contratado.id}`}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/contratado/${clientId}/${contratado.id}`);
+                    toast.success("Link copiado!");
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5" />Copiar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabs */}
         <Tabs defaultValue="missoes">
           <TabsList className="grid w-full grid-cols-2">
