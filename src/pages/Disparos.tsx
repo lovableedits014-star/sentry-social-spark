@@ -279,6 +279,18 @@ export default function Disparos() {
         </p>
       </div>
 
+      <Tabs defaultValue="disparos" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="disparos" className="gap-1.5">
+            <MessageSquare className="h-4 w-4" /> Disparos
+          </TabsTrigger>
+          <TabsTrigger value="aniversario" className="gap-1.5">
+            <Cake className="h-4 w-4" /> Aniversário
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="disparos" className="space-y-4 sm:space-y-6">
+
       {/* Connection status banner */}
       {!isConnected && (
         <Card className="border-amber-500/30 bg-amber-500/5">
