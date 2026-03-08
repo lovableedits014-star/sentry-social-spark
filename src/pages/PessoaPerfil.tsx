@@ -81,6 +81,18 @@ export default function PessoaPerfil() {
     }
   }
 
+  async function handleDeletePessoa() {
+    if (!pessoa) return;
+    await supabase.from("pessoa_social").delete().eq("pessoa_id", pessoa.id);
+    const { error } = await supabase.from("pessoas").delete().eq("id", pessoa.id);
+    if (error) {
+      toast.error("Erro ao excluir pessoa");
+    } else {
+      toast.success("Pessoa excluída");
+      navigate("/pessoas");
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[50vh]">
