@@ -68,6 +68,66 @@ export default function Recrutamento() {
         from += PAGE;
       }
 
+      // Fetch contratados (líderes + liderados) not already in pessoas
+      const pessoaIds = new Set(allPessoas.map(p => p.id));
+      from = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("contratados")
+          .select("id, nome, cidade, bairro, telefone, is_lider, created_at")
+          .eq("client_id", cId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        for (const c of data) {
+          if (!pessoaIds.has(c.id)) {
+            allPessoas.push({
+              id: c.id,
+              nome: c.nome,
+              cidade: c.cidade,
+              bairro: c.bairro,
+              telefone: c.telefone,
+              tipo_pessoa: c.is_lider ? "lider" : "contratado",
+              origem_contato: "formulario",
+              created_at: c.created_at,
+            });
+          }
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Fetch indicados not already in pessoas
+      from = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("contratado_indicados")
+          .select("id, nome, cidade, bairro, telefone, created_at")
+          .eq("client_id", cId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        for (const ind of data) {
+          if (!pessoaIds.has(ind.id)) {
+            allPessoas.push({
+              id: ind.id,
+              nome: ind.nome,
+              cidade: ind.cidade,
+              bairro: ind.bairro,
+              telefone: ind.telefone,
+              tipo_pessoa: "indicado",
+              origem_contato: "formulario",
+              created_at: ind.created_at,
+            });
+          }
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Sort all by created_at descending
+      allPessoas.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
       setPessoas(allPessoas);
       setLoading(false);
     };
