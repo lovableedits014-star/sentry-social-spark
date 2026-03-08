@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
