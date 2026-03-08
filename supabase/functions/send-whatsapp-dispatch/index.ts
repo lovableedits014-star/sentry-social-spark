@@ -46,7 +46,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { client_id, titulo, mensagem, tipo, tag_filtro } = await req.json();
+    const { client_id, titulo, mensagem, tipo, tag_filtro, batch_size, delay_min, delay_max, batch_pause } = await req.json();
+    const BATCH_SIZE = batch_size || DEFAULT_BATCH_SIZE;
+    const DELAY_MIN_MS = (delay_min || DEFAULT_DELAY_MIN) * 1000;
+    const DELAY_MAX_MS = (delay_max || DEFAULT_DELAY_MAX) * 1000;
+    const BATCH_PAUSE_MS = (batch_pause || DEFAULT_BATCH_PAUSE) * 1000;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     // Verify ownership
