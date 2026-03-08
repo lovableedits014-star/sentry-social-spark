@@ -71,7 +71,7 @@ const App = () => (
             <Route path="/funil" element={<FunilLeads />} />
             <Route path="/radar" element={<RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
-            <Route path="/influenciadores" element={<MapaInfluenciadores / />
+            
             <Route path="/multiplicadores" element={<Multiplicadores />} />
             <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/campanha" element={<Campanha />} />
