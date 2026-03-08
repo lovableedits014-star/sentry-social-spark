@@ -55,6 +55,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [origemContato, setOrigemContato] = useState("manual");
   const [tagsStr, setTagsStr] = useState("");
   const [notasInternas, setNotasInternas] = useState("");
+  const [statusLead, setStatusLead] = useState("novo");
 
   useEffect(() => {
     if (open && pessoa) {
