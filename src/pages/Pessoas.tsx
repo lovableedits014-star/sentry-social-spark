@@ -73,6 +73,7 @@ export default function Pessoas() {
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterNivel, setFilterNivel] = useState("all");
   const [filterOrigem, setFilterOrigem] = useState("all");
+  const [filterWhatsapp, setFilterWhatsapp] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
