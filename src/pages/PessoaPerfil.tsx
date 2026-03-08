@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { getWhatsAppLink } from "@/lib/social-url";
 
 const TIPO_LABELS: Record<string, string> = {
   eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
