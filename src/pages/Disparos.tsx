@@ -13,9 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Send, Loader2, CheckCircle, XCircle, Clock,
-  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2,
+  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2, Cake,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DispatchLogDialog from "@/components/disparos/DispatchLogDialog";
+import BirthdayConfigPanel from "@/components/disparos/BirthdayConfigPanel";
 
 const POLICIES = {
   conservador: {
@@ -277,6 +279,18 @@ export default function Disparos() {
         </p>
       </div>
 
+      <Tabs defaultValue="disparos" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="disparos" className="gap-1.5">
+            <MessageSquare className="h-4 w-4" /> Disparos
+          </TabsTrigger>
+          <TabsTrigger value="aniversario" className="gap-1.5">
+            <Cake className="h-4 w-4" /> Aniversário
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="disparos" className="space-y-4 sm:space-y-6">
+
       {/* Connection status banner */}
       {!isConnected && (
         <Card className="border-amber-500/30 bg-amber-500/5">
@@ -512,6 +526,12 @@ export default function Disparos() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="aniversario">
+          {clientId && <BirthdayConfigPanel clientId={clientId} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

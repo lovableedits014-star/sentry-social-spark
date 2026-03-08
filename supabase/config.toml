@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-dispatch]
 verify_jwt = false
+
+[functions.send-birthday-messages]
+verify_jwt = false
