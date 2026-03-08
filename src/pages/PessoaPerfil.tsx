@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity, MessageCircle, CheckCircle2, MessageCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity, MessageCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
