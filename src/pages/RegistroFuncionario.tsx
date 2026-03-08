@@ -202,8 +202,8 @@ export default function RegistroFuncionario() {
   useEffect(() => {
     if (!clientId) { setLoadingClient(false); return; }
     supabase.from("clients").select("name").eq("id", clientId).maybeSingle()
-      .then(({ data }) => { if (data) setClientName(data.name); })
-      .finally(() => setLoadingClient(false));
+      .then(({ data }) => { if (data) setClientName(data.name); setLoadingClient(false); })
+      .catch(() => setLoadingClient(false));
   }, [clientId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
