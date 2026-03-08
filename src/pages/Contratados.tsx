@@ -14,7 +14,7 @@ import {
   Briefcase, Search, Users, QrCode, Play, Pause, Square, Loader2,
   MessageCircle, Clock, CheckCircle2, AlertCircle, Send, Copy, ExternalLink,
   Shield, Printer, FileText, UserPlus, Target, Phone, MapPin, CalendarCheck,
-  ChevronRight, Award, TrendingUp,
+  ChevronRight, Award, TrendingUp, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -401,6 +401,18 @@ export default function Contratados() {
     toast.success("Meta atualizada!");
   }
 
+  async function deleteContratado(contratadoId: string) {
+    if (!confirm("Tem certeza que deseja excluir este contratado? Os indicados dele também serão removidos.")) return;
+    // Delete indicados first, then checkins, then contratado
+    await supabase.from("contratado_indicados").delete().eq("contratado_id", contratadoId);
+    await supabase.from("contratado_checkins").delete().eq("contratado_id", contratadoId);
+    const { error } = await supabase.from("contratados").delete().eq("id", contratadoId);
+    if (error) { toast.error("Erro ao excluir: " + error.message); return; }
+    setContratados(prev => prev.filter(c => c.id !== contratadoId));
+    setIndicados(prev => prev.filter(i => i.contratado_id !== contratadoId));
+    toast.success("Contratado excluído!");
+  }
+
   const registrationUrl = clientId ? `${window.location.origin}/contratado/${clientId}` : "";
   const portalUrl = clientId ? `${window.location.origin}/portal-contratado/${clientId}` : "";
   const activeContratados = contratados.filter(c => c.status === "ativo");
@@ -536,6 +548,9 @@ export default function Contratados() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <ContractPrintDialog contratado={c} clientName={clientName} liderName={c.lider_id ? liderMap[c.lider_id] : undefined} />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => deleteContratado(c.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                       <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
                     </div>
                   </div>
