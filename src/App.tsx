@@ -22,6 +22,7 @@ import SuperAdmin from "./pages/SuperAdmin";
 import Checkins from "./pages/Checkins";
 import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
+import PessoaPerfil from "./pages/PessoaPerfil";
 
 const queryClient = new QueryClient();
 
