@@ -210,8 +210,8 @@ const Settings = () => {
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
       {clientId && <QRCodeLinksCard clientId={clientId} />}
 
-      {/* Telemarketing Operators */}
-      {clientId && <TelemarketingOperadoresCard clientId={clientId} />}
+      {/* Telemarketing Module */}
+      {clientId && <TelemarketingSettingsCard clientId={clientId} />}
 
       {/* Team Users Management */}
       {clientId && <TeamUsersPanel clientId={clientId} />}
