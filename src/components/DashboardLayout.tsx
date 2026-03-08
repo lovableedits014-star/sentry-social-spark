@@ -20,8 +20,13 @@ const MENU_SECTIONS: MenuSection[] = [
     label: "Redes Sociais",
     items: [
       { icon: MessageSquare, label: "Comentários", path: "/comments" },
-      { icon: Users, label: "Apoiadores", path: "/supporters" },
       { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
+    ],
+  },
+  {
+    label: "Base Política",
+    items: [
+      { icon: BookUser, label: "Pessoas", path: "/pessoas" },
     ],
   },
   {
@@ -29,12 +34,6 @@ const MENU_SECTIONS: MenuSection[] = [
     items: [
       { icon: CalendarCheck, label: "Presenças / Disparos", path: "/checkins" },
       { icon: MapPin, label: "Territorial", path: "/territorial" },
-    ],
-  },
-  {
-    label: "Base Política",
-    items: [
-      { icon: BookUser, label: "Pessoas", path: "/pessoas" },
     ],
   },
   {

@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, FileText, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
@@ -16,12 +17,10 @@ const TIPO_LABELS: Record<string, string> = {
   jornalista: "Jornalista", influenciador: "Influenciador", voluntario: "Voluntário",
   adversario: "Adversário", cidadao: "Cidadão",
 };
-
 const NIVEL_LABELS: Record<string, string> = {
   desconhecido: "Desconhecido", simpatizante: "Simpatizante",
   apoiador: "Apoiador", militante: "Militante", opositor: "Opositor",
 };
-
 const NIVEL_COLORS: Record<string, string> = {
   desconhecido: "bg-muted text-muted-foreground",
   simpatizante: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -29,29 +28,46 @@ const NIVEL_COLORS: Record<string, string> = {
   militante: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   opositor: "bg-red-500/10 text-red-600 border-red-500/20",
 };
-
 const ORIGEM_LABELS: Record<string, string> = {
   rede_social: "Rede Social", formulario: "Formulário", evento: "Evento",
   importacao: "Importação", manual: "Manual",
 };
-
 const PLATFORM_ICONS: Record<string, string> = {
   facebook: "🔵", instagram: "📸", twitter: "🐦", tiktok: "🎵", youtube: "▶️",
 };
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  apoiador_ativo: "Apoiador Ativo",
+  apoiador_passivo: "Apoiador Passivo",
+  neutro: "Neutro",
+  critico: "Crítico",
+};
+const CLASSIFICATION_COLORS: Record<string, string> = {
+  apoiador_ativo: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  apoiador_passivo: "bg-sky-500/10 text-sky-600 border-sky-500/20",
+  neutro: "bg-muted text-muted-foreground",
+  critico: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+};
+
+function getScoreColor(score: number) {
+  if (score >= 20) return "text-emerald-600";
+  if (score >= 10) return "text-sky-600";
+  if (score >= 5) return "text-amber-600";
+  return "text-muted-foreground";
+}
 
 export default function PessoaPerfil() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [pessoa, setPessoa] = useState<any>(null);
   const [socials, setSocials] = useState<any[]>([]);
+  const [supporter, setSupporter] = useState<any>(null);
+  const [engagementActions, setEngagementActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    if (id) fetchData();
-  }, [id]);
+  useEffect(() => { if (id) fetchData(); }, [id]);
 
   async function fetchData() {
     setLoading(true);
@@ -68,29 +84,43 @@ export default function PessoaPerfil() {
 
     setPessoa(pessoaRes.data);
     setSocials(socialRes.data || []);
+
+    // Fetch linked supporter data
+    if (pessoaRes.data.supporter_id) {
+      const [suppRes, actionsRes] = await Promise.all([
+        supabase.from("supporters").select("*").eq("id", pessoaRes.data.supporter_id).single(),
+        supabase.from("engagement_actions")
+          .select("id, action_type, platform, action_date, post_id")
+          .eq("supporter_id", pessoaRes.data.supporter_id)
+          .order("action_date", { ascending: false })
+          .limit(20),
+      ]);
+      setSupporter(suppRes.data || null);
+      setEngagementActions(actionsRes.data || []);
+    } else {
+      setSupporter(null);
+      setEngagementActions([]);
+    }
+
     setLoading(false);
   }
 
   async function handleDeleteSocial(socialId: string) {
     const { error } = await supabase.from("pessoa_social").delete().eq("id", socialId);
-    if (error) {
-      toast.error("Erro ao remover rede social");
-    } else {
-      toast.success("Rede social removida");
-      setSocials(prev => prev.filter(s => s.id !== socialId));
-    }
+    if (error) { toast.error("Erro ao remover rede social"); }
+    else { toast.success("Rede social removida"); setSocials(prev => prev.filter(s => s.id !== socialId)); }
   }
 
   async function handleDeletePessoa() {
     if (!pessoa) return;
+    if (pessoa.supporter_id) {
+      await supabase.from("supporter_profiles").delete().eq("supporter_id", pessoa.supporter_id);
+      await supabase.from("supporters").delete().eq("id", pessoa.supporter_id);
+    }
     await supabase.from("pessoa_social").delete().eq("pessoa_id", pessoa.id);
     const { error } = await supabase.from("pessoas").delete().eq("id", pessoa.id);
-    if (error) {
-      toast.error("Erro ao excluir pessoa");
-    } else {
-      toast.success("Pessoa excluída");
-      navigate("/pessoas");
-    }
+    if (error) { toast.error("Erro ao excluir pessoa"); }
+    else { toast.success("Pessoa excluída"); navigate("/pessoas"); }
   }
 
   if (loading) {
@@ -113,6 +143,13 @@ export default function PessoaPerfil() {
     </div>
   );
 
+  const ACTION_TYPE_LABELS: Record<string, string> = {
+    comment: "💬 Comentário",
+    like: "👍 Curtida",
+    share: "🔗 Compartilhamento",
+    reaction: "❤️ Reação",
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -122,35 +159,33 @@ export default function PessoaPerfil() {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">{pessoa.nome}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-xs">
-              {TIPO_LABELS[pessoa.tipo_pessoa] || pessoa.tipo_pessoa}
-            </Badge>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <Badge variant="outline" className="text-xs">{TIPO_LABELS[pessoa.tipo_pessoa] || pessoa.tipo_pessoa}</Badge>
             <Badge variant="outline" className={`text-xs ${NIVEL_COLORS[pessoa.nivel_apoio] || ""}`}>
               {NIVEL_LABELS[pessoa.nivel_apoio] || pessoa.nivel_apoio}
             </Badge>
+            {supporter?.classification && (
+              <Badge variant="outline" className={`text-xs ${CLASSIFICATION_COLORS[supporter.classification] || ""}`}>
+                {CLASSIFICATION_LABELS[supporter.classification] || supporter.classification}
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-            <Pencil className="w-4 h-4" />
-            Editar
+            <Pencil className="w-4 h-4" /> Editar
           </Button>
           <Button variant="outline" className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="w-4 h-4" />
-            Excluir
+            <Trash2 className="w-4 h-4" /> Excluir
           </Button>
         </div>
       </div>
 
-      {/* Content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column - Dados */}
+        {/* Left column */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dados Pessoais</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Dados Pessoais</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <InfoRow icon={User} label="Nome" value={pessoa.nome} />
               <InfoRow icon={Mail} label="Email" value={pessoa.email} />
@@ -160,9 +195,7 @@ export default function PessoaPerfil() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Localização</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Localização</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <InfoRow icon={MapPin} label="Cidade" value={pessoa.cidade} />
               <InfoRow icon={MapPin} label="Bairro" value={pessoa.bairro} />
@@ -173,9 +206,7 @@ export default function PessoaPerfil() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Classificação Política</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Classificação Política</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-x-6">
               <InfoRow icon={Tag} label="Tipo de Pessoa" value={TIPO_LABELS[pessoa.tipo_pessoa] || pessoa.tipo_pessoa} />
               <InfoRow icon={Tag} label="Nível de Apoio" value={NIVEL_LABELS[pessoa.nivel_apoio] || pessoa.nivel_apoio} />
@@ -183,12 +214,92 @@ export default function PessoaPerfil() {
             </CardContent>
           </Card>
 
-          {/* Tags & Notas */}
+          {/* Engagement Card */}
+          {supporter && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  <CardTitle className="text-base">Engajamento nas Redes</CardTitle>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="w-4 h-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-[250px]">
+                    <p className="text-xs">Pontuação calculada automaticamente com base nas interações desta pessoa nas suas publicações (comentários, curtidas, reações e compartilhamentos).</p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Score overview */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-muted/50 border">
+                    <p className={`text-2xl font-bold ${getScoreColor(supporter.engagement_score || 0)}`}>
+                      {supporter.engagement_score || 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Score</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50 border">
+                    <p className="text-2xl font-bold text-foreground">{engagementActions.length}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Interações</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50 border">
+                    <p className="text-sm font-medium text-foreground mt-1">
+                      {supporter.last_interaction_date 
+                        ? format(new Date(supporter.last_interaction_date), "dd/MM") 
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Última Interação</p>
+                  </div>
+                </div>
+
+                {/* Recent actions */}
+                {engagementActions.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5" />
+                      Últimas interações
+                    </p>
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                      {engagementActions.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between py-1.5 px-2 rounded text-xs bg-muted/30">
+                          <span>{ACTION_TYPE_LABELS[a.action_type] || a.action_type}</span>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span className="capitalize">{a.platform}</span>
+                            <span>{format(new Date(a.action_date), "dd/MM HH:mm")}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {engagementActions.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nenhuma interação registrada ainda. As interações serão detectadas automaticamente ao sincronizar com a Meta.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No engagement tracking info */}
+          {!supporter && socials.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="py-6 text-center space-y-2">
+                <TrendingUp className="w-8 h-8 mx-auto text-muted-foreground/50" />
+                <p className="text-sm font-medium text-muted-foreground">Engajamento não rastreado</p>
+                <p className="text-xs text-muted-foreground">
+                  Adicione uma rede social para que as interações desta pessoa sejam rastreadas automaticamente no ranking de engajamento.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {(pessoa.tags?.length > 0 || pessoa.notas_internas) && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Tags & Notas</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-base">Tags & Notas</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 {pessoa.tags?.length > 0 && (
                   <div>
@@ -211,21 +322,18 @@ export default function PessoaPerfil() {
           )}
         </div>
 
-        {/* Right column - Redes sociais */}
+        {/* Right column */}
         <div className="space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Redes Sociais</CardTitle>
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setSocialOpen(true)}>
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar
+                <Plus className="w-3.5 h-3.5" /> Adicionar
               </Button>
             </CardHeader>
             <CardContent>
               {socials.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  Nenhuma rede social vinculada
-                </p>
+                <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma rede social vinculada</p>
               ) : (
                 <div className="space-y-3">
                   {socials.map((s) => (
@@ -243,61 +351,48 @@ export default function PessoaPerfil() {
                             </a>
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteSocial(s.id)}
-                        >
-                          ✕
-                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteSocial(s.id)}>✕</Button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+              {socials.length > 0 && !supporter && (
+                <p className="text-xs text-amber-600 mt-3 p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                  ⚠️ Redes adicionadas manualmente. Para ativar o rastreamento de engajamento, vincule um perfil de apoiador.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Meta info */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Informações do Registro</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Informações do Registro</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-xs text-muted-foreground">
               <p>Criado em: {format(new Date(pessoa.created_at), "dd/MM/yyyy HH:mm")}</p>
               <p>Atualizado em: {format(new Date(pessoa.updated_at), "dd/MM/yyyy HH:mm")}</p>
+              {supporter && (
+                <p>Rastreamento ativo: <span className="text-emerald-600 font-medium">✓ Engajamento vinculado</span></p>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Dialogs */}
-      <EditarPessoaDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        pessoa={pessoa}
-        onSuccess={fetchData}
-      />
-      <AddSocialDialog
-        open={socialOpen}
-        onOpenChange={setSocialOpen}
-        pessoaId={pessoa.id}
-        onSuccess={fetchData}
-      />
+      <EditarPessoaDialog open={editOpen} onOpenChange={setEditOpen} pessoa={pessoa} onSuccess={fetchData} />
+      <AddSocialDialog open={socialOpen} onOpenChange={setSocialOpen} pessoaId={pessoa.id} onSuccess={fetchData} />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir pessoa</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir <strong>{pessoa.nome}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir <strong>{pessoa.nome}</strong>?
+              {pessoa.supporter_id && " O perfil de engajamento vinculado também será removido."}
+              {" "}Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePessoa} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeletePessoa} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
