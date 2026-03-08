@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
     const {
       client_id, lider_id, nome, telefone, email, senha,
-      cidade, bairro, endereco, zona_eleitoral, notas, redes_sociais,
+      cidade, bairro, endereco, zona_eleitoral, secao_eleitoral, notas, redes_sociais,
     } = await req.json();
 
     if (!client_id || !nome || !telefone || !email || !senha) {
