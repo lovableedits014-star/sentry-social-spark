@@ -28,7 +28,7 @@ import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
-import LideresDigitais from "./pages/LideresDigitais";
+
 import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
 import Contratados from "./pages/Contratados";
