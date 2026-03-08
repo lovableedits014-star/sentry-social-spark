@@ -23,6 +23,7 @@ import Checkins from "./pages/Checkins";
 import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
+import RegistroPessoa from "./pages/RegistroPessoa";
 
 const queryClient = new QueryClient();
 
