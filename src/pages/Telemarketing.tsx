@@ -57,11 +57,27 @@ export default function Telemarketing() {
   }, [clientId]);
 
   const handleLogin = async () => {
-    if (!operadorNome.trim()) {
-      toast.error("Informe seu nome para continuar");
+    if (!operadorNome.trim() || !operadorSenha.trim()) {
+      toast.error("Informe nome e senha para continuar");
       return;
     }
     setLoading(true);
+
+    // Validate operator credentials
+    const { data: opData } = await supabase
+      .from("telemarketing_operadores")
+      .select("id, nome")
+      .eq("client_id", clientId!)
+      .eq("nome", operadorNome.trim())
+      .eq("senha", operadorSenha.trim())
+      .eq("ativo", true)
+      .maybeSingle();
+
+    if (!opData) {
+      toast.error("Nome ou senha inválidos");
+      setLoading(false);
+      return;
+    }
 
     // Fetch contratados (líderes + liderados)
     const { data: contratadosData } = await supabase
