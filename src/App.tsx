@@ -53,6 +53,8 @@ const App = () => (
           <Route path="/super-admin" element={<SuperAdmin />} />
           <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
           <Route path="/registro/:clientId" element={<RegistroPessoa />} />
+          <Route path="/contratado/:clientId" element={<RegistroContratado />} />
+          <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
