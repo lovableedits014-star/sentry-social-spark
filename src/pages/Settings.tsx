@@ -53,26 +53,6 @@ const Settings = () => {
 
       {/* Integrações (Meta, IA, etc.) */}
       {clientId && <IntegrationsPanel clientId={clientId} />}
-
-      {/* Mais configurações em breve */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <SettingsIcon className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Mais configurações</CardTitle>
-              <CardDescription>Em breve: notificações, preferências de idioma e personalização</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            Esta seção está em desenvolvimento. Em breve você poderá personalizar a aparência do portal, configurar notificações automáticas e muito mais.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 };
