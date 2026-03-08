@@ -63,7 +63,7 @@ const App = () => (
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/comments" element={<Comments />} />
-            <Route path="/supporters" element={<Supportent={<Engagement />} />
+            <Route path="/engagement" element={<Engagement />} />
             <Route path="/checkins" element={<Checkins />} />
             <Route path="/territorial" element={<Territorial />} />
             <Route path="/pessoas" element={<Pessoas />} />
