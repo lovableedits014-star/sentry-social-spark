@@ -356,6 +356,17 @@ export default function RegistroContratado() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Líder toggle */}
+            {!liderId && (
+              <div className="flex items-center justify-between p-3 rounded-xl border bg-muted/30">
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-2">👑 Sou líder de equipe</Label>
+                  <p className="text-xs text-muted-foreground">Ative se você vai coordenar outros contratados</p>
+                </div>
+                <Switch checked={isLider} onCheckedChange={setIsLider} />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="nome">Nome completo *</Label>
               <Input id="nome" value={nome} onChange={e => { setNome(e.target.value); setError(""); }} placeholder="Ex: João da Silva" required />
