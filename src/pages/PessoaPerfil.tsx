@@ -357,11 +357,6 @@ export default function PessoaPerfil() {
                   ))}
                 </div>
               )}
-              {socials.length > 0 && !supporter && (
-                <p className="text-xs text-amber-600 mt-3 p-2 rounded bg-amber-500/10 border border-amber-500/20">
-                  ⚠️ Redes adicionadas manualmente. Para ativar o rastreamento de engajamento, vincule um perfil de apoiador.
-                </p>
-              )}
             </CardContent>
           </Card>
 
