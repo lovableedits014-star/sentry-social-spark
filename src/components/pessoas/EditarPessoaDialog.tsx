@@ -41,6 +41,12 @@ const STATUS_LEAD_OPTIONS = [
   { value: "fechado", label: "Fechado" }, { value: "perdido", label: "Perdido" },
 ];
 
+const CLASSIF_POLITICA_OPTIONS = [
+  { value: "apoiador", label: "Apoiador" }, { value: "simpatizante", label: "Simpatizante" },
+  { value: "indefinido", label: "Indefinido" }, { value: "oposicao", label: "Oposição" },
+  { value: "lideranca", label: "Liderança" },
+];
+
 export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
