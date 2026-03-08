@@ -5,19 +5,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Conservative anti-ban policy
-const BATCH_SIZE = 10;
-const DELAY_MIN_MS = 5000; // 5s
-const DELAY_MAX_MS = 15000; // 15s
-const BATCH_PAUSE_MS = 60000; // 60s between batches
-const MAX_RUNTIME_MS = 55000; // 55s to stay under 60s limit
+// Default conservative policy (overridable via request body)
+const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_DELAY_MIN = 5; // seconds
+const DEFAULT_DELAY_MAX = 15;
+const DEFAULT_BATCH_PAUSE = 60;
+const MAX_RUNTIME_MS = 55000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function randomDelay() {
-  return Math.floor(Math.random() * (DELAY_MAX_MS - DELAY_MIN_MS + 1)) + DELAY_MIN_MS;
+function randomDelay(minMs: number, maxMs: number) {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
 Deno.serve(async (req) => {
@@ -46,7 +46,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { client_id, titulo, mensagem, tipo, tag_filtro } = await req.json();
+    const { client_id, titulo, mensagem, tipo, tag_filtro, batch_size, delay_min, delay_max, batch_pause } = await req.json();
+    const BATCH_SIZE = batch_size || DEFAULT_BATCH_SIZE;
+    const DELAY_MIN_MS = (delay_min || DEFAULT_DELAY_MIN) * 1000;
+    const DELAY_MAX_MS = (delay_max || DEFAULT_DELAY_MAX) * 1000;
+    const BATCH_PAUSE_MS = (batch_pause || DEFAULT_BATCH_PAUSE) * 1000;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     // Verify ownership
@@ -260,7 +264,7 @@ Deno.serve(async (req) => {
           }
 
           // Delay between messages
-          await sleep(randomDelay());
+          await sleep(randomDelay(DELAY_MIN_MS, DELAY_MAX_MS));
         }
 
         // Batch pause (skip on last batch)

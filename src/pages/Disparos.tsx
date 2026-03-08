@@ -13,8 +13,28 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Send, Loader2, CheckCircle, XCircle, Clock,
-  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target,
+  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2,
 } from "lucide-react";
+import DispatchLogDialog from "@/components/disparos/DispatchLogDialog";
+
+const POLICIES = {
+  conservador: {
+    label: "🛡️ Conservador",
+    desc: "5-15s entre msgs, lotes de 10, pausa de 60s (~200 msgs/hora)",
+    batch_size: 10, delay_min: 5, delay_max: 15, batch_pause: 60,
+  },
+  moderado: {
+    label: "⚡ Moderado",
+    desc: "3-8s entre msgs, lotes de 20, pausa de 30s (~400 msgs/hora)",
+    batch_size: 20, delay_min: 3, delay_max: 8, batch_pause: 30,
+  },
+  agressivo: {
+    label: "🔥 Agressivo",
+    desc: "2-5s entre msgs, lotes de 30, pausa de 15s (~600 msgs/hora). Risco maior de ban!",
+    batch_size: 30, delay_min: 2, delay_max: 5, batch_pause: 15,
+  },
+} as const;
+type PolicyKey = keyof typeof POLICIES;
 
 type DispatchRow = {
   id: string;
@@ -140,7 +160,7 @@ export default function Disparos() {
   const [tipoDisparo, setTipoDisparo] = useState("manual");
   const [tagFiltro, setTagFiltro] = useState("_all");
   const [sending, setSending] = useState(false);
-
+  const [politica, setPolitica] = useState<PolicyKey>("conservador");
   const handleUseMissions = () => {
     const links = activeMissions.map((m: any, i: number) => {
       const platformLabel = m.platform === "instagram" ? "📸 Instagram" : "📘 Facebook";
@@ -217,6 +237,7 @@ export default function Disparos() {
 
     setSending(true);
     try {
+      const pol = POLICIES[politica];
       const { error } = await supabase.functions.invoke("send-whatsapp-dispatch", {
         body: {
           client_id: clientId,
@@ -224,6 +245,10 @@ export default function Disparos() {
           mensagem: mensagem.trim(),
           tipo: tipoDisparo,
           tag_filtro: tagFiltro === "_all" ? null : tagFiltro,
+          batch_size: pol.batch_size,
+          delay_min: pol.delay_min,
+          delay_max: pol.delay_max,
+          batch_pause: pol.batch_pause,
         },
       });
       if (error) throw error;
@@ -285,12 +310,28 @@ export default function Disparos() {
             <MessageSquare className="h-5 w-5 text-primary" />
             Novo Disparo
           </CardTitle>
-          <CardDescription>
-            Política conservadora: 5-15s entre mensagens, lotes de 10, pausa de 60s entre lotes (~200 msgs/hora)
+          <CardDescription className="flex items-center gap-2">
+            <Settings2 className="h-3.5 w-3.5" />
+            {POLICIES[politica].label}: {POLICIES[politica].desc}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Settings2 className="w-3.5 h-3.5" /> Política de envio
+              </Label>
+              <Select value={politica} onValueChange={(v) => setPolitica(v as PolicyKey)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="conservador">🛡️ Conservador</SelectItem>
+                  <SelectItem value="moderado">⚡ Moderado</SelectItem>
+                  <SelectItem value="agressivo">🔥 Agressivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Tipo de disparo</Label>
               <Select value={tipoDisparo} onValueChange={setTipoDisparo}>
@@ -454,6 +495,7 @@ export default function Disparos() {
                             🏷 {d.tag_filtro}
                           </Badge>
                         )}
+                        <DispatchLogDialog dispatchId={d.id} titulo={d.titulo} />
                         <span className="ml-auto">
                           {new Date(d.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </span>
