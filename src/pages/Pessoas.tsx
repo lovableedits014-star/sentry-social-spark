@@ -448,6 +448,16 @@ export default function Pessoas() {
                           <TooltipContent>Status atual do atendimento</TooltipContent>
                         </Tooltip>
                       </TableCell>
+                      <TableCell>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className={`text-xs ${CLASSIF_POLITICA_COLORS[(p as any).classificacao_politica] || ""}`}>
+                              {CLASSIF_POLITICA_LABELS[(p as any).classificacao_politica] || (p as any).classificacao_politica || "Indefinido"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>Classificação política do contato</TooltipContent>
+                        </Tooltip>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
