@@ -267,7 +267,7 @@ export default function Pessoas() {
                 </TableRow>
               ) : (
                 pessoas.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
                     <TableCell className="font-medium">{p.nome}</TableCell>
                     <TableCell>{p.telefone || "—"}</TableCell>
                     <TableCell>{p.cidade || "—"}</TableCell>
