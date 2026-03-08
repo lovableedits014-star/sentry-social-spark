@@ -27,6 +27,7 @@ interface ContatoTele {
 export default function Telemarketing() {
   const { clientId } = useParams<{ clientId: string }>();
   const [operadorNome, setOperadorNome] = useState("");
+  const [operadorSenha, setOperadorSenha] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [contatos, setContatos] = useState<ContatoTele[]>([]);
   const [loading, setLoading] = useState(false);
