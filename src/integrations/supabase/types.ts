@@ -52,6 +52,51 @@ export type Database = {
           },
         ]
       }
+      campanha_tarefa_items: {
+        Row: {
+          client_id: string
+          concluido: boolean
+          created_at: string
+          display_order: number
+          id: string
+          tarefa_id: string
+          titulo: string
+        }
+        Insert: {
+          client_id: string
+          concluido?: boolean
+          created_at?: string
+          display_order?: number
+          id?: string
+          tarefa_id: string
+          titulo: string
+        }
+        Update: {
+          client_id?: string
+          concluido?: boolean
+          created_at?: string
+          display_order?: number
+          id?: string
+          tarefa_id?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campanha_tarefa_items_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campanha_tarefa_items_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "campanha_tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanha_tarefas: {
         Row: {
           campanha_id: string
