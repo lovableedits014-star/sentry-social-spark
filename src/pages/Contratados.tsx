@@ -476,12 +476,12 @@ export default function Contratados() {
               <DialogHeader><DialogTitle>Links do Sistema</DialogTitle><DialogDescription>Links para líderes e contratados</DialogDescription></DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Link de cadastro (base)</Label>
+                  <Label className="text-xs font-medium">👑 Link de cadastro de Líder</Label>
                   <div className="flex items-center gap-2">
                     <Input value={registrationUrl} readOnly className="text-xs" />
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(registrationUrl); toast.success("Copiado!"); }}><Copy className="w-4 h-4" /></Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Para vincular a um líder: <code>{registrationUrl}/{"{liderId}"}</code></p>
+                  <p className="text-xs text-muted-foreground">Envie este link para o líder se cadastrar. Ele receberá no portal dele um link exclusivo para cadastrar seus liderados.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Portal do contratado</Label>
@@ -489,6 +489,7 @@ export default function Contratados() {
                     <Input value={portalUrl} readOnly className="text-xs" />
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(portalUrl); toast.success("Copiado!"); }}><Copy className="w-4 h-4" /></Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">Portal de acesso para líderes e contratados (mesmo link para todos).</p>
                 </div>
               </div>
             </DialogContent>
