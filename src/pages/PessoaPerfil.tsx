@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
+import InteracoesTimeline from "@/components/pessoas/InteracoesTimeline";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getWhatsAppLink } from "@/lib/social-url";
 
@@ -328,6 +329,9 @@ export default function PessoaPerfil() {
               </CardContent>
             </Card>
           )}
+
+          {/* Histórico de Interações */}
+          <InteracoesTimeline pessoaId={pessoa.id} clientId={pessoa.client_id} />
 
           {(pessoa.tags?.length > 0 || pessoa.notas_internas) && (
             <Card>

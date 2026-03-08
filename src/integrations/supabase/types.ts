@@ -502,6 +502,51 @@ export type Database = {
           },
         ]
       }
+      interacoes_pessoa: {
+        Row: {
+          client_id: string
+          criado_em: string
+          criado_por: string
+          descricao: string
+          id: string
+          pessoa_id: string
+          tipo_interacao: string
+        }
+        Insert: {
+          client_id: string
+          criado_em?: string
+          criado_por: string
+          descricao: string
+          id?: string
+          pessoa_id: string
+          tipo_interacao: string
+        }
+        Update: {
+          client_id?: string
+          criado_em?: string
+          criado_por?: string
+          descricao?: string
+          id?: string
+          pessoa_id?: string
+          tipo_interacao?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interacoes_pessoa_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interacoes_pessoa_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invite_tokens: {
         Row: {
           created_at: string
