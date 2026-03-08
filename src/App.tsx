@@ -32,6 +32,7 @@ import MapaInfluenciadores from "./pages/MapaInfluenciadores";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
+import Campanha from "./pages/Campanha";
 
 const queryClient = new QueryClient();
 
