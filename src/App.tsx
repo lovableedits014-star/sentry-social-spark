@@ -27,12 +27,14 @@ import Recrutamento from "./pages/Recrutamento";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
-import Multiplicadores from "./pages/Multiplicadores";
+import Funcionarios from "./pages/Funcionarios";
 import Alertas from "./pages/Alertas";
 import Campanha from "./pages/Campanha";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
+import RegistroFuncionario from "./pages/RegistroFuncionario";
+import PortalFuncionario from "./pages/PortalFuncionario";
 import Telemarketing from "./pages/Telemarketing";
 
 const queryClient = new QueryClient();
@@ -54,6 +56,8 @@ const App = () => (
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
+          <Route path="/funcionario/:clientId" element={<RegistroFuncionario />} />
+          <Route path="/portal-funcionario/:clientId" element={<PortalFuncionario />} />
           <Route path="/telemarketing/:clientId" element={<Telemarketing />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
@@ -69,7 +73,7 @@ const App = () => (
             <Route path="/radar" element={<RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
             <Route path="/missoes-ia" element={<MissoesIA />} />
-            <Route path="/multiplicadores" element={<Multiplicadores />} />
+            <Route path="/funcionarios" element={<Funcionarios />} />
             <Route path="/campanha" element={<Campanha />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/contratados" element={<Contratados />} />

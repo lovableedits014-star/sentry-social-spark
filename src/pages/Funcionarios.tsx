@@ -8,15 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Users, Trophy, TrendingUp, UserPlus, Percent, Copy, CheckCircle2,
-  Share2, Clock, Link2, ArrowRight, Crown, Medal, Award, Loader2,
+  Users2, Trophy, TrendingUp, UserPlus, Copy, CheckCircle2,
+  Clock, Crown, Medal, Award, Loader2, CalendarCheck, Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function Multiplicadores() {
+export default function Funcionarios() {
   const [copied, setCopied] = useState(false);
 
-  // Get current client
   const { data: client } = useQuery({
     queryKey: ["my-client"],
     queryFn: async () => {
@@ -41,79 +40,83 @@ export default function Multiplicadores() {
 
   const clientId = client?.id;
 
-  // Referral stats
-  const { data: stats } = useQuery({
-    queryKey: ["referral-stats", clientId],
+  // Funcionarios list
+  const { data: funcionarios } = useQuery({
+    queryKey: ["funcionarios-list", clientId],
     queryFn: async () => {
-      const { count: totalCount } = await supabase
-        .from("supporter_accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId!);
-
-      const { count: referredCount } = await supabase
-        .from("supporter_accounts")
-        .select("*", { count: "exact", head: true })
+      const { data } = await supabase
+        .from("funcionarios" as any)
+        .select("id, nome, email, cidade, referral_count, status, redes_sociais, created_at")
         .eq("client_id", clientId!)
-        .not("referred_by", "is", null);
-
-      const { count: totalReferrals } = await supabase
-        .from("referrals")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId!);
-
-      const { count: activeCodes } = await supabase
-        .from("referral_codes")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId!);
-
-      return {
-        total: totalCount || 0,
-        referred: referredCount || 0,
-        totalReferrals: totalReferrals || 0,
-        organic: (totalCount || 0) - (referredCount || 0),
-        percentage: totalCount ? Math.round(((referredCount || 0) / totalCount) * 100) : 0,
-        activeCodes: activeCodes || 0,
-      };
+        .order("referral_count", { ascending: false });
+      return (data || []) as any[];
     },
     enabled: !!clientId,
   });
 
-  // Top multipliers
-  const { data: topMultipliers } = useQuery({
-    queryKey: ["top-multipliers-full", clientId],
+  // Stats
+  const { data: stats } = useQuery({
+    queryKey: ["funcionarios-stats", clientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("supporters")
-        .select("id, name, referral_count")
+      const { count: totalFunc } = await supabase
+        .from("funcionarios" as any)
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", clientId!);
+
+      const { count: totalReferrals } = await supabase
+        .from("funcionario_referrals" as any)
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", clientId!);
+
+      // Today's checkins
+      const today = new Date().toISOString().split("T")[0];
+      const { count: todayCheckins } = await supabase
+        .from("funcionario_checkins" as any)
+        .select("*", { count: "exact", head: true })
         .eq("client_id", clientId!)
-        .gt("referral_count", 0)
-        .order("referral_count", { ascending: false })
-        .limit(20);
-      return (data || []) as Array<{ id: string; name: string; referral_count: number }>;
+        .eq("checkin_date", today);
+
+      return {
+        total: totalFunc || 0,
+        totalReferrals: totalReferrals || 0,
+        todayCheckins: todayCheckins || 0,
+        presencaRate: totalFunc ? Math.round(((todayCheckins || 0) / totalFunc) * 100) : 0,
+      };
     },
     enabled: !!clientId,
   });
 
   // Recent referrals
   const { data: recentReferrals } = useQuery({
-    queryKey: ["recent-referrals", clientId],
+    queryKey: ["funcionario-recent-referrals", clientId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("referrals")
-        .select(`
-          id, created_at,
-          referrer:supporter_accounts!referrals_referrer_account_id_fkey(name),
-          referred:supporter_accounts!referrals_referred_account_id_fkey(name)
-        `)
+        .from("funcionario_referrals" as any)
+        .select("id, referred_name, referred_phone, created_at, funcionario_id")
         .eq("client_id", clientId!)
         .order("created_at", { ascending: false })
         .limit(30);
+      
+      // Get funcionario names
+      if (data && data.length > 0) {
+        const funcIds = [...new Set((data as any[]).map((r: any) => r.funcionario_id))];
+        const { data: funcs } = await supabase
+          .from("funcionarios" as any)
+          .select("id, nome")
+          .in("id", funcIds);
+        
+        const funcMap = new Map((funcs || []).map((f: any) => [f.id, f.nome]));
+        return (data as any[]).map((r: any) => ({
+          ...r,
+          funcionario_nome: funcMap.get(r.funcionario_id) || "Funcionário",
+        }));
+      }
       return data || [];
     },
     enabled: !!clientId,
   });
 
-  const registerLink = clientId ? `${window.location.origin}/cadastro/${clientId}` : "";
+  const registerLink = clientId ? `${window.location.origin}/funcionario/${clientId}` : "";
 
   const handleCopyLink = async () => {
     if (!registerLink) return;
@@ -123,7 +126,7 @@ export default function Multiplicadores() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const maxReferrals = topMultipliers?.[0]?.referral_count || 1;
+  const maxReferrals = funcionarios?.[0]?.referral_count || 1;
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Crown className="w-4 h-4 text-amber-500" />;
@@ -143,9 +146,9 @@ export default function Multiplicadores() {
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold">Rede de Multiplicadores</h1>
+        <h1 className="text-2xl font-bold">Funcionários</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Acompanhe o impacto dos convites e identifique seus maiores multiplicadores.
+          Gerencie seus funcionários fixos, acompanhe presenças e o ranking de indicações.
         </p>
       </div>
 
@@ -153,9 +156,9 @@ export default function Multiplicadores() {
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="pt-4 pb-3 px-4">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            <strong className="text-foreground">Como funciona:</strong> Cada apoiador que se cadastra no portal recebe um <strong>código de convite exclusivo</strong>.
-            Quando compartilham o link <code className="bg-muted px-1 rounded text-xs">/cadastro/:clientId?ref=CODIGO</code>, novos cadastros são automaticamente
-            vinculados ao multiplicador. O ranking é atualizado em tempo real.
+            <strong className="text-foreground">Como funciona:</strong> Funcionários são membros fixos da equipe que devem marcar presença diariamente e interagir nas missões de engajamento.
+            Cada funcionário recebe um <strong>link de indicação exclusivo</strong> para convidar novos apoiadores — quanto mais indicações, maior a posição no ranking.
+            As redes sociais cadastradas são monitoradas automaticamente pelo sistema de engajamento.
           </p>
         </CardContent>
       </Card>
@@ -165,80 +168,76 @@ export default function Multiplicadores() {
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 mb-1">
-              <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Total Base</p>
+              <Users2 className="w-3.5 h-3.5 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Funcionários</p>
             </div>
             <p className="text-2xl font-bold">{stats?.total || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Apoiadores cadastrados no portal</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Cadastrados na equipe</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center gap-2 mb-1">
+              <CalendarCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-xs text-muted-foreground">Presença Hoje</p>
+            </div>
+            <p className="text-2xl font-bold text-emerald-600">{stats?.todayCheckins || 0}</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">{stats?.presencaRate || 0}% compareceram</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 mb-1">
               <UserPlus className="w-3.5 h-3.5 text-primary" />
-              <p className="text-xs text-muted-foreground">Por Indicação</p>
+              <p className="text-xs text-muted-foreground">Indicações</p>
             </div>
-            <p className="text-2xl font-bold text-primary">{stats?.referred || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Vieram pelo link de um multiplicador</p>
+            <p className="text-2xl font-bold text-primary">{stats?.totalReferrals || 0}</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Apoiadores recrutados</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Orgânico</p>
+              <p className="text-xs text-muted-foreground">Média/Func.</p>
             </div>
-            <p className="text-2xl font-bold">{stats?.organic || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Cadastraram-se sem indicação</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Códigos Ativos</p>
-            </div>
-            <p className="text-2xl font-bold">{stats?.activeCodes || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Apoiadores com link de convite gerado</p>
+            <p className="text-2xl font-bold">
+              {stats?.total ? (stats.totalReferrals / stats.total).toFixed(1) : "0"}
+            </p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Indicações por funcionário</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Organic vs Referral bar */}
+      {/* Attendance bar */}
       {stats && stats.total > 0 && (
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Crescimento: Orgânico vs Indicação</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Presença de Hoje</p>
             <div className="flex rounded-full overflow-hidden h-4">
-              <div
-                className="bg-primary transition-all"
-                style={{ width: `${stats.percentage}%` }}
-              />
-              <div
-                className="bg-muted transition-all"
-                style={{ width: `${100 - stats.percentage}%` }}
-              />
+              <div className="bg-emerald-500 transition-all" style={{ width: `${stats.presencaRate}%` }} />
+              <div className="bg-muted transition-all" style={{ width: `${100 - stats.presencaRate}%` }} />
             </div>
             <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                Indicação ({stats.percentage}%)
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                Presentes ({stats.todayCheckins})
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-muted inline-block border" />
-                Orgânico ({100 - stats.percentage}%)
+                Ausentes ({stats.total - stats.todayCheckins})
               </span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Link de cadastro */}
+      {/* Registration link */}
       <Card>
         <CardContent className="pt-4 pb-3 px-4">
-          <p className="text-sm font-medium mb-2">Link de Cadastro (sem indicação)</p>
+          <p className="text-sm font-medium mb-2">Link de Cadastro de Funcionários</p>
           <p className="text-xs text-muted-foreground mb-3">
-            Compartilhe este link genérico para cadastro direto. Os apoiadores que quiserem indicar amigos usam o link personalizado que recebem no portal.
+            Envie este link para novos funcionários se cadastrarem na plataforma.
           </p>
           <div className="flex gap-2">
             <Input value={registerLink} readOnly className="text-xs font-mono" />
@@ -252,12 +251,10 @@ export default function Multiplicadores() {
       <Tabs defaultValue="ranking">
         <TabsList>
           <TabsTrigger value="ranking">
-            <Trophy className="w-4 h-4 mr-1.5" />
-            Ranking
+            <Trophy className="w-4 h-4 mr-1.5" />Ranking
           </TabsTrigger>
           <TabsTrigger value="timeline">
-            <Clock className="w-4 h-4 mr-1.5" />
-            Histórico
+            <Clock className="w-4 h-4 mr-1.5" />Histórico
           </TabsTrigger>
         </TabsList>
 
@@ -267,22 +264,22 @@ export default function Multiplicadores() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-primary" />
-                Top Multiplicadores
+                Ranking de Indicações
               </CardTitle>
               <CardDescription className="text-xs">
-                Apoiadores que mais trouxeram novos cadastros por indicação.
+                Funcionários que mais trouxeram novos apoiadores por indicação.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!topMultipliers || topMultipliers.length === 0 ? (
+              {!funcionarios || funcionarios.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
-                  <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm font-medium">Nenhuma indicação registrada ainda</p>
-                  <p className="text-xs mt-1">Quando apoiadores usarem seus links de convite, o ranking aparecerá aqui</p>
+                  <Users2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Nenhum funcionário cadastrado</p>
+                  <p className="text-xs mt-1">Envie o link de cadastro para começar</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {topMultipliers.map((m, i) => (
+                  {funcionarios.map((m: any, i: number) => (
                     <div key={m.id} className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                         i === 0 ? "bg-primary text-primary-foreground" :
@@ -294,12 +291,15 @@ export default function Multiplicadores() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium truncate">{m.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{m.nome}</p>
+                            <p className="text-[10px] text-muted-foreground">{m.cidade || "—"}</p>
+                          </div>
                           <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs ml-2 shrink-0">
-                            {m.referral_count} {m.referral_count === 1 ? "convite" : "convites"}
+                            {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
                           </Badge>
                         </div>
-                        <Progress value={(m.referral_count / maxReferrals) * 100} className="h-1.5 mt-1" />
+                        <Progress value={maxReferrals > 0 ? (m.referral_count / maxReferrals) * 100 : 0} className="h-1.5 mt-1" />
                       </div>
                     </div>
                   ))}
@@ -318,7 +318,7 @@ export default function Multiplicadores() {
                 Indicações Recentes
               </CardTitle>
               <CardDescription className="text-xs">
-                Últimas 30 indicações realizadas pelos multiplicadores.
+                Últimas 30 indicações realizadas pelos funcionários.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -329,16 +329,16 @@ export default function Multiplicadores() {
                 </div>
               ) : (
                 <div className="space-y-0">
-                  {recentReferrals.map((r: any) => (
+                  {(recentReferrals as any[]).map((r: any) => (
                     <div key={r.id} className="flex items-center gap-3 py-3 border-b last:border-0">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <UserPlus className="w-4 h-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm">
-                          <span className="font-medium">{r.referrer?.name || "Multiplicador"}</span>
-                          <ArrowRight className="w-3 h-3 inline mx-1.5 text-muted-foreground" />
-                          <span className="font-medium text-primary">{r.referred?.name || "Novo apoiador"}</span>
+                          <span className="font-medium">{r.funcionario_nome}</span>
+                          <span className="text-muted-foreground mx-1.5">→</span>
+                          <span className="font-medium text-primary">{r.referred_name}</span>
                         </p>
                       </div>
                       <span className="text-xs text-muted-foreground shrink-0">
