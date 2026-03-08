@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
         bairro: bairro?.trim() || null,
         endereco: endereco?.trim() || null,
         zona_eleitoral: zona_eleitoral?.trim() || null,
+        secao_eleitoral: secao_eleitoral?.trim() || null,
         notas: notas?.trim() || null,
         redes_sociais: redes_sociais || [],
         contrato_aceito: false,
