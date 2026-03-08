@@ -90,10 +90,6 @@ export default function WhatsAppConfigCard({ clientId }: WhatsAppConfigCardProps
             🔴 <strong>Atenção:</strong> Mesmo seguindo boas práticas, disparos em massa pelo WhatsApp apresentam risco de banimento da conta. Recomendamos usar um número que possa ser substituído caso isso ocorra — <strong>nunca use seu número pessoal principal</strong>.
           </p>
         </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Número com DDI + DDD</label>
           <div className="flex gap-2">
