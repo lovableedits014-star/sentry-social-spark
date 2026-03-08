@@ -680,6 +680,7 @@ export type Database = {
       contratados: {
         Row: {
           bairro: string | null
+          candidato_alternativo: string | null
           cidade: string | null
           client_id: string
           contrato_aceito: boolean
@@ -690,8 +691,11 @@ export type Database = {
           id: string
           is_lider: boolean
           lider_id: string | null
+          ligacao_em: string | null
+          ligacao_status: string | null
           nome: string
           notas: string | null
+          operador_nome: string | null
           quota_indicados: number
           redes_sociais: Json | null
           secao_eleitoral: string | null
@@ -699,11 +703,13 @@ export type Database = {
           telefone: string
           updated_at: string
           user_id: string | null
+          vota_candidato: string | null
           whatsapp_confirmado: boolean
           zona_eleitoral: string | null
         }
         Insert: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           client_id: string
           contrato_aceito?: boolean
@@ -714,8 +720,11 @@ export type Database = {
           id?: string
           is_lider?: boolean
           lider_id?: string | null
+          ligacao_em?: string | null
+          ligacao_status?: string | null
           nome: string
           notas?: string | null
+          operador_nome?: string | null
           quota_indicados?: number
           redes_sociais?: Json | null
           secao_eleitoral?: string | null
@@ -723,11 +732,13 @@ export type Database = {
           telefone: string
           updated_at?: string
           user_id?: string | null
+          vota_candidato?: string | null
           whatsapp_confirmado?: boolean
           zona_eleitoral?: string | null
         }
         Update: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           client_id?: string
           contrato_aceito?: boolean
@@ -738,8 +749,11 @@ export type Database = {
           id?: string
           is_lider?: boolean
           lider_id?: string | null
+          ligacao_em?: string | null
+          ligacao_status?: string | null
           nome?: string
           notas?: string | null
+          operador_nome?: string | null
           quota_indicados?: number
           redes_sociais?: Json | null
           secao_eleitoral?: string | null
@@ -747,6 +761,7 @@ export type Database = {
           telefone?: string
           updated_at?: string
           user_id?: string | null
+          vota_candidato?: string | null
           whatsapp_confirmado?: boolean
           zona_eleitoral?: string | null
         }
