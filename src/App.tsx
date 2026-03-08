@@ -36,6 +36,7 @@ import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
+import PortalContratado from "./pages/PortalContratado";
 
 const queryClient = new QueryClient();
 
