@@ -316,8 +316,22 @@ export default function Disparos() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-3 gap-4">
             <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Settings2 className="w-3.5 h-3.5" /> Política de envio
+              </Label>
+              <Select value={politica} onValueChange={(v) => setPolitica(v as PolicyKey)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="conservador">🛡️ Conservador</SelectItem>
+                  <SelectItem value="moderado">⚡ Moderado</SelectItem>
+                  <SelectItem value="agressivo">🔥 Agressivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
               <Label>Tipo de disparo</Label>
               <Select value={tipoDisparo} onValueChange={setTipoDisparo}>
                 <SelectTrigger>
