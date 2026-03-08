@@ -13,8 +13,28 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Send, Loader2, CheckCircle, XCircle, Clock,
-  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target,
+  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2,
 } from "lucide-react";
+import DispatchLogDialog from "@/components/disparos/DispatchLogDialog";
+
+const POLICIES = {
+  conservador: {
+    label: "🛡️ Conservador",
+    desc: "5-15s entre msgs, lotes de 10, pausa de 60s (~200 msgs/hora)",
+    batch_size: 10, delay_min: 5, delay_max: 15, batch_pause: 60,
+  },
+  moderado: {
+    label: "⚡ Moderado",
+    desc: "3-8s entre msgs, lotes de 20, pausa de 30s (~400 msgs/hora)",
+    batch_size: 20, delay_min: 3, delay_max: 8, batch_pause: 30,
+  },
+  agressivo: {
+    label: "🔥 Agressivo",
+    desc: "2-5s entre msgs, lotes de 30, pausa de 15s (~600 msgs/hora). Risco maior de ban!",
+    batch_size: 30, delay_min: 2, delay_max: 5, batch_pause: 15,
+  },
+} as const;
+type PolicyKey = keyof typeof POLICIES;
 
 type DispatchRow = {
   id: string;
