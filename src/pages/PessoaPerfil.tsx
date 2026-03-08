@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
 import TimelinePolitica from "@/components/pessoas/TimelinePolitica";
+import TagsPoliticas from "@/components/pessoas/TagsPoliticas";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getWhatsAppLink } from "@/lib/social-url";
 
