@@ -38,19 +38,12 @@ const Settings = () => {
   }, []);
 
   const portalUrl = clientId ? `${window.location.origin}/portal/${clientId}` : "";
-  const cadastroUrl = clientId ? `${window.location.origin}/cadastro/${clientId}` : "";
 
-  const copyToClipboard = (text: string, type: "portal" | "cadastro") => {
-    navigator.clipboard.writeText(text);
-    if (type === "portal") {
-      setCopiedPortal(true);
-      toast.success("Link do Portal copiado!");
-      setTimeout(() => setCopiedPortal(false), 2000);
-    } else {
-      setCopiedCadastro(true);
-      toast.success("Link de Cadastro copiado!");
-      setTimeout(() => setCopiedCadastro(false), 2000);
-    }
+  const copyPortalLink = () => {
+    navigator.clipboard.writeText(portalUrl);
+    setCopiedPortal(true);
+    toast.success("Link do Portal copiado!");
+    setTimeout(() => setCopiedPortal(false), 2000);
   };
 
 
