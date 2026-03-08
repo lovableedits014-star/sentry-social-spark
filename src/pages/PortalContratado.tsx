@@ -252,8 +252,26 @@ export default function PortalContratado() {
   };
 
   const handleSendWhatsApp = async () => {
-    if (!contratado || !whatsappOficial) return;
-    const phone = whatsappOficial.replace(/\D/g, "");
+    if (!contratado || !clientId) return;
+
+    let numero = whatsappOficial;
+    if (!numero) {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("whatsapp_oficial")
+        .eq("id", clientId)
+        .maybeSingle();
+
+      numero = clientData?.whatsapp_oficial || "";
+      if (numero) setWhatsappOficial(numero);
+    }
+
+    if (!numero) {
+      toast.error("Número de WhatsApp oficial não configurado.");
+      return;
+    }
+
+    const phone = numero.replace(/\D/g, "");
     const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
     const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
     window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
