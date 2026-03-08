@@ -287,6 +287,13 @@ export default function Pessoas() {
             {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterClassifPolitica} onValueChange={(v) => { setFilterClassifPolitica(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="Classificação" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas classificações</SelectItem>
+            {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
