@@ -812,6 +812,19 @@ export default function Contratados() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Label className="text-xs whitespace-nowrap"><Crown className="w-3 h-3 inline mr-1" />Líder:</Label>
+                    <Select value={c.lider_id || "none"} onValueChange={(v) => assignLider(c.id, v === "none" ? null : v)}>
+                      <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem líder</SelectItem>
+                        {Object.entries(liderMap).map(([id, nome]) => (
+                          <SelectItem key={id} value={id}>{nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
                     <Label className="text-xs whitespace-nowrap">Meta:</Label>
                     <Input
                       type="number"
