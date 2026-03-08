@@ -435,6 +435,45 @@ export default function PessoaPerfil() {
               )}
             </CardContent>
           </Card>
+
+          {/* Status do Lead */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Status do Lead</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">Atual:</span>
+                <Badge variant="outline" className={`text-xs ${STATUS_LEAD_COLORS[(pessoa as any).status_lead] || ""}`}>
+                  {STATUS_LEAD_LABELS[(pessoa as any).status_lead] || (pessoa as any).status_lead || "Novo"}
+                </Badge>
+              </div>
+              <Select
+                value={(pessoa as any).status_lead || "novo"}
+                onValueChange={async (value) => {
+                  const { error } = await supabase
+                    .from("pessoas")
+                    .update({ status_lead: value } as any)
+                    .eq("id", pessoa.id);
+                  if (error) toast.error("Erro ao atualizar status");
+                  else {
+                    setPessoa({ ...pessoa, status_lead: value });
+                    toast.success("Status atualizado!");
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Redes Sociais</CardTitle>
