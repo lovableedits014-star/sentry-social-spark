@@ -506,6 +506,22 @@ export default function Pessoas() {
                           <TooltipContent>Classificação política do contato</TooltipContent>
                         </Tooltip>
                       </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const tags = pessoaTagsMap[p.id] || [];
+                          if (tags.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                          const shown = tags.slice(0, 3);
+                          const extra = tags.length - 3;
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {shown.map((t: any) => (
+                                <Badge key={t.id} variant="secondary" className="text-[10px] px-1.5 py-0">{t.nome}</Badge>
+                              ))}
+                              {extra > 0 && <span className="text-[10px] text-muted-foreground">+{extra}</span>}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
