@@ -131,10 +131,16 @@ export default function PessoaPerfil() {
             </Badge>
           </div>
         </div>
-        <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-          <Pencil className="w-4 h-4" />
-          Editar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
+            <Pencil className="w-4 h-4" />
+            Editar
+          </Button>
+          <Button variant="outline" className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="w-4 h-4" />
+            Excluir
+          </Button>
+        </div>
       </div>
 
       {/* Content grid */}
