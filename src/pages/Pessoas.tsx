@@ -334,6 +334,13 @@ export default function Pessoas() {
             {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterTagId} onValueChange={(v) => { setFilterTagId(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="TAG" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas tags</SelectItem>
+            {availableTags.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
