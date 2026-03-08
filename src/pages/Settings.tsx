@@ -7,6 +7,7 @@ import { Settings as SettingsIcon, Copy, ExternalLink, Users, Shield, Info, Chec
 import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
+import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
 import QRCodeLinksCard from "@/components/settings/QRCodeLinksCard";
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 
