@@ -494,6 +494,22 @@ export default function Contratados() {
             </DialogContent>
           </Dialog>
 
+          <Dialog open={showAddLiderDialog} onOpenChange={setShowAddLiderDialog}>
+            <DialogTrigger asChild><Button variant="outline" size="sm" className="gap-1.5"><Crown className="w-4 h-4" />Novo Líder</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Criar Novo Líder</DialogTitle><DialogDescription>O líder será criado como pessoa do tipo "Liderança" e poderá ter contratados vinculados.</DialogDescription></DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2"><Label>Nome completo *</Label><Input value={liderNomeInput} onChange={e => setLiderNomeInput(e.target.value)} placeholder="Ex: Mayer Rodrigues" /></div>
+                <div className="space-y-2"><Label>Telefone</Label><Input value={liderTelInput} onChange={e => setLiderTelInput(e.target.value)} placeholder="(67) 99999-9999" /></div>
+                <div className="space-y-2"><Label>Cidade</Label><Input value={liderCidadeInput} onChange={e => setLiderCidadeInput(e.target.value)} placeholder="Ex: Campo Grande" /></div>
+                <Button onClick={createLider} disabled={addingLider || !liderNomeInput.trim()} className="w-full gap-2">
+                  {addingLider ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
+                  Criar Líder
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={showDispatchDialog} onOpenChange={setShowDispatchDialog}>
             <DialogTrigger asChild><Button size="sm" className="gap-1.5" disabled={activeContratados.length === 0}><Send className="w-4 h-4" />Disparar Missão</Button></DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
