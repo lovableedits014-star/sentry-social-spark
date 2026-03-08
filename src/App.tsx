@@ -34,6 +34,8 @@ import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
 import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
+import Contratados from "./pages/Contratados";
+import RegistroContratado from "./pages/RegistroContratado";
 
 const queryClient = new QueryClient();
 
