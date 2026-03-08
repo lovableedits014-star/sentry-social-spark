@@ -365,7 +365,7 @@ export default function RegistroPessoa() {
       p_endereco: endereco.trim() || null,
       p_tipo_pessoa: tipoPessoa as "eleitor" | "apoiador" | "lideranca" | "voluntario" | "cidadao" | "jornalista" | "influenciador" | "adversario",
       p_notas: notas.trim() || null,
-      p_socials: socials.length > 0 ? JSON.stringify(socials) : "[]",
+      p_socials: socials as unknown as any,
     });
 
     if (rpcError) {
