@@ -51,6 +51,19 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
   critico: "bg-orange-500/10 text-orange-600 border-orange-500/20",
 };
 
+const STATUS_LEAD_LABELS: Record<string, string> = {
+  novo: "Novo", contato_whatsapp: "Contato WhatsApp", em_conversa: "Em Conversa",
+  proposta_enviada: "Proposta Enviada", fechado: "Fechado", perdido: "Perdido",
+};
+const STATUS_LEAD_COLORS: Record<string, string> = {
+  novo: "bg-muted text-muted-foreground",
+  contato_whatsapp: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  em_conversa: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  proposta_enviada: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  fechado: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  perdido: "bg-red-500/10 text-red-600 border-red-500/20",
+};
+
 function getScoreColor(score: number) {
   if (score >= 20) return "text-emerald-600";
   if (score >= 10) return "text-sky-600";
