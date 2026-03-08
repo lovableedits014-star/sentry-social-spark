@@ -140,7 +140,6 @@ export default function Disparos() {
   const [tipoDisparo, setTipoDisparo] = useState("manual");
   const [tagFiltro, setTagFiltro] = useState("_all");
   const [sending, setSending] = useState(false);
-  const [missionDialogOpen, setMissionDialogOpen] = useState(false);
 
   const handleUseMissions = () => {
     const links = activeMissions.map((m: any, i: number) => {
