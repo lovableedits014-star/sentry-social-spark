@@ -355,16 +355,18 @@ export default function Contratados() {
     if (dispRes.data) setDispatches(dispRes.data as any);
     if (indRes.data) setIndicados(indRes.data as any);
 
-    // Load leader names
+    // Load ALL leaders (tipo_pessoa = 'liderança') + any referenced by contratados
     const liderIds = [...new Set(contData.filter(c => c.lider_id).map(c => c.lider_id!))];
-    if (liderIds.length > 0) {
-      const { data: lideres } = await supabase.from("pessoas").select("id, nome").in("id", liderIds);
-      if (lideres) {
-        const map: Record<string, string> = {};
-        lideres.forEach((l: any) => { map[l.id] = l.nome; });
-        setLiderMap(map);
-      }
+    const { data: allLideres } = await supabase.from("pessoas").select("id, nome").eq("client_id", client.id).eq("tipo_pessoa", "liderança" as any);
+    const map: Record<string, string> = {};
+    if (allLideres) allLideres.forEach((l: any) => { map[l.id] = l.nome; });
+    // Also fetch any lider_ids that might not be tipo=liderança (legacy)
+    const missingIds = liderIds.filter(id => !map[id]);
+    if (missingIds.length > 0) {
+      const { data: extra } = await supabase.from("pessoas").select("id, nome").in("id", missingIds);
+      if (extra) extra.forEach((l: any) => { map[l.id] = l.nome; });
     }
+    setLiderMap(map);
 
     // Load checkin stats
     const { data: checkins } = await supabase
