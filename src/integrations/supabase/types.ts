@@ -609,6 +609,106 @@ export type Database = {
           },
         ]
       }
+      pessoa_social: {
+        Row: {
+          created_at: string
+          id: string
+          pessoa_id: string
+          plataforma: string
+          url_perfil: string | null
+          usuario: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pessoa_id: string
+          plataforma: string
+          url_perfil?: string | null
+          usuario?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pessoa_id?: string
+          plataforma?: string
+          url_perfil?: string | null
+          usuario?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pessoa_social_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pessoas: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          client_id: string
+          created_at: string
+          data_nascimento: string | null
+          email: string | null
+          endereco: string | null
+          id: string
+          nivel_apoio: Database["public"]["Enums"]["nivel_apoio"]
+          nome: string
+          notas_internas: string | null
+          origem_contato: Database["public"]["Enums"]["origem_contato"]
+          tags: string[] | null
+          telefone: string | null
+          tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
+          updated_at: string
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id: string
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nivel_apoio?: Database["public"]["Enums"]["nivel_apoio"]
+          nome: string
+          notas_internas?: string | null
+          origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          tags?: string[] | null
+          telefone?: string | null
+          tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
+          updated_at?: string
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id?: string
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nivel_apoio?: Database["public"]["Enums"]["nivel_apoio"]
+          nome?: string
+          notas_internas?: string | null
+          origem_contato?: Database["public"]["Enums"]["origem_contato"]
+          tags?: string[] | null
+          telefone?: string | null
+          tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pessoas_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portal_missions: {
         Row: {
           client_id: string
@@ -1423,12 +1523,33 @@ export type Database = {
         | "gemini"
         | "mistral"
         | "cohere"
+      nivel_apoio:
+        | "desconhecido"
+        | "simpatizante"
+        | "apoiador"
+        | "militante"
+        | "opositor"
+      origem_contato:
+        | "rede_social"
+        | "formulario"
+        | "evento"
+        | "importacao"
+        | "manual"
       sentiment_type: "positive" | "neutral" | "negative"
       supporter_classification:
         | "apoiador_ativo"
         | "apoiador_passivo"
         | "neutro"
         | "critico"
+      tipo_pessoa:
+        | "eleitor"
+        | "apoiador"
+        | "lideranca"
+        | "jornalista"
+        | "influenciador"
+        | "voluntario"
+        | "adversario"
+        | "cidadao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1566,12 +1687,36 @@ export const Constants = {
         "mistral",
         "cohere",
       ],
+      nivel_apoio: [
+        "desconhecido",
+        "simpatizante",
+        "apoiador",
+        "militante",
+        "opositor",
+      ],
+      origem_contato: [
+        "rede_social",
+        "formulario",
+        "evento",
+        "importacao",
+        "manual",
+      ],
       sentiment_type: ["positive", "neutral", "negative"],
       supporter_classification: [
         "apoiador_ativo",
         "apoiador_passivo",
         "neutro",
         "critico",
+      ],
+      tipo_pessoa: [
+        "eleitor",
+        "apoiador",
+        "lideranca",
+        "jornalista",
+        "influenciador",
+        "voluntario",
+        "adversario",
+        "cidadao",
       ],
     },
   },
