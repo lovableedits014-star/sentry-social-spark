@@ -71,6 +71,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setOrigemContato(pessoa.origem_contato || "manual");
       setTagsStr((pessoa.tags || []).join(", "));
       setNotasInternas(pessoa.notas_internas || "");
+      setStatusLead(pessoa.status_lead || "novo");
     }
   }, [open, pessoa]);
 
