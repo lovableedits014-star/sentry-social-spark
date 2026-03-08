@@ -252,32 +252,52 @@ export default function PortalContratado() {
   };
 
   const handleSendWhatsApp = async () => {
-    if (!contratado || !clientId) return;
+    if (!contratado) return;
 
-    let numero = whatsappOficial;
-    if (!numero) {
-      const { data: clientData } = await supabase
-        .from("clients")
-        .select("whatsapp_oficial")
-        .eq("id", clientId)
-        .maybeSingle();
+    try {
+      let numero = whatsappOficial;
 
-      numero = clientData?.whatsapp_oficial || "";
-      if (numero) setWhatsappOficial(numero);
+      if (!numero) {
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("whatsapp_oficial")
+          .eq("id", contratado.client_id)
+          .maybeSingle();
+
+        if (clientError) {
+          toast.error(`Erro ao carregar WhatsApp: ${clientError.message}`);
+          return;
+        }
+
+        numero = clientData?.whatsapp_oficial || "";
+        if (numero) setWhatsappOficial(numero);
+      }
+
+      if (!numero) {
+        toast.error("WhatsApp Oficial não encontrado para esta conta.");
+        return;
+      }
+
+      const phone = numero.replace(/\D/g, "");
+      const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
+      const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
+      window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+
+      const { error: updateError } = await supabase
+        .from("contratados")
+        .update({ whatsapp_confirmado: true } as any)
+        .eq("id", contratado.id);
+
+      if (updateError) {
+        toast.error(`Erro ao confirmar WhatsApp: ${updateError.message}`);
+        return;
+      }
+
+      setContratado({ ...contratado, whatsapp_confirmado: true });
+      toast.success("WhatsApp confirmado!");
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao enviar WhatsApp");
     }
-
-    if (!numero) {
-      toast.error("Número de WhatsApp oficial não configurado.");
-      return;
-    }
-
-    const phone = numero.replace(/\D/g, "");
-    const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
-    const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
-    window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
-    await supabase.from("contratados").update({ whatsapp_confirmado: true } as any).eq("id", contratado.id);
-    setContratado({ ...contratado, whatsapp_confirmado: true });
-    toast.success("WhatsApp confirmado!");
   };
 
   const handleLogin = async (e: React.FormEvent) => {
