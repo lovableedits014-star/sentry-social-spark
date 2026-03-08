@@ -35,6 +35,12 @@ const ORIGEM_OPTIONS = [
   { value: "importacao", label: "Importação" },
 ];
 
+const STATUS_LEAD_OPTIONS = [
+  { value: "novo", label: "Novo" }, { value: "contato_whatsapp", label: "Contato WhatsApp" },
+  { value: "em_conversa", label: "Em Conversa" }, { value: "proposta_enviada", label: "Proposta Enviada" },
+  { value: "fechado", label: "Fechado" }, { value: "perdido", label: "Perdido" },
+];
+
 export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
