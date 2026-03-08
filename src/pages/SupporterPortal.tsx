@@ -13,7 +13,7 @@ import {
   Bell, Users, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
-
+import { ReferralPanel } from "@/components/referral/ReferralPanel";
 interface Mission {
   id: string;
   platform: string;
