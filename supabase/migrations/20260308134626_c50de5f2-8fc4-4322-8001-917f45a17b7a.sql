@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN whatsapp_oficial text DEFAULT NULL;

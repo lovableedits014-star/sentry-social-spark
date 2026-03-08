@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Copy, ExternalLink, Users, UserPlus, Shield, Info, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
+import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
+import QRCodeLinksCard from "@/components/settings/QRCodeLinksCard";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
@@ -202,6 +204,10 @@ const Settings = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* WhatsApp + QR Code */}
+      {clientId && <WhatsAppConfigCard clientId={clientId} />}
+      {clientId && <QRCodeLinksCard clientId={clientId} />}
 
       {/* Team Users Management */}
       {clientId && <TeamUsersPanel clientId={clientId} />}
