@@ -215,6 +215,7 @@ export default function Recrutamento() {
     eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
     voluntario: "Voluntário", cidadao: "Cidadão", jornalista: "Jornalista",
     influenciador: "Influenciador", adversario: "Adversário",
+    lider: "Líder", contratado: "Contratado", indicado: "Indicado", liderado: "Liderado",
   };
 
   if (loading) {
