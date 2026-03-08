@@ -205,6 +205,10 @@ const Settings = () => {
         </CardContent>
       </Card>
 
+      {/* WhatsApp + QR Code */}
+      {clientId && <WhatsAppConfigCard clientId={clientId} />}
+      {clientId && <QRCodeLinksCard clientId={clientId} />}
+
       {/* Team Users Management */}
       {clientId && <TeamUsersPanel clientId={clientId} />}
 
