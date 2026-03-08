@@ -217,6 +217,46 @@ export default function PortalFuncionario() {
     setAddingIndicado(false);
   };
 
+  const handleAcaoCadastro = async () => {
+    if (!funcionario || !collectingAcaoId || !acaoCadNome.trim() || !acaoCadTelefone.trim()) {
+      toast.error("Nome e telefone são obrigatórios."); return;
+    }
+    setSubmittingCadastro(true);
+    try {
+      const acao = acoes.find((a: any) => a.id === collectingAcaoId);
+      if (!acao) throw new Error("Ação não encontrada");
+
+      const { error } = await supabase.rpc("register_pessoa_public", {
+        p_client_id: clientId!,
+        p_nome: acaoCadNome.trim(),
+        p_telefone: acaoCadTelefone.trim(),
+        p_cidade: acaoCadCidade.trim() || null,
+        p_bairro: acaoCadBairro.trim() || null,
+        p_tipo_pessoa: "cidadao",
+        p_notas: `Coletado na ação: ${acao.titulo} | Tag: ${acao.tag_nome}`,
+      });
+      if (error) throw error;
+
+      const assignment = acaoAssignments.find((a: any) => a.acao_id === collectingAcaoId);
+      if (assignment) {
+        await supabase.from("acao_externa_funcionarios" as any)
+          .update({ cadastros_coletados: (assignment.cadastros_coletados || 0) + 1 })
+          .eq("id", assignment.id);
+      }
+
+      await supabase.from("acoes_externas" as any)
+        .update({ cadastros_coletados: (acao.cadastros_coletados || 0) + 1 })
+        .eq("id", acao.id);
+
+      toast.success("Cadastro registrado! ✅");
+      setAcaoCadNome(""); setAcaoCadTelefone(""); setAcaoCadCidade(""); setAcaoCadBairro("");
+      loadPortalData();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao registrar cadastro");
+    }
+    setSubmittingCadastro(false);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
