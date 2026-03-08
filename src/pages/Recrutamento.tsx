@@ -68,9 +68,26 @@ export default function Recrutamento() {
         from += PAGE;
       }
 
-      // Fetch contratados (líderes + liderados) not already in pessoas
-      const pessoaIds = new Set(allPessoas.map(p => p.id));
+      // Deduplicate by normalized name (case-insensitive, trimmed)
+      const seenNames = new Set<string>();
+      const dedup = (list: PessoaRow[]): PessoaRow[] => {
+        const result: PessoaRow[] = [];
+        for (const p of list) {
+          const key = p.nome.trim().toLowerCase();
+          if (!seenNames.has(key)) {
+            seenNames.add(key);
+            result.push(p);
+          }
+        }
+        return result;
+      };
+
+      // Mark all pessoas names as seen first (they are the source of truth)
+      const dedupedPessoas = dedup(allPessoas);
+
+      // Fetch contratados (líderes + liderados)
       from = 0;
+      const contratadoRows: PessoaRow[] = [];
       while (true) {
         const { data } = await supabase
           .from("contratados")
@@ -80,25 +97,20 @@ export default function Recrutamento() {
           .range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         for (const c of data) {
-          if (!pessoaIds.has(c.id)) {
-            allPessoas.push({
-              id: c.id,
-              nome: c.nome,
-              cidade: c.cidade,
-              bairro: c.bairro,
-              telefone: c.telefone,
-              tipo_pessoa: c.is_lider ? "lider" : "contratado",
-              origem_contato: "formulario",
-              created_at: c.created_at,
-            });
-          }
+          contratadoRows.push({
+            id: c.id, nome: c.nome, cidade: c.cidade, bairro: c.bairro,
+            telefone: c.telefone, tipo_pessoa: c.is_lider ? "lider" : "contratado",
+            origem_contato: "formulario", created_at: c.created_at,
+          });
         }
         if (data.length < PAGE) break;
         from += PAGE;
       }
+      const newContratados = dedup(contratadoRows);
 
-      // Fetch indicados not already in pessoas
+      // Fetch indicados
       from = 0;
+      const indicadoRows: PessoaRow[] = [];
       while (true) {
         const { data } = await supabase
           .from("contratado_indicados")
@@ -108,27 +120,22 @@ export default function Recrutamento() {
           .range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         for (const ind of data) {
-          if (!pessoaIds.has(ind.id)) {
-            allPessoas.push({
-              id: ind.id,
-              nome: ind.nome,
-              cidade: ind.cidade,
-              bairro: ind.bairro,
-              telefone: ind.telefone,
-              tipo_pessoa: "indicado",
-              origem_contato: "formulario",
-              created_at: ind.created_at,
-            });
-          }
+          indicadoRows.push({
+            id: ind.id, nome: ind.nome, cidade: ind.cidade, bairro: ind.bairro,
+            telefone: ind.telefone, tipo_pessoa: "indicado",
+            origem_contato: "formulario", created_at: ind.created_at,
+          });
         }
         if (data.length < PAGE) break;
         from += PAGE;
       }
+      const newIndicados = dedup(indicadoRows);
 
+      const merged = [...dedupedPessoas, ...newContratados, ...newIndicados];
       // Sort all by created_at descending
-      allPessoas.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      setPessoas(allPessoas);
+      setPessoas(merged);
       setLoading(false);
     };
     load();
