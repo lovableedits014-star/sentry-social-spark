@@ -10,11 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
-  Bell, BellOff, BellRing, Smartphone, Users, MapPin
+  Bell, Users, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
-
-import { ReferralPanel } from "@/components/referral/ReferralPanel";
 
 interface Mission {
   id: string;
