@@ -226,16 +226,45 @@ export default function PortalFuncionario() {
       const acao = acoes.find((a: any) => a.id === collectingAcaoId);
       if (!acao) throw new Error("Ação não encontrada");
 
-      const { error } = await supabase.rpc("register_pessoa_public", {
+      const { data: pessoaId, error } = await supabase.rpc("register_pessoa_public", {
         p_client_id: clientId!,
         p_nome: acaoCadNome.trim(),
         p_telefone: acaoCadTelefone.trim(),
         p_cidade: acaoCadCidade.trim() || null,
         p_bairro: acaoCadBairro.trim() || null,
         p_tipo_pessoa: "cidadao",
-        p_notas: `Coletado na ação: ${acao.titulo} | Tag: ${acao.tag_nome}`,
+        p_notas: `Coletado na ação: ${acao.titulo}`,
       });
       if (error) throw error;
+
+      // Create or find the tag and link to pessoa
+      if (pessoaId) {
+        let tagId: string | null = null;
+        const { data: existingTag } = await supabase
+          .from("tags" as any)
+          .select("id")
+          .eq("client_id", clientId!)
+          .eq("nome", acao.tag_nome)
+          .maybeSingle();
+        
+        if (existingTag) {
+          tagId = (existingTag as any).id;
+        } else {
+          const { data: newTag } = await supabase
+            .from("tags" as any)
+            .insert({ client_id: clientId!, nome: acao.tag_nome, descricao: `Ação externa: ${acao.titulo}` })
+            .select("id")
+            .single();
+          tagId = (newTag as any)?.id;
+        }
+
+        if (tagId) {
+          await supabase.from("pessoas_tags" as any).insert({
+            pessoa_id: pessoaId,
+            tag_id: tagId,
+          });
+        }
+      }
 
       const assignment = acaoAssignments.find((a: any) => a.acao_id === collectingAcaoId);
       if (assignment) {
