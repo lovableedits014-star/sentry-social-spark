@@ -13,7 +13,7 @@ import {
   Bell, BellOff, BellRing, Smartphone, Users, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
-import { usePushNotifications } from "@/hooks/use-push-notifications";
+
 import { ReferralPanel } from "@/components/referral/ReferralPanel";
 
 interface Mission {
