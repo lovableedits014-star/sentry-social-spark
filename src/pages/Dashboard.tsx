@@ -476,6 +476,9 @@ const Dashboard = () => {
       {/* IED Panel */}
       {clientId && <IEDPanel clientId={clientId} />}
 
+      {/* Alertas Widget */}
+      {clientId && <AlertasWidget clientId={clientId} />}
+
       {/* Unified Overview */}
       {clientId && <DashboardOverview clientId={clientId} />}
 
