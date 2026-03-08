@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Copy, ExternalLink, CheckCircle2, BookUser, Phone } from "lucide-react";
+import { QrCode, Copy, ExternalLink, CheckCircle2, BookUser } from "lucide-react";
 import { toast } from "sonner";
 
 interface QRCodeLinksCardProps {
