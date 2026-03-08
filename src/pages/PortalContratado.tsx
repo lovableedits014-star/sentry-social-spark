@@ -90,8 +90,8 @@ export default function PortalContratado() {
 
   useEffect(() => {
     if (clientId) {
-      supabase.from("clients").select("name, logo_url, whatsapp_oficial").eq("id", clientId).maybeSingle()
-        .then(({ data }) => { if (data) { setClientName(data.name); setClientLogo(data.logo_url); setWhatsappOficial(data.whatsapp_oficial || ""); } });
+      supabase.from("clients").select("name, logo_url").eq("id", clientId).maybeSingle()
+        .then(({ data }) => { if (data) { setClientName(data.name); setClientLogo(data.logo_url); } });
     }
   }, [clientId]);
 
@@ -106,6 +106,10 @@ export default function PortalContratado() {
 
   const loadPortalData = async () => {
     if (!session || !clientId) return;
+
+    // Fetch whatsapp_oficial with authenticated session
+    const { data: clientData } = await supabase.from("clients").select("whatsapp_oficial").eq("id", clientId).maybeSingle();
+    if (clientData?.whatsapp_oficial) setWhatsappOficial(clientData.whatsapp_oficial);
 
     const { data: cont } = await supabase
       .from("contratados")
