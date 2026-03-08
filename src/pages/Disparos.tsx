@@ -13,9 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Send, Loader2, CheckCircle, XCircle, Clock,
-  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2,
+  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2, Cake,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DispatchLogDialog from "@/components/disparos/DispatchLogDialog";
+import BirthdayConfigPanel from "@/components/disparos/BirthdayConfigPanel";
 
 const POLICIES = {
   conservador: {
