@@ -104,6 +104,7 @@ export default function Pessoas() {
   const [filterWhatsapp, setFilterWhatsapp] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterClassifPolitica, setFilterClassifPolitica] = useState("all");
+  const [filterTagId, setFilterTagId] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
@@ -113,6 +114,8 @@ export default function Pessoas() {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [cidades, setCidades] = useState<string[]>([]);
   const [bairros, setBairros] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [pessoaTagsMap, setPessoaTagsMap] = useState<Record<string, any[]>>({});
 
   useEffect(() => { resolveClient(); }, []);
 
