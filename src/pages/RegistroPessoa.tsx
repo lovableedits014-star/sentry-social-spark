@@ -291,6 +291,7 @@ export default function RegistroPessoa() {
                 </div>
               </div>
             </div>
+            <div className="space-y-2">
               <Label htmlFor="notas" className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-muted-foreground" />
                 Observação (opcional)
