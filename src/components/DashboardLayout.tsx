@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, Settings, LogOut, Shield,
-  Link2, Users, TrendingUp, Crown, CalendarCheck, Menu, X, MapPin, BookUser, UserPlus, Kanban, Radar,
+  Link2, Users, TrendingUp, Crown, CalendarCheck, Menu, X, MapPin, BookUser, UserPlus, Kanban, Radar, ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ const MENU_SECTIONS: MenuSection[] = [
       { icon: MessageSquare, label: "Comentários", path: "/comments" },
       { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
       { icon: Radar, label: "Radar de Temas", path: "/radar" },
+      { icon: ShieldAlert, label: "Detector de Crise", path: "/crise" },
     ],
   },
   {
