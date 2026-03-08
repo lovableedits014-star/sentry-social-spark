@@ -62,6 +62,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [tagsStr, setTagsStr] = useState("");
   const [notasInternas, setNotasInternas] = useState("");
   const [statusLead, setStatusLead] = useState("novo");
+  const [classificacaoPolitica, setClassificacaoPolitica] = useState("indefinido");
 
   useEffect(() => {
     if (open && pessoa) {
