@@ -56,6 +56,7 @@ const App = () => (
           <Route path="/registro/:clientId" element={<RegistroPessoa />} />
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
+          <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
