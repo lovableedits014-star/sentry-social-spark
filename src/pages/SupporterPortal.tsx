@@ -96,9 +96,6 @@ export default function SupporterPortal() {
   const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Push notifications
-  const { status: pushStatus, isSubscribed, isSubscribing, isPushSupported, subscribe, unsubscribe } =
-    usePushNotifications(account?.id, clientId);
 
   // Load client info as soon as clientId is available (before login)
   useEffect(() => {
