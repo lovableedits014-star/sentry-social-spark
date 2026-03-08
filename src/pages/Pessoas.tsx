@@ -12,6 +12,7 @@ import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingU
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
+import { getWhatsAppLink } from "@/lib/social-url";
 
 const TIPO_LABELS: Record<string, string> = {
   eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
