@@ -401,6 +401,18 @@ export default function Contratados() {
     toast.success("Meta atualizada!");
   }
 
+  async function deleteContratado(contratadoId: string) {
+    if (!confirm("Tem certeza que deseja excluir este contratado? Os indicados dele também serão removidos.")) return;
+    // Delete indicados first, then checkins, then contratado
+    await supabase.from("contratado_indicados").delete().eq("contratado_id", contratadoId);
+    await supabase.from("contratado_checkins").delete().eq("contratado_id", contratadoId);
+    const { error } = await supabase.from("contratados").delete().eq("id", contratadoId);
+    if (error) { toast.error("Erro ao excluir: " + error.message); return; }
+    setContratados(prev => prev.filter(c => c.id !== contratadoId));
+    setIndicados(prev => prev.filter(i => i.contratado_id !== contratadoId));
+    toast.success("Contratado excluído!");
+  }
+
   const registrationUrl = clientId ? `${window.location.origin}/contratado/${clientId}` : "";
   const portalUrl = clientId ? `${window.location.origin}/portal-contratado/${clientId}` : "";
   const activeContratados = contratados.filter(c => c.status === "ativo");
