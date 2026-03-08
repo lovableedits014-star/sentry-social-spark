@@ -219,7 +219,7 @@ export default function Pessoas() {
       </div>
 
       {/* Search + Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative sm:col-span-2 lg:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -263,6 +263,13 @@ export default function Pessoas() {
             <SelectItem value="all">WhatsApp: Todos</SelectItem>
             <SelectItem value="sim">✅ Confirmado</SelectItem>
             <SelectItem value="nao">⏳ Pendente</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="Status Lead" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos status</SelectItem>
+            {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
