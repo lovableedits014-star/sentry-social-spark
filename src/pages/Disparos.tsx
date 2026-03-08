@@ -75,19 +75,10 @@ export default function Disparos() {
     queryKey: ["dispatch-tags", clientId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("pessoas_tags" as any)
-        .select("tag_id, tags!inner(nome)")
-        .eq("tags.client_id" as any, clientId);
-      // Count by tag
-      const counts: Record<string, { nome: string; count: number }> = {};
-      (data as any[] || []).forEach((row: any) => {
-        const nome = row.tags?.nome;
-        if (nome) {
-          if (!counts[nome]) counts[nome] = { nome, count: 0 };
-          counts[nome].count++;
-        }
-      });
-      return Object.values(counts).sort((a, b) => b.count - a.count);
+        .from("tags" as any)
+        .select("nome")
+        .eq("client_id", clientId);
+      return ((data as any[]) || []).map((t: any) => ({ nome: t.nome, count: 0 }));
     },
     enabled: !!clientId,
   });
