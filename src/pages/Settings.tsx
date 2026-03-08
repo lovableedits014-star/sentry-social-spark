@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
 import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
-import QRCodeLinksCard from "@/components/settings/QRCodeLinksCard";
+
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 
 const Settings = () => {
@@ -173,9 +173,8 @@ const Settings = () => {
       {/* WhatsApp Instance (UAZAPI) */}
       {clientId && <WhatsAppInstanceCard clientId={clientId} />}
 
-      {/* WhatsApp + QR Code */}
+      {/* WhatsApp Oficial */}
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
-      {clientId && <QRCodeLinksCard clientId={clientId} />}
 
       {/* Telemarketing Module */}
       {clientId && <TelemarketingSettingsCard clientId={clientId} />}
