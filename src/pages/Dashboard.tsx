@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
 import { IEDPanel } from "@/components/IEDPanel";
+import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 
 interface DashboardComment {
   id: string;
@@ -473,6 +474,9 @@ const Dashboard = () => {
 
       {/* IED Panel */}
       {clientId && <IEDPanel clientId={clientId} />}
+
+      {/* Unified Overview */}
+      {clientId && <DashboardOverview clientId={clientId} />}
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
