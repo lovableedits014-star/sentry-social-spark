@@ -316,6 +316,13 @@ export default function Contratados() {
   const [selectedContratado, setSelectedContratado] = useState<Contratado | null>(null);
   const [editQuota, setEditQuota] = useState(10);
 
+  // Add líder
+  const [showAddLiderDialog, setShowAddLiderDialog] = useState(false);
+  const [liderNomeInput, setLiderNomeInput] = useState("");
+  const [liderTelInput, setLiderTelInput] = useState("");
+  const [liderCidadeInput, setLiderCidadeInput] = useState("");
+  const [addingLider, setAddingLider] = useState(false);
+
   // Dispatch form
   const [dispTitulo, setDispTitulo] = useState("");
   const [dispMensagem, setDispMensagem] = useState("Olá {nome}! 🎯 Nova missão:\n\n{link}\n\nAcesse e interaja! 💪");
@@ -348,16 +355,18 @@ export default function Contratados() {
     if (dispRes.data) setDispatches(dispRes.data as any);
     if (indRes.data) setIndicados(indRes.data as any);
 
-    // Load leader names
+    // Load ALL leaders (tipo_pessoa = 'liderança') + any referenced by contratados
     const liderIds = [...new Set(contData.filter(c => c.lider_id).map(c => c.lider_id!))];
-    if (liderIds.length > 0) {
-      const { data: lideres } = await supabase.from("pessoas").select("id, nome").in("id", liderIds);
-      if (lideres) {
-        const map: Record<string, string> = {};
-        lideres.forEach((l: any) => { map[l.id] = l.nome; });
-        setLiderMap(map);
-      }
+    const { data: allLideres } = await supabase.from("pessoas").select("id, nome").eq("client_id", client.id).eq("tipo_pessoa", "liderança" as any);
+    const map: Record<string, string> = {};
+    if (allLideres) allLideres.forEach((l: any) => { map[l.id] = l.nome; });
+    // Also fetch any lider_ids that might not be tipo=liderança (legacy)
+    const missingIds = liderIds.filter(id => !map[id]);
+    if (missingIds.length > 0) {
+      const { data: extra } = await supabase.from("pessoas").select("id, nome").in("id", missingIds);
+      if (extra) extra.forEach((l: any) => { map[l.id] = l.nome; });
     }
+    setLiderMap(map);
 
     // Load checkin stats
     const { data: checkins } = await supabase
@@ -410,6 +419,32 @@ export default function Contratados() {
     toast.success("Contratado excluído!");
   }
 
+  async function createLider() {
+    if (!clientId || !liderNomeInput.trim()) { toast.error("Informe o nome do líder."); return; }
+    setAddingLider(true);
+    const { data, error } = await supabase.from("pessoas").insert({
+      client_id: clientId,
+      nome: liderNomeInput.trim(),
+      telefone: liderTelInput.trim() || null,
+      cidade: liderCidadeInput.trim() || null,
+      tipo_pessoa: "liderança" as any,
+      nivel_apoio: "apoiador" as any,
+      origem_contato: "manual" as any,
+    }).select("id, nome").single();
+    if (error || !data) { toast.error("Erro ao criar líder."); setAddingLider(false); return; }
+    setLiderMap(prev => ({ ...prev, [(data as any).id]: (data as any).nome }));
+    setShowAddLiderDialog(false);
+    setLiderNomeInput(""); setLiderTelInput(""); setLiderCidadeInput("");
+    setAddingLider(false);
+    toast.success(`Líder "${(data as any).nome}" criado! Agora atribua contratados a ele.`);
+  }
+
+  async function assignLider(contratadoId: string, liderId: string | null) {
+    await supabase.from("contratados").update({ lider_id: liderId } as any).eq("id", contratadoId);
+    setContratados(prev => prev.map(c => c.id === contratadoId ? { ...c, lider_id: liderId } : c));
+    toast.success(liderId ? "Líder atribuído!" : "Líder removido!");
+  }
+
   const registrationUrl = clientId ? `${window.location.origin}/contratado/${clientId}` : "";
   const portalUrl = clientId ? `${window.location.origin}/portal-contratado/${clientId}` : "";
   const activeContratados = contratados.filter(c => c.status === "ativo");
@@ -457,6 +492,22 @@ export default function Contratados() {
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(portalUrl); toast.success("Copiado!"); }}><Copy className="w-4 h-4" /></Button>
                   </div>
                 </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showAddLiderDialog} onOpenChange={setShowAddLiderDialog}>
+            <DialogTrigger asChild><Button variant="outline" size="sm" className="gap-1.5"><Crown className="w-4 h-4" />Novo Líder</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Criar Novo Líder</DialogTitle><DialogDescription>O líder será criado como pessoa do tipo "Liderança" e poderá ter contratados vinculados.</DialogDescription></DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2"><Label>Nome completo *</Label><Input value={liderNomeInput} onChange={e => setLiderNomeInput(e.target.value)} placeholder="Ex: Mayer Rodrigues" /></div>
+                <div className="space-y-2"><Label>Telefone</Label><Input value={liderTelInput} onChange={e => setLiderTelInput(e.target.value)} placeholder="(67) 99999-9999" /></div>
+                <div className="space-y-2"><Label>Cidade</Label><Input value={liderCidadeInput} onChange={e => setLiderCidadeInput(e.target.value)} placeholder="Ex: Campo Grande" /></div>
+                <Button onClick={createLider} disabled={addingLider || !liderNomeInput.trim()} className="w-full gap-2">
+                  {addingLider ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
+                  Criar Líder
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -679,6 +730,18 @@ export default function Contratados() {
                             {inds.length >= c.quota_indicados && <Badge className="text-[10px] gap-1 bg-emerald-500"><Award className="w-3 h-3" />Meta</Badge>}
                             <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
                           </div>
+                          {/* Assign líder */}
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap"><Crown className="w-3 h-3 inline mr-1" />Atribuir líder:</Label>
+                            <Select value="" onValueChange={(v) => assignLider(c.id, v)}>
+                              <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Selecionar líder..." /></SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(liderMap).map(([id, nome]) => (
+                                  <SelectItem key={id} value={id}>{nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       );
                     })}
@@ -748,6 +811,19 @@ export default function Contratados() {
                     {inds.length >= c.quota_indicados && (
                       <Badge className="text-[10px] gap-1 bg-emerald-500"><Award className="w-3 h-3" />Meta atingida</Badge>
                     )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs whitespace-nowrap"><Crown className="w-3 h-3 inline mr-1" />Líder:</Label>
+                    <Select value={c.lider_id || "none"} onValueChange={(v) => assignLider(c.id, v === "none" ? null : v)}>
+                      <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem líder</SelectItem>
+                        {Object.entries(liderMap).map(([id, nome]) => (
+                          <SelectItem key={id} value={id}>{nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex items-center gap-2">
