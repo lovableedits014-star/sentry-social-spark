@@ -37,6 +37,7 @@ import Alertas from "./pages/Alertas";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
+import Telemarketing from "./pages/Telemarketing";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
+          <Route path="/telemarketing/:clientId" element={<Telemarketing />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
