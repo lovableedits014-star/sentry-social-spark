@@ -141,6 +141,20 @@ export default function Disparos() {
   const [tipoDisparo, setTipoDisparo] = useState("manual");
   const [tagFiltro, setTagFiltro] = useState("_all");
   const [sending, setSending] = useState(false);
+  const [missionDialogOpen, setMissionDialogOpen] = useState(false);
+
+  const handleUseMission = (mission: any) => {
+    const platformLabel = mission.platform === "instagram" ? "Instagram" : "Facebook";
+    setTitulo(`Missão: ${mission.title || "Interaja na publicação"}`);
+    setMensagem(
+      `Olá {nome}! 🎯\n\nTemos uma missão importante para você!\n\n` +
+      `📱 Acesse a publicação no ${platformLabel} e interaja (curta, comente e compartilhe):\n\n` +
+      `👉 ${mission.post_url}\n\n` +
+      (mission.description ? `💬 ${mission.description}\n\n` : "") +
+      `Sua participação faz toda a diferença! 💪`
+    );
+    setMissionDialogOpen(false);
+  };
 
   // Count recipients based on filter
   const { data: recipientCount = 0 } = useQuery<number>({
