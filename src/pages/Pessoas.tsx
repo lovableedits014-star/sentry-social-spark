@@ -137,17 +137,21 @@ export default function Pessoas() {
 
   async function fetchFilterOptions() {
     if (!clientId) return;
-    const { data } = await supabase.from("pessoas").select("cidade, bairro").eq("client_id", clientId);
-    if (data) {
+    const [pessoaRes, tagsRes] = await Promise.all([
+      supabase.from("pessoas").select("cidade, bairro").eq("client_id", clientId),
+      supabase.from("tags").select("id, nome").eq("client_id", clientId).order("nome") as any,
+    ]);
+    if (pessoaRes.data) {
       const cidSet = new Set<string>();
       const baiSet = new Set<string>();
-      data.forEach((p: any) => {
+      pessoaRes.data.forEach((p: any) => {
         if (p.cidade) cidSet.add(p.cidade);
         if (p.bairro) baiSet.add(p.bairro);
       });
       setCidades(Array.from(cidSet).sort());
       setBairros(Array.from(baiSet).sort());
     }
+    setAvailableTags(tagsRes.data || []);
   }
 
   async function fetchPessoas() {
