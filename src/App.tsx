@@ -30,6 +30,7 @@ import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MapaInfluenciadores from "./pages/MapaInfluenciadores";
 import MissoesIA from "./pages/MissoesIA";
+import Multiplicadores from "./pages/Multiplicadores";
 
 const queryClient = new QueryClient();
 
