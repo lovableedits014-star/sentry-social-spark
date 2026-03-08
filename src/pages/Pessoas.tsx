@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
@@ -66,6 +67,7 @@ export default function Pessoas() {
   const [total, setTotal] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   // Distinct values for filters
   const [cidades, setCidades] = useState<string[]>([]);
@@ -169,6 +171,22 @@ export default function Pessoas() {
     setPage(0);
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    // Delete related pessoa_social first, then the pessoa
+    await supabase.from("pessoa_social").delete().eq("pessoa_id", deleteTarget.id);
+    const { error } = await supabase.from("pessoas").delete().eq("id", deleteTarget.id);
+    if (error) {
+      toast.error("Erro ao excluir pessoa");
+      console.error(error);
+    } else {
+      toast.success("Pessoa excluída com sucesso");
+      fetchPessoas();
+      fetchFilterOptions();
+    }
+    setDeleteTarget(null);
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -250,18 +268,19 @@ export default function Pessoas() {
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     Nenhuma pessoa encontrada
                   </TableCell>
                 </TableRow>
@@ -287,6 +306,16 @@ export default function Pessoas() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {format(new Date(p.created_at), "dd/MM/yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -322,6 +351,24 @@ export default function Pessoas() {
           onSuccess={() => { fetchPessoas(); fetchFilterOptions(); }}
         />
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir pessoa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

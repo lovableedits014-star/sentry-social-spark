@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, FileText } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, FileText, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const TIPO_LABELS: Record<string, string> = {
   eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
@@ -46,6 +47,7 @@ export default function PessoaPerfil() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (id) fetchData();
@@ -76,6 +78,18 @@ export default function PessoaPerfil() {
     } else {
       toast.success("Rede social removida");
       setSocials(prev => prev.filter(s => s.id !== socialId));
+    }
+  }
+
+  async function handleDeletePessoa() {
+    if (!pessoa) return;
+    await supabase.from("pessoa_social").delete().eq("pessoa_id", pessoa.id);
+    const { error } = await supabase.from("pessoas").delete().eq("id", pessoa.id);
+    if (error) {
+      toast.error("Erro ao excluir pessoa");
+    } else {
+      toast.success("Pessoa excluída");
+      navigate("/pessoas");
     }
   }
 
@@ -117,10 +131,16 @@ export default function PessoaPerfil() {
             </Badge>
           </div>
         </div>
-        <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-          <Pencil className="w-4 h-4" />
-          Editar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
+            <Pencil className="w-4 h-4" />
+            Editar
+          </Button>
+          <Button variant="outline" className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="w-4 h-4" />
+            Excluir
+          </Button>
+        </div>
       </div>
 
       {/* Content grid */}
@@ -265,6 +285,22 @@ export default function PessoaPerfil() {
         pessoaId={pessoa.id}
         onSuccess={fetchData}
       />
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir pessoa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{pessoa.nome}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePessoa} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
