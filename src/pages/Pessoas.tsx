@@ -161,6 +161,7 @@ export default function Pessoas() {
     if (filterWhatsapp === "sim") query = query.eq("whatsapp_confirmado", true) as any;
     if (filterWhatsapp === "nao") query = query.eq("whatsapp_confirmado", false) as any;
     if (filterStatus !== "all") query = query.eq("status_lead", filterStatus) as any;
+    if (filterClassifPolitica !== "all") query = query.eq("classificacao_politica", filterClassifPolitica) as any;
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
