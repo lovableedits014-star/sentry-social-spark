@@ -330,6 +330,9 @@ export default function PessoaPerfil() {
             </Card>
           )}
 
+          {/* Histórico de Interações */}
+          <InteracoesTimeline pessoaId={pessoa.id} clientId={pessoa.client_id} />
+
           {(pessoa.tags?.length > 0 || pessoa.notas_internas) && (
             <Card>
               <CardHeader><CardTitle className="text-base">Tags & Notas</CardTitle></CardHeader>
