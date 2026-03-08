@@ -483,6 +483,81 @@ export default function PortalFuncionario() {
               <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma indicação ainda. Comece indicando!</CardContent></Card>
             )}
           </TabsContent>
+
+          {/* ── AÇÕES EXTERNAS TAB ────────────────────────── */}
+          <TabsContent value="acoes" className="space-y-3 mt-3">
+            <p className="text-xs text-muted-foreground">
+              Ações externas em que você foi escalado. Colete cadastros diretamente pelo celular.
+            </p>
+            {acoes.length === 0 ? (
+              <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma ação atribuída no momento.</CardContent></Card>
+            ) : (
+              acoes.map((acao: any) => {
+                const assignment = acaoAssignments.find((a: any) => a.acao_id === acao.id);
+                const totalAssigned = acaoAssignments.filter((a: any) => a.acao_id === acao.id).length || 1;
+                const metaIndividual = Math.ceil(acao.meta_cadastros / totalAssigned);
+                const meusCadastros = assignment?.cadastros_coletados || 0;
+                const isCollecting = collectingAcaoId === acao.id;
+
+                return (
+                  <Card key={acao.id} className="overflow-hidden">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm">{acao.titulo}</p>
+                          {acao.local && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" />{acao.local}</p>}
+                        </div>
+                        <Badge variant={acao.status === "ativa" ? "default" : "secondary"}>
+                          {acao.status === "ativa" ? "Ativa" : "Planejada"}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">{meusCadastros}</p>
+                          <p className="text-[10px] text-muted-foreground">Meus cadastros</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">~{metaIndividual}</p>
+                          <p className="text-[10px] text-muted-foreground">Minha meta</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">{acao.cadastros_coletados}/{acao.meta_cadastros}</p>
+                          <p className="text-[10px] text-muted-foreground">Total equipe</p>
+                        </div>
+                      </div>
+
+                      {acao.status === "ativa" && (
+                        <>
+                          {!isCollecting ? (
+                            <Button onClick={() => setCollectingAcaoId(acao.id)} className="w-full gap-1.5" size="sm">
+                              <Plus className="w-4 h-4" />Coletar Cadastro
+                            </Button>
+                          ) : (
+                            <div className="space-y-2 border-t pt-3">
+                              <p className="text-xs font-semibold">Novo cadastro:</p>
+                              <Input value={acaoCadNome} onChange={e => setAcaoCadNome(e.target.value)} placeholder="Nome completo *" />
+                              <Input value={acaoCadTelefone} onChange={e => setAcaoCadTelefone(e.target.value)} placeholder="Telefone *" />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input value={acaoCadCidade} onChange={e => setAcaoCadCidade(e.target.value)} placeholder="Cidade" />
+                                <Input value={acaoCadBairro} onChange={e => setAcaoCadBairro(e.target.value)} placeholder="Bairro" />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setCollectingAcaoId(null)} className="flex-1">Cancelar</Button>
+                                <Button size="sm" onClick={handleAcaoCadastro} disabled={submittingCadastro} className="flex-1 gap-1">
+                                  {submittingCadastro ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}Salvar
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </TabsContent>
         </Tabs>
 
         {/* ── Social networks status ────────────────────────── */}
