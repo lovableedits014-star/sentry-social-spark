@@ -95,7 +95,7 @@ export default function SupporterPortal() {
   const [editNeighborhood, setEditNeighborhood] = useState("");
   const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-
+import { ReferralPanel } from "@/components/referral/ReferralPanel";
 
   // Load client info as soon as clientId is available (before login)
   useEffect(() => {
