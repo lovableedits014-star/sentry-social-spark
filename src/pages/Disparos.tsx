@@ -84,6 +84,21 @@ export default function Disparos() {
     enabled: !!clientId,
   });
 
+  // Active missions
+  const { data: activeMissions = [] } = useQuery({
+    queryKey: ["active-missions", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("portal_missions")
+        .select("*")
+        .eq("client_id", clientId!)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+      return data || [];
+    },
+    enabled: !!clientId,
+  });
+
   // Dispatch history
   const { data: dispatches = [], refetch } = useQuery<DispatchRow[]>({
     queryKey: ["whatsapp-dispatches", clientId],
