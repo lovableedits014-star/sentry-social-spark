@@ -759,11 +759,11 @@ export default function Contratados() {
                 <div key={c.id} className="p-4 rounded-xl border bg-card space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Briefcase className="w-5 h-5 text-primary" />
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${(c as any).is_lider ? "bg-amber-100 dark:bg-amber-950/30" : "bg-primary/10"}`}>
+                        {(c as any).is_lider ? <Crown className="w-5 h-5 text-amber-600" /> : <Briefcase className="w-5 h-5 text-primary" />}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{c.nome}</p>
+                        <p className="font-semibold text-sm truncate">{c.nome} {(c as any).is_lider && <span className="text-amber-600 text-xs font-normal">👑 Líder</span>}</p>
                         <p className="text-xs text-muted-foreground">
                           📞 {c.telefone} • 📍 {c.cidade || "—"}{c.bairro ? `, ${c.bairro}` : ""}
                           {c.zona_eleitoral && ` • 🗳️ ${c.zona_eleitoral}`}
