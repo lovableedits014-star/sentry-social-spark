@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, Settings, LogOut, Shield,
-  Link2, Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Radar, ShieldAlert, Sparkles, Trophy, Target, Bell, Briefcase, Send,
+  Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Radar, ShieldAlert, Sparkles, Trophy, Target, Bell, Briefcase, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,7 +53,6 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: "Sistema",
     items: [
-      { icon: Link2, label: "Integrações", path: "/integrations" },
       { icon: Settings, label: "Configurações", path: "/settings" },
     ],
   },

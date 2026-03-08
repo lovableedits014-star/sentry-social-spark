@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings as SettingsIcon } from "lucide-react";
-import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
 import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
+import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
@@ -35,7 +35,7 @@ const Settings = () => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground mt-2">
-          Gerencie suas preferências de comunicação e equipe
+          Gerencie comunicação, equipe e integrações
         </p>
       </div>
 
@@ -50,6 +50,9 @@ const Settings = () => {
 
       {/* Team Users Management */}
       {clientId && <TeamUsersPanel clientId={clientId} />}
+
+      {/* Integrações (Meta, IA, etc.) */}
+      {clientId && <IntegrationsPanel clientId={clientId} />}
 
       {/* Mais configurações em breve */}
       <Card>
