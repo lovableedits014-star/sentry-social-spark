@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
         notas: notas?.trim() || null,
         redes_sociais: redes_sociais || [],
         contrato_aceito: false,
-        is_lider: is_lider === true,
+        is_lider: finalIsLider,
       })
       .select("id")
       .single();

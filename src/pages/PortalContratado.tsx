@@ -281,7 +281,9 @@ export default function PortalContratado() {
           </div>
           <div>
             <p className="font-semibold text-sm">{contratado.nome}</p>
-            <p className="text-xs text-muted-foreground">Contratado — {clientName}</p>
+            <p className="text-xs text-muted-foreground">
+              {(contratado as any).is_lider ? "👑 Líder" : "Contratado"} — {clientName}
+            </p>
           </div>
         </div>
         <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="w-4 h-4" /></Button>
