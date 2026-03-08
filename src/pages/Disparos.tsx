@@ -526,6 +526,12 @@ export default function Disparos() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="aniversario">
+          {clientId && <BirthdayConfigPanel clientId={clientId} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
