@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users2, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Target, Users,
-  Plus, Copy, Crown, Trophy,
+  Plus, Copy, Crown, Trophy, ClipboardList, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 
