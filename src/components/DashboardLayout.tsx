@@ -24,6 +24,7 @@ const MENU_SECTIONS: MenuSection[] = [
       { icon: Radar, label: "Radar de Temas", path: "/radar" },
       { icon: ShieldAlert, label: "Detector de Crise", path: "/crise" },
       { icon: Users, label: "Influenciadores", path: "/influenciadores" },
+      { icon: Bell, label: "Alertas", path: "/alertas" },
     ],
   },
   {
