@@ -1,9 +1,22 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import AIMissionsPanel from "@/components/engagement/AIMissionsPanel";
 import { PortalMissionsPanel } from "@/components/engagement/PortalMissionsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, Target } from "lucide-react";
 
 export default function MissoesIA() {
+  const { data: client } = useQuery({
+    queryKey: ["client"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from("clients").select("id").eq("user_id", user.id).maybeSingle();
+      return data;
+    },
+  });
+
   return (
     <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center gap-3">
@@ -35,7 +48,11 @@ export default function MissoesIA() {
         </TabsContent>
 
         <TabsContent value="missoes">
-          <PortalMissionsPanel />
+          {client?.id ? (
+            <PortalMissionsPanel clientId={client.id} />
+          ) : (
+            <p className="text-sm text-muted-foreground py-8 text-center">Carregando...</p>
+          )}
         </TabsContent>
       </Tabs>
     </div>
