@@ -261,7 +261,36 @@ export default function RegistroPessoa() {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            {/* Redes Sociais */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Redes Sociais (opcional)</Label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Facebook className="w-4 h-4 text-blue-600 shrink-0" />
+                  <Input
+                    value={facebook}
+                    onChange={(e) => setFacebook(e.target.value)}
+                    placeholder="Usuário do Facebook"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
+                  <Input
+                    value={instagram}
+                    onChange={(e) => setInstagram(e.target.value)}
+                    placeholder="@usuario do Instagram"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.75a8.18 8.18 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15Z"/></svg>
+                  <Input
+                    value={tiktok}
+                    onChange={(e) => setTiktok(e.target.value)}
+                    placeholder="@usuario do TikTok"
+                  />
+                </div>
+              </div>
+            </div>
               <Label htmlFor="notas" className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-muted-foreground" />
                 Observação (opcional)
