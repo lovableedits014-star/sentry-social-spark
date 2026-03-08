@@ -158,7 +158,26 @@ export default function Pessoas() {
     if (!clientId) return;
     setLoading(true);
 
+    // If filtering by tag, first get matching pessoa_ids
+    let tagFilterIds: string[] | null = null;
+    if (filterTagId !== "all") {
+      const { data: ptData } = await supabase
+        .from("pessoas_tags")
+        .select("pessoa_id")
+        .eq("tag_id", filterTagId) as any;
+      tagFilterIds = (ptData || []).map((pt: any) => pt.pessoa_id);
+      if (tagFilterIds.length === 0) {
+        setPessoas([]);
+        setTotal(0);
+        setSupporterMap({});
+        setPessoaTagsMap({});
+        setLoading(false);
+        return;
+      }
+    }
+
     let query = supabase.from("pessoas").select("*", { count: "exact" }).eq("client_id", clientId);
+    if (tagFilterIds) query = query.in("id", tagFilterIds);
     if (search.trim()) query = query.ilike("nome", `%${search.trim()}%`);
     if (filterCidade !== "all") query = query.eq("cidade", filterCidade);
     if (filterBairro !== "all") query = query.eq("bairro", filterBairro);
@@ -178,21 +197,35 @@ export default function Pessoas() {
     } else {
       setPessoas(data || []);
       setTotal(count || 0);
-      // Fetch supporter data for linked pessoas
+
+      const pessoaIds = (data || []).map((p: any) => p.id);
       const supporterIds = (data || []).map((p: any) => p.supporter_id).filter(Boolean);
-      if (supporterIds.length > 0) {
-        const { data: supporters } = await supabase
-          .from("supporters")
-          .select("id, engagement_score, classification")
-          .in("id", supporterIds);
-        if (supporters) {
-          const map: Record<string, any> = {};
-          supporters.forEach(s => { map[s.id] = s; });
-          setSupporterMap(map);
-        }
+
+      // Fetch supporter data and tags in parallel
+      const [suppResult, tagsResult] = await Promise.all([
+        supporterIds.length > 0
+          ? supabase.from("supporters").select("id, engagement_score, classification").in("id", supporterIds)
+          : Promise.resolve({ data: [] }),
+        pessoaIds.length > 0
+          ? supabase.from("pessoas_tags").select("pessoa_id, tag_id, tags:tag_id(id, nome)").in("pessoa_id", pessoaIds) as any
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      if (suppResult.data) {
+        const map: Record<string, any> = {};
+        (suppResult.data as any[]).forEach(s => { map[s.id] = s; });
+        setSupporterMap(map);
       } else {
         setSupporterMap({});
       }
+
+      // Build tags map: pessoaId -> tags[]
+      const tMap: Record<string, any[]> = {};
+      (tagsResult.data || []).forEach((pt: any) => {
+        if (!tMap[pt.pessoa_id]) tMap[pt.pessoa_id] = [];
+        tMap[pt.pessoa_id].push(pt.tags);
+      });
+      setPessoaTagsMap(tMap);
     }
     setLoading(false);
   }
