@@ -103,6 +103,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       tags: tags.length > 0 ? tags : [],
       notas_internas: notasInternas.trim() || null,
       status_lead: statusLead,
+      classificacao_politica: classificacaoPolitica,
     } as any).eq("id", pessoa.id);
 
     setSaving(false);
