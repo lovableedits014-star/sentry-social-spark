@@ -138,9 +138,9 @@ export default function Pessoas() {
     }
     if (filterCidade !== "all") query = query.eq("cidade", filterCidade);
     if (filterBairro !== "all") query = query.eq("bairro", filterBairro);
-    if (filterTipo !== "all") query = query.eq("tipo_pessoa", filterTipo);
-    if (filterNivel !== "all") query = query.eq("nivel_apoio", filterNivel);
-    if (filterOrigem !== "all") query = query.eq("origem_contato", filterOrigem);
+    if (filterTipo !== "all") query = query.eq("tipo_pessoa", filterTipo as any);
+    if (filterNivel !== "all") query = query.eq("nivel_apoio", filterNivel as any);
+    if (filterOrigem !== "all") query = query.eq("origem_contato", filterOrigem as any);
 
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
