@@ -25,6 +25,7 @@ import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
 import Recrutamento from "./pages/Recrutamento";
+import FunilLeads from "./pages/FunilLeads";
 
 const queryClient = new QueryClient();
 
