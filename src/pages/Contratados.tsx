@@ -417,6 +417,32 @@ export default function Contratados() {
     toast.success("Contratado excluído!");
   }
 
+  async function createLider() {
+    if (!clientId || !liderNomeInput.trim()) { toast.error("Informe o nome do líder."); return; }
+    setAddingLider(true);
+    const { data, error } = await supabase.from("pessoas").insert({
+      client_id: clientId,
+      nome: liderNomeInput.trim(),
+      telefone: liderTelInput.trim() || null,
+      cidade: liderCidadeInput.trim() || null,
+      tipo_pessoa: "liderança" as any,
+      nivel_apoio: "apoiador" as any,
+      origem_contato: "manual" as any,
+    }).select("id, nome").single();
+    if (error || !data) { toast.error("Erro ao criar líder."); setAddingLider(false); return; }
+    setLiderMap(prev => ({ ...prev, [(data as any).id]: (data as any).nome }));
+    setShowAddLiderDialog(false);
+    setLiderNomeInput(""); setLiderTelInput(""); setLiderCidadeInput("");
+    setAddingLider(false);
+    toast.success(`Líder "${(data as any).nome}" criado! Agora atribua contratados a ele.`);
+  }
+
+  async function assignLider(contratadoId: string, liderId: string | null) {
+    await supabase.from("contratados").update({ lider_id: liderId } as any).eq("id", contratadoId);
+    setContratados(prev => prev.map(c => c.id === contratadoId ? { ...c, lider_id: liderId } : c));
+    toast.success(liderId ? "Líder atribuído!" : "Líder removido!");
+  }
+
   const registrationUrl = clientId ? `${window.location.origin}/contratado/${clientId}` : "";
   const portalUrl = clientId ? `${window.location.origin}/portal-contratado/${clientId}` : "";
   const activeContratados = contratados.filter(c => c.status === "ativo");
