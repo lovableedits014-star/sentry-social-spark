@@ -31,6 +31,7 @@ import DetectorCrise from "./pages/DetectorCrise";
 import MapaInfluenciadores from "./pages/MapaInfluenciadores";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
+import LideresDigitais from "./pages/LideresDigitais";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/influenciadores" element={<MapaInfluenciadores />} />
             <Route path="/missoes-ia" element={<MissoesIA />} />
             <Route path="/multiplicadores" element={<Multiplicadores />} />
+            <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
