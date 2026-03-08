@@ -27,3 +27,16 @@ export function getSocialProfileUrl(
 
   return null;
 }
+
+/**
+ * Gera link wa.me a partir de um telefone brasileiro.
+ * Remove caracteres especiais, adiciona 55 se necessário.
+ * Retorna null se o telefone for inválido.
+ */
+export function getWhatsAppLink(telefone: string | null | undefined): string | null {
+  if (!telefone) return null;
+  const digits = telefone.replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const number = digits.startsWith("55") ? digits : `55${digits}`;
+  return `https://wa.me/${number}`;
+}
