@@ -27,6 +27,7 @@ import RegistroPessoa from "./pages/RegistroPessoa";
 import Recrutamento from "./pages/Recrutamento";
 import FunilLeads from "./pages/FunilLeads";
 import RadarTemas from "./pages/RadarTemas";
+import DetectorCrise from "./pages/DetectorCrise";
 
 const queryClient = new QueryClient();
 
