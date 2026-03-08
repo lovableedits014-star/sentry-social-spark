@@ -18,7 +18,7 @@ import PwaStart from "./pages/PwaStart";
 import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
-import Checkins from "./pages/Checkins";
+import Disparos from "./pages/Disparos";
 import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
