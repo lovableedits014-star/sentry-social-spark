@@ -147,6 +147,25 @@ export default function PortalFuncionario() {
       }
       setStreak(s);
     }
+
+    // Load assigned ações externas
+    const { data: assignData } = await supabase
+      .from("acao_externa_funcionarios" as any)
+      .select("id, acao_id, funcionario_id, cadastros_coletados")
+      .eq("funcionario_id", (func as any).id);
+    setAcaoAssignments((assignData || []) as any);
+
+    if (assignData && assignData.length > 0) {
+      const acaoIds = (assignData as any[]).map((a: any) => a.acao_id);
+      const { data: acoesData } = await supabase
+        .from("acoes_externas" as any)
+        .select("*")
+        .in("id", acaoIds)
+        .in("status", ["ativa", "planejada"]);
+      setAcoes((acoesData || []) as any);
+    } else {
+      setAcoes([]);
+    }
   };
 
   const handleCheckin = async () => {
