@@ -9,12 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Target, Plus, Calendar, CheckCircle2, Clock, AlertCircle,
-  Trash2, Edit, Users, Flag, ArrowRight,
+  Trash2, Edit, Users, Flag, ArrowRight, LayoutGrid, List,
+  Bell,
 } from "lucide-react";
 import { format, differenceInDays, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import KanbanBoard from "@/components/campanha/KanbanBoard";
+import CampaignMetrics from "@/components/campanha/CampaignMetrics";
 
 type Campanha = {
   id: string;
@@ -41,6 +45,15 @@ type Tarefa = {
   created_at: string;
 };
 
+type ChecklistItem = {
+  id: string;
+  tarefa_id: string;
+  client_id: string;
+  titulo: string;
+  concluido: boolean;
+  display_order: number;
+};
+
 type TeamMember = {
   id: string;
   name: string;
@@ -54,12 +67,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   cancelada: { label: "Cancelada", color: "bg-red-500/10 text-red-400 border-red-500/30", icon: AlertCircle },
 };
 
-const TAREFA_STATUS: Record<string, { label: string; color: string }> = {
-  pendente: { label: "Pendente", color: "bg-muted text-muted-foreground" },
-  em_progresso: { label: "Em Progresso", color: "bg-amber-500/10 text-amber-400 border-amber-500/30" },
-  concluida: { label: "Concluída", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" },
-};
-
 const PRIORIDADE_CONFIG: Record<string, { label: string; color: string }> = {
   baixa: { label: "Baixa", color: "bg-slate-500/10 text-slate-400 border-slate-500/30" },
   media: { label: "Média", color: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
@@ -67,13 +74,21 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; color: string }> = {
   urgente: { label: "Urgente", color: "bg-red-500/10 text-red-400 border-red-500/30" },
 };
 
-const Campanha = () => {
+const TAREFA_STATUS: Record<string, { label: string }> = {
+  pendente: { label: "Pendente" },
+  em_progresso: { label: "Em Progresso" },
+  concluida: { label: "Concluída" },
+};
+
+const CampanhaPage = () => {
   const [clientId, setClientId] = useState<string | null>(null);
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampanha, setSelectedCampanha] = useState<Campanha | null>(null);
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
   // Dialog states
   const [showCampanhaDialog, setShowCampanhaDialog] = useState(false);
@@ -81,7 +96,7 @@ const Campanha = () => {
   const [editingCampanha, setEditingCampanha] = useState<Campanha | null>(null);
   const [editingTarefa, setEditingTarefa] = useState<Tarefa | null>(null);
 
-  // Form states
+  // Campaign form
   const [formTitulo, setFormTitulo] = useState("");
   const [formDescricao, setFormDescricao] = useState("");
   const [formDataInicio, setFormDataInicio] = useState("");
@@ -89,71 +104,61 @@ const Campanha = () => {
   const [formMeta, setFormMeta] = useState("");
   const [formStatus, setFormStatus] = useState("planejamento");
 
+  // Task form
   const [tarefaTitulo, setTarefaTitulo] = useState("");
   const [tarefaDescricao, setTarefaDescricao] = useState("");
   const [tarefaResponsavel, setTarefaResponsavel] = useState("");
   const [tarefaPrazo, setTarefaPrazo] = useState("");
   const [tarefaPrioridade, setTarefaPrioridade] = useState("media");
   const [tarefaStatus, setTarefaStatus] = useState("pendente");
+  const [tarefaChecklistText, setTarefaChecklistText] = useState("");
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
     const { data: client } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
+      .from("clients").select("id").eq("user_id", session.user.id).maybeSingle();
 
     let cId = client?.id;
     if (!cId) {
       const { data: tm } = await supabase
-        .from("team_members")
-        .select("client_id")
-        .eq("user_id", session.user.id)
-        .eq("status", "active")
-        .maybeSingle();
+        .from("team_members").select("client_id").eq("user_id", session.user.id).eq("status", "active").maybeSingle();
       cId = tm?.client_id;
     }
     if (!cId) { setLoading(false); return; }
     setClientId(cId);
 
-    const [campanhasRes, tarefasRes, teamRes] = await Promise.all([
+    const [campanhasRes, tarefasRes, teamRes, checklistRes] = await Promise.all([
       supabase.from("campanhas").select("*").eq("client_id", cId).order("created_at", { ascending: false }),
       supabase.from("campanha_tarefas").select("*").eq("client_id", cId).order("prazo", { ascending: true }),
       supabase.from("team_members").select("id, name, role").eq("client_id", cId).eq("status", "active"),
+      supabase.from("campanha_tarefa_items").select("*").eq("client_id", cId).order("display_order", { ascending: true }),
     ]);
 
     if (campanhasRes.data) setCampanhas(campanhasRes.data as Campanha[]);
     if (tarefasRes.data) setTarefas(tarefasRes.data as Tarefa[]);
     if (teamRes.data) setTeamMembers(teamRes.data);
+    if (checklistRes.data) setChecklistItems(checklistRes.data as ChecklistItem[]);
     setLoading(false);
   };
 
+  // ─── Campaign CRUD ───
   const openNewCampanha = () => {
     setEditingCampanha(null);
-    setFormTitulo("");
-    setFormDescricao("");
+    setFormTitulo(""); setFormDescricao("");
     setFormDataInicio(format(new Date(), "yyyy-MM-dd"));
-    setFormDataFim("");
-    setFormMeta("");
-    setFormStatus("planejamento");
+    setFormDataFim(""); setFormMeta(""); setFormStatus("planejamento");
     setShowCampanhaDialog(true);
   };
 
   const openEditCampanha = (c: Campanha) => {
     setEditingCampanha(c);
-    setFormTitulo(c.titulo);
-    setFormDescricao(c.descricao || "");
-    setFormDataInicio(c.data_inicio);
-    setFormDataFim(c.data_fim || "");
-    setFormMeta(c.meta_principal || "");
-    setFormStatus(c.status);
+    setFormTitulo(c.titulo); setFormDescricao(c.descricao || "");
+    setFormDataInicio(c.data_inicio); setFormDataFim(c.data_fim || "");
+    setFormMeta(c.meta_principal || ""); setFormStatus(c.status);
     setShowCampanhaDialog(true);
   };
 
@@ -190,25 +195,22 @@ const Campanha = () => {
     loadData();
   };
 
+  // ─── Task CRUD ───
   const openNewTarefa = () => {
     setEditingTarefa(null);
-    setTarefaTitulo("");
-    setTarefaDescricao("");
-    setTarefaResponsavel("");
-    setTarefaPrazo("");
-    setTarefaPrioridade("media");
-    setTarefaStatus("pendente");
+    setTarefaTitulo(""); setTarefaDescricao("");
+    setTarefaResponsavel(""); setTarefaPrazo("");
+    setTarefaPrioridade("media"); setTarefaStatus("pendente");
+    setTarefaChecklistText("");
     setShowTarefaDialog(true);
   };
 
   const openEditTarefa = (t: Tarefa) => {
     setEditingTarefa(t);
-    setTarefaTitulo(t.titulo);
-    setTarefaDescricao(t.descricao || "");
+    setTarefaTitulo(t.titulo); setTarefaDescricao(t.descricao || "");
     setTarefaResponsavel(t.responsavel_id || "");
-    setTarefaPrazo(t.prazo || "");
-    setTarefaPrioridade(t.prioridade);
-    setTarefaStatus(t.status);
+    setTarefaPrazo(t.prazo || ""); setTarefaPrioridade(t.prioridade);
+    setTarefaStatus(t.status); setTarefaChecklistText("");
     setShowTarefaDialog(true);
   };
 
@@ -219,40 +221,74 @@ const Campanha = () => {
       client_id: clientId,
       titulo: tarefaTitulo.trim(),
       descricao: tarefaDescricao.trim() || null,
-      responsavel_id: tarefaResponsavel || null,
+      responsavel_id: tarefaResponsavel && tarefaResponsavel !== "none" ? tarefaResponsavel : null,
       prazo: tarefaPrazo || null,
       prioridade: tarefaPrioridade,
       status: tarefaStatus,
     };
 
+    let tarefaId: string | null = null;
+
     if (editingTarefa) {
       const { error } = await supabase.from("campanha_tarefas").update(payload).eq("id", editingTarefa.id);
       if (error) { toast.error("Erro ao atualizar tarefa"); return; }
+      tarefaId = editingTarefa.id;
       toast.success("Tarefa atualizada");
     } else {
-      const { error } = await supabase.from("campanha_tarefas").insert(payload);
+      const { data, error } = await supabase.from("campanha_tarefas").insert(payload).select("id").single();
       if (error) { toast.error("Erro ao criar tarefa"); return; }
+      tarefaId = data.id;
       toast.success("Tarefa criada");
     }
+
+    // Save checklist items (new ones from text, one per line)
+    if (tarefaChecklistText.trim() && tarefaId && clientId) {
+      const lines = tarefaChecklistText.split("\n").map(l => l.trim()).filter(Boolean);
+      const existingCount = checklistItems.filter(ci => ci.tarefa_id === tarefaId).length;
+      const newItems = lines.map((titulo, i) => ({
+        tarefa_id: tarefaId!,
+        client_id: clientId!,
+        titulo,
+        display_order: existingCount + i,
+        concluido: false,
+      }));
+      if (newItems.length > 0) {
+        await supabase.from("campanha_tarefa_items").insert(newItems);
+      }
+    }
+
     setShowTarefaDialog(false);
     loadData();
   };
 
   const deleteTarefa = async (id: string) => {
-    const { error } = await supabase.from("campanha_tarefas").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir tarefa"); return; }
+    await supabase.from("campanha_tarefas").delete().eq("id", id);
     toast.success("Tarefa excluída");
     loadData();
   };
 
-  const toggleTarefaStatus = async (t: Tarefa) => {
-    const next = t.status === "concluida" ? "pendente" : "concluida";
-    await supabase.from("campanha_tarefas").update({ status: next }).eq("id", t.id);
+  const updateTarefaStatus = async (tarefaId: string, newStatus: string) => {
+    await supabase.from("campanha_tarefas").update({ status: newStatus }).eq("id", tarefaId);
     loadData();
   };
 
+  const toggleChecklistItem = async (itemId: string, concluido: boolean) => {
+    await supabase.from("campanha_tarefa_items").update({ concluido }).eq("id", itemId);
+    loadData();
+  };
+
+  const deleteChecklistItem = async (itemId: string) => {
+    await supabase.from("campanha_tarefa_items").delete().eq("id", itemId);
+    loadData();
+  };
+
+  // ─── Helpers ───
   const campanhasTarefas = selectedCampanha
     ? tarefas.filter(t => t.campanha_id === selectedCampanha.id)
+    : [];
+
+  const campanhaChecklist = selectedCampanha
+    ? checklistItems.filter(ci => campanhasTarefas.some(t => t.id === ci.tarefa_id))
     : [];
 
   const getProgress = (campanhaId: string) => {
@@ -262,6 +298,8 @@ const Campanha = () => {
   };
 
   const getTaskCount = (campanhaId: string) => tarefas.filter(t => t.campanha_id === campanhaId).length;
+  const getOverdueCount = (campanhaId: string) =>
+    tarefas.filter(t => t.campanha_id === campanhaId && t.prazo && isPast(new Date(t.prazo + "T23:59:59")) && t.status !== "concluida").length;
 
   const getMemberName = (id: string | null) => {
     if (!id) return "Sem responsável";
@@ -278,7 +316,8 @@ const Campanha = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Target className="w-6 h-6 text-primary" />
@@ -293,8 +332,8 @@ const Campanha = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Campanhas List */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Campanhas Sidebar */}
         <div className="lg:col-span-1 space-y-3">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
             Campanhas ({campanhas.length})
@@ -315,6 +354,7 @@ const Campanha = () => {
               const Icon = sc.icon;
               const progress = getProgress(c.id);
               const isSelected = selectedCampanha?.id === c.id;
+              const overdue = getOverdueCount(c.id);
               return (
                 <Card
                   key={c.id}
@@ -344,6 +384,11 @@ const Campanha = () => {
                       </span>
                       <span>{getTaskCount(c.id)} tarefas</span>
                     </div>
+                    {overdue > 0 && (
+                      <p className="text-[11px] text-destructive font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> {overdue} atrasada(s)
+                      </p>
+                    )}
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] text-muted-foreground">
                         <span>Progresso</span>
@@ -359,7 +404,7 @@ const Campanha = () => {
         </div>
 
         {/* Detail Panel */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           {!selectedCampanha ? (
             <Card className="border-dashed h-full flex items-center justify-center min-h-[400px]">
               <CardContent className="text-center text-muted-foreground">
@@ -390,7 +435,13 @@ const Campanha = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  {selectedCampanha.meta_principal && (
+                    <div className="p-3 border border-primary/20 bg-primary/5 rounded-lg flex items-center gap-2 mb-3">
+                      <Flag className="w-4 h-4 text-primary shrink-0" />
+                      <span className="text-sm font-medium text-foreground">{selectedCampanha.meta_principal}</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-3 gap-3 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3">
                       <p className="text-[10px] text-muted-foreground uppercase font-medium">Status</p>
                       <p className="font-semibold text-foreground mt-0.5">
@@ -406,52 +457,74 @@ const Campanha = () => {
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Tarefas</p>
-                      <p className="font-semibold text-foreground mt-0.5">
-                        {campanhasTarefas.filter(t => t.status === "concluida").length}/{campanhasTarefas.length}
-                      </p>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-3">
                       <p className="text-[10px] text-muted-foreground uppercase font-medium">Progresso</p>
                       <p className="font-semibold text-foreground mt-0.5">{getProgress(selectedCampanha.id)}%</p>
                     </div>
                   </div>
-                  {selectedCampanha.meta_principal && (
-                    <div className="mt-3 p-3 border border-primary/20 bg-primary/5 rounded-lg flex items-center gap-2">
-                      <Flag className="w-4 h-4 text-primary shrink-0" />
-                      <span className="text-sm font-medium text-foreground">{selectedCampanha.meta_principal}</span>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
-              {/* Tasks */}
+              {/* Metrics */}
+              {campanhasTarefas.length > 0 && (
+                <CampaignMetrics tarefas={campanhasTarefas} teamMembers={teamMembers} />
+              )}
+
+              {/* Tasks Header */}
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  Tarefas ({campanhasTarefas.length})
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Tarefas ({campanhasTarefas.length})
+                  </h3>
+                  <div className="flex border rounded-md overflow-hidden">
+                    <button
+                      onClick={() => setViewMode("kanban")}
+                      className={`p-1.5 ${viewMode === "kanban" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("list")}
+                      className={`p-1.5 ${viewMode === "list" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
                 <Button size="sm" onClick={openNewTarefa} className="gap-1">
                   <Plus className="w-3 h-3" /> Tarefa
                 </Button>
               </div>
 
+              {/* Views */}
               {campanhasTarefas.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="p-6 text-center text-muted-foreground text-sm">
                     Nenhuma tarefa adicionada a esta campanha
                   </CardContent>
                 </Card>
+              ) : viewMode === "kanban" ? (
+                <KanbanBoard
+                  tarefas={campanhasTarefas}
+                  checklistItems={campanhaChecklist}
+                  teamMembers={teamMembers}
+                  onStatusChange={updateTarefaStatus}
+                  onEdit={openEditTarefa}
+                  onDelete={deleteTarefa}
+                  onToggleChecklist={toggleChecklistItem}
+                />
               ) : (
+                /* List View */
                 <div className="space-y-2">
                   {campanhasTarefas.map(t => {
                     const prio = PRIORIDADE_CONFIG[t.prioridade] || PRIORIDADE_CONFIG.media;
-                    const ts = TAREFA_STATUS[t.status] || TAREFA_STATUS.pendente;
                     const isOverdue = t.prazo && isPast(new Date(t.prazo + "T23:59:59")) && t.status !== "concluida";
+                    const items = checklistItems.filter(ci => ci.tarefa_id === t.id);
+                    const doneItems = items.filter(ci => ci.concluido).length;
                     return (
-                      <Card key={t.id} className={`${isOverdue ? "border-destructive/40" : ""}`}>
+                      <Card key={t.id} className={isOverdue ? "border-destructive/40" : ""}>
                         <CardContent className="p-3 flex items-center gap-3">
                           <button
-                            onClick={() => toggleTarefaStatus(t)}
+                            onClick={() => updateTarefaStatus(t.id, t.status === "concluida" ? "pendente" : "concluida")}
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                               t.status === "concluida"
                                 ? "bg-emerald-500 border-emerald-500"
@@ -466,6 +539,7 @@ const Campanha = () => {
                             </p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Badge variant="outline" className={`text-[10px] ${prio.color}`}>{prio.label}</Badge>
+                              <Badge variant="outline" className="text-[10px]">{TAREFA_STATUS[t.status]?.label || t.status}</Badge>
                               {t.responsavel_id && (
                                 <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">
                                   <Users className="w-3 h-3" /> {getMemberName(t.responsavel_id)}
@@ -476,6 +550,11 @@ const Campanha = () => {
                                   <Calendar className="w-3 h-3" />
                                   {format(new Date(t.prazo + "T00:00:00"), "dd/MM")}
                                   {isOverdue && " (atrasada)"}
+                                </span>
+                              )}
+                              {items.length > 0 && (
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">
+                                  <CheckCircle2 className="w-3 h-3" /> {doneItems}/{items.length}
                                 </span>
                               )}
                             </div>
@@ -608,6 +687,47 @@ const Campanha = () => {
                 </div>
               )}
             </div>
+
+            {/* Checklist input */}
+            <div>
+              <label className="text-sm font-medium text-foreground flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Checklist {editingTarefa ? "(adicionar novos itens)" : ""}
+              </label>
+              <Textarea
+                value={tarefaChecklistText}
+                onChange={e => setTarefaChecklistText(e.target.value)}
+                placeholder="Um item por linha:&#10;Imprimir material&#10;Reservar local&#10;Confirmar equipe"
+                rows={3}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Um item por linha. Serão criados como sub-itens da tarefa.</p>
+            </div>
+
+            {/* Existing checklist items (edit mode) */}
+            {editingTarefa && checklistItems.filter(ci => ci.tarefa_id === editingTarefa.id).length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Itens existentes:</label>
+                <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                  {checklistItems
+                    .filter(ci => ci.tarefa_id === editingTarefa.id)
+                    .sort((a, b) => a.display_order - b.display_order)
+                    .map(ci => (
+                      <div key={ci.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={ci.concluido}
+                          onChange={() => toggleChecklistItem(ci.id, !ci.concluido)}
+                          className="rounded"
+                        />
+                        <span className={`flex-1 ${ci.concluido ? "line-through text-muted-foreground" : ""}`}>{ci.titulo}</span>
+                        <button onClick={() => deleteChecklistItem(ci.id)} className="text-destructive hover:text-destructive/80">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTarefaDialog(false)}>Cancelar</Button>
@@ -619,4 +739,4 @@ const Campanha = () => {
   );
 };
 
-export default Campanha;
+export default CampanhaPage;
