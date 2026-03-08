@@ -4,13 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Briefcase, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Target, Users,
-  Phone, MapPin, Plus, Trash2, Award, MessageCircle, Copy, Crown, Link,
+  Plus, Award, MessageCircle, Copy, Crown, AlertTriangle, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,6 +47,15 @@ interface ContratadoInfo {
   is_lider: boolean;
 }
 
+interface Liderado {
+  id: string;
+  nome: string;
+  telefone: string;
+  status: string;
+  checkedInToday: boolean;
+  lastCheckin: string | null;
+}
+
 export default function PortalContratado() {
   const { clientId } = useParams<{ clientId: string }>();
 
@@ -67,8 +76,8 @@ export default function PortalContratado() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [totalCheckins, setTotalCheckins] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [liderados, setLiderados] = useState<Liderado[]>([]);
 
-  // New indicado form
   const [showAddForm, setShowAddForm] = useState(false);
   const [indNome, setIndNome] = useState("");
   const [indTelefone, setIndTelefone] = useState("");
@@ -98,7 +107,6 @@ export default function PortalContratado() {
   const loadPortalData = async () => {
     if (!session || !clientId) return;
 
-    // Load contratado record
     const { data: cont } = await supabase
       .from("contratados")
       .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado, is_lider")
@@ -112,7 +120,6 @@ export default function PortalContratado() {
     }
     setContratado(cont as any);
 
-    // Load missions, indicados, checkins in parallel
     const [missRes, indRes] = await Promise.all([
       supabase.from("portal_missions").select("id, platform, post_url, title, description")
         .eq("client_id", clientId).eq("is_active", true).order("display_order"),
@@ -151,6 +158,49 @@ export default function PortalContratado() {
       }
       setStreak(s);
     }
+
+    // Load liderados if leader
+    if ((cont as any).is_lider) {
+      await loadLiderados((cont as any).id, today);
+    }
+  };
+
+  const loadLiderados = async (liderId: string, today: string) => {
+    const { data: subs } = await supabase
+      .from("contratados")
+      .select("id, nome, telefone, status")
+      .eq("lider_id", liderId)
+      .order("nome");
+
+    if (!subs || subs.length === 0) { setLiderados([]); return; }
+
+    // Get today's checkins for all liderados
+    const subIds = subs.map(s => s.id);
+    const { data: todayCheckins } = await supabase
+      .from("contratado_checkins")
+      .select("contratado_id, checkin_date")
+      .in("contratado_id", subIds)
+      .eq("checkin_date", today);
+
+    // Get last checkin for each
+    const { data: lastCheckins } = await supabase
+      .from("contratado_checkins")
+      .select("contratado_id, checkin_date")
+      .in("contratado_id", subIds)
+      .order("checkin_date", { ascending: false })
+      .limit(500);
+
+    const todaySet = new Set((todayCheckins || []).map(c => c.contratado_id));
+    const lastMap = new Map<string, string>();
+    (lastCheckins || []).forEach(c => {
+      if (!lastMap.has(c.contratado_id)) lastMap.set(c.contratado_id, c.checkin_date);
+    });
+
+    setLiderados(subs.map(s => ({
+      ...s,
+      checkedInToday: todaySet.has(s.id),
+      lastCheckin: lastMap.get(s.id) || null,
+    })));
   };
 
   const handleCheckin = async () => {
@@ -197,6 +247,17 @@ export default function PortalContratado() {
     setAddingIndicado(false);
   };
 
+  const handleSendWhatsApp = async () => {
+    if (!contratado || !whatsappOficial) return;
+    const phone = whatsappOficial.replace(/\D/g, "");
+    const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
+    const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
+    window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+    await supabase.from("contratados").update({ whatsapp_confirmado: true } as any).eq("id", contratado.id);
+    setContratado({ ...contratado, whatsapp_confirmado: true });
+    toast.success("WhatsApp confirmado!");
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
@@ -221,6 +282,9 @@ export default function PortalContratado() {
 
   const quotaProgress = contratado ? Math.round((indicados.length / Math.max(contratado.quota_indicados, 1)) * 100) : 0;
   const quotaComplete = contratado ? indicados.length >= contratado.quota_indicados : false;
+
+  // Access control: portal is only unlocked when WhatsApp confirmed AND contract signed
+  const portalUnlocked = contratado ? contratado.whatsapp_confirmado && contratado.contrato_aceito : false;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/5 to-background"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -271,6 +335,10 @@ export default function PortalContratado() {
   }
 
   // ─── PORTAL ──────────────────────────────────────────────────────────
+  const missingWhatsapp = !contratado.whatsapp_confirmado;
+  const missingContract = !contratado.contrato_aceito;
+  const lideradosSemPresenca = liderados.filter(l => !l.checkedInToday);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
       {/* Header */}
@@ -282,7 +350,7 @@ export default function PortalContratado() {
           <div>
             <p className="font-semibold text-sm">{contratado.nome}</p>
             <p className="text-xs text-muted-foreground">
-              {(contratado as any).is_lider ? "👑 Líder" : "Contratado"} — {clientName}
+              {contratado.is_lider ? "👑 Líder" : "Contratado"} — {clientName}
             </p>
           </div>
         </div>
@@ -290,17 +358,63 @@ export default function PortalContratado() {
       </div>
 
       <div className="p-4 space-y-4 max-w-lg mx-auto">
-        {/* Contract warning */}
-        {!contratado.contrato_aceito && (
-          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-            <CardContent className="py-4 text-center">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">⚠️ Contrato pendente</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Seu contrato ainda não foi assinado. Procure o administrador.</p>
+
+        {/* ── GATE: WhatsApp + Contract ────────────────────────── */}
+        {!portalUnlocked && (
+          <Card className="border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-amber-900 dark:text-amber-200">Acesso pendente</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Complete os passos abaixo para liberar o portal.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 1: WhatsApp */}
+              <div className={`flex items-start gap-3 p-3 rounded-lg border ${missingWhatsapp ? "border-amber-300 bg-background" : "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${missingWhatsapp ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"}`}>
+                  {missingWhatsapp ? "1" : <CheckCircle2 className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Enviar WhatsApp de confirmação</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Clique no botão abaixo para enviar a mensagem de confirmação via WhatsApp.
+                  </p>
+                  {missingWhatsapp && whatsappOficial && (
+                    <Button onClick={handleSendWhatsApp} size="sm" className="mt-2 gap-1.5">
+                      <MessageCircle className="w-4 h-4" />Enviar WhatsApp
+                    </Button>
+                  )}
+                  {!missingWhatsapp && (
+                    <p className="text-xs text-emerald-600 mt-1 font-medium">✅ WhatsApp confirmado</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 2: Contract */}
+              <div className={`flex items-start gap-3 p-3 rounded-lg border ${missingContract ? "border-amber-300 bg-background" : "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${missingContract ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"}`}>
+                  {missingContract ? "2" : <CheckCircle2 className="w-4 h-4" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Assinatura do contrato</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {missingContract
+                      ? "Aguardando o administrador confirmar a assinatura do seu contrato. Entre em contato com seu coordenador."
+                      : "✅ Contrato assinado"}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Check-in Card */}
+        {/* ── CHECK-IN (always visible) ────────────────────────── */}
         <Card className="overflow-hidden">
           <div className={`p-4 text-center ${checkedInToday ? "bg-emerald-50 dark:bg-emerald-950/20" : "bg-primary/5"}`}>
             <div className="flex items-center justify-center gap-3 mb-3">
@@ -314,184 +428,214 @@ export default function PortalContratado() {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">total</p>
               </div>
             </div>
-            <Button onClick={handleCheckin} disabled={checkedInToday || checkingIn} className="w-full gap-2" size="lg">
+            <Button onClick={handleCheckin} disabled={checkedInToday || checkingIn || !portalUnlocked} className="w-full gap-2" size="lg">
               {checkingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : checkedInToday ? <CheckCircle2 className="w-5 h-5" /> : <CalendarCheck className="w-5 h-5" />}
               {checkedInToday ? "Presença Marcada ✅" : "Marcar Presença"}
             </Button>
+            {!portalUnlocked && (
+              <p className="text-xs text-amber-600 mt-2">🔒 Complete os passos acima para habilitar</p>
+            )}
           </div>
         </Card>
 
-        {/* WhatsApp Confirmation - one time only */}
-        {!contratado.whatsapp_confirmado && whatsappOficial && (
-          <Card className="border-primary/50 bg-primary/5">
-            <CardContent className="p-4 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
-                <MessageCircle className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">📲 Confirme seu cadastro via WhatsApp</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Envie uma mensagem para confirmar que você foi cadastrado. Isso é obrigatório e só precisa ser feito uma vez.
-                </p>
-              </div>
-              <Button
-                className="w-full gap-2"
-                size="lg"
-                onClick={async () => {
-                  const phone = whatsappOficial.replace(/\D/g, "");
-                  const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
-                  const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
-                  window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
-                  // Mark as confirmed
-                  await supabase.from("contratados").update({ whatsapp_confirmado: true } as any).eq("id", contratado.id);
-                  setContratado({ ...contratado, whatsapp_confirmado: true });
-                  toast.success("WhatsApp confirmado!");
-                }}
-              >
-                <MessageCircle className="w-5 h-5" />Enviar WhatsApp de Confirmação
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {contratado.whatsapp_confirmado && (
-          <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-600">
-            <CheckCircle2 className="w-3.5 h-3.5" />WhatsApp confirmado
+        {/* WhatsApp confirmed badge */}
+        {contratado.whatsapp_confirmado && contratado.contrato_aceito && (
+          <div className="flex items-center justify-center gap-3 text-xs">
+            <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" />WhatsApp</span>
+            <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" />Contrato</span>
           </div>
         )}
 
-        {/* Líder exclusive link for liderados */}
-        {(contratado as any).is_lider && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-primary" />
-                <p className="text-sm font-semibold">Seu Link de Cadastro para Liderados</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Envie este link para os seus contratados se cadastrarem vinculados a você.
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-background rounded-lg border px-3 py-2 text-xs truncate font-mono">
-                  {`${window.location.origin}/contratado/${clientId}/${contratado.id}`}
+        {/* ── LEADER: Link + Liderados ─────────────────────────── */}
+        {contratado.is_lider && portalUnlocked && (
+          <>
+            {/* Exclusive link */}
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-primary" />
+                  <p className="text-sm font-semibold">Seu Link de Cadastro para Liderados</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 gap-1.5"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/contratado/${clientId}/${contratado.id}`);
-                    toast.success("Link copiado!");
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" />Copiar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <p className="text-xs text-muted-foreground">
+                  Envie este link para os seus contratados se cadastrarem vinculados a você.
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-background rounded-lg border px-3 py-2 text-xs truncate font-mono">
+                    {`${window.location.origin}/contratado/${clientId}/${contratado.id}`}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1.5"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/contratado/${clientId}/${contratado.id}`);
+                      toast.success("Link copiado!");
+                    }}
+                  >
+                    <Copy className="w-3.5 h-3.5" />Copiar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Liderados panel */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Meus Contratados</p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">{liderados.length} total</Badge>
+                </div>
+
+                {liderados.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Nenhum contratado cadastrado no seu link ainda.
+                  </p>
+                ) : (
+                  <>
+                    {/* Alert: who hasn't checked in */}
+                    {lideradosSemPresenca.length > 0 && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-destructive" />
+                          <p className="text-xs font-semibold text-destructive">
+                            {lideradosSemPresenca.length} sem presença hoje
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          {lideradosSemPresenca.map(l => (
+                            <div key={l.id} className="flex items-center justify-between text-xs">
+                              <span className="font-medium truncate">{l.nome}</span>
+                              <span className="text-muted-foreground shrink-0 ml-2">
+                                {l.lastCheckin ? `Último: ${new Date(l.lastCheckin).toLocaleDateString("pt-BR")}` : "Nunca"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Full list */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {liderados.map(l => (
+                        <div key={l.id} className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
+                          <div className="min-w-0">
+                            <p className="font-medium text-xs truncate">{l.nome}</p>
+                            <p className="text-[11px] text-muted-foreground">📞 {l.telefone}</p>
+                          </div>
+                          <Badge variant={l.checkedInToday ? "default" : "destructive"} className="text-[10px] shrink-0">
+                            {l.checkedInToday ? "✅ Presente" : "❌ Ausente"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </>
         )}
 
-        {/* Tabs */}
-        <Tabs defaultValue="missoes">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="missoes" className="gap-1.5"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
-            <TabsTrigger value="indicados" className="gap-1.5">
-              <Users className="w-3.5 h-3.5" />Indicados
-              <Badge variant={quotaComplete ? "default" : "secondary"} className="ml-1 text-[10px] px-1.5">
-                {indicados.length}/{contratado.quota_indicados}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
+        {/* ── TABS: Missions + Indicados (only if unlocked) ──── */}
+        {portalUnlocked && (
+          <Tabs defaultValue="missoes">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="missoes" className="gap-1.5"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
+              <TabsTrigger value="indicados" className="gap-1.5">
+                <Users className="w-3.5 h-3.5" />Indicados
+                <Badge variant={quotaComplete ? "default" : "secondary"} className="ml-1 text-[10px] px-1.5">
+                  {indicados.length}/{contratado.quota_indicados}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Missions Tab */}
-          <TabsContent value="missoes" className="space-y-3 mt-3">
-            <p className="text-xs text-muted-foreground">Interaja nas postagens abaixo. As missões são atualizadas diariamente.</p>
-            {missions.length === 0 ? (
-              <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma missão ativa no momento.</CardContent></Card>
-            ) : (
-              missions.map(m => (
-                <Card key={m.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      {getPlatformIcon(m.platform)}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{m.title || `Missão ${m.platform}`}</p>
-                        {m.description && <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>}
+            <TabsContent value="missoes" className="space-y-3 mt-3">
+              <p className="text-xs text-muted-foreground">Interaja nas postagens abaixo. As missões são atualizadas diariamente.</p>
+              {missions.length === 0 ? (
+                <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma missão ativa no momento.</CardContent></Card>
+              ) : (
+                missions.map(m => (
+                  <Card key={m.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        {getPlatformIcon(m.platform)}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{m.title || `Missão ${m.platform}`}</p>
+                          {m.description && <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>}
+                        </div>
+                        <Button asChild size="sm" className="shrink-0 gap-1">
+                          <a href={m.post_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-3.5 h-3.5" />Interagir
+                          </a>
+                        </Button>
                       </div>
-                      <Button asChild size="sm" className="shrink-0 gap-1">
-                        <a href={m.post_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-3.5 h-3.5" />Interagir
-                        </a>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="indicados" className="space-y-3 mt-3">
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Meta de indicações</p>
+                    <Badge variant={quotaComplete ? "default" : "outline"} className="gap-1">
+                      {quotaComplete ? <><Award className="w-3 h-3" />Completo!</> : `${indicados.length}/${contratado.quota_indicados}`}
+                    </Badge>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-3">
+                    <div className={`h-3 rounded-full transition-all ${quotaComplete ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${Math.min(quotaProgress, 100)}%` }} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {quotaComplete
+                      ? "🎉 Parabéns! Você atingiu sua meta de indicações!"
+                      : `Indique ${contratado.quota_indicados - indicados.length} pessoa(s) que dizem votar no candidato.`}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {!showAddForm ? (
+                <Button onClick={() => setShowAddForm(true)} className="w-full gap-2" variant="outline">
+                  <Plus className="w-4 h-4" />Indicar Pessoa
+                </Button>
+              ) : (
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-sm font-semibold">Nova indicação</p>
+                    <div className="space-y-2">
+                      <Input value={indNome} onChange={e => setIndNome(e.target.value)} placeholder="Nome completo *" />
+                      <Input value={indTelefone} onChange={e => setIndTelefone(e.target.value)} placeholder="Telefone *" />
+                      <Input value={indCidade} onChange={e => setIndCidade(e.target.value)} placeholder="Cidade" />
+                      <Input value={indBairro} onChange={e => setIndBairro(e.target.value)} placeholder="Bairro" />
+                      <Input value={indEndereco} onChange={e => setIndEndereco(e.target.value)} placeholder="Endereço" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setShowAddForm(false)} className="flex-1">Cancelar</Button>
+                      <Button onClick={handleAddIndicado} disabled={addingIndicado} className="flex-1 gap-1">
+                        {addingIndicado ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}Adicionar
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </TabsContent>
+              )}
 
-          {/* Indicados Tab */}
-          <TabsContent value="indicados" className="space-y-3 mt-3">
-            {/* Quota progress */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Meta de indicações</p>
-                  <Badge variant={quotaComplete ? "default" : "outline"} className="gap-1">
-                    {quotaComplete ? <><Award className="w-3 h-3" />Completo!</> : `${indicados.length}/${contratado.quota_indicados}`}
-                  </Badge>
-                </div>
-                <div className="w-full bg-muted rounded-full h-3">
-                  <div className={`h-3 rounded-full transition-all ${quotaComplete ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${Math.min(quotaProgress, 100)}%` }} />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {quotaComplete
-                    ? "🎉 Parabéns! Você atingiu sua meta de indicações!"
-                    : `Indique ${contratado.quota_indicados - indicados.length} pessoa(s) que dizem votar no candidato.`}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Add indicado */}
-            {!showAddForm ? (
-              <Button onClick={() => setShowAddForm(true)} className="w-full gap-2" variant="outline">
-                <Plus className="w-4 h-4" />Indicar Pessoa
-              </Button>
-            ) : (
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <p className="text-sm font-semibold">Nova indicação</p>
-                  <div className="space-y-2">
-                    <Input value={indNome} onChange={e => setIndNome(e.target.value)} placeholder="Nome completo *" />
-                    <Input value={indTelefone} onChange={e => setIndTelefone(e.target.value)} placeholder="Telefone *" />
-                    <Input value={indCidade} onChange={e => setIndCidade(e.target.value)} placeholder="Cidade" />
-                    <Input value={indBairro} onChange={e => setIndBairro(e.target.value)} placeholder="Bairro" />
-                    <Input value={indEndereco} onChange={e => setIndEndereco(e.target.value)} placeholder="Endereço" />
+              {indicados.map(ind => (
+                <div key={ind.id} className="flex items-center justify-between p-3 rounded-xl border bg-card">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{ind.nome}</p>
+                    <p className="text-xs text-muted-foreground">📞 {ind.telefone}{ind.cidade ? ` • 📍 ${ind.cidade}` : ""}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowAddForm(false)} className="flex-1">Cancelar</Button>
-                    <Button onClick={handleAddIndicado} disabled={addingIndicado} className="flex-1 gap-1">
-                      {addingIndicado ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}Adicionar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Indicados list */}
-            {indicados.map(ind => (
-              <div key={ind.id} className="flex items-center justify-between p-3 rounded-xl border bg-card">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{ind.nome}</p>
-                  <p className="text-xs text-muted-foreground">📞 {ind.telefone}{ind.cidade ? ` • 📍 ${ind.cidade}` : ""}</p>
                 </div>
-              </div>
-            ))}
-            {indicados.length === 0 && (
-              <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma indicação ainda. Comece indicando!</CardContent></Card>
-            )}
-          </TabsContent>
-        </Tabs>
+              ))}
+              {indicados.length === 0 && (
+                <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma indicação ainda. Comece indicando!</CardContent></Card>
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   );
