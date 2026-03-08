@@ -332,6 +332,7 @@ export default function Disparos() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
               <Label>Tipo de disparo</Label>
               <Select value={tipoDisparo} onValueChange={setTipoDisparo}>
                 <SelectTrigger>
