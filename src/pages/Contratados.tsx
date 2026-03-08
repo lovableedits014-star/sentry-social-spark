@@ -728,6 +728,18 @@ export default function Contratados() {
                             {inds.length >= c.quota_indicados && <Badge className="text-[10px] gap-1 bg-emerald-500"><Award className="w-3 h-3" />Meta</Badge>}
                             <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
                           </div>
+                          {/* Assign líder */}
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap"><Crown className="w-3 h-3 inline mr-1" />Atribuir líder:</Label>
+                            <Select value="" onValueChange={(v) => assignLider(c.id, v)}>
+                              <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Selecionar líder..." /></SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(liderMap).map(([id, nome]) => (
+                                  <SelectItem key={id} value={id}>{nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       );
                     })}
