@@ -190,7 +190,38 @@ export default function PessoaPerfil() {
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <InfoRow icon={User} label="Nome" value={pessoa.nome} />
               <InfoRow icon={Mail} label="Email" value={pessoa.email} />
-              <InfoRow icon={Phone} label="Telefone" value={pessoa.telefone} />
+              <div className="flex items-start gap-3 py-2">
+                <Phone className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">Telefone</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground">{pessoa.telefone || "—"}</p>
+                    {(() => {
+                      const waLink = getWhatsAppLink(pessoa.telefone);
+                      return waLink ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded text-emerald-600 hover:bg-emerald-500/10 transition-colors">
+                              <MessageCircle className="w-4 h-4" />
+                            </a>
+                          </TooltipTrigger>
+                          <TooltipContent>Conversar no WhatsApp</TooltipContent>
+                        </Tooltip>
+                      ) : pessoa.telefone ? null : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground/40 cursor-not-allowed">
+                              <MessageCircle className="w-4 h-4" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>Telefone não cadastrado</TooltipContent>
+                        </Tooltip>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
               <InfoRow icon={Calendar} label="Data de Nascimento" value={pessoa.data_nascimento ? format(new Date(pessoa.data_nascimento + "T00:00:00"), "dd/MM/yyyy") : null} />
             </CardContent>
           </Card>
