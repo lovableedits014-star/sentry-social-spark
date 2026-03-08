@@ -396,6 +396,105 @@ export type Database = {
           },
         ]
       }
+      contratado_checkins: {
+        Row: {
+          checkin_at: string
+          checkin_date: string
+          client_id: string
+          contratado_id: string
+          id: string
+        }
+        Insert: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id: string
+          contratado_id: string
+          id?: string
+        }
+        Update: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id?: string
+          contratado_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratado_checkins_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratado_checkins_contratado_id_fkey"
+            columns: ["contratado_id"]
+            isOneToOne: false
+            referencedRelation: "contratados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contratado_indicados: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          client_id: string
+          contratado_id: string
+          created_at: string
+          endereco: string | null
+          id: string
+          nome: string
+          status: string
+          telefone: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id: string
+          contratado_id: string
+          created_at?: string
+          endereco?: string | null
+          id?: string
+          nome: string
+          status?: string
+          telefone: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id?: string
+          contratado_id?: string
+          created_at?: string
+          endereco?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          telefone?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratado_indicados_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratado_indicados_contratado_id_fkey"
+            columns: ["contratado_id"]
+            isOneToOne: false
+            referencedRelation: "contratados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratado_missao_dispatches: {
         Row: {
           batch_pause_seconds: number
@@ -539,10 +638,12 @@ export type Database = {
           lider_id: string | null
           nome: string
           notas: string | null
+          quota_indicados: number
           redes_sociais: Json | null
           status: string
           telefone: string
           updated_at: string
+          user_id: string | null
           zona_eleitoral: string | null
         }
         Insert: {
@@ -558,10 +659,12 @@ export type Database = {
           lider_id?: string | null
           nome: string
           notas?: string | null
+          quota_indicados?: number
           redes_sociais?: Json | null
           status?: string
           telefone: string
           updated_at?: string
+          user_id?: string | null
           zona_eleitoral?: string | null
         }
         Update: {
@@ -577,10 +680,12 @@ export type Database = {
           lider_id?: string | null
           nome?: string
           notas?: string | null
+          quota_indicados?: number
           redes_sociais?: Json | null
           status?: string
           telefone?: string
           updated_at?: string
+          user_id?: string | null
           zona_eleitoral?: string | null
         }
         Relationships: [
