@@ -408,15 +408,16 @@ export default function PortalContratado() {
                     Clique no botão abaixo para enviar a mensagem de confirmação via WhatsApp.
                   </p>
                   {missingWhatsapp && (
-                    whatsappOficial ? (
+                    <>
                       <Button onClick={handleSendWhatsApp} size="sm" className="mt-2 gap-1.5">
                         <MessageCircle className="w-4 h-4" />Enviar WhatsApp
                       </Button>
-                    ) : (
-                      <p className="text-xs text-destructive mt-1 font-medium">
-                        ⚠️ Número de WhatsApp não configurado. Entre em contato com seu coordenador.
-                      </p>
-                    )
+                      {!whatsappOficial && (
+                        <p className="text-xs text-destructive mt-1 font-medium">
+                          ⚠️ Se aparecer erro, peça ao coordenador para revisar o WhatsApp Oficial nas configurações.
+                        </p>
+                      )}
+                    </>
                   )}
                   {!missingWhatsapp && (
                     <p className="text-xs text-emerald-600 mt-1 font-medium">✅ WhatsApp confirmado</p>
