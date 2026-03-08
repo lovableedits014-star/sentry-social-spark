@@ -29,6 +29,7 @@ import FunilLeads from "./pages/FunilLeads";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MapaInfluenciadores from "./pages/MapaInfluenciadores";
+import MissoesIA from "./pages/MissoesIA";
 
 const queryClient = new QueryClient();
 
