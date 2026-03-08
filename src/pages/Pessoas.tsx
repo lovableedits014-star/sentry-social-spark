@@ -346,6 +346,13 @@ export default function Pessoas() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {p.whatsapp_confirmado ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
