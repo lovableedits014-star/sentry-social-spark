@@ -631,6 +631,9 @@ export default function Contratados() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Contract Templates Manager */}
+      {clientId && <ContractTemplatesManager clientId={clientId} />}
     </div>
   );
 }
