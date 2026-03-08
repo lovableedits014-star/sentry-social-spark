@@ -396,6 +396,44 @@ export type Database = {
           },
         ]
       }
+      contract_templates: {
+        Row: {
+          client_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_templates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratado_checkins: {
         Row: {
           checkin_at: string
