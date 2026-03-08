@@ -1711,6 +1711,30 @@ export type Database = {
           },
         ]
       }
+      platform_config: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       portal_missions: {
         Row: {
           client_id: string
@@ -2599,6 +2623,165 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_dispatch_items: {
+        Row: {
+          created_at: string
+          dispatch_id: string
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          nome: string
+          status: string
+          telefone: string
+        }
+        Insert: {
+          created_at?: string
+          dispatch_id: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome: string
+          status?: string
+          telefone: string
+        }
+        Update: {
+          created_at?: string
+          dispatch_id?: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          telefone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_dispatch_items_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_dispatches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_dispatches: {
+        Row: {
+          batch_pause_seconds: number
+          batch_size: number
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          delay_max_seconds: number
+          delay_min_seconds: number
+          enviados: number
+          error_message: string | null
+          falhas: number
+          id: string
+          mensagem_template: string
+          started_at: string | null
+          status: string
+          tag_filtro: string | null
+          tipo: string
+          titulo: string
+          total_destinatarios: number
+          updated_at: string
+        }
+        Insert: {
+          batch_pause_seconds?: number
+          batch_size?: number
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          delay_max_seconds?: number
+          delay_min_seconds?: number
+          enviados?: number
+          error_message?: string | null
+          falhas?: number
+          id?: string
+          mensagem_template: string
+          started_at?: string | null
+          status?: string
+          tag_filtro?: string | null
+          tipo?: string
+          titulo: string
+          total_destinatarios?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_pause_seconds?: number
+          batch_size?: number
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          delay_max_seconds?: number
+          delay_min_seconds?: number
+          enviados?: number
+          error_message?: string | null
+          falhas?: number
+          id?: string
+          mensagem_template?: string
+          started_at?: string | null
+          status?: string
+          tag_filtro?: string | null
+          tipo?: string
+          titulo?: string
+          total_destinatarios?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_dispatches_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_instances: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          instance_name: string
+          instance_token: string | null
+          phone_number: string | null
+          qr_code: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          instance_name: string
+          instance_token?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          instance_token?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
