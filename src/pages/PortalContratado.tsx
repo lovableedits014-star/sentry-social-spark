@@ -252,8 +252,26 @@ export default function PortalContratado() {
   };
 
   const handleSendWhatsApp = async () => {
-    if (!contratado || !whatsappOficial) return;
-    const phone = whatsappOficial.replace(/\D/g, "");
+    if (!contratado || !clientId) return;
+
+    let numero = whatsappOficial;
+    if (!numero) {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("whatsapp_oficial")
+        .eq("id", clientId)
+        .maybeSingle();
+
+      numero = clientData?.whatsapp_oficial || "";
+      if (numero) setWhatsappOficial(numero);
+    }
+
+    if (!numero) {
+      toast.error("Número de WhatsApp oficial não configurado.");
+      return;
+    }
+
+    const phone = numero.replace(/\D/g, "");
     const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
     const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
     window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
@@ -390,15 +408,16 @@ export default function PortalContratado() {
                     Clique no botão abaixo para enviar a mensagem de confirmação via WhatsApp.
                   </p>
                   {missingWhatsapp && (
-                    whatsappOficial ? (
+                    <>
                       <Button onClick={handleSendWhatsApp} size="sm" className="mt-2 gap-1.5">
                         <MessageCircle className="w-4 h-4" />Enviar WhatsApp
                       </Button>
-                    ) : (
-                      <p className="text-xs text-destructive mt-1 font-medium">
-                        ⚠️ Número de WhatsApp não configurado. Entre em contato com seu coordenador.
-                      </p>
-                    )
+                      {!whatsappOficial && (
+                        <p className="text-xs text-destructive mt-1 font-medium">
+                          ⚠️ Se aparecer erro, peça ao coordenador para revisar o WhatsApp Oficial nas configurações.
+                        </p>
+                      )}
+                    </>
                   )}
                   {!missingWhatsapp && (
                     <p className="text-xs text-emerald-600 mt-1 font-medium">✅ WhatsApp confirmado</p>
