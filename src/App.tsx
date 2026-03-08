@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Comments from "./pages/Comments";
-import Supporters from "./pages/Supporters";
+
 import Engagement from "./pages/Engagement";
 import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
