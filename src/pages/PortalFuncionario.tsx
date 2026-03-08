@@ -67,6 +67,16 @@ export default function PortalFuncionario() {
   const [indTelefone, setIndTelefone] = useState("");
   const [addingIndicado, setAddingIndicado] = useState(false);
 
+  // Ações Externas state
+  const [acoes, setAcoes] = useState<any[]>([]);
+  const [acaoAssignments, setAcaoAssignments] = useState<any[]>([]);
+  const [collectingAcaoId, setCollectingAcaoId] = useState<string | null>(null);
+  const [acaoCadNome, setAcaoCadNome] = useState("");
+  const [acaoCadTelefone, setAcaoCadTelefone] = useState("");
+  const [acaoCadCidade, setAcaoCadCidade] = useState("");
+  const [acaoCadBairro, setAcaoCadBairro] = useState("");
+  const [submittingCadastro, setSubmittingCadastro] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       supabase.from("clients").select("name, logo_url").eq("id", clientId).maybeSingle()
