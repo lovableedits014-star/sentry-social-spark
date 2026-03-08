@@ -228,6 +228,7 @@ export default function RegistroContratado() {
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
     if (!zonaEleitoral.trim()) { setError("Informe sua zona eleitoral."); return; }
+    if (!secaoEleitoral.trim()) { setError("Informe sua seção eleitoral."); return; }
 
     setLoading(true);
     setError("");
