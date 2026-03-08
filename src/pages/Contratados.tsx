@@ -548,6 +548,9 @@ export default function Contratados() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <ContractPrintDialog contratado={c} clientName={clientName} liderName={c.lider_id ? liderMap[c.lider_id] : undefined} />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => deleteContratado(c.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                       <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
                     </div>
                   </div>
