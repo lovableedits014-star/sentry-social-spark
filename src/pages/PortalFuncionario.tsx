@@ -403,11 +403,14 @@ export default function PortalFuncionario() {
 
         {/* ── TABS ────────────────────────── */}
         <Tabs defaultValue="missoes">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="missoes" className="gap-1.5"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
-            <TabsTrigger value="indicados" className="gap-1.5">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="missoes" className="gap-1.5 text-xs"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
+            <TabsTrigger value="indicados" className="gap-1.5 text-xs">
               <Users className="w-3.5 h-3.5" />Indicados
-              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{referrals.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="acoes" className="gap-1.5 text-xs">
+              <ClipboardList className="w-3.5 h-3.5" />Ações
+              {acoes.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{acoes.length}</Badge>}
             </TabsTrigger>
           </TabsList>
 
