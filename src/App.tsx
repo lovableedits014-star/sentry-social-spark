@@ -21,6 +21,7 @@ import ResetPassword from "./pages/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
 import Checkins from "./pages/Checkins";
 import Territorial from "./pages/Territorial";
+import Pessoas from "./pages/Pessoas";
 
 const queryClient = new QueryClient();
 
