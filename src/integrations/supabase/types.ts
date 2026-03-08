@@ -476,45 +476,60 @@ export type Database = {
       contratado_indicados: {
         Row: {
           bairro: string | null
+          candidato_alternativo: string | null
           cidade: string | null
           client_id: string
           contratado_id: string
           created_at: string
           endereco: string | null
           id: string
+          ligacao_em: string | null
+          ligacao_status: string | null
           nome: string
+          operador_nome: string | null
           status: string
           telefone: string
           verified_at: string | null
           verified_by: string | null
+          vota_candidato: string | null
         }
         Insert: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           client_id: string
           contratado_id: string
           created_at?: string
           endereco?: string | null
           id?: string
+          ligacao_em?: string | null
+          ligacao_status?: string | null
           nome: string
+          operador_nome?: string | null
           status?: string
           telefone: string
           verified_at?: string | null
           verified_by?: string | null
+          vota_candidato?: string | null
         }
         Update: {
           bairro?: string | null
+          candidato_alternativo?: string | null
           cidade?: string | null
           client_id?: string
           contratado_id?: string
           created_at?: string
           endereco?: string | null
           id?: string
+          ligacao_em?: string | null
+          ligacao_status?: string | null
           nome?: string
+          operador_nome?: string | null
           status?: string
           telefone?: string
           verified_at?: string | null
           verified_by?: string | null
+          vota_candidato?: string | null
         }
         Relationships: [
           {
