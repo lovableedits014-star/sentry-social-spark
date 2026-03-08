@@ -503,13 +503,193 @@ export default function Contratados() {
         </Card>
       )}
 
-      {/* Tabs: Contratados / Indicados */}
-      <Tabs defaultValue="contratados">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="contratados" className="gap-1.5"><Briefcase className="w-3.5 h-3.5" />Contratados</TabsTrigger>
+      {/* Tabs: Por Líder / Todos / Indicados */}
+      <Tabs defaultValue="lideres">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="lideres" className="gap-1.5"><Crown className="w-3.5 h-3.5" />Por Líder</TabsTrigger>
+          <TabsTrigger value="contratados" className="gap-1.5"><Briefcase className="w-3.5 h-3.5" />Todos</TabsTrigger>
           <TabsTrigger value="indicados" className="gap-1.5"><Users className="w-3.5 h-3.5" />Indicados ({totalIndicados})</TabsTrigger>
         </TabsList>
 
+        {/* ─── POR LÍDER TAB ──────────────────────────────────── */}
+        <TabsContent value="lideres" className="space-y-4 mt-4">
+          {leaders.length === 0 && withoutLeader.length === 0 && (
+            <Card><CardContent className="py-10 text-center text-muted-foreground"><Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" /><p>Nenhum contratado.</p></CardContent></Card>
+          )}
+
+          {leaders.map(liderId => {
+            const liderNome = liderMap[liderId] || "Líder desconhecido";
+            const membros = contratados.filter(c => c.lider_id === liderId);
+            const membrosAtivos = membros.filter(c => c.status === "ativo").length;
+            const contratos = membros.filter(c => c.contrato_aceito).length;
+            const totalInds = membros.reduce((sum, c) => sum + indicadosByContratado(c.id).length, 0);
+            const totalQuota = membros.reduce((sum, c) => sum + c.quota_indicados, 0);
+            const indProgress = totalQuota > 0 ? Math.min(100, Math.round((totalInds / totalQuota) * 100)) : 0;
+            const today = new Date().toISOString().split("T")[0];
+            const checkedToday = membros.filter(c => checkinStats[c.id]?.last === today).length;
+            const liderRegUrl = `${window.location.origin}/contratado/${clientId}/${liderId}`;
+
+            return (
+              <Collapsible key={liderId} defaultOpen>
+                <Card className="overflow-hidden">
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <Crown className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm">{liderNome}</CardTitle>
+                            <CardDescription className="text-xs">{membros.length} contratados • {membrosAtivos} ativos</CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform data-[state=open]:rotate-90" />
+                        </div>
+                      </div>
+                      {/* Leader summary stats */}
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        <div className="text-center p-2 rounded-lg bg-muted/50">
+                          <p className="text-lg font-bold">{contratos}/{membros.length}</p>
+                          <p className="text-[10px] text-muted-foreground">Contratos</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-muted/50">
+                          <p className="text-lg font-bold">{totalInds}</p>
+                          <p className="text-[10px] text-muted-foreground">Indicados</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-muted/50">
+                          <p className="text-lg font-bold">{checkedToday}/{membros.length}</p>
+                          <p className="text-[10px] text-muted-foreground">Presença Hoje</p>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-muted/50">
+                          <p className="text-lg font-bold">{indProgress}%</p>
+                          <p className="text-[10px] text-muted-foreground">Meta Geral</p>
+                        </div>
+                      </div>
+                      <Progress value={indProgress} className="h-1.5 mt-2" />
+                    </CardHeader>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <CardContent className="pt-0 space-y-2">
+                      {/* Leader link copy */}
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-dashed">
+                        <p className="text-[10px] text-muted-foreground truncate flex-1">Link de cadastro: {liderRegUrl}</p>
+                        <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => { navigator.clipboard.writeText(liderRegUrl); toast.success("Link copiado!"); }}>
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+
+                      {membros.map(c => {
+                        const inds = indicadosByContratado(c.id);
+                        const stats = checkinStats[c.id];
+                        const cToday = stats?.last === today;
+
+                        return (
+                          <div key={c.id} className="p-3 rounded-lg border bg-background space-y-2">
+                            <div className="flex items-start justify-between">
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{c.nome}</p>
+                                <p className="text-xs text-muted-foreground">📞 {c.telefone}{c.cidade ? ` • 📍 ${c.cidade}` : ""}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <ContractPrintDialog contratado={c} clientName={clientName} liderName={liderNome} clientId={clientId!} />
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => deleteContratado(c.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {c.contrato_aceito
+                                ? <Badge variant="outline" className="text-[10px] gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />Contrato</Badge>
+                                : <Badge variant="outline" className="text-[10px] gap-1 text-amber-600 border-amber-300"><AlertCircle className="w-3 h-3" />Sem contrato</Badge>
+                              }
+                              <Badge variant="outline" className="text-[10px] gap-1">
+                                <CalendarCheck className="w-3 h-3" />{stats?.total || 0} presenças{cToday && <span className="text-emerald-500"> • hoje ✓</span>}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] gap-1">
+                                <Users className="w-3 h-3" />{inds.length}/{c.quota_indicados}
+                              </Badge>
+                              {inds.length >= c.quota_indicados && <Badge className="text-[10px] gap-1 bg-emerald-500"><Award className="w-3 h-3" />Meta</Badge>}
+                              <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            );
+          })}
+
+          {/* Without leader */}
+          {withoutLeader.length > 0 && (
+            <Collapsible defaultOpen>
+              <Card className="overflow-hidden">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <Briefcase className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-sm">Sem Líder</CardTitle>
+                          <CardDescription className="text-xs">{withoutLeader.length} contratados sem líder vinculado</CardDescription>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0 space-y-2">
+                    {withoutLeader.map(c => {
+                      const inds = indicadosByContratado(c.id);
+                      const stats = checkinStats[c.id];
+                      const today2 = new Date().toISOString().split("T")[0];
+                      const cToday = stats?.last === today2;
+                      return (
+                        <div key={c.id} className="p-3 rounded-lg border bg-background space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{c.nome}</p>
+                              <p className="text-xs text-muted-foreground">📞 {c.telefone}{c.cidade ? ` • 📍 ${c.cidade}` : ""}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <ContractPrintDialog contratado={c} clientName={clientName} clientId={clientId!} />
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => deleteContratado(c.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.contrato_aceito
+                              ? <Badge variant="outline" className="text-[10px] gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />Contrato</Badge>
+                              : <Badge variant="outline" className="text-[10px] gap-1 text-amber-600 border-amber-300"><AlertCircle className="w-3 h-3" />Sem contrato</Badge>
+                            }
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <CalendarCheck className="w-3 h-3" />{stats?.total || 0} presenças{cToday && <span className="text-emerald-500"> • hoje ✓</span>}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <Users className="w-3 h-3" />{inds.length}/{c.quota_indicados}
+                            </Badge>
+                            {inds.length >= c.quota_indicados && <Badge className="text-[10px] gap-1 bg-emerald-500"><Award className="w-3 h-3" />Meta</Badge>}
+                            <Badge variant={c.status === "ativo" ? "default" : "secondary"} className="text-[10px]">{c.status}</Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          )}
+        </TabsContent>
+
+        {/* ─── TODOS TAB (flat list) ──────────────────────────── */}
         <TabsContent value="contratados" className="space-y-4 mt-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -552,7 +732,6 @@ export default function Contratados() {
                     </div>
                   </div>
 
-                  {/* Stats row */}
                   <div className="flex flex-wrap gap-2">
                     {c.contrato_aceito ? (
                       <Badge variant="outline" className="text-[10px] gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />Contrato</Badge>
@@ -571,7 +750,6 @@ export default function Contratados() {
                     )}
                   </div>
 
-                  {/* Quota edit */}
                   <div className="flex items-center gap-2">
                     <Label className="text-xs whitespace-nowrap">Meta:</Label>
                     <Input
@@ -595,6 +773,7 @@ export default function Contratados() {
           )}
         </TabsContent>
 
+        {/* ─── INDICADOS TAB ──────────────────────────────────── */}
         <TabsContent value="indicados" className="space-y-3 mt-4">
           <p className="text-xs text-muted-foreground">Indicados pelos contratados para verificação por telemarketing. Altere o status para confirmar ou marcar como falso.</p>
           {indicados.length === 0 ? (
