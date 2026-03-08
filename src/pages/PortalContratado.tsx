@@ -43,6 +43,7 @@ interface ContratadoInfo {
   quota_indicados: number;
   client_id: string;
   contrato_aceito: boolean;
+  whatsapp_confirmado: boolean;
 }
 
 export default function PortalContratado() {
