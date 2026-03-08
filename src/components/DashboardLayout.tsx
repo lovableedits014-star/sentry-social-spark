@@ -23,6 +23,7 @@ const MENU_SECTIONS: MenuSection[] = [
       { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
       { icon: Radar, label: "Radar de Temas", path: "/radar" },
       { icon: ShieldAlert, label: "Detector de Crise", path: "/crise" },
+      { icon: Users, label: "Influenciadores", path: "/influenciadores" },
     ],
   },
   {
