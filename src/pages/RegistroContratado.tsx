@@ -291,19 +291,6 @@ export default function RegistroContratado() {
     );
   }
 
-  if (!clientName) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/5 to-background p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="py-10">
-            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <p className="text-lg font-medium">Link inválido</p>
-            <p className="text-sm text-muted-foreground mt-2">Este link de cadastro não é válido.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (success) {
     const whatsappLink = whatsappOficial
