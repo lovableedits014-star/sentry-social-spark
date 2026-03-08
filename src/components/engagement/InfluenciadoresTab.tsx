@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Users, RefreshCw, MessageSquare, TrendingUp, Award,
-  Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus,
+  Users, RefreshCw, Award, Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus,
 } from "lucide-react";
 
 type Influencer = {
@@ -35,40 +34,34 @@ function computeScore(inf: Influencer): number {
     inf.repliesReceived * 5 +
     inf.uniquePosts * 2 +
     inf.positiveCount * 1 +
-    inf.negativeCount * 2 // negative engagement is also influence
+    inf.negativeCount * 2
   );
 }
 
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
 
-export default function MapaInfluenciadores() {
+const SentimentBar = ({ pos, neg, neu }: { pos: number; neg: number; neu: number }) => {
+  const total = pos + neg + neu;
+  if (total === 0) return null;
+  return (
+    <div className="flex h-1.5 rounded-full overflow-hidden bg-muted w-full min-w-[60px]">
+      {pos > 0 && <div className="bg-emerald-500 h-full" style={{ width: `${(pos / total) * 100}%` }} />}
+      {neu > 0 && <div className="bg-muted-foreground/30 h-full" style={{ width: `${(neu / total) * 100}%` }} />}
+      {neg > 0 && <div className="bg-destructive h-full" style={{ width: `${(neg / total) * 100}%` }} />}
+    </div>
+  );
+};
+
+export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [influencers, setInfluencers] = useState<Influencer[]>([]);
   const [days, setDays] = useState(30);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setLoading(false); return; }
-
-    // Resolve clientId
-    let clientId: string | null = null;
-    const { data: client } = await supabase
-      .from("clients").select("id").eq("user_id", session.user.id).maybeSingle();
-    if (client) {
-      clientId = client.id;
-    } else {
-      const { data: tm } = await supabase
-        .from("team_members").select("client_id")
-        .eq("user_id", session.user.id).eq("status", "active").maybeSingle();
-      if (tm) clientId = tm.client_id;
-    }
-    if (!clientId) { setLoading(false); return; }
-
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    // Fetch comments (paginated)
     let allComments: any[] = [];
     let from = 0;
     const pageSize = 1000;
@@ -88,7 +81,6 @@ export default function MapaInfluenciadores() {
       } else break;
     }
 
-    // Fetch page owner replies to count replies received per commenter
     let replies: any[] = [];
     from = 0;
     while (true) {
@@ -107,77 +99,50 @@ export default function MapaInfluenciadores() {
       } else break;
     }
 
-    // Build reply count by parent_comment_id
     const replyCountByParent = new Map<string, number>();
     for (const r of replies) {
       replyCountByParent.set(r.parent_comment_id, (replyCountByParent.get(r.parent_comment_id) || 0) + 1);
     }
 
-    // Build comment_id -> platform_user_id map for linking replies
-    const commentOwnerMap = new Map<string, string>();
-    for (const c of allComments) {
-      if (c.platform_user_id) {
-        commentOwnerMap.set(c.comment_id || "", c.platform_user_id);
-      }
-    }
-
-    // Aggregate by platform_user_id
     const map = new Map<string, Influencer>();
-
     for (const c of allComments) {
       if (!c.platform_user_id) continue;
       const key = `${c.platform || "facebook"}:${c.platform_user_id}`;
-
       let inf = map.get(key);
       if (!inf) {
         inf = {
-          platformUserId: c.platform_user_id,
-          authorName: c.author_name || c.platform_user_id,
-          authorPicture: c.author_profile_picture,
-          platform: c.platform || "facebook",
-          totalComments: 0,
-          positiveCount: 0,
-          negativeCount: 0,
-          neutralCount: 0,
-          repliesReceived: 0,
-          uniquePosts: 0,
-          firstSeen: c.comment_created_time || "",
-          lastSeen: c.comment_created_time || "",
-          score: 0,
+          platformUserId: c.platform_user_id, authorName: c.author_name || c.platform_user_id,
+          authorPicture: c.author_profile_picture, platform: c.platform || "facebook",
+          totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          repliesReceived: 0, uniquePosts: 0, firstSeen: c.comment_created_time || "",
+          lastSeen: c.comment_created_time || "", score: 0,
         };
         map.set(key, inf);
       }
-
       inf.totalComments++;
       if (c.sentiment === "positive") inf.positiveCount++;
       else if (c.sentiment === "negative") inf.negativeCount++;
       else inf.neutralCount++;
-
       const ts = c.comment_created_time || "";
       if (ts < inf.firstSeen || !inf.firstSeen) inf.firstSeen = ts;
       if (ts > inf.lastSeen) inf.lastSeen = ts;
     }
 
-    // Count unique posts and replies received
     for (const inf of map.values()) {
       const userComments = allComments.filter(
         (c) => c.platform_user_id === inf.platformUserId && (c.platform || "facebook") === inf.platform
       );
-      const posts = new Set(userComments.map((c) => c.post_id));
-      inf.uniquePosts = posts.size;
-
-      // Count replies from page owner to this user's comments
+      inf.uniquePosts = new Set(userComments.map((c) => c.post_id)).size;
       let repliesCount = 0;
       for (const c of userComments) {
         repliesCount += replyCountByParent.get(c.comment_id || "") || 0;
       }
       inf.repliesReceived = repliesCount;
-
       inf.score = computeScore(inf);
     }
 
     const sorted = Array.from(map.values())
-      .filter((i) => i.totalComments >= 2) // minimum threshold
+      .filter((i) => i.totalComments >= 2)
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
 
@@ -185,50 +150,22 @@ export default function MapaInfluenciadores() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [days]);
+  useEffect(() => { fetchData(); }, [clientId, days]);
 
   const topInfluencers = influencers.slice(0, 3);
   const restInfluencers = influencers.slice(3);
 
-  const SentimentBar = ({ pos, neg, neu }: { pos: number; neg: number; neu: number }) => {
-    const total = pos + neg + neu;
-    if (total === 0) return null;
-    return (
-      <div className="flex h-1.5 rounded-full overflow-hidden bg-muted w-full min-w-[60px]">
-        {pos > 0 && <div className="bg-emerald-500 h-full" style={{ width: `${(pos / total) * 100}%` }} />}
-        {neu > 0 && <div className="bg-muted-foreground/30 h-full" style={{ width: `${(neu / total) * 100}%` }} />}
-        {neg > 0 && <div className="bg-destructive h-full" style={{ width: `${(neg / total) * 100}%` }} />}
-      </div>
-    );
-  };
-
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Users className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Mapa de Influenciadores</h1>
-            <p className="text-sm text-muted-foreground">
-              Top comentaristas e formadores de opinião detectados
-            </p>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Top comentaristas e formadores de opinião detectados automaticamente
+        </p>
         <div className="flex items-center gap-2">
           <div className="flex bg-muted rounded-lg p-0.5">
             {[7, 30, 90].map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  days === d
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
+              <button key={d} onClick={() => setDays(d)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === d ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 {d}d
               </button>
             ))}
@@ -240,7 +177,6 @@ export default function MapaInfluenciadores() {
         </div>
       </div>
 
-      {/* Loading */}
       {loading && (
         <div className="grid gap-4 md:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -253,22 +189,16 @@ export default function MapaInfluenciadores() {
         </div>
       )}
 
-      {/* Empty */}
       {!loading && influencers.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <Users className="w-10 h-10 text-muted-foreground/50" />
-            <p className="text-muted-foreground">
-              Nenhum influenciador detectado nos últimos {days} dias.
-            </p>
-            <p className="text-xs text-muted-foreground/70">
-              Sincronize comentários para que o sistema identifique os principais comentaristas.
-            </p>
+            <p className="text-muted-foreground">Nenhum influenciador detectado nos últimos {days} dias.</p>
+            <p className="text-xs text-muted-foreground/70">Sincronize comentários para que o sistema identifique os principais comentaristas.</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Top 3 podium */}
       {!loading && topInfluencers.length > 0 && (
         <div className="grid gap-4 md:grid-cols-3">
           {topInfluencers.map((inf, idx) => {
@@ -281,11 +211,9 @@ export default function MapaInfluenciadores() {
                     <div className="relative">
                       <Avatar className="w-12 h-12">
                         <AvatarImage src={inf.authorPicture || undefined} />
-                        <AvatarFallback className="text-sm font-bold">
-                          {inf.authorName.charAt(0).toUpperCase()}
-                        </AvatarFallback>
+                        <AvatarFallback className="text-sm font-bold">{inf.authorName.charAt(0).toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-background border flex items-center justify-center`}>
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-background border flex items-center justify-center">
                         <RankIcon className={`w-3 h-3 ${rankColor}`} />
                       </div>
                     </div>
@@ -293,26 +221,13 @@ export default function MapaInfluenciadores() {
                       <p className="font-semibold truncate">{inf.authorName}</p>
                       <p className="text-xs text-muted-foreground capitalize">{inf.platform}</p>
                     </div>
-                    <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">
-                      #{idx + 1}
-                    </Badge>
+                    <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
-
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-lg font-bold">{inf.totalComments}</p>
-                      <p className="text-[10px] text-muted-foreground">comentários</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{inf.uniquePosts}</p>
-                      <p className="text-[10px] text-muted-foreground">posts</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{inf.repliesReceived}</p>
-                      <p className="text-[10px] text-muted-foreground">respostas</p>
-                    </div>
+                    <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">comentários</p></div>
+                    <div><p className="text-lg font-bold">{inf.uniquePosts}</p><p className="text-[10px] text-muted-foreground">posts</p></div>
+                    <div><p className="text-lg font-bold">{inf.repliesReceived}</p><p className="text-[10px] text-muted-foreground">respostas</p></div>
                   </div>
-
                   <div className="space-y-1">
                     <SentimentBar pos={inf.positiveCount} neg={inf.negativeCount} neu={inf.neutralCount} />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
@@ -321,7 +236,6 @@ export default function MapaInfluenciadores() {
                       <span className="flex items-center gap-0.5"><ThumbsDown className="w-2.5 h-2.5" /> {inf.negativeCount}</span>
                     </div>
                   </div>
-
                   <div className="flex items-center justify-between pt-1 border-t">
                     <span className="text-xs text-muted-foreground">Score de influência</span>
                     <span className="text-sm font-bold text-primary">{inf.score}</span>
@@ -333,13 +247,11 @@ export default function MapaInfluenciadores() {
         </div>
       )}
 
-      {/* Full ranking table */}
       {!loading && restInfluencers.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Award className="w-4 h-4 text-primary" />
-              Ranking completo
+              <Award className="w-4 h-4 text-primary" />Ranking completo
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -363,9 +275,7 @@ export default function MapaInfluenciadores() {
                       <div className="flex items-center gap-2">
                         <Avatar className="w-7 h-7">
                           <AvatarImage src={inf.authorPicture || undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {inf.authorName.charAt(0).toUpperCase()}
-                          </AvatarFallback>
+                          <AvatarFallback className="text-[10px]">{inf.authorName.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate max-w-[150px]">{inf.authorName}</p>

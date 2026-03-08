@@ -32,6 +32,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { MultiplierRanking } from "@/components/referral/MultiplierRanking";
+import InfluenciadoresTab from "@/components/engagement/InfluenciadoresTab";
 import { getSocialProfileUrl } from "@/lib/social-url";
 
 type EngagementConfig = {
@@ -427,6 +428,10 @@ export default function Engagement() {
                 {inactiveSupporters.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="influenciadores" className="text-xs sm:text-sm gap-1.5">
+            <Users className="h-4 w-4" />
+            Influenciadores
           </TabsTrigger>
           <TabsTrigger value="multiplicadores" className="text-xs sm:text-sm gap-1.5">
             <Users className="h-4 w-4" />
@@ -891,6 +896,11 @@ export default function Engagement() {
               <Button onClick={saveConfig}>Salvar Configuração</Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Influenciadores Tab */}
+        <TabsContent value="influenciadores">
+          {client?.id && <InfluenciadoresTab clientId={client.id} />}
         </TabsContent>
 
         {/* Multiplicadores Tab */}
