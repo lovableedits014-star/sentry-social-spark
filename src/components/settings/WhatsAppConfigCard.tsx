@@ -81,6 +81,19 @@ export default function WhatsAppConfigCard({ clientId }: WhatsAppConfigCardProps
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 space-y-1.5">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">⚠️ Importante — Mesmo número da instância UAZAPI</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Configure aqui o <strong>mesmo número</strong> cadastrado na instância WhatsApp (QR Code acima) para que todos os envios saiam de um único número, evitando banimentos e denúncias de spam.
+          </p>
+          <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+            🔴 <strong>Atenção:</strong> Mesmo seguindo boas práticas, disparos em massa pelo WhatsApp apresentam risco de banimento da conta. Recomendamos usar um número que possa ser substituído caso isso ocorra — <strong>nunca use seu número pessoal principal</strong>.
+          </p>
+        </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Número com DDI + DDD</label>
           <div className="flex gap-2">

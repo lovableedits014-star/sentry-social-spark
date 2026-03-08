@@ -173,9 +173,8 @@ const Settings = () => {
       {/* WhatsApp Instance (UAZAPI) */}
       {clientId && <WhatsAppInstanceCard clientId={clientId} />}
 
-      {/* WhatsApp + QR Code */}
+      {/* WhatsApp Oficial */}
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
-      {clientId && <QRCodeLinksCard clientId={clientId} />}
 
       {/* Telemarketing Module */}
       {clientId && <TelemarketingSettingsCard clientId={clientId} />}
