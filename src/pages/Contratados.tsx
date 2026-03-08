@@ -17,7 +17,7 @@ import {
   Briefcase, Search, Users, QrCode, Play, Pause, Square, Loader2,
   MessageCircle, Clock, CheckCircle2, AlertCircle, Send, Copy, ExternalLink,
   Shield, Printer, FileText, UserPlus, Target, Phone, MapPin, CalendarCheck,
-  ChevronRight, Award, TrendingUp, Trash2,
+  ChevronRight, Award, TrendingUp, Trash2, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 
