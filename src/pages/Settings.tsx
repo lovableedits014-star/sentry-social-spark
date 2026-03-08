@@ -16,7 +16,6 @@ const Settings = () => {
   const [userId, setUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [copiedPortal, setCopiedPortal] = useState(false);
-  const [copiedCadastro, setCopiedCadastro] = useState(false);
 
   useEffect(() => {
     const fetchClient = async () => {

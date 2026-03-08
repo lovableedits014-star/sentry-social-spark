@@ -7,8 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Comments from "./pages/Comments";
-
-import Engagement from "./pages/Engagement";
+;
 import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
 import DashboardLayout from "./components/DashboardLayout";
@@ -64,8 +63,7 @@ const App = () => (
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/comments" element={<Comments />} />
-            <Route path="/supporters" element={<Supporters />} />
-            <Route path="/engagement" element={<Engagement />} />
+            <Route path="/supporters" element={<Supportent={<Engagement />} />
             <Route path="/checkins" element={<Checkins />} />
             <Route path="/territorial" element={<Territorial />} />
             <Route path="/pessoas" element={<Pessoas />} />

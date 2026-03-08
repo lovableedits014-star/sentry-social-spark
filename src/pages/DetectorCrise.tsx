@@ -8,66 +8,7 @@ import {
   AlertTriangle, ShieldAlert, TrendingUp, TrendingDown,
   Minus, RefreshCw, CheckCircle2, Flame, Clock,
 } from "lucide-react";
-
-/* ── THEME DEFINITIONS (same as Radar) ── */
-const THEME_DEFINITIONS: Record<string, { label: string; keywords: string[] }> = {
-  seguranca: {
-    label: "Segurança Pública",
-    keywords: ["segurança", "seguranca", "polícia", "policia", "crime", "violência", "violencia", "assalto", "roubo", "bandido", "ladrão", "ladrao", "tiro", "assassinato", "homicídio", "homicidio", "arma", "droga", "tráfico", "trafico", "preso", "cadeia"],
-  },
-  saude: {
-    label: "Saúde",
-    keywords: ["saúde", "saude", "hospital", "médico", "medico", "posto", "atendimento", "upa", "sus", "remédio", "remedio", "vacina", "doença", "doenca", "enfermeiro", "consulta", "cirurgia"],
-  },
-  educacao: {
-    label: "Educação",
-    keywords: ["educação", "educacao", "escola", "professor", "aluno", "ensino", "faculdade", "universidade", "creche", "merenda", "aula", "estudante"],
-  },
-  transporte: {
-    label: "Transporte",
-    keywords: ["ônibus", "onibus", "transporte", "trânsito", "transito", "mobilidade", "metrô", "metro", "passagem", "tarifa", "engarrafamento"],
-  },
-  emprego: {
-    label: "Emprego e Economia",
-    keywords: ["emprego", "trabalho", "desemprego", "salário", "salario", "carteira", "clt", "demissão", "demissao", "renda", "economia", "inflação", "inflacao", "preço", "preco", "caro"],
-  },
-  moradia: {
-    label: "Moradia",
-    keywords: ["moradia", "casa", "aluguel", "imóvel", "imovel", "habitação", "habitacao", "minha casa", "sem teto", "favela", "comunidade"],
-  },
-  meio_ambiente: {
-    label: "Meio Ambiente",
-    keywords: ["meio ambiente", "desmatamento", "poluição", "poluicao", "lixo", "reciclagem", "água", "agua", "saneamento", "esgoto", "enchente", "alagamento", "queimada"],
-  },
-  corrupcao: {
-    label: "Corrupção e Política",
-    keywords: ["corrupção", "corrupcao", "corrupto", "roubar", "desvio", "propina", "licitação", "licitacao", "nepotismo", "improbidade", "cpi", "investigação", "investigacao"],
-  },
-};
-
-const STOPWORDS = new Set([
-  "de","para","com","que","por","uma","um","como","mais","mas","não","nao",
-  "muito","bem","isso","esse","essa","tem","ter","ser","está","esta","são",
-  "sao","foi","vai","ele","ela","nos","das","dos","nas","nos","seu","sua",
-  "meu","minha","aqui","ali","sim","já","ainda","também","tambem","todo",
-  "toda","quando","sobre","sem","até","ate","depois","antes","entre","cada",
-  "onde","porque","pois","então","entao","era","fazer","pode","tudo","ou",
-  "nem","lá","quem","isso","qual","voce","você","gente","dia","vez","coisa",
-]);
-
-function normalizeText(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^\wà-ú\s]/gi, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
-}
-
-function matchesTheme(text: string, words: string[], keywords: string[]): boolean {
-  return keywords.some((kw) =>
-    kw.includes(" ") ? text.toLowerCase().includes(kw) : words.includes(kw)
-  );
-}
+import { THEME_DEFINITIONS, STOPWORDS, normalizeText, matchesTheme } from "@/lib/theme-definitions";
 
 /* ── TYPES ── */
 type CrisisAlert = {
