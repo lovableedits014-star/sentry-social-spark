@@ -24,8 +24,7 @@ import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
 import Recrutamento from "./pages/Recrutamento";
-
-import RadarTemas from "./pages/RadarTemas";
+;
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
@@ -68,8 +67,7 @@ const App = () => (
             <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/pessoas/:id" element={<PessoaPerfil />} />
             <Route path="/recrutamento" element={<Recrutamento />} />
-            <Route path="/funil" element={<FunilLeads />} />
-            <Route path="/radar" element={<RadarTemas />} />
+            <Route path="/funil" element={<FunilLeads />RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
             
             <Route path="/multiplicadores" element={<Multiplicadores />} />
