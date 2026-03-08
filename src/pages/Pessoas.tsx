@@ -338,11 +338,11 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
+                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
+                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
                 </TableRow>
               ) : (
                 pessoas.map((p) => {
