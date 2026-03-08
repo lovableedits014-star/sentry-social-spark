@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, Settings, LogOut, Shield,
-  Link2, Users, TrendingUp, Crown, CalendarCheck, Menu, X, MapPin,
+  Link2, Users, TrendingUp, Crown, CalendarCheck, Menu, X, MapPin, BookUser,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,12 @@ const MENU_SECTIONS: MenuSection[] = [
     items: [
       { icon: CalendarCheck, label: "Presenças / Disparos", path: "/checkins" },
       { icon: MapPin, label: "Territorial", path: "/territorial" },
+    ],
+  },
+  {
+    label: "Base Política",
+    items: [
+      { icon: BookUser, label: "Pessoas", path: "/pessoas" },
     ],
   },
   {
