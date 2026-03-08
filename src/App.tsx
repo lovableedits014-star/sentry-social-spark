@@ -28,6 +28,7 @@ import Recrutamento from "./pages/Recrutamento";
 import FunilLeads from "./pages/FunilLeads";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
+import MapaInfluenciadores from "./pages/MapaInfluenciadores";
 
 const queryClient = new QueryClient();
 
