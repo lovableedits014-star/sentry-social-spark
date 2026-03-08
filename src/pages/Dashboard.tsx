@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
 import { IEDPanel } from "@/components/IEDPanel";
 import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
+import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
 
 interface DashboardComment {
   id: string;
