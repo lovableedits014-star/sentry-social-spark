@@ -37,6 +37,9 @@ export default function RegistroPessoa() {
   const [endereco, setEndereco] = useState("");
   const [tipoPessoa, setTipoPessoa] = useState("cidadao");
   const [notas, setNotas] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [tiktok, setTiktok] = useState("");
 
   useEffect(() => {
     if (!clientId) return;
