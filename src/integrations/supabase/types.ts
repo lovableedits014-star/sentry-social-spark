@@ -673,6 +673,7 @@ export type Database = {
           email: string | null
           endereco: string | null
           id: string
+          is_lider: boolean
           lider_id: string | null
           nome: string
           notas: string | null
@@ -696,6 +697,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          is_lider?: boolean
           lider_id?: string | null
           nome: string
           notas?: string | null
@@ -719,6 +721,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          is_lider?: boolean
           lider_id?: string | null
           nome?: string
           notas?: string | null
@@ -744,7 +747,7 @@ export type Database = {
             foreignKeyName: "contratados_lider_id_fkey"
             columns: ["lider_id"]
             isOneToOne: false
-            referencedRelation: "pessoas"
+            referencedRelation: "contratados"
             referencedColumns: ["id"]
           },
         ]
