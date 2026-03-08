@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.register-contratado]
 verify_jwt = false
+
+[functions.register-funcionario]
+verify_jwt = false
