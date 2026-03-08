@@ -33,6 +33,7 @@ import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
 import Campanha from "./pages/Campanha";
+import Alertas from "./pages/Alertas";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/multiplicadores" element={<Multiplicadores />} />
             <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/campanha" element={<Campanha />} />
+            <Route path="/alertas" element={<Alertas />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

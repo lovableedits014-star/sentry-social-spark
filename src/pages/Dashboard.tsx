@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
 import { IEDPanel } from "@/components/IEDPanel";
 import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
+import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
 
 interface DashboardComment {
   id: string;
@@ -474,6 +475,9 @@ const Dashboard = () => {
 
       {/* IED Panel */}
       {clientId && <IEDPanel clientId={clientId} />}
+
+      {/* Alertas Widget */}
+      {clientId && <AlertasWidget clientId={clientId} />}
 
       {/* Unified Overview */}
       {clientId && <DashboardOverview clientId={clientId} />}

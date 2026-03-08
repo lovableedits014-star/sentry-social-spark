@@ -52,6 +52,53 @@ export type Database = {
           },
         ]
       }
+      alertas: {
+        Row: {
+          client_id: string
+          created_at: string
+          dados: Json | null
+          descartado: boolean
+          descricao: string | null
+          id: string
+          lido: boolean
+          severidade: string
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          dados?: Json | null
+          descartado?: boolean
+          descricao?: string | null
+          id?: string
+          lido?: boolean
+          severidade?: string
+          tipo: string
+          titulo: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          dados?: Json | null
+          descartado?: boolean
+          descricao?: string | null
+          id?: string
+          lido?: boolean
+          severidade?: string
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanha_tarefa_items: {
         Row: {
           client_id: string
