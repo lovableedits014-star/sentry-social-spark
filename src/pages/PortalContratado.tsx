@@ -255,43 +255,23 @@ export default function PortalContratado() {
     if (!contratado) return;
 
     try {
-      let numero = whatsappOficial;
+      const { data, error } = await supabase.functions.invoke("resolve-whatsapp-link", {
+        body: { client_id: contratado.client_id },
+      });
 
-      if (!numero) {
-        const { data: clientData, error: clientError } = await supabase
-          .from("clients")
-          .select("whatsapp_oficial")
-          .eq("id", contratado.client_id)
-          .maybeSingle();
-
-        if (clientError) {
-          toast.error(`Erro ao carregar WhatsApp: ${clientError.message}`);
-          return;
-        }
-
-        numero = clientData?.whatsapp_oficial || "";
-        if (numero) setWhatsappOficial(numero);
+      if (error) {
+        toast.error(error.message || "Erro ao buscar WhatsApp oficial");
+        return;
       }
 
-      if (!numero) {
+      const waUrl = data?.wa_url as string | undefined;
+      if (!waUrl) {
         toast.error("WhatsApp Oficial não encontrado para esta conta.");
         return;
       }
 
-      const phone = numero.replace(/\D/g, "");
-      const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
       const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
-      window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
-
-      const { error: updateError } = await supabase
-        .from("contratados")
-        .update({ whatsapp_confirmado: true } as any)
-        .eq("id", contratado.id);
-
-      if (updateError) {
-        toast.error(`Erro ao confirmar WhatsApp: ${updateError.message}`);
-        return;
-      }
+      window.open(`${waUrl}?text=${encodeURIComponent(msg)}`, "_blank");
 
       setContratado({ ...contratado, whatsapp_confirmado: true });
       toast.success("WhatsApp confirmado!");
