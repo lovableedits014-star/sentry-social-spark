@@ -46,6 +46,21 @@ export default function Territorial() {
     enabled: !!client?.id,
   });
 
+  // Also load confirmed indicados from contratados for territorial data
+  const { data: confirmedIndicados } = useQuery({
+    queryKey: ["territorial-indicados", client?.id],
+    queryFn: async () => {
+      if (!client?.id) return [];
+      const { data } = await supabase
+        .from("contratado_indicados")
+        .select("id, nome, cidade, bairro, created_at")
+        .eq("client_id", client.id)
+        .eq("status", "confirmado");
+      return (data || []) as Array<{ id: string; nome: string; cidade: string | null; bairro: string | null; created_at: string }>;
+    },
+    enabled: !!client?.id,
+  });
+
   const { groups, totalWithLocation, totalWithout } = useMemo(() => {
     if (!supporters) return { groups: [], totalWithLocation: 0, totalWithout: 0 };
 
