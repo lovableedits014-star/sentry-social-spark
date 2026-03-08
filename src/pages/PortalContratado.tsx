@@ -451,9 +451,6 @@ export default function PortalContratado() {
                   <p className="font-medium text-sm truncate">{ind.nome}</p>
                   <p className="text-xs text-muted-foreground">📞 {ind.telefone}{ind.cidade ? ` • 📍 ${ind.cidade}` : ""}</p>
                 </div>
-                <Badge variant={ind.status === "confirmado" ? "default" : ind.status === "falso" ? "destructive" : "secondary"} className="text-[10px] shrink-0">
-                  {ind.status === "confirmado" ? "✅ Confirmado" : ind.status === "falso" ? "❌ Falso" : "⏳ Pendente"}
-                </Badge>
               </div>
             ))}
             {indicados.length === 0 && (
