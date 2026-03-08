@@ -26,6 +26,7 @@ import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
 import Recrutamento from "./pages/Recrutamento";
 import FunilLeads from "./pages/FunilLeads";
+import RadarTemas from "./pages/RadarTemas";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/pessoas/:id" element={<PessoaPerfil />} />
             <Route path="/recrutamento" element={<Recrutamento />} />
             <Route path="/funil" element={<FunilLeads />} />
+            <Route path="/radar" element={<RadarTemas />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
