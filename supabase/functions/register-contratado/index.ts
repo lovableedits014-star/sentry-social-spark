@@ -140,10 +140,13 @@ Deno.serve(async (req) => {
 
     // Add contratado role
     if (authUserId) {
-      await adminClient.from("user_roles").insert({
+      const { error: roleError } = await adminClient.from("user_roles").insert({
         user_id: authUserId,
         role: "contratado",
-      }).catch(() => {}); // role may already exist
+      });
+      if (roleError && roleError.code !== "23505") {
+        console.error("Error adding contratado role:", roleError);
+      }
     }
 
     return new Response(JSON.stringify({
