@@ -23,10 +23,11 @@ export default function MissoesIA() {
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
           <Sparkles className="w-5 h-5 text-primary" />
         </div>
-        <div>
+        <div className="space-y-1">
           <h1 className="text-2xl font-bold">Missões Inteligentes</h1>
-          <p className="text-sm text-muted-foreground">
-            Sugestões de missões geradas por IA baseadas nos temas em alta
+          <p className="text-sm text-muted-foreground max-w-2xl">
+            A IA analisa os temas em alta nos comentários das suas redes sociais e sugere missões de engajamento personalizadas. 
+            Você pode aprovar as sugestões e publicá-las como <strong>Missões Ativas</strong> para que seus apoiadores interajam com os posts estratégicos diretamente pelo portal.
           </p>
         </div>
       </div>
