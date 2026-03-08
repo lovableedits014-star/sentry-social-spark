@@ -101,7 +101,7 @@ export default function PortalContratado() {
     // Load contratado record
     const { data: cont } = await supabase
       .from("contratados")
-      .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado")
+      .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado, is_lider")
       .eq("client_id", clientId)
       .eq("user_id", session.user.id)
       .maybeSingle();
