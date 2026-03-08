@@ -347,8 +347,8 @@ export default function RegistroContratado() {
           <CardTitle className="text-xl">Cadastro de Contratado</CardTitle>
           <CardDescription>
             {liderName
-              ? `Indicado por ${liderName} — Base de ${clientName}`
-              : `Preencha seus dados para trabalhar com ${clientName}`}
+              ? `Indicado por ${liderName}${clientName ? ` — Base de ${clientName}` : ""}`
+              : `Preencha seus dados para concluir seu cadastro${clientName ? ` em ${clientName}` : ""}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
