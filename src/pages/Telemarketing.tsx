@@ -5,36 +5,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Phone, User, MapPin, CheckCircle2, XCircle, PhoneOff, Clock, ArrowRight, LogIn } from "lucide-react";
+import { Phone, User, MapPin, CheckCircle2, XCircle, PhoneOff, Clock, ArrowRight, LogIn, Users } from "lucide-react";
 import { toast } from "sonner";
 
-interface Indicado {
+interface ContatoTele {
   id: string;
   nome: string;
   telefone: string;
   cidade: string | null;
   bairro: string | null;
-  endereco: string | null;
   ligacao_status: string | null;
   vota_candidato: string | null;
   candidato_alternativo: string | null;
   operador_nome: string | null;
   ligacao_em: string | null;
-  contratado_id: string;
+  tipo: "lider" | "liderado" | "indicado";
+  tabela: "contratados" | "contratado_indicados";
 }
 
 export default function Telemarketing() {
   const { clientId } = useParams<{ clientId: string }>();
   const [operadorNome, setOperadorNome] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
-  const [indicados, setIndicados] = useState<Indicado[]>([]);
+  const [contatos, setContatos] = useState<ContatoTele[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [clientName, setClientName] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "lider" | "liderado" | "indicado">("todos");
 
-  // Form state for current call
+  // Form state
   const [ligacaoStatus, setLigacaoStatus] = useState("");
   const [votaCandidato, setVotaCandidato] = useState("");
   const [candidatoAlt, setCandidatoAlt] = useState("");
@@ -61,34 +61,71 @@ export default function Telemarketing() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("contratado_indicados")
-      .select("id, nome, telefone, cidade, bairro, endereco, ligacao_status, vota_candidato, candidato_alternativo, operador_nome, ligacao_em, contratado_id")
+
+    // Fetch contratados (líderes + liderados)
+    const { data: contratadosData } = await supabase
+      .from("contratados")
+      .select("id, nome, telefone, cidade, bairro, is_lider, ligacao_status, vota_candidato, candidato_alternativo, operador_nome, ligacao_em")
       .eq("client_id", clientId!)
       .order("created_at", { ascending: true });
 
-    if (error) {
-      toast.error("Erro ao carregar contatos");
-      setLoading(false);
-      return;
-    }
+    // Fetch indicados
+    const { data: indicadosData } = await supabase
+      .from("contratado_indicados")
+      .select("id, nome, telefone, cidade, bairro, ligacao_status, vota_candidato, candidato_alternativo, operador_nome, ligacao_em")
+      .eq("client_id", clientId!)
+      .order("created_at", { ascending: true });
 
-    setIndicados((data as Indicado[]) || []);
-    // Find first pending contact
-    const firstPending = (data || []).findIndex(
-      (i: any) => !i.ligacao_status || i.ligacao_status === "pendente"
+    const lista: ContatoTele[] = [
+      ...(contratadosData || []).map((c: any) => ({
+        id: c.id,
+        nome: c.nome,
+        telefone: c.telefone,
+        cidade: c.cidade,
+        bairro: c.bairro,
+        ligacao_status: c.ligacao_status,
+        vota_candidato: c.vota_candidato,
+        candidato_alternativo: c.candidato_alternativo,
+        operador_nome: c.operador_nome,
+        ligacao_em: c.ligacao_em,
+        tipo: c.is_lider ? "lider" as const : "liderado" as const,
+        tabela: "contratados" as const,
+      })),
+      ...(indicadosData || []).map((i: any) => ({
+        id: i.id,
+        nome: i.nome,
+        telefone: i.telefone,
+        cidade: i.cidade,
+        bairro: i.bairro,
+        ligacao_status: i.ligacao_status,
+        vota_candidato: i.vota_candidato,
+        candidato_alternativo: i.candidato_alternativo,
+        operador_nome: i.operador_nome,
+        ligacao_em: i.ligacao_em,
+        tipo: "indicado" as const,
+        tabela: "contratado_indicados" as const,
+      })),
+    ];
+
+    setContatos(lista);
+    const firstPending = lista.findIndex(
+      (i) => !i.ligacao_status || i.ligacao_status === "pendente"
     );
     setCurrentIndex(firstPending >= 0 ? firstPending : 0);
     setLoggedIn(true);
     setLoading(false);
   };
 
-  const current = indicados[currentIndex] as Indicado | undefined;
+  const filteredContatos = filtroTipo === "todos"
+    ? contatos
+    : contatos.filter((c) => c.tipo === filtroTipo);
 
-  const totalPendentes = indicados.filter(
+  const current = filteredContatos[currentIndex] as ContatoTele | undefined;
+
+  const totalPendentes = filteredContatos.filter(
     (i) => !i.ligacao_status || i.ligacao_status === "pendente"
   ).length;
-  const totalLigados = indicados.filter(
+  const totalLigados = filteredContatos.filter(
     (i) => i.ligacao_status && i.ligacao_status !== "pendente"
   ).length;
 
@@ -108,7 +145,7 @@ export default function Telemarketing() {
       setVotaCandidato("");
       setCandidatoAlt("");
     }
-  }, [currentIndex]);
+  }, [currentIndex, filtroTipo]);
 
   const handleSave = async () => {
     if (!ligacaoStatus) {
@@ -129,15 +166,14 @@ export default function Telemarketing() {
     if (ligacaoStatus === "atendeu") {
       updateData.vota_candidato = votaCandidato || null;
       updateData.candidato_alternativo = candidatoAlt.trim() || null;
-      if (votaCandidato === "sim") {
-        updateData.status = "confirmado";
-      } else if (votaCandidato === "nao") {
-        updateData.status = "rejeitado";
+      if (current.tabela === "contratado_indicados") {
+        if (votaCandidato === "sim") updateData.status = "confirmado";
+        else if (votaCandidato === "nao") updateData.status = "rejeitado";
       }
     }
 
     const { error } = await supabase
-      .from("contratado_indicados")
+      .from(current.tabela)
       .update(updateData)
       .eq("id", current.id);
 
@@ -148,7 +184,7 @@ export default function Telemarketing() {
     }
 
     // Update local state
-    setIndicados((prev) =>
+    setContatos((prev) =>
       prev.map((i) =>
         i.id === current.id ? { ...i, ...updateData } : i
       )
@@ -157,15 +193,14 @@ export default function Telemarketing() {
     toast.success("Ligação registrada!");
     setSaving(false);
 
-    // Move to next pending
-    const nextPending = indicados.findIndex(
+    // Move to next pending in filtered list
+    const nextPending = filteredContatos.findIndex(
       (i, idx) => idx > currentIndex && (!i.ligacao_status || i.ligacao_status === "pendente")
     );
     if (nextPending >= 0) {
       setCurrentIndex(nextPending);
     } else {
-      // Check from beginning
-      const fromStart = indicados.findIndex(
+      const fromStart = filteredContatos.findIndex(
         (i, idx) => idx !== currentIndex && (!i.ligacao_status || i.ligacao_status === "pendente")
       );
       if (fromStart >= 0) {
@@ -178,7 +213,7 @@ export default function Telemarketing() {
   };
 
   const skipToNext = () => {
-    const next = indicados.findIndex(
+    const next = filteredContatos.findIndex(
       (i, idx) => idx > currentIndex && (!i.ligacao_status || i.ligacao_status === "pendente")
     );
     if (next >= 0) {
@@ -187,6 +222,18 @@ export default function Telemarketing() {
     } else {
       toast.info("Não há mais contatos pendentes");
     }
+  };
+
+  const tipoLabel = (tipo: string) => {
+    if (tipo === "lider") return "Líder";
+    if (tipo === "liderado") return "Liderado";
+    return "Indicado";
+  };
+
+  const tipoBadgeVariant = (tipo: string): "default" | "secondary" | "outline" => {
+    if (tipo === "lider") return "default";
+    if (tipo === "liderado") return "secondary";
+    return "outline";
   };
 
   // Login screen
@@ -223,11 +270,10 @@ export default function Telemarketing() {
     );
   }
 
-  // Main telemarketing view
   return (
     <div className="min-h-screen bg-muted/30 p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold flex items-center gap-2">
             <Phone className="w-5 h-5 text-primary" />
@@ -249,37 +295,62 @@ export default function Telemarketing() {
         </div>
       </div>
 
+      {/* Type filter */}
+      <div className="flex gap-2 flex-wrap">
+        {(["todos", "lider", "liderado", "indicado"] as const).map((f) => (
+          <Button
+            key={f}
+            variant={filtroTipo === f ? "default" : "outline"}
+            size="sm"
+            className="text-xs"
+            onClick={() => { setFiltroTipo(f); setCurrentIndex(0); resetForm(); }}
+          >
+            {f === "todos" ? (
+              <><Users className="w-3.5 h-3.5 mr-1" />Todos ({contatos.length})</>
+            ) : (
+              <>{tipoLabel(f)} ({contatos.filter(c => c.tipo === f).length})</>
+            )}
+          </Button>
+        ))}
+      </div>
+
       {/* Current contact */}
       {current ? (
         <>
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <User className="w-4 h-4 text-primary" />
                   {current.nome}
                 </CardTitle>
-                <Badge
-                  variant={
-                    current.ligacao_status === "atendeu"
-                      ? "default"
+                <div className="flex gap-1.5 shrink-0">
+                  <Badge variant={tipoBadgeVariant(current.tipo)} className="text-[10px]">
+                    {tipoLabel(current.tipo)}
+                  </Badge>
+                  <Badge
+                    variant={
+                      current.ligacao_status === "atendeu"
+                        ? "default"
+                        : current.ligacao_status === "nao_atendeu"
+                        ? "secondary"
+                        : current.ligacao_status === "recusou"
+                        ? "destructive"
+                        : "outline"
+                    }
+                    className="text-[10px]"
+                  >
+                    {!current.ligacao_status || current.ligacao_status === "pendente"
+                      ? "Pendente"
+                      : current.ligacao_status === "atendeu"
+                      ? "Atendeu"
                       : current.ligacao_status === "nao_atendeu"
-                      ? "secondary"
+                      ? "Não atendeu"
                       : current.ligacao_status === "recusou"
-                      ? "destructive"
-                      : "outline"
-                  }
-                >
-                  {current.ligacao_status === "pendente" || !current.ligacao_status
-                    ? "Pendente"
-                    : current.ligacao_status === "atendeu"
-                    ? "Atendeu"
-                    : current.ligacao_status === "nao_atendeu"
-                    ? "Não atendeu"
-                    : current.ligacao_status === "recusou"
-                    ? "Recusou"
-                    : current.ligacao_status}
-                </Badge>
+                      ? "Recusou"
+                      : current.ligacao_status}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -294,7 +365,6 @@ export default function Telemarketing() {
                 </a>
               </div>
 
-              {/* Current location info */}
               {(current.cidade || current.bairro) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="w-3.5 h-3.5" />
@@ -308,7 +378,6 @@ export default function Telemarketing() {
               <div className="border-t pt-4 space-y-3">
                 <p className="font-medium text-sm">Resultado da ligação</p>
 
-                {/* Status buttons */}
                 <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant={ligacaoStatus === "atendeu" ? "default" : "outline"}
@@ -339,7 +408,6 @@ export default function Telemarketing() {
                   </Button>
                 </div>
 
-                {/* Location fields */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Cidade</label>
@@ -361,7 +429,6 @@ export default function Telemarketing() {
                   </div>
                 </div>
 
-                {/* Vote fields - only when answered */}
                 {ligacaoStatus === "atendeu" && (
                   <div className="space-y-3 bg-muted/50 p-3 rounded-lg">
                     <div>
@@ -394,7 +461,6 @@ export default function Telemarketing() {
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="flex gap-2 pt-2">
                   <Button onClick={handleSave} disabled={saving || !ligacaoStatus} className="flex-1">
                     {saving ? "Salvando..." : "Salvar e Próximo"}
@@ -408,9 +474,8 @@ export default function Telemarketing() {
             </CardContent>
           </Card>
 
-          {/* Progress */}
           <div className="text-center text-xs text-muted-foreground">
-            Contato {currentIndex + 1} de {indicados.length}
+            Contato {currentIndex + 1} de {filteredContatos.length}
           </div>
         </>
       ) : (
@@ -418,7 +483,7 @@ export default function Telemarketing() {
           <CardContent className="py-12 text-center text-muted-foreground">
             <Phone className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhum contato disponível</p>
-            <p className="text-xs mt-1">Não há indicados cadastrados para este cliente</p>
+            <p className="text-xs mt-1">Não há contatos cadastrados para este filtro</p>
           </CardContent>
         </Card>
       )}
