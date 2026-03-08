@@ -67,7 +67,7 @@ export default function RegistroPessoa() {
     setLoading(true);
     setError("");
 
-    const { error: insertError } = await supabase.from("pessoas").insert({
+    const { data: pessoaData, error: insertError } = await supabase.from("pessoas").insert({
       client_id: clientId!,
       nome: nome.trim(),
       telefone: telefone.trim(),
@@ -79,12 +79,28 @@ export default function RegistroPessoa() {
       nivel_apoio: "simpatizante" as any,
       origem_contato: "formulario" as any,
       notas_internas: notas.trim() || null,
-    });
+    }).select("id").single();
 
     if (insertError) {
       console.error(insertError);
       setError("Erro ao realizar cadastro. Tente novamente.");
-    } else {
+    } else if (pessoaData) {
+      // Insert social profiles
+      const socials: { pessoa_id: string; plataforma: string; usuario: string; url_perfil: string | null }[] = [];
+      if (facebook.trim()) {
+        socials.push({ pessoa_id: pessoaData.id, plataforma: "facebook", usuario: facebook.trim(), url_perfil: `https://facebook.com/${facebook.trim()}` });
+      }
+      if (instagram.trim()) {
+        const igUser = instagram.trim().replace(/^@/, "");
+        socials.push({ pessoa_id: pessoaData.id, plataforma: "instagram", usuario: igUser, url_perfil: `https://instagram.com/${igUser}` });
+      }
+      if (tiktok.trim()) {
+        const tkUser = tiktok.trim().replace(/^@/, "");
+        socials.push({ pessoa_id: pessoaData.id, plataforma: "tiktok", usuario: tkUser, url_perfil: `https://tiktok.com/@${tkUser}` });
+      }
+      if (socials.length > 0) {
+        await supabase.from("pessoa_social").insert(socials);
+      }
       setSuccess(true);
     }
     setLoading(false);
