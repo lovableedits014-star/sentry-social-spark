@@ -39,8 +39,7 @@ const MENU_SECTIONS: MenuSection[] = [
     label: "Mobilização",
     items: [
       { icon: Sparkles, label: "Missões IA", path: "/missoes-ia" },
-      { icon: Share2, label: "Multiplicadores", path: "/multiplicadores" },
-      
+      { icon: Users, label: "Funcionários", path: "/funcionarios" },
     ],
   },
   {
