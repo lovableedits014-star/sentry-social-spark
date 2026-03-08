@@ -396,6 +396,210 @@ export type Database = {
           },
         ]
       }
+      contratado_missao_dispatches: {
+        Row: {
+          batch_pause_seconds: number
+          batch_size: number
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          delay_max_seconds: number
+          delay_min_seconds: number
+          enviados: number
+          falhas: number
+          id: string
+          link_missao: string | null
+          mensagem_template: string
+          mission_id: string | null
+          started_at: string | null
+          status: string
+          titulo: string
+          total_destinatarios: number
+          updated_at: string
+        }
+        Insert: {
+          batch_pause_seconds?: number
+          batch_size?: number
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          delay_max_seconds?: number
+          delay_min_seconds?: number
+          enviados?: number
+          falhas?: number
+          id?: string
+          link_missao?: string | null
+          mensagem_template: string
+          mission_id?: string | null
+          started_at?: string | null
+          status?: string
+          titulo: string
+          total_destinatarios?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_pause_seconds?: number
+          batch_size?: number
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          delay_max_seconds?: number
+          delay_min_seconds?: number
+          enviados?: number
+          falhas?: number
+          id?: string
+          link_missao?: string | null
+          mensagem_template?: string
+          mission_id?: string | null
+          started_at?: string | null
+          status?: string
+          titulo?: string
+          total_destinatarios?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratado_missao_dispatches_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratado_missao_dispatches_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "portal_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contratado_missao_items: {
+        Row: {
+          contratado_id: string
+          contratado_nome: string
+          created_at: string
+          dispatch_id: string
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          status: string
+          telefone: string
+        }
+        Insert: {
+          contratado_id: string
+          contratado_nome: string
+          created_at?: string
+          dispatch_id: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          status?: string
+          telefone: string
+        }
+        Update: {
+          contratado_id?: string
+          contratado_nome?: string
+          created_at?: string
+          dispatch_id?: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          status?: string
+          telefone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratado_missao_items_contratado_id_fkey"
+            columns: ["contratado_id"]
+            isOneToOne: false
+            referencedRelation: "contratados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratado_missao_items_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "contratado_missao_dispatches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contratados: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          client_id: string
+          contrato_aceito: boolean
+          contrato_aceito_em: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          lider_id: string | null
+          nome: string
+          notas: string | null
+          redes_sociais: Json | null
+          status: string
+          telefone: string
+          updated_at: string
+          zona_eleitoral: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id: string
+          contrato_aceito?: boolean
+          contrato_aceito_em?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          lider_id?: string | null
+          nome: string
+          notas?: string | null
+          redes_sociais?: Json | null
+          status?: string
+          telefone: string
+          updated_at?: string
+          zona_eleitoral?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id?: string
+          contrato_aceito?: boolean
+          contrato_aceito_em?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          lider_id?: string | null
+          nome?: string
+          notas?: string | null
+          redes_sociais?: Json | null
+          status?: string
+          telefone?: string
+          updated_at?: string
+          zona_eleitoral?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratados_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratados_lider_id_fkey"
+            columns: ["lider_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispatch_items: {
         Row: {
           created_at: string
