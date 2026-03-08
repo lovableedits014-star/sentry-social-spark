@@ -640,6 +640,7 @@ export type Database = {
           notas: string | null
           quota_indicados: number
           redes_sociais: Json | null
+          secao_eleitoral: string | null
           status: string
           telefone: string
           updated_at: string
@@ -661,6 +662,7 @@ export type Database = {
           notas?: string | null
           quota_indicados?: number
           redes_sociais?: Json | null
+          secao_eleitoral?: string | null
           status?: string
           telefone: string
           updated_at?: string
@@ -682,6 +684,7 @@ export type Database = {
           notas?: string | null
           quota_indicados?: number
           redes_sociais?: Json | null
+          secao_eleitoral?: string | null
           status?: string
           telefone?: string
           updated_at?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.contratados ADD COLUMN IF NOT EXISTS secao_eleitoral text;

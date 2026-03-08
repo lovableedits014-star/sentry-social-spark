@@ -200,6 +200,7 @@ export default function RegistroContratado() {
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
   const [zonaEleitoral, setZonaEleitoral] = useState("");
+  const [secaoEleitoral, setSecaoEleitoral] = useState("");
   const [notas, setNotas] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
@@ -227,6 +228,7 @@ export default function RegistroContratado() {
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
     if (!zonaEleitoral.trim()) { setError("Informe sua zona eleitoral."); return; }
+    if (!secaoEleitoral.trim()) { setError("Informe sua seção eleitoral."); return; }
 
     setLoading(true);
     setError("");
@@ -243,6 +245,7 @@ export default function RegistroContratado() {
         bairro: bairro.trim() || null,
         endereco: endereco.trim() || null,
         zona_eleitoral: zonaEleitoral.trim(),
+        secao_eleitoral: secaoEleitoral.trim(),
         notas: notas.trim() || null,
         redes_sociais: socials,
       },
@@ -308,13 +311,17 @@ export default function RegistroContratado() {
                 Acessar Meu Portal
               </a>
             </Button>
-            {whatsappLink && (
+            {whatsappLink ? (
               <Button asChild variant="outline" size="lg" className="w-full gap-2 border-green-300 text-green-700 hover:bg-green-50">
                 <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
                   <MessageCircle className="w-5 h-5" />
-                  Confirmar no WhatsApp
+                  Confirmar no WhatsApp (obrigatório)
                 </a>
               </Button>
+            ) : (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded-lg text-sm text-amber-800 dark:text-amber-300 text-center">
+                ⚠️ Entre em contato com a equipe pelo WhatsApp para confirmar seu cadastro.
+              </div>
             )}
           </CardContent>
         </Card>
@@ -374,8 +381,11 @@ export default function RegistroContratado() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="zona" className="flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Zona Eleitoral *</Label>
-              <Input id="zona" value={zonaEleitoral} onChange={e => { setZonaEleitoral(e.target.value); setError(""); }} placeholder="Ex: 52ª Zona" required />
+              <Label className="flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Título Eleitoral *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={zonaEleitoral} onChange={e => { setZonaEleitoral(e.target.value); setError(""); }} placeholder="Zona *" required />
+                <Input value={secaoEleitoral} onChange={e => { setSecaoEleitoral(e.target.value); setError(""); }} placeholder="Seção *" required />
+              </div>
               <p className="text-xs text-muted-foreground">Encontre no seu título de eleitor ou no app e-Título</p>
             </div>
 
