@@ -67,6 +67,7 @@ export default function Pessoas() {
   const [total, setTotal] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   // Distinct values for filters
   const [cidades, setCidades] = useState<string[]>([]);
