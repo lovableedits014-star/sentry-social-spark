@@ -90,8 +90,8 @@ export default function PortalContratado() {
 
   useEffect(() => {
     if (clientId) {
-      supabase.from("clients").select("name, logo_url, whatsapp_oficial").eq("id", clientId).maybeSingle()
-        .then(({ data }) => { if (data) { setClientName(data.name); setClientLogo(data.logo_url); setWhatsappOficial(data.whatsapp_oficial || ""); } });
+      supabase.from("clients").select("name, logo_url").eq("id", clientId).maybeSingle()
+        .then(({ data }) => { if (data) { setClientName(data.name); setClientLogo(data.logo_url); } });
     }
   }, [clientId]);
 
