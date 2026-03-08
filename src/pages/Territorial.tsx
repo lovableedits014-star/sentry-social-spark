@@ -94,7 +94,11 @@ export default function Territorial() {
     if (!supporters) return null;
     const now = Date.now();
     const d30 = 30 * 24 * 60 * 60 * 1000;
-    const withLoc = supporters.filter(s => s.city || s.neighborhood);
+    const allEntries = [
+      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, created_at: s.created_at })),
+      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, created_at: i.created_at })),
+    ];
+    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
     const last30 = withLoc.filter(s => now - new Date(s.created_at).getTime() < d30).length;
     const prev30 = withLoc.filter(s => {
       const diff = now - new Date(s.created_at).getTime();
@@ -102,7 +106,7 @@ export default function Territorial() {
     }).length;
     const change = prev30 > 0 ? Math.round(((last30 - prev30) / prev30) * 100) : last30 > 0 ? 100 : 0;
     return { last30, prev30, change };
-  }, [supporters]);
+  }, [supporters, confirmedIndicados]);
 
   const maxCount = groups.length > 0 ? groups[0].count : 1;
 
