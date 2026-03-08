@@ -204,6 +204,7 @@ export default function RegistroContratado() {
   const [secaoEleitoral, setSecaoEleitoral] = useState("");
   const [notas, setNotas] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
+  const [isLider, setIsLider] = useState(false);
   const [portalUrl, setPortalUrl] = useState("");
 
   useEffect(() => {
