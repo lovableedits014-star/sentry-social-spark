@@ -37,6 +37,7 @@ import Alertas from "./pages/Alertas";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
+import Telemarketing from "./pages/Telemarketing";
 
 const queryClient = new QueryClient();
 
