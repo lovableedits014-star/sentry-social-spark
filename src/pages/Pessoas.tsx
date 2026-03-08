@@ -51,6 +51,7 @@ const PAGE_SIZE = 20;
 type SortField = "created_at" | "nome";
 
 export default function Pessoas() {
+  const navigate = useNavigate();
   const [pessoas, setPessoas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
