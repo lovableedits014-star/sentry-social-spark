@@ -27,9 +27,7 @@ import Recrutamento from "./pages/Recrutamento";
 import FunilLeads from "./pages/FunilLeads";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
-
-import MissoesIA from "./pages/MissoesIA";
-import Multiplicadores from "./pages/Multiplicadores";
+ores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
 import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
@@ -72,8 +70,7 @@ const App = () => (
             <Route path="/funil" element={<FunilLeads />} />
             <Route path="/radar" element={<RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
-            <Route path="/influenciadores" element={<MapaInfluenciadores />} />
-            <Route path="/missoes-ia" element={<MissoesIA />} />
+            <Route path="/influenciadores" element={<MapaInfluenciadores / />
             <Route path="/multiplicadores" element={<Multiplicadores />} />
             <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/campanha" element={<Campanha />} />
