@@ -274,12 +274,21 @@ export default function Telemarketing() {
                 placeholder="Digite seu nome..."
                 value={operadorNome}
                 onChange={(e) => setOperadorNome(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Senha</label>
+              <Input
+                type="password"
+                placeholder="Digite sua senha..."
+                value={operadorSenha}
+                onChange={(e) => setOperadorSenha(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               />
             </div>
             <Button onClick={handleLogin} className="w-full" disabled={loading}>
               <LogIn className="w-4 h-4 mr-2" />
-              {loading ? "Carregando..." : "Entrar"}
+              {loading ? "Validando..." : "Entrar"}
             </Button>
           </CardContent>
         </Card>
