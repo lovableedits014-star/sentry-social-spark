@@ -34,6 +34,7 @@ interface Contratado {
   contrato_aceito: boolean;
   contrato_aceito_em: string | null;
   lider_id: string | null;
+  is_lider: boolean;
   quota_indicados: number;
   redes_sociais: any;
   created_at: string;
