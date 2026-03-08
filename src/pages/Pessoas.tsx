@@ -289,6 +289,12 @@ export default function Pessoas() {
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </div>
+                </TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
