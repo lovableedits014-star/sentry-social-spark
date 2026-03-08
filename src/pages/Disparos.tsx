@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Send, Loader2, CheckCircle, XCircle, Clock, AlertTriangle,
-  Users, MessageSquare, Wifi, WifiOff, Filter, Zap,
+  Send, Loader2, CheckCircle, XCircle, Clock,
+  Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type DispatchRow = {
   id: string;
@@ -83,6 +84,21 @@ export default function Disparos() {
     enabled: !!clientId,
   });
 
+  // Active missions
+  const { data: activeMissions = [] } = useQuery({
+    queryKey: ["active-missions", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("portal_missions")
+        .select("*")
+        .eq("client_id", clientId!)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+      return data || [];
+    },
+    enabled: !!clientId,
+  });
+
   // Dispatch history
   const { data: dispatches = [], refetch } = useQuery<DispatchRow[]>({
     queryKey: ["whatsapp-dispatches", clientId],
@@ -125,6 +141,20 @@ export default function Disparos() {
   const [tipoDisparo, setTipoDisparo] = useState("manual");
   const [tagFiltro, setTagFiltro] = useState("_all");
   const [sending, setSending] = useState(false);
+  const [missionDialogOpen, setMissionDialogOpen] = useState(false);
+
+  const handleUseMission = (mission: any) => {
+    const platformLabel = mission.platform === "instagram" ? "Instagram" : "Facebook";
+    setTitulo(`Missão: ${mission.title || "Interaja na publicação"}`);
+    setMensagem(
+      `Olá {nome}! 🎯\n\nTemos uma missão importante para você!\n\n` +
+      `📱 Acesse a publicação no ${platformLabel} e interaja (curta, comente e compartilhe):\n\n` +
+      `👉 ${mission.post_url}\n\n` +
+      (mission.description ? `💬 ${mission.description}\n\n` : "") +
+      `Sua participação faz toda a diferença! 💪`
+    );
+    setMissionDialogOpen(false);
+  };
 
   // Count recipients based on filter
   const { data: recipientCount = 0 } = useQuery<number>({
@@ -299,6 +329,41 @@ export default function Disparos() {
               </div>
             )}
           </div>
+
+          {/* Mission quick-fill button */}
+          {activeMissions.length > 0 && (
+            <Dialog open={missionDialogOpen} onOpenChange={setMissionDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
+                  <Target className="h-4 w-4" />
+                  Preencher com Missão Ativa ({activeMissions.length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Selecionar Missão Ativa</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {activeMissions.map((m: any) => (
+                    <button
+                      key={m.id}
+                      onClick={() => handleUseMission(m)}
+                      className="w-full text-left rounded-lg border p-3 hover:bg-accent transition-colors space-y-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {m.platform === "instagram" ? "📸 Instagram" : "📘 Facebook"}
+                        </Badge>
+                        <span className="text-sm font-medium truncate">{m.title || "Missão sem título"}</span>
+                      </div>
+                      {m.description && <p className="text-xs text-muted-foreground line-clamp-2">{m.description}</p>}
+                      <p className="text-xs text-muted-foreground truncate">🔗 {m.post_url}</p>
+                    </button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <div className="space-y-2">
             <Label>Título do disparo</Label>
