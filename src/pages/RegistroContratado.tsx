@@ -377,8 +377,11 @@ export default function RegistroContratado() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="zona" className="flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Zona Eleitoral *</Label>
-              <Input id="zona" value={zonaEleitoral} onChange={e => { setZonaEleitoral(e.target.value); setError(""); }} placeholder="Ex: 52ª Zona" required />
+              <Label className="flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Título Eleitoral *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={zonaEleitoral} onChange={e => { setZonaEleitoral(e.target.value); setError(""); }} placeholder="Zona *" required />
+                <Input value={secaoEleitoral} onChange={e => { setSecaoEleitoral(e.target.value); setError(""); }} placeholder="Seção *" required />
+              </div>
               <p className="text-xs text-muted-foreground">Encontre no seu título de eleitor ou no app e-Título</p>
             </div>
 
