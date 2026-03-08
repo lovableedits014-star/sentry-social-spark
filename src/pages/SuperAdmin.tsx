@@ -11,6 +11,7 @@ import {
   Shield, Copy, Trash2, Plus, Loader2, Users, Calendar,
   CheckCircle2, Clock, LogOut, Link2
 } from "lucide-react";
+import UazapiConfigPanel from "@/components/superadmin/UazapiConfigPanel";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -285,6 +286,9 @@ export default function SuperAdmin() {
             )}
           </CardContent>
         </Card>
+
+        {/* UAZAPI Configuration */}
+        <UazapiConfigPanel />
       </div>
     </div>
   );

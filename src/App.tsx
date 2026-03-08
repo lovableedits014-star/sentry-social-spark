@@ -18,7 +18,7 @@ import PwaStart from "./pages/PwaStart";
 import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
-import Checkins from "./pages/Checkins";
+import Disparos from "./pages/Disparos";
 import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
@@ -64,7 +64,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/comments" element={<Comments />} />
             <Route path="/engagement" element={<Engagement />} />
-            <Route path="/checkins" element={<Checkins />} />
+            <Route path="/disparos" element={<Disparos />} />
             <Route path="/territorial" element={<Territorial />} />
             <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/pessoas/:id" element={<PessoaPerfil />} />

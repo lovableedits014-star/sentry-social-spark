@@ -10,12 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
-  Bell, BellOff, BellRing, Smartphone, Users, MapPin
+  Bell, Users, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
-import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { ReferralPanel } from "@/components/referral/ReferralPanel";
-
 interface Mission {
   id: string;
   platform: string;
@@ -97,10 +95,6 @@ export default function SupporterPortal() {
   const [editNeighborhood, setEditNeighborhood] = useState("");
   const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-
-  // Push notifications
-  const { status: pushStatus, isSubscribed, isSubscribing, isPushSupported, subscribe, unsubscribe } =
-    usePushNotifications(account?.id, clientId);
 
   // Load client info as soon as clientId is available (before login)
   useEffect(() => {
@@ -569,116 +563,6 @@ export default function SupporterPortal() {
           </CardContent>
         </Card>
 
-        {/* PUSH NOTIFICATION CARD */}
-        {(() => {
-          const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-          const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
-          const isIOSNotStandalone = isIOS && !isStandalone;
-
-          // iPhone não instalado como PWA: mostrar instruções de instalação
-          if (isIOSNotStandalone) {
-            return (
-              <Card className="border-amber-500/30 bg-amber-500/5">
-                <CardContent className="pt-5 pb-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg shrink-0 bg-amber-500/10">
-                      <Smartphone className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-amber-700 dark:text-amber-400">
-                        📱 Instale o app para receber notificações
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        No iPhone, notificações só funcionam quando o portal está instalado. Siga os passos:
-                      </p>
-                      <ol className="text-xs text-muted-foreground mt-2 space-y-1 list-decimal list-inside">
-                        <li>Toque no botão <strong>Compartilhar</strong> (□↑) no Safari</li>
-                        <li>Role e toque em <strong>"Adicionar à Tela de Início"</strong></li>
-                        <li>Toque em <strong>Adicionar</strong> no canto superior direito</li>
-                        <li>Abra o app pela <strong>tela inicial</strong> e ative as notificações</li>
-                      </ol>
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
-                        ⚠️ Requer iOS 16.4 ou superior
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          }
-
-          // Navegador não suporta push (mas não é iOS sem instalar)
-          if (!isPushSupported) return null;
-
-          // Permissão negada explicitamente
-          if (pushStatus === "denied") {
-            return (
-              <Card className="border-destructive/30 bg-destructive/5">
-                <CardContent className="pt-5 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg shrink-0 bg-destructive/10">
-                      <BellOff className="w-5 h-5 text-destructive" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm">Notificações bloqueadas</p>
-                      <p className="text-xs text-muted-foreground">
-                        Acesse as configurações do seu navegador e permita notificações para este site.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          }
-
-          // Suportado e não negado: mostrar botão normal
-          return (
-            <Card className={isSubscribed ? "border-primary/30 bg-primary/5" : "border-muted"}>
-              <CardContent className="pt-5 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg shrink-0 ${isSubscribed ? "bg-primary/10" : "bg-muted"}`}>
-                    {isSubscribed ? (
-                      <BellRing className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Bell className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">
-                      {isSubscribed ? "Notificações ativas ✅" : "Ativar notificações"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {isSubscribed
-                        ? "Você será avisado quando houver nova missão"
-                        : "Receba avisos no celular quando houver nova postagem"}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={isSubscribed ? "outline" : "default"}
-                    onClick={isSubscribed ? unsubscribe : subscribe}
-                    disabled={isSubscribing}
-                    className="shrink-0"
-                  >
-                    {isSubscribing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : isSubscribed ? (
-                      <><BellOff className="w-4 h-4 mr-1" /> Desativar</>
-                    ) : (
-                      <><Bell className="w-4 h-4 mr-1" /> Ativar</>
-                    )}
-                  </Button>
-                </div>
-                {!isSubscribed && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                    <span>Para receber no celular, instale este portal na tela inicial do seu smartphone</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })()}
 
         {/* MISSIONS */}
         <div>
