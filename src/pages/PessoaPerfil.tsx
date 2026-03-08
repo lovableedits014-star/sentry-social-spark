@@ -55,6 +55,18 @@ const STATUS_LEAD_LABELS: Record<string, string> = {
   novo: "Novo", contato_whatsapp: "Contato WhatsApp", em_conversa: "Em Conversa",
   proposta_enviada: "Proposta Enviada", fechado: "Fechado", perdido: "Perdido",
 };
+
+const CLASSIF_POLITICA_LABELS: Record<string, string> = {
+  apoiador: "Apoiador", simpatizante: "Simpatizante", indefinido: "Indefinido",
+  oposicao: "Oposição", lideranca: "Liderança",
+};
+const CLASSIF_POLITICA_COLORS: Record<string, string> = {
+  apoiador: "bg-green-500/10 text-green-600 border-green-500/20",
+  simpatizante: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  indefinido: "bg-muted text-muted-foreground",
+  oposicao: "bg-red-500/10 text-red-600 border-red-500/20",
+  lideranca: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+};
 const STATUS_LEAD_COLORS: Record<string, string> = {
   novo: "bg-muted text-muted-foreground",
   contato_whatsapp: "bg-blue-500/10 text-blue-600 border-blue-500/20",
