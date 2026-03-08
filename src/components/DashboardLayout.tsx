@@ -45,6 +45,7 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: "Operacional",
     items: [
+      { icon: Target, label: "Modo Campanha", path: "/campanha" },
       { icon: CalendarCheck, label: "Presenças / Disparos", path: "/checkins" },
       { icon: MapPin, label: "Territorial", path: "/territorial" },
     ],
