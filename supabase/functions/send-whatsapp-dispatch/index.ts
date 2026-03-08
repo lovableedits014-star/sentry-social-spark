@@ -264,7 +264,7 @@ Deno.serve(async (req) => {
           }
 
           // Delay between messages
-          await sleep(randomDelay());
+          await sleep(randomDelay(DELAY_MIN_MS, DELAY_MAX_MS));
         }
 
         // Batch pause (skip on last batch)
