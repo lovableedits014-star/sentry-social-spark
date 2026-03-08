@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Briefcase, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Target, Users,
-  Phone, MapPin, Plus, Trash2, Award, MessageCircle,
+  Phone, MapPin, Plus, Trash2, Award, MessageCircle, Copy, Crown, Link,
 } from "lucide-react";
 import { toast } from "sonner";
 
