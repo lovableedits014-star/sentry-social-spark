@@ -450,9 +450,10 @@ export default function Contratados() {
     c.nome.toLowerCase().includes(search.toLowerCase()) || c.telefone.includes(search) || (c.zona_eleitoral || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  // Group by leader
-  const leaders = [...new Set(contratados.filter(c => c.lider_id).map(c => c.lider_id!))];
-  const withoutLeader = contratados.filter(c => !c.lider_id);
+  // Group by leader: leaders are contratados with is_lider=true
+  const leaderContratados = contratados.filter(c => (c as any).is_lider);
+  const leaders = leaderContratados.map(c => c.id);
+  const withoutLeader = contratados.filter(c => !c.lider_id && !(c as any).is_lider);
 
   // Indicado stats per contratado
   const indicadosByContratado = (cid: string) => indicados.filter(i => i.contratado_id === cid);
@@ -476,12 +477,12 @@ export default function Contratados() {
               <DialogHeader><DialogTitle>Links do Sistema</DialogTitle><DialogDescription>Links para líderes e contratados</DialogDescription></DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Link de cadastro (base)</Label>
+                  <Label className="text-xs font-medium">👑 Link de cadastro de Líder</Label>
                   <div className="flex items-center gap-2">
                     <Input value={registrationUrl} readOnly className="text-xs" />
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(registrationUrl); toast.success("Copiado!"); }}><Copy className="w-4 h-4" /></Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Para vincular a um líder: <code>{registrationUrl}/{"{liderId}"}</code></p>
+                  <p className="text-xs text-muted-foreground">Envie este link para o líder se cadastrar. Ele receberá no portal dele um link exclusivo para cadastrar seus liderados.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Portal do contratado</Label>
@@ -489,26 +490,13 @@ export default function Contratados() {
                     <Input value={portalUrl} readOnly className="text-xs" />
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(portalUrl); toast.success("Copiado!"); }}><Copy className="w-4 h-4" /></Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">Portal de acesso para líderes e contratados (mesmo link para todos).</p>
                 </div>
               </div>
             </DialogContent>
           </Dialog>
 
-          <Dialog open={showAddLiderDialog} onOpenChange={setShowAddLiderDialog}>
-            <DialogTrigger asChild><Button variant="outline" size="sm" className="gap-1.5"><Crown className="w-4 h-4" />Novo Líder</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Criar Novo Líder</DialogTitle><DialogDescription>O líder será criado como pessoa do tipo "Liderança" e poderá ter contratados vinculados.</DialogDescription></DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2"><Label>Nome completo *</Label><Input value={liderNomeInput} onChange={e => setLiderNomeInput(e.target.value)} placeholder="Ex: Mayer Rodrigues" /></div>
-                <div className="space-y-2"><Label>Telefone</Label><Input value={liderTelInput} onChange={e => setLiderTelInput(e.target.value)} placeholder="(67) 99999-9999" /></div>
-                <div className="space-y-2"><Label>Cidade</Label><Input value={liderCidadeInput} onChange={e => setLiderCidadeInput(e.target.value)} placeholder="Ex: Campo Grande" /></div>
-                <Button onClick={createLider} disabled={addingLider || !liderNomeInput.trim()} className="w-full gap-2">
-                  {addingLider ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
-                  Criar Líder
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Removed "Novo Líder" manual button - leaders self-register via the link */}
 
           <Dialog open={showDispatchDialog} onOpenChange={setShowDispatchDialog}>
             <DialogTrigger asChild><Button size="sm" className="gap-1.5" disabled={activeContratados.length === 0}><Send className="w-4 h-4" />Disparar Missão</Button></DialogTrigger>
@@ -567,7 +555,8 @@ export default function Contratados() {
           )}
 
           {leaders.map(liderId => {
-            const liderNome = liderMap[liderId] || "Líder desconhecido";
+            const liderContratado = contratados.find(c => c.id === liderId);
+            const liderNome = liderContratado?.nome || liderMap[liderId] || "Líder desconhecido";
             const membros = contratados.filter(c => c.lider_id === liderId);
             const membrosAtivos = membros.filter(c => c.status === "ativo").length;
             const contratos = membros.filter(c => c.contrato_aceito).length;
@@ -770,11 +759,11 @@ export default function Contratados() {
                 <div key={c.id} className="p-4 rounded-xl border bg-card space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Briefcase className="w-5 h-5 text-primary" />
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${(c as any).is_lider ? "bg-amber-100 dark:bg-amber-950/30" : "bg-primary/10"}`}>
+                        {(c as any).is_lider ? <Crown className="w-5 h-5 text-amber-600" /> : <Briefcase className="w-5 h-5 text-primary" />}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{c.nome}</p>
+                        <p className="font-semibold text-sm truncate">{c.nome} {(c as any).is_lider && <span className="text-amber-600 text-xs font-normal">👑 Líder</span>}</p>
                         <p className="text-xs text-muted-foreground">
                           📞 {c.telefone} • 📍 {c.cidade || "—"}{c.bairro ? `, ${c.bairro}` : ""}
                           {c.zona_eleitoral && ` • 🗳️ ${c.zona_eleitoral}`}

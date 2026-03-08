@@ -46,11 +46,32 @@ export default function Territorial() {
     enabled: !!client?.id,
   });
 
+  // Also load confirmed indicados from contratados for territorial data
+  const { data: confirmedIndicados } = useQuery({
+    queryKey: ["territorial-indicados", client?.id],
+    queryFn: async () => {
+      if (!client?.id) return [];
+      const { data } = await supabase
+        .from("contratado_indicados")
+        .select("id, nome, cidade, bairro, created_at")
+        .eq("client_id", client.id)
+        .eq("status", "confirmado");
+      return (data || []) as Array<{ id: string; nome: string; cidade: string | null; bairro: string | null; created_at: string }>;
+    },
+    enabled: !!client?.id,
+  });
+
   const { groups, totalWithLocation, totalWithout } = useMemo(() => {
     if (!supporters) return { groups: [], totalWithLocation: 0, totalWithout: 0 };
 
-    const withLoc = supporters.filter(s => s.city || s.neighborhood);
-    const withoutLoc = supporters.filter(s => !s.city && !s.neighborhood);
+    // Combine supporter_accounts + confirmed indicados
+    const allEntries = [
+      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at })),
+      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at })),
+    ];
+
+    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
+    const withoutLoc = allEntries.filter(s => !s.city && !s.neighborhood);
 
     const map: Record<string, LocationGroup> = {};
     for (const s of withLoc) {
@@ -66,14 +87,18 @@ export default function Territorial() {
 
     const sorted = Object.values(map).sort((a, b) => b.count - a.count);
     return { groups: sorted, totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
-  }, [supporters]);
+  }, [supporters, confirmedIndicados]);
 
   // Growth: compare supporters with location created in last 30 days vs previous 30 days
   const growthStats = useMemo(() => {
     if (!supporters) return null;
     const now = Date.now();
     const d30 = 30 * 24 * 60 * 60 * 1000;
-    const withLoc = supporters.filter(s => s.city || s.neighborhood);
+    const allEntries = [
+      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, created_at: s.created_at })),
+      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, created_at: i.created_at })),
+    ];
+    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
     const last30 = withLoc.filter(s => now - new Date(s.created_at).getTime() < d30).length;
     const prev30 = withLoc.filter(s => {
       const diff = now - new Date(s.created_at).getTime();
@@ -81,7 +106,7 @@ export default function Territorial() {
     }).length;
     const change = prev30 > 0 ? Math.round(((last30 - prev30) / prev30) * 100) : last30 > 0 ? 100 : 0;
     return { last30, prev30, change };
-  }, [supporters]);
+  }, [supporters, confirmedIndicados]);
 
   const maxCount = groups.length > 0 ? groups[0].count : 1;
 
