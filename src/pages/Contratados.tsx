@@ -17,8 +17,9 @@ import {
   Briefcase, Search, Users, QrCode, Play, Pause, Square, Loader2,
   MessageCircle, Clock, CheckCircle2, AlertCircle, Send, Copy, ExternalLink,
   Shield, Printer, FileText, UserPlus, Target, Phone, MapPin, CalendarCheck,
-  ChevronRight, Award, TrendingUp, Trash2, Crown,
+  ChevronRight, Award, TrendingUp, Trash2, Crown, PhoneCall,
 } from "lucide-react";
+import TelemarketingResultsPanel from "@/components/contratados/TelemarketingResultsPanel";
 import { toast } from "sonner";
 
 interface Contratado {
