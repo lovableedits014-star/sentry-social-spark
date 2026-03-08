@@ -1529,6 +1529,54 @@ export type Database = {
           },
         ]
       }
+      timeline_pessoa: {
+        Row: {
+          client_id: string
+          criado_em: string
+          criado_por: string
+          descricao: string | null
+          id: string
+          pessoa_id: string
+          tipo_evento: string
+          titulo: string
+        }
+        Insert: {
+          client_id: string
+          criado_em?: string
+          criado_por: string
+          descricao?: string | null
+          id?: string
+          pessoa_id: string
+          tipo_evento: string
+          titulo: string
+        }
+        Update: {
+          client_id?: string
+          criado_em?: string
+          criado_por?: string
+          descricao?: string | null
+          id?: string
+          pessoa_id?: string
+          tipo_evento?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timeline_pessoa_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timeline_pessoa_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
