@@ -985,6 +985,179 @@ export type Database = {
           },
         ]
       }
+      funcionario_checkins: {
+        Row: {
+          checkin_at: string
+          checkin_date: string
+          client_id: string
+          funcionario_id: string
+          id: string
+        }
+        Insert: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id: string
+          funcionario_id: string
+          id?: string
+        }
+        Update: {
+          checkin_at?: string
+          checkin_date?: string
+          client_id?: string
+          funcionario_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionario_checkins_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionario_checkins_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funcionario_referrals: {
+        Row: {
+          client_id: string
+          created_at: string
+          funcionario_id: string
+          id: string
+          pessoa_id: string | null
+          referred_name: string
+          referred_phone: string | null
+          supporter_account_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          funcionario_id: string
+          id?: string
+          pessoa_id?: string | null
+          referred_name: string
+          referred_phone?: string | null
+          supporter_account_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          funcionario_id?: string
+          id?: string
+          pessoa_id?: string | null
+          referred_name?: string
+          referred_phone?: string | null
+          supporter_account_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionario_referrals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionario_referrals_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionario_referrals_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionario_referrals_supporter_account_id_fkey"
+            columns: ["supporter_account_id"]
+            isOneToOne: false
+            referencedRelation: "supporter_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funcionarios: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          client_id: string
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          redes_sociais: Json | null
+          referral_code: string
+          referral_count: number
+          status: string
+          supporter_id: string | null
+          telefone: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id: string
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          redes_sociais?: Json | null
+          referral_code?: string
+          referral_count?: number
+          status?: string
+          supporter_id?: string | null
+          telefone: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id?: string
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          redes_sociais?: Json | null
+          referral_code?: string
+          referral_count?: number
+          status?: string
+          supporter_id?: string | null
+          telefone?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionarios_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionarios_supporter_id_fkey"
+            columns: ["supporter_id"]
+            isOneToOne: false
+            referencedRelation: "supporters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ied_scores: {
         Row: {
           checkin_score: number
@@ -2368,7 +2541,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "client" | "team_member"
+      app_role: "admin" | "client" | "team_member" | "funcionario"
       comment_status: "pending" | "responded" | "ignored"
       llm_provider:
         | "groq"
@@ -2535,7 +2708,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "client", "team_member"],
+      app_role: ["admin", "client", "team_member", "funcionario"],
       comment_status: ["pending", "responded", "ignored"],
       llm_provider: [
         "groq",
