@@ -200,6 +200,7 @@ export default function RegistroContratado() {
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
   const [zonaEleitoral, setZonaEleitoral] = useState("");
+  const [secaoEleitoral, setSecaoEleitoral] = useState("");
   const [notas, setNotas] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
