@@ -104,6 +104,7 @@ export default function Pessoas() {
   const [filterWhatsapp, setFilterWhatsapp] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterClassifPolitica, setFilterClassifPolitica] = useState("all");
+  const [filterTagId, setFilterTagId] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
@@ -113,6 +114,8 @@ export default function Pessoas() {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [cidades, setCidades] = useState<string[]>([]);
   const [bairros, setBairros] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [pessoaTagsMap, setPessoaTagsMap] = useState<Record<string, any[]>>({});
 
   useEffect(() => { resolveClient(); }, []);
 
@@ -121,7 +124,7 @@ export default function Pessoas() {
       fetchPessoas();
       fetchFilterOptions();
     }
-  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, filterClassifPolitica, sortField, sortAsc, page]);
+  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, filterClassifPolitica, filterTagId, sortField, sortAsc, page]);
 
   async function resolveClient() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -134,24 +137,47 @@ export default function Pessoas() {
 
   async function fetchFilterOptions() {
     if (!clientId) return;
-    const { data } = await supabase.from("pessoas").select("cidade, bairro").eq("client_id", clientId);
-    if (data) {
+    const [pessoaRes, tagsRes] = await Promise.all([
+      supabase.from("pessoas").select("cidade, bairro").eq("client_id", clientId),
+      supabase.from("tags").select("id, nome").eq("client_id", clientId).order("nome") as any,
+    ]);
+    if (pessoaRes.data) {
       const cidSet = new Set<string>();
       const baiSet = new Set<string>();
-      data.forEach((p: any) => {
+      pessoaRes.data.forEach((p: any) => {
         if (p.cidade) cidSet.add(p.cidade);
         if (p.bairro) baiSet.add(p.bairro);
       });
       setCidades(Array.from(cidSet).sort());
       setBairros(Array.from(baiSet).sort());
     }
+    setAvailableTags(tagsRes.data || []);
   }
 
   async function fetchPessoas() {
     if (!clientId) return;
     setLoading(true);
 
+    // If filtering by tag, first get matching pessoa_ids
+    let tagFilterIds: string[] | null = null;
+    if (filterTagId !== "all") {
+      const { data: ptData } = await supabase
+        .from("pessoas_tags")
+        .select("pessoa_id")
+        .eq("tag_id", filterTagId) as any;
+      tagFilterIds = (ptData || []).map((pt: any) => pt.pessoa_id);
+      if (tagFilterIds.length === 0) {
+        setPessoas([]);
+        setTotal(0);
+        setSupporterMap({});
+        setPessoaTagsMap({});
+        setLoading(false);
+        return;
+      }
+    }
+
     let query = supabase.from("pessoas").select("*", { count: "exact" }).eq("client_id", clientId);
+    if (tagFilterIds) query = query.in("id", tagFilterIds);
     if (search.trim()) query = query.ilike("nome", `%${search.trim()}%`);
     if (filterCidade !== "all") query = query.eq("cidade", filterCidade);
     if (filterBairro !== "all") query = query.eq("bairro", filterBairro);
@@ -171,21 +197,35 @@ export default function Pessoas() {
     } else {
       setPessoas(data || []);
       setTotal(count || 0);
-      // Fetch supporter data for linked pessoas
+
+      const pessoaIds = (data || []).map((p: any) => p.id);
       const supporterIds = (data || []).map((p: any) => p.supporter_id).filter(Boolean);
-      if (supporterIds.length > 0) {
-        const { data: supporters } = await supabase
-          .from("supporters")
-          .select("id, engagement_score, classification")
-          .in("id", supporterIds);
-        if (supporters) {
-          const map: Record<string, any> = {};
-          supporters.forEach(s => { map[s.id] = s; });
-          setSupporterMap(map);
-        }
+
+      // Fetch supporter data and tags in parallel
+      const [suppResult, tagsResult] = await Promise.all([
+        supporterIds.length > 0
+          ? supabase.from("supporters").select("id, engagement_score, classification").in("id", supporterIds)
+          : Promise.resolve({ data: [] }),
+        pessoaIds.length > 0
+          ? supabase.from("pessoas_tags").select("pessoa_id, tag_id, tags:tag_id(id, nome)").in("pessoa_id", pessoaIds) as any
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      if (suppResult.data) {
+        const map: Record<string, any> = {};
+        (suppResult.data as any[]).forEach(s => { map[s.id] = s; });
+        setSupporterMap(map);
       } else {
         setSupporterMap({});
       }
+
+      // Build tags map: pessoaId -> tags[]
+      const tMap: Record<string, any[]> = {};
+      (tagsResult.data || []).forEach((pt: any) => {
+        if (!tMap[pt.pessoa_id]) tMap[pt.pessoa_id] = [];
+        tMap[pt.pessoa_id].push(pt.tags);
+      });
+      setPessoaTagsMap(tMap);
     }
     setLoading(false);
   }
@@ -294,6 +334,13 @@ export default function Pessoas() {
             {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterTagId} onValueChange={(v) => { setFilterTagId(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="TAG" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas tags</SelectItem>
+            {availableTags.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -361,6 +408,7 @@ export default function Pessoas() {
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead>TAGS</TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
@@ -370,11 +418,11 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                   <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
+                   <TableCell colSpan={13} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                   <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
+                   <TableCell colSpan={13} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
                 </TableRow>
               ) : (
                 pessoas.map((p) => {
@@ -457,6 +505,22 @@ export default function Pessoas() {
                           </TooltipTrigger>
                           <TooltipContent>Classificação política do contato</TooltipContent>
                         </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const tags = pessoaTagsMap[p.id] || [];
+                          if (tags.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                          const shown = tags.slice(0, 3);
+                          const extra = tags.length - 3;
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {shown.map((t: any) => (
+                                <Badge key={t.id} variant="secondary" className="text-[10px] px-1.5 py-0">{t.nome}</Badge>
+                              ))}
+                              {extra > 0 && <span className="text-[10px] text-muted-foreground">+{extra}</span>}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(p.created_at), "dd/MM/yyyy")}

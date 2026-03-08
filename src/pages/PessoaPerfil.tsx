@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
 import TimelinePolitica from "@/components/pessoas/TimelinePolitica";
+import TagsPoliticas from "@/components/pessoas/TagsPoliticas";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getWhatsAppLink } from "@/lib/social-url";
 
@@ -359,26 +360,14 @@ export default function PessoaPerfil() {
           {/* Timeline Política */}
           <TimelinePolitica pessoaId={pessoa.id} clientId={pessoa.client_id} />
 
-          {(pessoa.tags?.length > 0 || pessoa.notas_internas) && (
+          {/* TAGS Políticas */}
+          <TagsPoliticas pessoaId={pessoa.id} clientId={pessoa.client_id} />
+
+          {pessoa.notas_internas && (
             <Card>
-              <CardHeader><CardTitle className="text-base">Tags & Notas</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {pessoa.tags?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {pessoa.tags.map((tag: string, i: number) => (
-                        <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {pessoa.notas_internas && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Notas Internas</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{pessoa.notas_internas}</p>
-                  </div>
-                )}
+              <CardHeader><CardTitle className="text-base">Notas Internas</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{pessoa.notas_internas}</p>
               </CardContent>
             </Card>
           )}
