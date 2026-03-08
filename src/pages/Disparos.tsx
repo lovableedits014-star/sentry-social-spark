@@ -237,6 +237,7 @@ export default function Disparos() {
 
     setSending(true);
     try {
+      const pol = POLICIES[politica];
       const { error } = await supabase.functions.invoke("send-whatsapp-dispatch", {
         body: {
           client_id: clientId,
@@ -244,6 +245,10 @@ export default function Disparos() {
           mensagem: mensagem.trim(),
           tipo: tipoDisparo,
           tag_filtro: tagFiltro === "_all" ? null : tagFiltro,
+          batch_size: pol.batch_size,
+          delay_min: pol.delay_min,
+          delay_max: pol.delay_max,
+          batch_pause: pol.batch_pause,
         },
       });
       if (error) throw error;
