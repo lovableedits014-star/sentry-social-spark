@@ -27,6 +27,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     // Verify client exists
     const { data: clientData } = await adminClient
       .from("clients")
@@ -40,12 +42,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if email already exists as contratado
+    // Check if email already exists as contratado for this client
     const { data: existing } = await adminClient
       .from("contratados")
       .select("id")
       .eq("client_id", client_id)
-      .eq("email", email)
+      .eq("email", normalizedEmail)
       .maybeSingle();
 
     if (existing) {
@@ -54,9 +56,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create auth user
+    // Create auth user (or reuse if already exists)
+    let authUserId: string | null = null;
+    let createdNewAuthUser = false;
+
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password: senha,
       email_confirm: true,
       user_metadata: { full_name: nome, role: "contratado" },
@@ -64,12 +69,41 @@ Deno.serve(async (req) => {
 
     if (createError) {
       console.error("Error creating user:", createError);
-      const msg = createError.message.includes("already been registered")
-        ? "Este e-mail já possui uma conta. Use outro e-mail."
-        : createError.message;
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+      if (createError.code === "email_exists" || createError.message.includes("already been registered")) {
+        let page = 1;
+        const perPage = 200;
+
+        while (true) {
+          const { data: usersPage, error: listError } = await adminClient.auth.admin.listUsers({ page, perPage });
+          if (listError) {
+            console.error("Error listing users:", listError);
+            break;
+          }
+
+          const found = usersPage.users.find((u) => (u.email || "").toLowerCase() === normalizedEmail);
+          if (found) {
+            authUserId = found.id;
+            break;
+          }
+
+          if (usersPage.users.length < perPage) break;
+          page += 1;
+        }
+
+        if (!authUserId) {
+          return new Response(JSON.stringify({ error: "Este e-mail já possui conta, mas não foi possível vinculá-la agora. Tente novamente." }), {
+            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: createError.message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      authUserId = newUser.user.id;
+      createdNewAuthUser = true;
     }
 
     // Insert contratado record
@@ -78,10 +112,10 @@ Deno.serve(async (req) => {
       .insert({
         client_id,
         lider_id: lider_id || null,
-        user_id: newUser.user.id,
+        user_id: authUserId,
         nome: nome.trim(),
         telefone: telefone.trim(),
-        email: email.trim(),
+        email: normalizedEmail,
         cidade: cidade?.trim() || null,
         bairro: bairro?.trim() || null,
         endereco: endereco?.trim() || null,
@@ -95,23 +129,27 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Error inserting contratado:", insertError);
-      // Rollback: delete auth user
-      await adminClient.auth.admin.deleteUser(newUser.user.id);
+      // Rollback only if user was created in this request
+      if (createdNewAuthUser && authUserId) {
+        await adminClient.auth.admin.deleteUser(authUserId);
+      }
       return new Response(JSON.stringify({ error: insertError.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Add contratado role
-    await adminClient.from("user_roles").insert({
-      user_id: newUser.user.id,
-      role: "contratado",
-    }).catch(() => {}); // role may not exist in enum, that's ok
+    if (authUserId) {
+      await adminClient.from("user_roles").insert({
+        user_id: authUserId,
+        role: "contratado",
+      }).catch(() => {}); // role may already exist
+    }
 
     return new Response(JSON.stringify({
       success: true,
       contratado_id: contratado.id,
-      user_id: newUser.user.id,
+      user_id: authUserId,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
