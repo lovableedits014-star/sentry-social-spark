@@ -33,6 +33,7 @@ import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
 import Campanha from "./pages/Campanha";
+import Alertas from "./pages/Alertas";
 
 const queryClient = new QueryClient();
 
