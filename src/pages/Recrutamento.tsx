@@ -170,9 +170,11 @@ export default function Recrutamento() {
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
+      <div className="space-y-2">
         <h1 className="text-2xl font-bold">Recrutamento</h1>
-        <p className="text-sm text-muted-foreground">Acompanhe o crescimento da sua base política</p>
+        <p className="text-sm text-muted-foreground max-w-2xl">
+          Painel analítico de crescimento da base. Aqui você monitora quantas pessoas estão entrando na sua base política e de onde vêm — os cadastros são feitos pela rota pública (QR Code em eventos) ou manualmente em <strong>Pessoas</strong>.
+        </p>
       </div>
 
       {/* Metric cards */}
