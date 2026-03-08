@@ -128,6 +128,8 @@ export default function Pessoas() {
     if (filterTipo !== "all") query = query.eq("tipo_pessoa", filterTipo as any);
     if (filterNivel !== "all") query = query.eq("nivel_apoio", filterNivel as any);
     if (filterOrigem !== "all") query = query.eq("origem_contato", filterOrigem as any);
+    if (filterWhatsapp === "sim") query = query.eq("whatsapp_confirmado" as any, true);
+    if (filterWhatsapp === "nao") query = query.eq("whatsapp_confirmado" as any, false);
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
