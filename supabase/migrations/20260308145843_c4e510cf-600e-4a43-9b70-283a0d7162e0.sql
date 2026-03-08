@@ -1,0 +1,1 @@
+ALTER TABLE public.pessoas ADD COLUMN whatsapp_confirmado boolean NOT NULL DEFAULT false;

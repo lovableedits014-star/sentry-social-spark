@@ -666,6 +666,7 @@ export type Database = {
           telefone: string | null
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at: string
+          whatsapp_confirmado: boolean
         }
         Insert: {
           bairro?: string | null
@@ -685,6 +686,7 @@ export type Database = {
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          whatsapp_confirmado?: boolean
         }
         Update: {
           bairro?: string | null
@@ -704,6 +706,7 @@ export type Database = {
           telefone?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          whatsapp_confirmado?: boolean
         }
         Relationships: [
           {
