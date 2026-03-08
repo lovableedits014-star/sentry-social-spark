@@ -28,9 +28,8 @@ import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
-import LideresDigitais from "./pages/LideresDigitais";
-import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
+import Campanha from "./pages/Campanha";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
@@ -71,7 +70,6 @@ const App = () => (
             <Route path="/crise" element={<DetectorCrise />} />
             <Route path="/missoes-ia" element={<MissoesIA />} />
             <Route path="/multiplicadores" element={<Multiplicadores />} />
-            <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/campanha" element={<Campanha />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/contratados" element={<Contratados />} />
