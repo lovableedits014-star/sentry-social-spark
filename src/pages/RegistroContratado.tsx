@@ -206,18 +206,39 @@ export default function RegistroContratado() {
   const [portalUrl, setPortalUrl] = useState("");
 
   useEffect(() => {
-    if (!clientId) return;
-    Promise.all([
-      supabase.from("clients").select("name, whatsapp_oficial").eq("id", clientId).maybeSingle(),
-      liderId ? supabase.from("pessoas").select("nome").eq("id", liderId).maybeSingle() : Promise.resolve({ data: null }),
-    ]).then(([clientRes, liderRes]) => {
-      if (clientRes.data) {
-        setClientName(clientRes.data.name);
-        setWhatsappOficial((clientRes.data as any).whatsapp_oficial || "");
+    if (!clientId) { setLoadingClient(false); return; }
+    
+    const loadClient = async () => {
+      try {
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("name, whatsapp_oficial")
+          .eq("id", clientId)
+          .maybeSingle();
+
+        console.log("RegistroContratado: client fetch", { clientId, clientData, clientError });
+
+        if (clientData) {
+          setClientName(clientData.name);
+          setWhatsappOficial((clientData as any).whatsapp_oficial || "");
+        }
+
+        if (liderId) {
+          const { data: liderData } = await supabase
+            .from("pessoas")
+            .select("nome")
+            .eq("id", liderId)
+            .maybeSingle();
+          if (liderData) setLiderName((liderData as any).nome || "");
+        }
+      } catch (err) {
+        console.error("RegistroContratado: error loading client", err);
+      } finally {
+        setLoadingClient(false);
       }
-      if (liderRes.data) setLiderName((liderRes.data as any).nome || "");
-      setLoadingClient(false);
-    });
+    };
+
+    loadClient();
   }, [clientId, liderId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
