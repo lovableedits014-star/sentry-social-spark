@@ -64,8 +64,14 @@ export default function Territorial() {
   const { groups, totalWithLocation, totalWithout } = useMemo(() => {
     if (!supporters) return { groups: [], totalWithLocation: 0, totalWithout: 0 };
 
-    const withLoc = supporters.filter(s => s.city || s.neighborhood);
-    const withoutLoc = supporters.filter(s => !s.city && !s.neighborhood);
+    // Combine supporter_accounts + confirmed indicados
+    const allEntries = [
+      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at })),
+      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at })),
+    ];
+
+    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
+    const withoutLoc = allEntries.filter(s => !s.city && !s.neighborhood);
 
     const map: Record<string, LocationGroup> = {};
     for (const s of withLoc) {
@@ -81,7 +87,7 @@ export default function Territorial() {
 
     const sorted = Object.values(map).sort((a, b) => b.count - a.count);
     return { groups: sorted, totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
-  }, [supporters]);
+  }, [supporters, confirmedIndicados]);
 
   // Growth: compare supporters with location created in last 30 days vs previous 30 days
   const growthStats = useMemo(() => {
