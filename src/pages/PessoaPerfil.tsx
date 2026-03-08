@@ -47,6 +47,7 @@ export default function PessoaPerfil() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (id) fetchData();
