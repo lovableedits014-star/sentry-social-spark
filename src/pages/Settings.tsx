@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
 import QRCodeLinksCard from "@/components/settings/QRCodeLinksCard";
-import TelemarketingOperadoresCard from "@/components/settings/TelemarketingOperadoresCard";
+import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
@@ -210,8 +210,8 @@ const Settings = () => {
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
       {clientId && <QRCodeLinksCard clientId={clientId} />}
 
-      {/* Telemarketing Operators */}
-      {clientId && <TelemarketingOperadoresCard clientId={clientId} />}
+      {/* Telemarketing Module */}
+      {clientId && <TelemarketingSettingsCard clientId={clientId} />}
 
       {/* Team Users Management */}
       {clientId && <TeamUsersPanel clientId={clientId} />}
