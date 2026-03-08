@@ -155,6 +155,13 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
               </Select>
             </div>
           </div>
+          <div>
+            <Label>Status do Lead</Label>
+            <Select value={statusLead} onValueChange={setStatusLead}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{STATUS_LEAD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
           <div><Label>Tags (separadas por vírgula)</Label><Input value={tagsStr} onChange={e => setTagsStr(e.target.value)} maxLength={500} /></div>
           <div><Label>Notas Internas</Label><Textarea value={notasInternas} onChange={e => setNotasInternas(e.target.value)} rows={3} maxLength={2000} /></div>
           <div className="flex justify-end gap-2 pt-2">
