@@ -34,6 +34,8 @@ import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
 import Campanha from "./pages/Campanha";
 import Alertas from "./pages/Alertas";
+import Contratados from "./pages/Contratados";
+import RegistroContratado from "./pages/RegistroContratado";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +53,8 @@ const App = () => (
           <Route path="/super-admin" element={<SuperAdmin />} />
           <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
           <Route path="/registro/:clientId" element={<RegistroPessoa />} />
+          <Route path="/contratado/:clientId" element={<RegistroContratado />} />
+          <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
@@ -72,6 +76,7 @@ const App = () => (
             <Route path="/lideres" element={<LideresDigitais />} />
             <Route path="/campanha" element={<Campanha />} />
             <Route path="/alertas" element={<Alertas />} />
+            <Route path="/contratados" element={<Contratados />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
