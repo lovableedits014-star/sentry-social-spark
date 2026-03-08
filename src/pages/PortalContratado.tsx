@@ -385,10 +385,16 @@ export default function PortalContratado() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Clique no botão abaixo para enviar a mensagem de confirmação via WhatsApp.
                   </p>
-                  {missingWhatsapp && whatsappOficial && (
-                    <Button onClick={handleSendWhatsApp} size="sm" className="mt-2 gap-1.5">
-                      <MessageCircle className="w-4 h-4" />Enviar WhatsApp
-                    </Button>
+                  {missingWhatsapp && (
+                    whatsappOficial ? (
+                      <Button onClick={handleSendWhatsApp} size="sm" className="mt-2 gap-1.5">
+                        <MessageCircle className="w-4 h-4" />Enviar WhatsApp
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-destructive mt-1 font-medium">
+                        ⚠️ Número de WhatsApp não configurado. Entre em contato com seu coordenador.
+                      </p>
+                    )
                   )}
                   {!missingWhatsapp && (
                     <p className="text-xs text-emerald-600 mt-1 font-medium">✅ WhatsApp confirmado</p>
