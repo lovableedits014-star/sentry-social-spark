@@ -31,7 +31,7 @@ const MENU_SECTIONS: MenuSection[] = [
     label: "Base Política",
     items: [
       { icon: BookUser, label: "Pessoas", path: "/pessoas" },
-      { icon: Kanban, label: "Funil de Leads", path: "/funil" },
+      
       { icon: UserPlus, label: "Recrutamento", path: "/recrutamento" },
     ],
   },
