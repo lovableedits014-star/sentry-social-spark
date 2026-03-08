@@ -44,6 +44,7 @@ interface ContratadoInfo {
   client_id: string;
   contrato_aceito: boolean;
   whatsapp_confirmado: boolean;
+  is_lider: boolean;
 }
 
 export default function PortalContratado() {
