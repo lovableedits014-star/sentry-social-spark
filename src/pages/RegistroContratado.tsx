@@ -245,6 +245,7 @@ export default function RegistroContratado() {
         bairro: bairro.trim() || null,
         endereco: endereco.trim() || null,
         zona_eleitoral: zonaEleitoral.trim(),
+        secao_eleitoral: secaoEleitoral.trim(),
         notas: notas.trim() || null,
         redes_sociais: socials,
       },
