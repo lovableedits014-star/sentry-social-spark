@@ -200,10 +200,12 @@ export default function RegistroFuncionario() {
   const [portalUrl, setPortalUrl] = useState("");
 
   useEffect(() => {
-    if (!clientId) { setLoadingClient(false); return; }
-    supabase.from("clients").select("name").eq("id", clientId).maybeSingle()
-      .then(({ data }) => { if (data) setClientName(data.name); setLoadingClient(false); })
-      .catch(() => setLoadingClient(false));
+    const loadClient = async () => {
+      const { data } = await supabase.from("clients").select("name").eq("id", clientId).maybeSingle();
+      if (data) setClientName(data.name);
+      setLoadingClient(false);
+    };
+    loadClient();
   }, [clientId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
