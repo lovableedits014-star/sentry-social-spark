@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, FileText } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, FileText, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
 import AddSocialDialog from "@/components/pessoas/AddSocialDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const TIPO_LABELS: Record<string, string> = {
   eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
