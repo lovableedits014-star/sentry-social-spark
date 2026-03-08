@@ -1,0 +1,1 @@
+ALTER TABLE public.pessoas ADD COLUMN status_lead text NOT NULL DEFAULT 'novo';
