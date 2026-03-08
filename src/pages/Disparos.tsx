@@ -494,6 +494,7 @@ export default function Disparos() {
                             🏷 {d.tag_filtro}
                           </Badge>
                         )}
+                        <DispatchLogDialog dispatchId={d.id} titulo={d.titulo} />
                         <span className="ml-auto">
                           {new Date(d.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </span>
