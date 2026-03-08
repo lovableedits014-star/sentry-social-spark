@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      acao_externa_funcionarios: {
+        Row: {
+          acao_id: string
+          cadastros_coletados: number
+          client_id: string
+          created_at: string
+          funcionario_id: string
+          id: string
+        }
+        Insert: {
+          acao_id: string
+          cadastros_coletados?: number
+          client_id: string
+          created_at?: string
+          funcionario_id: string
+          id?: string
+        }
+        Update: {
+          acao_id?: string
+          cadastros_coletados?: number
+          client_id?: string
+          created_at?: string
+          funcionario_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acao_externa_funcionarios_acao_id_fkey"
+            columns: ["acao_id"]
+            isOneToOne: false
+            referencedRelation: "acoes_externas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acao_externa_funcionarios_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acao_externa_funcionarios_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      acoes_externas: {
+        Row: {
+          cadastros_coletados: number
+          client_id: string
+          created_at: string
+          data_fim: string
+          data_inicio: string
+          descricao: string | null
+          id: string
+          local: string | null
+          meta_cadastros: number
+          status: string
+          tag_nome: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          cadastros_coletados?: number
+          client_id: string
+          created_at?: string
+          data_fim: string
+          data_inicio: string
+          descricao?: string | null
+          id?: string
+          local?: string | null
+          meta_cadastros?: number
+          status?: string
+          tag_nome: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          cadastros_coletados?: number
+          client_id?: string
+          created_at?: string
+          data_fim?: string
+          data_inicio?: string
+          descricao?: string | null
+          id?: string
+          local?: string | null
+          meta_cadastros?: number
+          status?: string
+          tag_nome?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acoes_externas_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       action_logs: {
         Row: {
           action: string
@@ -2538,6 +2643,15 @@ export type Database = {
       snapshot_monthly_scores: {
         Args: { p_client_id: string }
         Returns: number
+      }
+      tag_pessoa_acao_externa: {
+        Args: {
+          p_client_id: string
+          p_pessoa_id: string
+          p_tag_descricao?: string
+          p_tag_nome: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

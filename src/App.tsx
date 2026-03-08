@@ -29,7 +29,6 @@ import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Funcionarios from "./pages/Funcionarios";
 import Alertas from "./pages/Alertas";
-import Campanha from "./pages/Campanha";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
@@ -74,7 +73,6 @@ const App = () => (
             <Route path="/crise" element={<DetectorCrise />} />
             <Route path="/missoes-ia" element={<MissoesIA />} />
             <Route path="/funcionarios" element={<Funcionarios />} />
-            <Route path="/campanha" element={<Campanha />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/contratados" element={<Contratados />} />
             <Route path="/integrations" element={<Integrations />} />

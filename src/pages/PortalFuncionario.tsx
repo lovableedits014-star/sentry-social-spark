@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users2, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Target, Users,
-  Plus, Copy, Crown, Trophy,
+  Plus, Copy, Crown, Trophy, ClipboardList, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,6 +66,16 @@ export default function PortalFuncionario() {
   const [indNome, setIndNome] = useState("");
   const [indTelefone, setIndTelefone] = useState("");
   const [addingIndicado, setAddingIndicado] = useState(false);
+
+  // Ações Externas state
+  const [acoes, setAcoes] = useState<any[]>([]);
+  const [acaoAssignments, setAcaoAssignments] = useState<any[]>([]);
+  const [collectingAcaoId, setCollectingAcaoId] = useState<string | null>(null);
+  const [acaoCadNome, setAcaoCadNome] = useState("");
+  const [acaoCadTelefone, setAcaoCadTelefone] = useState("");
+  const [acaoCadCidade, setAcaoCadCidade] = useState("");
+  const [acaoCadBairro, setAcaoCadBairro] = useState("");
+  const [submittingCadastro, setSubmittingCadastro] = useState(false);
 
   useEffect(() => {
     if (clientId) {
@@ -137,6 +147,25 @@ export default function PortalFuncionario() {
       }
       setStreak(s);
     }
+
+    // Load assigned ações externas
+    const { data: assignData } = await supabase
+      .from("acao_externa_funcionarios" as any)
+      .select("id, acao_id, funcionario_id, cadastros_coletados")
+      .eq("funcionario_id", (func as any).id);
+    setAcaoAssignments((assignData || []) as any);
+
+    if (assignData && assignData.length > 0) {
+      const acaoIds = (assignData as any[]).map((a: any) => a.acao_id);
+      const { data: acoesData } = await supabase
+        .from("acoes_externas" as any)
+        .select("*")
+        .in("id", acaoIds)
+        .in("status", ["ativa", "planejada"]);
+      setAcoes((acoesData || []) as any);
+    } else {
+      setAcoes([]);
+    }
   };
 
   const handleCheckin = async () => {
@@ -186,6 +215,56 @@ export default function PortalFuncionario() {
       loadPortalData();
     }
     setAddingIndicado(false);
+  };
+
+  const handleAcaoCadastro = async () => {
+    if (!funcionario || !collectingAcaoId || !acaoCadNome.trim() || !acaoCadTelefone.trim()) {
+      toast.error("Nome e telefone são obrigatórios."); return;
+    }
+    setSubmittingCadastro(true);
+    try {
+      const acao = acoes.find((a: any) => a.id === collectingAcaoId);
+      if (!acao) throw new Error("Ação não encontrada");
+
+      const { data: pessoaId, error } = await supabase.rpc("register_pessoa_public", {
+        p_client_id: clientId!,
+        p_nome: acaoCadNome.trim(),
+        p_telefone: acaoCadTelefone.trim(),
+        p_cidade: acaoCadCidade.trim() || null,
+        p_bairro: acaoCadBairro.trim() || null,
+        p_tipo_pessoa: "cidadao",
+        p_notas: `Coletado na ação: ${acao.titulo}`,
+      });
+      if (error) throw error;
+
+      // Tag the pessoa with the ação's tag
+      if (pessoaId) {
+        await supabase.rpc("tag_pessoa_acao_externa" as any, {
+          p_client_id: clientId!,
+          p_pessoa_id: pessoaId,
+          p_tag_nome: acao.tag_nome,
+          p_tag_descricao: `Ação externa: ${acao.titulo}`,
+        });
+      }
+
+      const assignment = acaoAssignments.find((a: any) => a.acao_id === collectingAcaoId);
+      if (assignment) {
+        await supabase.from("acao_externa_funcionarios" as any)
+          .update({ cadastros_coletados: (assignment.cadastros_coletados || 0) + 1 })
+          .eq("id", assignment.id);
+      }
+
+      await supabase.from("acoes_externas" as any)
+        .update({ cadastros_coletados: (acao.cadastros_coletados || 0) + 1 })
+        .eq("id", acao.id);
+
+      toast.success("Cadastro registrado! ✅");
+      setAcaoCadNome(""); setAcaoCadTelefone(""); setAcaoCadCidade(""); setAcaoCadBairro("");
+      loadPortalData();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao registrar cadastro");
+    }
+    setSubmittingCadastro(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -334,11 +413,14 @@ export default function PortalFuncionario() {
 
         {/* ── TABS ────────────────────────── */}
         <Tabs defaultValue="missoes">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="missoes" className="gap-1.5"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
-            <TabsTrigger value="indicados" className="gap-1.5">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="missoes" className="gap-1.5 text-xs"><Target className="w-3.5 h-3.5" />Missões</TabsTrigger>
+            <TabsTrigger value="indicados" className="gap-1.5 text-xs">
               <Users className="w-3.5 h-3.5" />Indicados
-              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{referrals.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="acoes" className="gap-1.5 text-xs">
+              <ClipboardList className="w-3.5 h-3.5" />Ações
+              {acoes.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{acoes.length}</Badge>}
             </TabsTrigger>
           </TabsList>
 
@@ -409,6 +491,81 @@ export default function PortalFuncionario() {
             ))}
             {referrals.length === 0 && !showAddForm && (
               <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma indicação ainda. Comece indicando!</CardContent></Card>
+            )}
+          </TabsContent>
+
+          {/* ── AÇÕES EXTERNAS TAB ────────────────────────── */}
+          <TabsContent value="acoes" className="space-y-3 mt-3">
+            <p className="text-xs text-muted-foreground">
+              Ações externas em que você foi escalado. Colete cadastros diretamente pelo celular.
+            </p>
+            {acoes.length === 0 ? (
+              <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma ação atribuída no momento.</CardContent></Card>
+            ) : (
+              acoes.map((acao: any) => {
+                const assignment = acaoAssignments.find((a: any) => a.acao_id === acao.id);
+                const totalAssigned = acaoAssignments.filter((a: any) => a.acao_id === acao.id).length || 1;
+                const metaIndividual = Math.ceil(acao.meta_cadastros / totalAssigned);
+                const meusCadastros = assignment?.cadastros_coletados || 0;
+                const isCollecting = collectingAcaoId === acao.id;
+
+                return (
+                  <Card key={acao.id} className="overflow-hidden">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm">{acao.titulo}</p>
+                          {acao.local && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" />{acao.local}</p>}
+                        </div>
+                        <Badge variant={acao.status === "ativa" ? "default" : "secondary"}>
+                          {acao.status === "ativa" ? "Ativa" : "Planejada"}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">{meusCadastros}</p>
+                          <p className="text-[10px] text-muted-foreground">Meus cadastros</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">~{metaIndividual}</p>
+                          <p className="text-[10px] text-muted-foreground">Minha meta</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <p className="text-lg font-bold">{acao.cadastros_coletados}/{acao.meta_cadastros}</p>
+                          <p className="text-[10px] text-muted-foreground">Total equipe</p>
+                        </div>
+                      </div>
+
+                      {acao.status === "ativa" && (
+                        <>
+                          {!isCollecting ? (
+                            <Button onClick={() => setCollectingAcaoId(acao.id)} className="w-full gap-1.5" size="sm">
+                              <Plus className="w-4 h-4" />Coletar Cadastro
+                            </Button>
+                          ) : (
+                            <div className="space-y-2 border-t pt-3">
+                              <p className="text-xs font-semibold">Novo cadastro:</p>
+                              <Input value={acaoCadNome} onChange={e => setAcaoCadNome(e.target.value)} placeholder="Nome completo *" />
+                              <Input value={acaoCadTelefone} onChange={e => setAcaoCadTelefone(e.target.value)} placeholder="Telefone *" />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input value={acaoCadCidade} onChange={e => setAcaoCadCidade(e.target.value)} placeholder="Cidade" />
+                                <Input value={acaoCadBairro} onChange={e => setAcaoCadBairro(e.target.value)} placeholder="Bairro" />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setCollectingAcaoId(null)} className="flex-1">Cancelar</Button>
+                                <Button size="sm" onClick={handleAcaoCadastro} disabled={submittingCadastro} className="flex-1 gap-1">
+                                  {submittingCadastro ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}Salvar
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </TabsContent>
         </Tabs>
