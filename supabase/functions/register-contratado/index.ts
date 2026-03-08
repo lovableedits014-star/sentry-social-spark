@@ -146,6 +146,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Also create a pessoa record linked to this contratado
+    const tipoPessoa = finalIsLider ? 'lider' : 'contratado';
+    const { error: pessoaError } = await adminClient
+      .from("pessoas")
+      .insert({
+        client_id,
+        nome: nome.trim(),
+        email: normalizedEmail,
+        telefone: telefone.trim(),
+        cidade: cidade?.trim() || null,
+        bairro: bairro?.trim() || null,
+        endereco: endereco?.trim() || null,
+        zona_eleitoral: zona_eleitoral?.trim() || null,
+        secao_eleitoral: secao_eleitoral?.trim() || null,
+        tipo_pessoa: tipoPessoa,
+        nivel_apoio: 'simpatizante',
+        origem_contato: 'formulario',
+        notas_internas: notas?.trim() || null,
+        contratado_id: contratado.id,
+      });
+
+    if (pessoaError) {
+      console.error("Error creating pessoa for contratado:", pessoaError);
+      // Non-blocking: contratado was created, pessoa is supplementary
+    }
+
     // Add contratado role
     if (authUserId) {
       const { error: roleError } = await adminClient.from("user_roles").insert({
