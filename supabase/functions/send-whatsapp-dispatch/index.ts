@@ -16,8 +16,8 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function randomDelay() {
-  return Math.floor(Math.random() * (DELAY_MAX_MS - DELAY_MIN_MS + 1)) + DELAY_MIN_MS;
+function randomDelay(minMs: number, maxMs: number) {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
 Deno.serve(async (req) => {
