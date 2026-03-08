@@ -274,13 +274,13 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     Nenhuma pessoa encontrada
                   </TableCell>
                 </TableRow>
