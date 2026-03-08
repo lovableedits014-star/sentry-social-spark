@@ -268,6 +268,7 @@ export default function Pessoas() {
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
