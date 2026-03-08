@@ -12,6 +12,7 @@ import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingU
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
+import { getWhatsAppLink } from "@/lib/social-url";
 
 const TIPO_LABELS: Record<string, string> = {
   eleitor: "Eleitor", apoiador: "Apoiador", lideranca: "Liderança",
@@ -318,7 +319,26 @@ export default function Pessoas() {
                   return (
                     <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
                       <TableCell className="font-medium">{p.nome}</TableCell>
-                      <TableCell className="text-sm">{p.telefone || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <span>{p.telefone || "—"}</span>
+                          {(() => {
+                            const waLink = getWhatsAppLink(p.telefone);
+                            return waLink ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <a href={waLink} target="_blank" rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center justify-center h-6 w-6 rounded text-emerald-600 hover:bg-emerald-500/10 transition-colors shrink-0">
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                  </a>
+                                </TooltipTrigger>
+                                <TooltipContent>Conversar no WhatsApp</TooltipContent>
+                              </Tooltip>
+                            ) : null;
+                          })()}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm">
                         {p.cidade || "—"}{p.bairro ? ` / ${p.bairro}` : ""}
                       </TableCell>
