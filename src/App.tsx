@@ -61,6 +61,7 @@ const App = () => (
             <Route path="/funil" element={<FunilLeads />} />
             <Route path="/radar" element={<RadarTemas />} />
             <Route path="/crise" element={<DetectorCrise />} />
+            <Route path="/influenciadores" element={<MapaInfluenciadores />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
