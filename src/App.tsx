@@ -24,6 +24,7 @@ import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
+import Recrutamento from "./pages/Recrutamento";
 
 const queryClient = new QueryClient();
 
