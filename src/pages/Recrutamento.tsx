@@ -234,7 +234,7 @@ export default function Recrutamento() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">Recrutamento</h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Painel analítico de crescimento da base. Aqui você monitora quantas pessoas estão entrando na sua base política e de onde vêm — os cadastros são feitos pela rota pública (QR Code em eventos) ou manualmente em <strong>Pessoas</strong>.
+          Painel analítico de crescimento da base. Consolida dados de <strong>Pessoas</strong>, <strong>Contratados</strong>, <strong>Líderes</strong> e <strong>Indicados</strong> — todos os cadastros do sistema em uma única visão.
         </p>
       </div>
 
