@@ -345,11 +345,13 @@ export default function RegistroContratado() {
           <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
             <Briefcase className="w-7 h-7 text-primary" />
           </div>
-          <CardTitle className="text-xl">Cadastro de Contratado</CardTitle>
+          <CardTitle className="text-xl">{liderId ? "Cadastro de Contratado" : "Cadastro de Líder"}</CardTitle>
           <CardDescription>
-            {liderName
+            {liderId && liderName
               ? `Indicado por ${liderName}${clientName ? ` — Base de ${clientName}` : ""}`
-              : `Preencha seus dados para concluir seu cadastro${clientName ? ` em ${clientName}` : ""}`}
+              : clientName
+              ? `Preencha seus dados para se cadastrar como líder em ${clientName}`
+              : "Preencha seus dados para concluir seu cadastro"}
           </CardDescription>
         </CardHeader>
         <CardContent>
