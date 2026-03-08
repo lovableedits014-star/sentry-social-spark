@@ -29,7 +29,7 @@ import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Funcionarios from "./pages/Funcionarios";
 import Alertas from "./pages/Alertas";
-import Campanha from "./pages/Campanha";
+
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
