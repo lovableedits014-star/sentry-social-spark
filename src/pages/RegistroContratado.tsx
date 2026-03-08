@@ -311,13 +311,17 @@ export default function RegistroContratado() {
                 Acessar Meu Portal
               </a>
             </Button>
-            {whatsappLink && (
+            {whatsappLink ? (
               <Button asChild variant="outline" size="lg" className="w-full gap-2 border-green-300 text-green-700 hover:bg-green-50">
                 <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
                   <MessageCircle className="w-5 h-5" />
-                  Confirmar no WhatsApp
+                  Confirmar no WhatsApp (obrigatório)
                 </a>
               </Button>
+            ) : (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded-lg text-sm text-amber-800 dark:text-amber-300 text-center">
+                ⚠️ Entre em contato com a equipe pelo WhatsApp para confirmar seu cadastro.
+              </div>
             )}
           </CardContent>
         </Card>
