@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle } from "lucide-react";
+import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle, Facebook, Instagram } from "lucide-react";
 
 const UF_OPTIONS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
