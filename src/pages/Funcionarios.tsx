@@ -9,9 +9,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users2, Trophy, TrendingUp, UserPlus, Copy, CheckCircle2,
-  Clock, Crown, Medal, Award, Loader2, CalendarCheck, Link2,
+  Clock, Crown, Medal, Award, Loader2, CalendarCheck, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
+import AcoesExternasTab from "@/components/funcionarios/AcoesExternasTab";
 
 export default function Funcionarios() {
   const [copied, setCopied] = useState(false);
@@ -40,7 +41,6 @@ export default function Funcionarios() {
 
   const clientId = client?.id;
 
-  // Funcionarios list
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios-list", clientId],
     queryFn: async () => {
@@ -54,7 +54,6 @@ export default function Funcionarios() {
     enabled: !!clientId,
   });
 
-  // Stats
   const { data: stats } = useQuery({
     queryKey: ["funcionarios-stats", clientId],
     queryFn: async () => {
@@ -68,7 +67,6 @@ export default function Funcionarios() {
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId!);
 
-      // Today's checkins
       const today = new Date().toISOString().split("T")[0];
       const { count: todayCheckins } = await supabase
         .from("funcionario_checkins" as any)
@@ -86,7 +84,6 @@ export default function Funcionarios() {
     enabled: !!clientId,
   });
 
-  // Recent referrals
   const { data: recentReferrals } = useQuery({
     queryKey: ["funcionario-recent-referrals", clientId],
     queryFn: async () => {
@@ -96,15 +93,14 @@ export default function Funcionarios() {
         .eq("client_id", clientId!)
         .order("created_at", { ascending: false })
         .limit(30);
-      
-      // Get funcionario names
+
       if (data && data.length > 0) {
         const funcIds = [...new Set((data as any[]).map((r: any) => r.funcionario_id))];
         const { data: funcs } = await supabase
           .from("funcionarios" as any)
           .select("id, nome")
           .in("id", funcIds);
-        
+
         const funcMap = new Map((funcs || []).map((f: any) => [f.id, f.nome]));
         return (data as any[]).map((r: any) => ({
           ...r,
@@ -148,20 +144,9 @@ export default function Funcionarios() {
       <div>
         <h1 className="text-2xl font-bold">Funcionários</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Gerencie seus funcionários fixos, acompanhe presenças e o ranking de indicações.
+          Gerencie seus funcionários fixos, acompanhe presenças, ranking de indicações e ações externas.
         </p>
       </div>
-
-      {/* Explanation */}
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardContent className="pt-4 pb-3 px-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            <strong className="text-foreground">Como funciona:</strong> Funcionários são membros fixos da equipe que devem marcar presença diariamente e interagir nas missões de engajamento.
-            Cada funcionário recebe um <strong>link de indicação exclusivo</strong> para convidar novos apoiadores — quanto mais indicações, maior a posição no ranking.
-            As redes sociais cadastradas são monitoradas automaticamente pelo sistema de engajamento.
-          </p>
-        </CardContent>
-      </Card>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -172,7 +157,6 @@ export default function Funcionarios() {
               <p className="text-xs text-muted-foreground">Funcionários</p>
             </div>
             <p className="text-2xl font-bold">{stats?.total || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Cadastrados na equipe</p>
           </CardContent>
         </Card>
         <Card>
@@ -182,7 +166,7 @@ export default function Funcionarios() {
               <p className="text-xs text-muted-foreground">Presença Hoje</p>
             </div>
             <p className="text-2xl font-bold text-emerald-600">{stats?.todayCheckins || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">{stats?.presencaRate || 0}% compareceram</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">{stats?.presencaRate || 0}%</p>
           </CardContent>
         </Card>
         <Card>
@@ -192,7 +176,6 @@ export default function Funcionarios() {
               <p className="text-xs text-muted-foreground">Indicações</p>
             </div>
             <p className="text-2xl font-bold text-primary">{stats?.totalReferrals || 0}</p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Apoiadores recrutados</p>
           </CardContent>
         </Card>
         <Card>
@@ -204,41 +187,14 @@ export default function Funcionarios() {
             <p className="text-2xl font-bold">
               {stats?.total ? (stats.totalReferrals / stats.total).toFixed(1) : "0"}
             </p>
-            <p className="text-[10px] text-muted-foreground/70 mt-0.5">Indicações por funcionário</p>
           </CardContent>
         </Card>
       </div>
-
-      {/* Attendance bar */}
-      {stats && stats.total > 0 && (
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Presença de Hoje</p>
-            <div className="flex rounded-full overflow-hidden h-4">
-              <div className="bg-emerald-500 transition-all" style={{ width: `${stats.presencaRate}%` }} />
-              <div className="bg-muted transition-all" style={{ width: `${100 - stats.presencaRate}%` }} />
-            </div>
-            <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                Presentes ({stats.todayCheckins})
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-muted inline-block border" />
-                Ausentes ({stats.total - stats.todayCheckins})
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Registration link */}
       <Card>
         <CardContent className="pt-4 pb-3 px-4">
           <p className="text-sm font-medium mb-2">Link de Cadastro de Funcionários</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Envie este link para novos funcionários se cadastrarem na plataforma.
-          </p>
           <div className="flex gap-2">
             <Input value={registerLink} readOnly className="text-xs font-mono" />
             <Button variant="outline" size="sm" onClick={handleCopyLink}>
@@ -256,6 +212,9 @@ export default function Funcionarios() {
           <TabsTrigger value="timeline">
             <Clock className="w-4 h-4 mr-1.5" />Histórico
           </TabsTrigger>
+          <TabsTrigger value="acoes">
+            <ClipboardList className="w-4 h-4 mr-1.5" />Ações Externas
+          </TabsTrigger>
         </TabsList>
 
         {/* Ranking Tab */}
@@ -266,16 +225,12 @@ export default function Funcionarios() {
                 <Trophy className="w-4 h-4 text-primary" />
                 Ranking de Indicações
               </CardTitle>
-              <CardDescription className="text-xs">
-                Funcionários que mais trouxeram novos apoiadores por indicação.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {!funcionarios || funcionarios.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
                   <Users2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p className="text-sm font-medium">Nenhum funcionário cadastrado</p>
-                  <p className="text-xs mt-1">Envie o link de cadastro para começar</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -291,10 +246,7 @@ export default function Funcionarios() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{m.nome}</p>
-                            <p className="text-[10px] text-muted-foreground">{m.cidade || "—"}</p>
-                          </div>
+                          <p className="text-sm font-medium truncate">{m.nome}</p>
                           <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs ml-2 shrink-0">
                             {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
                           </Badge>
@@ -317,9 +269,6 @@ export default function Funcionarios() {
                 <Clock className="w-4 h-4 text-primary" />
                 Indicações Recentes
               </CardTitle>
-              <CardDescription className="text-xs">
-                Últimas 30 indicações realizadas pelos funcionários.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {!recentReferrals || recentReferrals.length === 0 ? (
@@ -350,6 +299,11 @@ export default function Funcionarios() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Ações Externas Tab */}
+        <TabsContent value="acoes" className="mt-4">
+          <AcoesExternasTab clientId={clientId} />
         </TabsContent>
       </Tabs>
     </div>
