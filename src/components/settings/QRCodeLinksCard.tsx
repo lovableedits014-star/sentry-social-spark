@@ -30,10 +30,8 @@ export default function QRCodeLinksCard({ clientId }: QRCodeLinksCardProps) {
             <QrCode className="w-5 h-5 text-violet-600" />
           </div>
           <div>
-            <CardTitle>Links Públicos + QR Code</CardTitle>
-            <CardDescription>
-              Links para cadastro, telemarketing e QR Code para eventos
-            </CardDescription>
+            <CardTitle>Cadastro CRM + QR Code</CardTitle>
+            <CardDescription>Link público para cadastro rápido em eventos</CardDescription>
           </div>
         </div>
       </CardHeader>
