@@ -319,6 +319,16 @@ export default function Pessoas() {
                     WhatsApp
                   </div>
                 </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-help">Status Lead</div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">Status atual do atendimento</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
