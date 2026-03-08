@@ -5,12 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Conservative anti-ban policy
-const BATCH_SIZE = 10;
-const DELAY_MIN_MS = 5000; // 5s
-const DELAY_MAX_MS = 15000; // 15s
-const BATCH_PAUSE_MS = 60000; // 60s between batches
-const MAX_RUNTIME_MS = 55000; // 55s to stay under 60s limit
+// Default conservative policy (overridable via request body)
+const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_DELAY_MIN = 5; // seconds
+const DEFAULT_DELAY_MAX = 15;
+const DEFAULT_BATCH_PAUSE = 60;
+const MAX_RUNTIME_MS = 55000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
