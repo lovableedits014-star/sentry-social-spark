@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, ExternalLink, User, MapPin, Phone, Mail, Calendar, Tag, Trash2, TrendingUp, Star, Info, Activity, MessageCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EditarPessoaDialog from "@/components/pessoas/EditarPessoaDialog";
@@ -324,6 +324,67 @@ export default function PessoaPerfil() {
 
         {/* Right column */}
         <div className="space-y-6">
+          {/* WhatsApp Confirmation */}
+          <Card className={pessoa.whatsapp_confirmado ? "border-emerald-500/30 bg-emerald-500/5" : ""}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <MessageCircle className={`w-5 h-5 ${pessoa.whatsapp_confirmado ? "text-emerald-600" : "text-muted-foreground"}`} />
+                <CardTitle className="text-base">WhatsApp</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Confirmação:</span>
+                {pessoa.whatsapp_confirmado ? (
+                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Confirmado
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground">Pendente</Badge>
+                )}
+              </div>
+              {!pessoa.whatsapp_confirmado ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-2 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("pessoas")
+                      .update({ whatsapp_confirmado: true } as any)
+                      .eq("id", pessoa.id);
+                    if (error) toast.error("Erro ao confirmar");
+                    else {
+                      setPessoa({ ...pessoa, whatsapp_confirmado: true });
+                      toast.success("WhatsApp confirmado!");
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Marcar como confirmado
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("pessoas")
+                      .update({ whatsapp_confirmado: false } as any)
+                      .eq("id", pessoa.id);
+                    if (error) toast.error("Erro ao reverter");
+                    else {
+                      setPessoa({ ...pessoa, whatsapp_confirmado: false });
+                      toast.success("Confirmação removida");
+                    }
+                  }}
+                >
+                  Remover confirmação
+                </Button>
+              )}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Redes Sociais</CardTitle>

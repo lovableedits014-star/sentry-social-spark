@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
@@ -73,6 +73,7 @@ export default function Pessoas() {
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterNivel, setFilterNivel] = useState("all");
   const [filterOrigem, setFilterOrigem] = useState("all");
+  const [filterWhatsapp, setFilterWhatsapp] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
@@ -90,7 +91,7 @@ export default function Pessoas() {
       fetchPessoas();
       fetchFilterOptions();
     }
-  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, sortField, sortAsc, page]);
+  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, sortField, sortAsc, page]);
 
   async function resolveClient() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -127,6 +128,8 @@ export default function Pessoas() {
     if (filterTipo !== "all") query = query.eq("tipo_pessoa", filterTipo as any);
     if (filterNivel !== "all") query = query.eq("nivel_apoio", filterNivel as any);
     if (filterOrigem !== "all") query = query.eq("origem_contato", filterOrigem as any);
+    if (filterWhatsapp === "sim") query = query.eq("whatsapp_confirmado", true) as any;
+    if (filterWhatsapp === "nao") query = query.eq("whatsapp_confirmado", false) as any;
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -199,7 +202,7 @@ export default function Pessoas() {
       </div>
 
       {/* Search + Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
         <div className="relative sm:col-span-2 lg:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -235,6 +238,14 @@ export default function Pessoas() {
           <SelectContent>
             <SelectItem value="all">Todas origens</SelectItem>
             {Object.entries(ORIGEM_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterWhatsapp} onValueChange={(v) => { setFilterWhatsapp(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="WhatsApp" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">WhatsApp: Todos</SelectItem>
+            <SelectItem value="sim">✅ Confirmado</SelectItem>
+            <SelectItem value="nao">⏳ Pendente</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -278,6 +289,12 @@ export default function Pessoas() {
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </div>
+                </TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
@@ -287,11 +304,11 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
                 </TableRow>
               ) : (
                 pessoas.map((p) => {
@@ -325,6 +342,13 @@ export default function Pessoas() {
                           <Badge variant="outline" className={`text-xs ${CLASSIFICATION_COLORS[classification] || ""}`}>
                             {CLASSIFICATION_LABELS[classification] || classification}
                           </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {p.whatsapp_confirmado ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
