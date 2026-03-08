@@ -696,6 +696,7 @@ export type Database = {
         Row: {
           bairro: string | null
           cidade: string | null
+          classificacao_politica: string
           client_id: string
           created_at: string
           data_nascimento: string | null
@@ -717,6 +718,7 @@ export type Database = {
         Insert: {
           bairro?: string | null
           cidade?: string | null
+          classificacao_politica?: string
           client_id: string
           created_at?: string
           data_nascimento?: string | null
@@ -738,6 +740,7 @@ export type Database = {
         Update: {
           bairro?: string | null
           cidade?: string | null
+          classificacao_politica?: string
           client_id?: string
           created_at?: string
           data_nascimento?: string | null

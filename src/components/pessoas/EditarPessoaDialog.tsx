@@ -41,6 +41,12 @@ const STATUS_LEAD_OPTIONS = [
   { value: "fechado", label: "Fechado" }, { value: "perdido", label: "Perdido" },
 ];
 
+const CLASSIF_POLITICA_OPTIONS = [
+  { value: "apoiador", label: "Apoiador" }, { value: "simpatizante", label: "Simpatizante" },
+  { value: "indefinido", label: "Indefinido" }, { value: "oposicao", label: "Oposição" },
+  { value: "lideranca", label: "Liderança" },
+];
+
 export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
@@ -56,6 +62,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [tagsStr, setTagsStr] = useState("");
   const [notasInternas, setNotasInternas] = useState("");
   const [statusLead, setStatusLead] = useState("novo");
+  const [classificacaoPolitica, setClassificacaoPolitica] = useState("indefinido");
 
   useEffect(() => {
     if (open && pessoa) {
@@ -72,6 +79,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setTagsStr((pessoa.tags || []).join(", "));
       setNotasInternas(pessoa.notas_internas || "");
       setStatusLead(pessoa.status_lead || "novo");
+      setClassificacaoPolitica(pessoa.classificacao_politica || "indefinido");
     }
   }, [open, pessoa]);
 
@@ -95,6 +103,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       tags: tags.length > 0 ? tags : [],
       notas_internas: notasInternas.trim() || null,
       status_lead: statusLead,
+      classificacao_politica: classificacaoPolitica,
     } as any).eq("id", pessoa.id);
 
     setSaving(false);
@@ -160,6 +169,13 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
             <Select value={statusLead} onValueChange={setStatusLead}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{STATUS_LEAD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Classificação Política</Label>
+            <Select value={classificacaoPolitica} onValueChange={setClassificacaoPolitica}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CLASSIF_POLITICA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div><Label>Tags (separadas por vírgula)</Label><Input value={tagsStr} onChange={e => setTagsStr(e.target.value)} maxLength={500} /></div>

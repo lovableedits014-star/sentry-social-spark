@@ -1,0 +1,1 @@
+ALTER TABLE public.pessoas ADD COLUMN classificacao_politica text NOT NULL DEFAULT 'indefinido';

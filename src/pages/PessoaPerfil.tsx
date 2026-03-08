@@ -55,6 +55,18 @@ const STATUS_LEAD_LABELS: Record<string, string> = {
   novo: "Novo", contato_whatsapp: "Contato WhatsApp", em_conversa: "Em Conversa",
   proposta_enviada: "Proposta Enviada", fechado: "Fechado", perdido: "Perdido",
 };
+
+const CLASSIF_POLITICA_LABELS: Record<string, string> = {
+  apoiador: "Apoiador", simpatizante: "Simpatizante", indefinido: "Indefinido",
+  oposicao: "Oposição", lideranca: "Liderança",
+};
+const CLASSIF_POLITICA_COLORS: Record<string, string> = {
+  apoiador: "bg-green-500/10 text-green-600 border-green-500/20",
+  simpatizante: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  indefinido: "bg-muted text-muted-foreground",
+  oposicao: "bg-red-500/10 text-red-600 border-red-500/20",
+  lideranca: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+};
 const STATUS_LEAD_COLORS: Record<string, string> = {
   novo: "bg-muted text-muted-foreground",
   contato_whatsapp: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -467,6 +479,44 @@ export default function PessoaPerfil() {
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {/* Classificação Política */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Classificação Política</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">Atual:</span>
+                <Badge variant="outline" className={`text-xs ${CLASSIF_POLITICA_COLORS[(pessoa as any).classificacao_politica] || ""}`}>
+                  {CLASSIF_POLITICA_LABELS[(pessoa as any).classificacao_politica] || (pessoa as any).classificacao_politica || "Indefinido"}
+                </Badge>
+              </div>
+              <Select
+                value={(pessoa as any).classificacao_politica || "indefinido"}
+                onValueChange={async (value) => {
+                  const { error } = await supabase
+                    .from("pessoas")
+                    .update({ classificacao_politica: value } as any)
+                    .eq("id", pessoa.id);
+                  if (error) toast.error("Erro ao atualizar classificação");
+                  else {
+                    setPessoa({ ...pessoa, classificacao_politica: value });
+                    toast.success("Classificação atualizada!");
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
                   ))}
                 </SelectContent>

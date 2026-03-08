@@ -52,6 +52,19 @@ const STATUS_LEAD_COLORS: Record<string, string> = {
   perdido: "bg-red-500/10 text-red-600 border-red-500/20",
 };
 
+const CLASSIF_POLITICA_LABELS: Record<string, string> = {
+  apoiador: "Apoiador", simpatizante: "Simpatizante", indefinido: "Indefinido",
+  oposicao: "Oposição", lideranca: "Liderança",
+};
+
+const CLASSIF_POLITICA_COLORS: Record<string, string> = {
+  apoiador: "bg-green-500/10 text-green-600 border-green-500/20",
+  simpatizante: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  indefinido: "bg-muted text-muted-foreground",
+  oposicao: "bg-red-500/10 text-red-600 border-red-500/20",
+  lideranca: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+};
+
 const CLASSIFICATION_LABELS: Record<string, string> = {
   apoiador_ativo: "Ativo",
   apoiador_passivo: "Passivo",
@@ -90,6 +103,7 @@ export default function Pessoas() {
   const [filterOrigem, setFilterOrigem] = useState("all");
   const [filterWhatsapp, setFilterWhatsapp] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterClassifPolitica, setFilterClassifPolitica] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
@@ -107,7 +121,7 @@ export default function Pessoas() {
       fetchPessoas();
       fetchFilterOptions();
     }
-  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, sortField, sortAsc, page]);
+  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, filterClassifPolitica, sortField, sortAsc, page]);
 
   async function resolveClient() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -147,6 +161,7 @@ export default function Pessoas() {
     if (filterWhatsapp === "sim") query = query.eq("whatsapp_confirmado", true) as any;
     if (filterWhatsapp === "nao") query = query.eq("whatsapp_confirmado", false) as any;
     if (filterStatus !== "all") query = query.eq("status_lead", filterStatus) as any;
+    if (filterClassifPolitica !== "all") query = query.eq("classificacao_politica", filterClassifPolitica) as any;
     query = query.order(sortField, { ascending: sortAsc });
     query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -272,6 +287,13 @@ export default function Pessoas() {
             {Object.entries(STATUS_LEAD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterClassifPolitica} onValueChange={(v) => { setFilterClassifPolitica(v); setPage(0); }}>
+          <SelectTrigger><SelectValue placeholder="Classificação" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas classificações</SelectItem>
+            {Object.entries(CLASSIF_POLITICA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -329,6 +351,16 @@ export default function Pessoas() {
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-help">Classificação</div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">Classificação política do contato</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1">Criação <ArrowUpDown className="w-3 h-3" /></div>
                 </TableHead>
@@ -338,11 +370,11 @@ export default function Pessoas() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
+                   <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">Carregando...</TableCell>
                 </TableRow>
               ) : pessoas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
+                   <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">Nenhuma pessoa encontrada</TableCell>
                 </TableRow>
               ) : (
                 pessoas.map((p) => {
@@ -414,6 +446,16 @@ export default function Pessoas() {
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>Status atual do atendimento</TooltipContent>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className={`text-xs ${CLASSIF_POLITICA_COLORS[(p as any).classificacao_politica] || ""}`}>
+                              {CLASSIF_POLITICA_LABELS[(p as any).classificacao_politica] || (p as any).classificacao_politica || "Indefinido"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>Classificação política do contato</TooltipContent>
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
