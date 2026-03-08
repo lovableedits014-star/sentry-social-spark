@@ -27,12 +27,14 @@ import Recrutamento from "./pages/Recrutamento";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
-import Multiplicadores from "./pages/Multiplicadores";
+import Funcionarios from "./pages/Funcionarios";
 import Alertas from "./pages/Alertas";
 import Campanha from "./pages/Campanha";
 import Contratados from "./pages/Contratados";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
+import RegistroFuncionario from "./pages/RegistroFuncionario";
+import PortalFuncionario from "./pages/PortalFuncionario";
 import Telemarketing from "./pages/Telemarketing";
 
 const queryClient = new QueryClient();
