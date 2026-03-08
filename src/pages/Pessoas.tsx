@@ -406,6 +406,16 @@ export default function Pessoas() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className={`text-xs ${STATUS_LEAD_COLORS[(p as any).status_lead] || ""}`}>
+                              {STATUS_LEAD_LABELS[(p as any).status_lead] || (p as any).status_lead || "Novo"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>Status atual do atendimento</TooltipContent>
+                        </Tooltip>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
