@@ -318,6 +318,45 @@ export default function PortalContratado() {
           </div>
         </Card>
 
+        {/* WhatsApp Confirmation - one time only */}
+        {!contratado.whatsapp_confirmado && whatsappOficial && (
+          <Card className="border-primary/50 bg-primary/5">
+            <CardContent className="p-4 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
+                <MessageCircle className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">📲 Confirme seu cadastro via WhatsApp</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Envie uma mensagem para confirmar que você foi cadastrado. Isso é obrigatório e só precisa ser feito uma vez.
+                </p>
+              </div>
+              <Button
+                className="w-full gap-2"
+                size="lg"
+                onClick={async () => {
+                  const phone = whatsappOficial.replace(/\D/g, "");
+                  const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
+                  const msg = `Olá! Sou ${contratado.nome}, confirmando meu cadastro como contratado.`;
+                  window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+                  // Mark as confirmed
+                  await supabase.from("contratados").update({ whatsapp_confirmado: true } as any).eq("id", contratado.id);
+                  setContratado({ ...contratado, whatsapp_confirmado: true });
+                  toast.success("WhatsApp confirmado!");
+                }}
+              >
+                <MessageCircle className="w-5 h-5" />Enviar WhatsApp de Confirmação
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {contratado.whatsapp_confirmado && (
+          <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-600">
+            <CheckCircle2 className="w-3.5 h-3.5" />WhatsApp confirmado
+          </div>
+        )}
+
         {/* Tabs */}
         <Tabs defaultValue="missoes">
           <TabsList className="grid w-full grid-cols-2">
