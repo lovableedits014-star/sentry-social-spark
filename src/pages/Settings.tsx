@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Copy, ExternalLink, Users, UserPlus, Shield, Info, CheckCircle2 } from "lucide-react";
+import { Settings as SettingsIcon, Copy, ExternalLink, Users, Shield, Info, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
@@ -16,7 +16,6 @@ const Settings = () => {
   const [userId, setUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [copiedPortal, setCopiedPortal] = useState(false);
-  const [copiedCadastro, setCopiedCadastro] = useState(false);
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -39,19 +38,12 @@ const Settings = () => {
   }, []);
 
   const portalUrl = clientId ? `${window.location.origin}/portal/${clientId}` : "";
-  const cadastroUrl = clientId ? `${window.location.origin}/cadastro/${clientId}` : "";
 
-  const copyToClipboard = (text: string, type: "portal" | "cadastro") => {
-    navigator.clipboard.writeText(text);
-    if (type === "portal") {
-      setCopiedPortal(true);
-      toast.success("Link do Portal copiado!");
-      setTimeout(() => setCopiedPortal(false), 2000);
-    } else {
-      setCopiedCadastro(true);
-      toast.success("Link de Cadastro copiado!");
-      setTimeout(() => setCopiedCadastro(false), 2000);
-    }
+  const copyPortalLink = () => {
+    navigator.clipboard.writeText(portalUrl);
+    setCopiedPortal(true);
+    toast.success("Link do Portal copiado!");
+    setTimeout(() => setCopiedPortal(false), 2000);
   };
 
 
@@ -142,7 +134,7 @@ const Settings = () => {
                 <div className="bg-muted rounded-md px-3 py-2 flex items-center justify-between gap-2">
                   <code className="text-xs text-muted-foreground truncate flex-1">{portalUrl}</code>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copyToClipboard(portalUrl, "portal")}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyPortalLink}>
                       {copiedPortal ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => window.open(portalUrl, "_blank")}>
@@ -155,35 +147,6 @@ const Settings = () => {
                 </p>
               </div>
 
-              {/* Cadastro de Apoiador */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-950/30 rounded-lg flex items-center justify-center shrink-0">
-                      <UserPlus className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">Cadastro de Apoiador</p>
-                      <p className="text-xs text-muted-foreground">Formulário para novos apoiadores vincularem seus perfis de Facebook e Instagram</p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs shrink-0">Cadastro único</Badge>
-                </div>
-                <div className="bg-muted rounded-md px-3 py-2 flex items-center justify-between gap-2">
-                  <code className="text-xs text-muted-foreground truncate flex-1">{cadastroUrl}</code>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copyToClipboard(cadastroUrl, "cadastro")}>
-                      {copiedCadastro ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => window.open(cadastroUrl, "_blank")}>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-2">
-                  💡 <strong>Use para cadastro sem login.</strong> Apoiadores preenchem nome e perfis sociais — útil para registrar quem ainda não tem conta no portal.
-                </p>
-              </div>
 
               {/* Seu ID de conta */}
               <div className="border border-dashed rounded-lg p-4 space-y-2">
