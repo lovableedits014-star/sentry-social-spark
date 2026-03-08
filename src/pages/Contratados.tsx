@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Progress } from "@/components/ui/progress";
 import {
   Briefcase, Search, Users, QrCode, Play, Pause, Square, Loader2,
   MessageCircle, Clock, CheckCircle2, AlertCircle, Send, Copy, ExternalLink,
