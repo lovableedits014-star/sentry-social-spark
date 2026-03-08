@@ -898,6 +898,11 @@ export default function Engagement() {
           </Card>
         </TabsContent>
 
+        {/* Influenciadores Tab */}
+        <TabsContent value="influenciadores">
+          {client?.id && <InfluenciadoresTab clientId={client.id} />}
+        </TabsContent>
+
         {/* Multiplicadores Tab */}
         <TabsContent value="multiplicadores">
           {client?.id && <MultiplierRanking clientId={client.id} />}
