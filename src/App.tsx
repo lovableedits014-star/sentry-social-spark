@@ -8,9 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Comments from "./pages/Comments";
 import Engagement from "./pages/Engagement";
-
-import Settings from "./pages/Settings";
-import DashboardLayout from "./components/DashboardLayout";
+ DashboardLayout from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 import SupporterRegister from "./pages/SupporterRegister";
 import SupporterPortal from "./pages/SupporterPortal";
@@ -75,8 +73,7 @@ const App = () => (
             <Route path="/funcionarios" element={<Funcionarios />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/contratados" element={<Contratados />} />
-            <Route path="/integrations" element={<Integrations />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/integrations" element={<Integratioettings />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

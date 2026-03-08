@@ -53,7 +53,6 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: "Sistema",
     items: [
-      { icon: Link2, label: "Integrações", path: "/integrations" },
       { icon: Settings, label: "Configurações", path: "/settings" },
     ],
   },
