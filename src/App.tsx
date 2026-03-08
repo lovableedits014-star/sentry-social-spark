@@ -27,7 +27,7 @@ import Recrutamento from "./pages/Recrutamento";
 import FunilLeads from "./pages/FunilLeads";
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
-import MapaInfluenciadores from "./pages/MapaInfluenciadores";
+
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
