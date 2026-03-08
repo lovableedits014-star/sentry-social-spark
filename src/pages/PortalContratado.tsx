@@ -107,6 +107,10 @@ export default function PortalContratado() {
   const loadPortalData = async () => {
     if (!session || !clientId) return;
 
+    // Fetch whatsapp_oficial with authenticated session
+    const { data: clientData } = await supabase.from("clients").select("whatsapp_oficial").eq("id", clientId).maybeSingle();
+    if (clientData?.whatsapp_oficial) setWhatsappOficial(clientData.whatsapp_oficial);
+
     const { data: cont } = await supabase
       .from("contratados")
       .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado, is_lider")
