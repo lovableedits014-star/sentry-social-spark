@@ -2624,6 +2624,95 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_birthday_config: {
+        Row: {
+          client_id: string
+          created_at: string
+          enabled: boolean
+          hora_envio: string
+          id: string
+          image_url: string | null
+          mensagem_template: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          enabled?: boolean
+          hora_envio?: string
+          id?: string
+          image_url?: string | null
+          mensagem_template?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          enabled?: boolean
+          hora_envio?: string
+          id?: string
+          image_url?: string | null
+          mensagem_template?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_birthday_config_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_birthday_log: {
+        Row: {
+          client_id: string
+          enviado_em: string
+          erro: string | null
+          id: string
+          pessoa_id: string
+          pessoa_nome: string
+          status: string
+          telefone: string
+        }
+        Insert: {
+          client_id: string
+          enviado_em?: string
+          erro?: string | null
+          id?: string
+          pessoa_id: string
+          pessoa_nome: string
+          status?: string
+          telefone: string
+        }
+        Update: {
+          client_id?: string
+          enviado_em?: string
+          erro?: string | null
+          id?: string
+          pessoa_id?: string
+          pessoa_nome?: string
+          status?: string
+          telefone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_birthday_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_birthday_log_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_dispatch_items: {
         Row: {
           created_at: string
