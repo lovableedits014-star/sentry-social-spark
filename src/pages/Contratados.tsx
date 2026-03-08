@@ -555,7 +555,8 @@ export default function Contratados() {
           )}
 
           {leaders.map(liderId => {
-            const liderNome = liderMap[liderId] || "Líder desconhecido";
+            const liderContratado = contratados.find(c => c.id === liderId);
+            const liderNome = liderContratado?.nome || liderMap[liderId] || "Líder desconhecido";
             const membros = contratados.filter(c => c.lider_id === liderId);
             const membrosAtivos = membros.filter(c => c.status === "ativo").length;
             const contratos = membros.filter(c => c.contrato_aceito).length;
