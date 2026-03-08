@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.calculate-ied]
 verify_jwt = false
+
+[functions.register-contratado]
+verify_jwt = false
