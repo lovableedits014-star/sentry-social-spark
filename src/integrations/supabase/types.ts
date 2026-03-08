@@ -683,6 +683,7 @@ export type Database = {
           telefone: string
           updated_at: string
           user_id: string | null
+          whatsapp_confirmado: boolean
           zona_eleitoral: string | null
         }
         Insert: {
@@ -705,6 +706,7 @@ export type Database = {
           telefone: string
           updated_at?: string
           user_id?: string | null
+          whatsapp_confirmado?: boolean
           zona_eleitoral?: string | null
         }
         Update: {
@@ -727,6 +729,7 @@ export type Database = {
           telefone?: string
           updated_at?: string
           user_id?: string | null
+          whatsapp_confirmado?: boolean
           zona_eleitoral?: string | null
         }
         Relationships: [
