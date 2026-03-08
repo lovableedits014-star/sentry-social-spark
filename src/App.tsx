@@ -32,6 +32,7 @@ import MapaInfluenciadores from "./pages/MapaInfluenciadores";
 import MissoesIA from "./pages/MissoesIA";
 import Multiplicadores from "./pages/Multiplicadores";
 import LideresDigitais from "./pages/LideresDigitais";
+import Campanha from "./pages/Campanha";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/missoes-ia" element={<MissoesIA />} />
             <Route path="/multiplicadores" element={<Multiplicadores />} />
             <Route path="/lideres" element={<LideresDigitais />} />
+            <Route path="/campanha" element={<Campanha />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
