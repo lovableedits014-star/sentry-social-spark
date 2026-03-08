@@ -475,6 +475,9 @@ const Dashboard = () => {
       {/* IED Panel */}
       {clientId && <IEDPanel clientId={clientId} />}
 
+      {/* Unified Overview */}
+      {clientId && <DashboardOverview clientId={clientId} />}
+
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
