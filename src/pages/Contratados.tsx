@@ -316,6 +316,13 @@ export default function Contratados() {
   const [selectedContratado, setSelectedContratado] = useState<Contratado | null>(null);
   const [editQuota, setEditQuota] = useState(10);
 
+  // Add líder
+  const [showAddLiderDialog, setShowAddLiderDialog] = useState(false);
+  const [liderNomeInput, setLiderNomeInput] = useState("");
+  const [liderTelInput, setLiderTelInput] = useState("");
+  const [liderCidadeInput, setLiderCidadeInput] = useState("");
+  const [addingLider, setAddingLider] = useState(false);
+
   // Dispatch form
   const [dispTitulo, setDispTitulo] = useState("");
   const [dispMensagem, setDispMensagem] = useState("Olá {nome}! 🎯 Nova missão:\n\n{link}\n\nAcesse e interaja! 💪");
