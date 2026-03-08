@@ -134,7 +134,7 @@ const Settings = () => {
                 <div className="bg-muted rounded-md px-3 py-2 flex items-center justify-between gap-2">
                   <code className="text-xs text-muted-foreground truncate flex-1">{portalUrl}</code>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copyToClipboard(portalUrl, "portal")}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyPortalLink}>
                       {copiedPortal ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => window.open(portalUrl, "_blank")}>
