@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
           const found = usersPage.users.find((u) => (u.email || "").toLowerCase() === normalizedEmail);
           if (found) {
             authUserId = found.id;
+            // Update password for the existing user
+            await adminClient.auth.admin.updateUserById(found.id, { password: senha });
             break;
           }
 
