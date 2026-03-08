@@ -124,7 +124,7 @@ export default function Pessoas() {
       fetchPessoas();
       fetchFilterOptions();
     }
-  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, filterClassifPolitica, sortField, sortAsc, page]);
+  }, [clientId, search, filterCidade, filterBairro, filterTipo, filterNivel, filterOrigem, filterWhatsapp, filterStatus, filterClassifPolitica, filterTagId, sortField, sortAsc, page]);
 
   async function resolveClient() {
     const { data: { session } } = await supabase.auth.getSession();
