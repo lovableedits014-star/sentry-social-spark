@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.send-birthday-messages]
 verify_jwt = false
+
+[functions.analyze-crisis]
+verify_jwt = false
