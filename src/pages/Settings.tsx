@@ -34,8 +34,8 @@ const Settings = () => {
     <div className="p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
-        <p className="text-muted-foreground mt-2">
-          Gerencie comunicação, equipe e integrações
+        <p className="text-muted-foreground mt-1 text-sm">
+          Configure suas integrações com WhatsApp (envio de mensagens), Meta (Facebook e Instagram), modelos de IA e gerencie os membros da sua equipe com diferentes níveis de acesso.
         </p>
       </div>
 

@@ -324,7 +324,7 @@ const CampanhaPage = () => {
             Modo Campanha
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Planeje ações, defina metas e atribua tarefas à equipe
+            Organize suas campanhas eleitorais ou de mobilização. Crie campanhas com metas, prazos e tarefas — atribua responsáveis da equipe e acompanhe o progresso em um quadro Kanban ou lista.
           </p>
         </div>
         <Button onClick={openNewCampanha} className="gap-2">

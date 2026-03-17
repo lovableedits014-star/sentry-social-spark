@@ -689,7 +689,7 @@ const Comments = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Comentários</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Posts em ordem cronológica · Facebook + Instagram intercalados
+            Todos os comentários do Facebook e Instagram em um só lugar. Responda, oculte, gere respostas com IA e acompanhe o sentimento de cada interação. Posts aparecem em ordem cronológica com as duas plataformas intercaladas.
           </p>
         </div>
         {/* Action buttons: primary = Sincronizar, secondary = Atualizar */}

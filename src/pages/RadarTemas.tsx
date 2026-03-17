@@ -197,7 +197,10 @@ export default function RadarTemas() {
           <div>
             <h1 className="text-2xl font-bold">Radar de Temas</h1>
             <p className="text-sm text-muted-foreground">
-              Últimos 7 dias · {totalComments.toLocaleString()} comentários · {themes.length} temas detectados
+              O Radar analisa automaticamente os comentários dos últimos 7 dias e identifica os assuntos mais comentados. Cada tema mostra a quantidade de menções, sentimento predominante e evolução diária — útil para entender o que o público está falando sobre você.
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {totalComments.toLocaleString()} comentários · {themes.length} temas detectados
             </p>
           </div>
         </div>
