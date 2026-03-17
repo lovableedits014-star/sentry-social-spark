@@ -245,7 +245,7 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
           </Card>
         </Link>
 
-        <Link to="/recrutamento" className="block">
+        <Link to="/territorial?tab=recrutamento" className="block">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
               <UserPlus className="w-4 h-4 text-primary mb-1" />
