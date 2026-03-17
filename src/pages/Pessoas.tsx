@@ -270,7 +270,6 @@ export default function Pessoas() {
           <p className="text-xs text-muted-foreground mt-0.5">
             {total} {total === 1 ? "pessoa cadastrada" : "pessoas cadastradas"}
           </p>
-          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">
           <Plus className="w-4 h-4" />

@@ -691,7 +691,6 @@ const Comments = () => {
           <p className="text-sm text-muted-foreground mt-0.5">
             Todos os comentários do Facebook e Instagram em um só lugar. Responda, oculte, gere respostas com IA e acompanhe o sentimento de cada interação. Posts aparecem em ordem cronológica com as duas plataformas intercaladas.
           </p>
-          </p>
         </div>
         {/* Action buttons: primary = Sincronizar, secondary = Atualizar */}
         <div className="flex items-center gap-2 shrink-0">

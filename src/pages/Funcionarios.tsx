@@ -146,7 +146,6 @@ export default function Funcionarios() {
         <p className="text-muted-foreground text-sm mt-1">
           Gerencie sua equipe fixa de campo. Cada funcionário recebe um link exclusivo para cadastrar apoiadores e tem um ranking de indicações. Acompanhe check-ins de presença e organize ações externas de captação.
         </p>
-        </p>
       </div>
 
       {/* Stats cards */}
