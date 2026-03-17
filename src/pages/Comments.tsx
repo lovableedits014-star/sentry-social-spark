@@ -505,13 +505,20 @@ const Comments = () => {
     });
   }, [comments, searchTerm, sentimentFilter, platformFilter]);
 
-  // For the "Recentes" tab: purely sorted by comment_created_time desc, ignoring post grouping
+  // For the "Recentes" tab: use independent query data, filtered and sorted by comment_created_time desc
   const recentComments = useMemo(() => {
-    const sorted = [...filteredComments].sort((a, b) =>
+    const source = recentCommentsIndependent;
+    const filtered = source.filter((comment) => {
+      const matchesSearch = comment.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           comment.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSentiment = sentimentFilter === "all" || comment.sentiment === sentimentFilter;
+      const matchesPlatform = platformFilter === "all" || comment.platform === platformFilter;
+      return matchesSearch && matchesSentiment && matchesPlatform;
+    });
+    return filtered.sort((a, b) =>
       (b.comment_created_time || b.created_at || '').localeCompare(a.comment_created_time || a.created_at || '')
     );
-    return sorted;
-  }, [filteredComments]);
+  }, [recentCommentsIndependent, searchTerm, sentimentFilter, platformFilter]);
 
   // Pre-compute filtered + grouped data for recent tab to avoid recalculating in render
   const recentViewData = useMemo(() => {
