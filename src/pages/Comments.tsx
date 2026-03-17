@@ -167,6 +167,60 @@ const Comments = () => {
   }
   const clientId = clientIdRef.current;
 
+  // Independent query for Recentes tab — fetches latest comments regardless of post age
+  const fetchRecentComments = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No user");
+
+    const { data: clients } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", user.id);
+
+    if (!clients || clients.length === 0) return [] as Comment[];
+
+    const clientIds = clients.map(c => c.id);
+    const PAGE_SIZE = 1000;
+    const MAX_COMMENTS = 3000;
+    let allComments: Comment[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore && allComments.length < MAX_COMMENTS) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase
+        .from("comments")
+        .select("*")
+        .in("client_id", clientIds)
+        .eq("is_page_owner", false)
+        .not("text", "eq", "__post_stub__")
+        .not("comment_id", "like", "post_stub_%")
+        .order("comment_created_time", { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      allComments = [...allComments, ...(data || [])];
+      hasMore = (data?.length || 0) === PAGE_SIZE;
+      page++;
+    }
+
+    return allComments;
+  }, []);
+
+  const { data: recentCommentsData, isLoading: loadingRecent } = useQuery({
+    queryKey: ["recent-comments-independent"],
+    queryFn: fetchRecentComments,
+    staleTime: Infinity,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    enabled: activeTab === "recent",
+  });
+
+  const recentCommentsIndependent = recentCommentsData ?? [];
+
   // Fetch registered supporters for this client
   const { data: registeredSupportersMap } = useQuery({
     queryKey: ["registered-supporters", commentsData?.clientId],
