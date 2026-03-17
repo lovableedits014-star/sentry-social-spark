@@ -94,7 +94,7 @@ export default function Engagement() {
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Engajamento</h1>
         <p className="text-sm text-muted-foreground">
-          Influenciadores detectados automaticamente e configuração de pontuação
+          Identifique automaticamente quem mais interage com suas publicações. O sistema detecta influenciadores e apoiadores ativos com base em curtidas, comentários e compartilhamentos — e permite configurar a pontuação de cada tipo de ação.
         </p>
       </div>
 

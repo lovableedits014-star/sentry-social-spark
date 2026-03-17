@@ -265,7 +265,11 @@ export default function Pessoas() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Pessoas</h1>
           <p className="text-sm text-muted-foreground">
-            {total} {total === 1 ? "pessoa cadastrada" : "pessoas cadastradas"} — Base política unificada com ranking de engajamento
+            Sua base política completa — todos os contatos cadastrados (eleitores, apoiadores, lideranças, voluntários, etc.) em um CRM unificado. Aqui você busca, filtra, edita e acompanha o nível de apoio de cada pessoa.
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {total} {total === 1 ? "pessoa cadastrada" : "pessoas cadastradas"}
+          </p>
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">

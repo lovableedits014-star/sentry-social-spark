@@ -275,7 +275,7 @@ export default function Disparos() {
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Disparos WhatsApp</h1>
         <p className="text-sm text-muted-foreground">
-          Envie mensagens segmentadas para campanhas, missões e comunicação geral
+          Envie mensagens em massa pelo WhatsApp para seus apoiadores. Você pode segmentar por tags, escolher a velocidade de envio e personalizar a mensagem com o nome de cada pessoa. Ideal para campanhas, missões de engajamento e comunicação geral.
         </p>
       </div>
 

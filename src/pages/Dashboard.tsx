@@ -350,6 +350,9 @@ const Dashboard = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1 text-sm">
+            Visão geral da sua presença digital. Aqui você acompanha sentimentos dos comentários, volume de interações e o desempenho geral das suas redes sociais em um único lugar.
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {stats.total.toLocaleString()} comentários • {supportersCount} apoiadores • Últimos {periodDays} dias
           </p>
           {lastSync && (

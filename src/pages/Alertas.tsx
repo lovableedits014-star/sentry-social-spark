@@ -146,7 +146,7 @@ const AlertasPage = () => {
             )}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitoramento automático de sentimento, engajamento e crises
+            O sistema monitora automaticamente suas redes e gera alertas quando detecta crises de sentimento, queda de engajamento ou picos de negatividade. Clique em "Analisar Agora" para forçar uma verificação manual.
           </p>
         </div>
         <div className="flex gap-2">

@@ -469,7 +469,10 @@ export default function Contratados() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Briefcase className="w-6 h-6 text-primary" />Contratados</h1>
-          <p className="text-sm text-muted-foreground">{contratados.length} contratados • {totalIndicados} indicados ({pendentes} pendentes p/ telemarketing)</p>
+          <p className="text-sm text-muted-foreground">
+            Gerencie pessoas contratadas para captação de apoiadores. Cada contratado recebe um link para indicar pessoas, que depois são verificadas por telemarketing. Líderes podem ter liderados abaixo deles formando uma rede hierárquica.
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{contratados.length} contratados • {totalIndicados} indicados ({pendentes} pendentes p/ telemarketing)</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>

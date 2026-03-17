@@ -194,7 +194,10 @@ export default function DetectorCrise() {
           <div>
             <h1 className="text-2xl font-bold">Detector de Crise</h1>
             <p className="text-sm text-muted-foreground">
-              Monitoramento de sentimento negativo · {stats.totalComments.toLocaleString()} comentários
+              Monitora em tempo real o volume de comentários negativos nas suas redes. Quando há um aumento anormal de negatividade em algum tema, o sistema gera um alerta de crise para que você possa agir rapidamente antes que a situação escale.
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {stats.totalComments.toLocaleString()} comentários analisados
             </p>
           </div>
         </div>

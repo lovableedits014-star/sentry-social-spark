@@ -144,7 +144,8 @@ export default function Funcionarios() {
       <div>
         <h1 className="text-2xl font-bold">Funcionários</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Gerencie seus funcionários fixos, acompanhe presenças, ranking de indicações e ações externas.
+          Gerencie sua equipe fixa de campo. Cada funcionário recebe um link exclusivo para cadastrar apoiadores e tem um ranking de indicações. Acompanhe check-ins de presença e organize ações externas de captação.
+        </p>
         </p>
       </div>
 
