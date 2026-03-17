@@ -167,6 +167,60 @@ const Comments = () => {
   }
   const clientId = clientIdRef.current;
 
+  // Independent query for Recentes tab — fetches latest comments regardless of post age
+  const fetchRecentComments = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No user");
+
+    const { data: clients } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", user.id);
+
+    if (!clients || clients.length === 0) return [] as Comment[];
+
+    const clientIds = clients.map(c => c.id);
+    const PAGE_SIZE = 1000;
+    const MAX_COMMENTS = 3000;
+    let allComments: Comment[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore && allComments.length < MAX_COMMENTS) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase
+        .from("comments")
+        .select("*")
+        .in("client_id", clientIds)
+        .eq("is_page_owner", false)
+        .not("text", "eq", "__post_stub__")
+        .not("comment_id", "like", "post_stub_%")
+        .order("comment_created_time", { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      allComments = [...allComments, ...(data || [])];
+      hasMore = (data?.length || 0) === PAGE_SIZE;
+      page++;
+    }
+
+    return allComments;
+  }, []);
+
+  const { data: recentCommentsData, isLoading: loadingRecent } = useQuery({
+    queryKey: ["recent-comments-independent"],
+    queryFn: fetchRecentComments,
+    staleTime: Infinity,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    enabled: activeTab === "recent",
+  });
+
+  const recentCommentsIndependent = recentCommentsData ?? [];
+
   // Fetch registered supporters for this client
   const { data: registeredSupportersMap } = useQuery({
     queryKey: ["registered-supporters", commentsData?.clientId],
@@ -198,6 +252,7 @@ const Comments = () => {
 
   const reloadComments = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["comments-data"] });
+    queryClient.invalidateQueries({ queryKey: ["recent-comments-independent"] });
   }, [queryClient]);
 
   const handleSyncComments = useCallback(async () => {
@@ -360,6 +415,12 @@ const Comments = () => {
           ),
         };
       });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, status: 'ignored' } : c
+        );
+      });
       toast.success("Comentário ignorado — removido da fila");
     } catch (error: any) {
       console.error("Error ignoring comment:", error);
@@ -384,6 +445,12 @@ const Comments = () => {
             c.id === commentId ? { ...c, status: 'pending' } : c
           ),
         };
+      });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, status: 'pending' } : c
+        );
       });
       toast.success("Comentário restaurado para a fila");
     } catch (error: any) {
@@ -411,6 +478,12 @@ const Comments = () => {
             c.id === commentId ? { ...c, sentiment } : c
           ),
         };
+      });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, sentiment } : c
+        );
       });
       toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
     } catch (error: any) {
@@ -450,13 +523,20 @@ const Comments = () => {
     });
   }, [comments, searchTerm, sentimentFilter, platformFilter]);
 
-  // For the "Recentes" tab: purely sorted by comment_created_time desc, ignoring post grouping
+  // For the "Recentes" tab: use independent query data, filtered and sorted by comment_created_time desc
   const recentComments = useMemo(() => {
-    const sorted = [...filteredComments].sort((a, b) =>
+    const source = recentCommentsIndependent;
+    const filtered = source.filter((comment) => {
+      const matchesSearch = comment.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           comment.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSentiment = sentimentFilter === "all" || comment.sentiment === sentimentFilter;
+      const matchesPlatform = platformFilter === "all" || comment.platform === platformFilter;
+      return matchesSearch && matchesSentiment && matchesPlatform;
+    });
+    return filtered.sort((a, b) =>
       (b.comment_created_time || b.created_at || '').localeCompare(a.comment_created_time || a.created_at || '')
     );
-    return sorted;
-  }, [filteredComments]);
+  }, [recentCommentsIndependent, searchTerm, sentimentFilter, platformFilter]);
 
   // Pre-compute filtered + grouped data for recent tab to avoid recalculating in render
   const recentViewData = useMemo(() => {
@@ -769,7 +849,12 @@ const Comments = () => {
 
         {/* Tab: Últimos Comentários */}
         <TabsContent value="recent">
-          {/* Toggle buttons */}
+          {loadingRecent ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-20 bg-muted rounded-xl"></div>)}
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Button
               variant={hideResponded && !showIgnored ? "default" : "outline"}
@@ -902,6 +987,8 @@ const Comments = () => {
             <p className="text-xs text-muted-foreground text-center mt-3">
               {recentViewData.topLevel.length} comentário{recentViewData.topLevel.length !== 1 ? 's' : ''} listado{recentViewData.topLevel.length !== 1 ? 's' : ''}
             </p>
+          )}
+          </>
           )}
         </TabsContent>
       </Tabs>
