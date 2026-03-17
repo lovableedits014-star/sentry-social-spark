@@ -479,6 +479,12 @@ const Comments = () => {
           ),
         };
       });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, sentiment } : c
+        );
+      });
       toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
     } catch (error: any) {
       console.error("Error classifying sentiment:", error);
