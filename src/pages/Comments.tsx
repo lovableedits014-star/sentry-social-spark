@@ -849,7 +849,12 @@ const Comments = () => {
 
         {/* Tab: Últimos Comentários */}
         <TabsContent value="recent">
-          {/* Toggle buttons */}
+          {loadingRecent ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-20 bg-muted rounded-xl"></div>)}
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Button
               variant={hideResponded && !showIgnored ? "default" : "outline"}
