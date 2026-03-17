@@ -415,6 +415,12 @@ const Comments = () => {
           ),
         };
       });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, status: 'ignored' } : c
+        );
+      });
       toast.success("Comentário ignorado — removido da fila");
     } catch (error: any) {
       console.error("Error ignoring comment:", error);
