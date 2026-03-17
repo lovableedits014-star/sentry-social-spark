@@ -31,8 +31,6 @@ const MENU_SECTIONS: MenuSection[] = [
     label: "Base Política",
     items: [
       { icon: BookUser, label: "Pessoas", path: "/pessoas" },
-      
-      { icon: UserPlus, label: "Recrutamento", path: "/recrutamento" },
     ],
   },
   {
