@@ -370,7 +370,7 @@ export default function Territorial() {
         </p>
       </div>
 
-      <Tabs defaultValue="mapa" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-sm">
           <TabsTrigger value="mapa" className="gap-1.5">
             <MapPin className="w-4 h-4" /> Mapa
