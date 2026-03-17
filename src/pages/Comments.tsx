@@ -446,6 +446,12 @@ const Comments = () => {
           ),
         };
       });
+      queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).map((c: any) =>
+          c.id === commentId ? { ...c, status: 'pending' } : c
+        );
+      });
       toast.success("Comentário restaurado para a fila");
     } catch (error: any) {
       console.error("Error unignoring comment:", error);
