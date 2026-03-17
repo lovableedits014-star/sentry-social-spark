@@ -22,7 +22,7 @@ import Territorial from "./pages/Territorial";
 import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
-import Recrutamento from "./pages/Recrutamento";
+
 import RadarTemas from "./pages/RadarTemas";
 import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
