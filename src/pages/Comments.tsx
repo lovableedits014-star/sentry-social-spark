@@ -988,6 +988,8 @@ const Comments = () => {
               {recentViewData.topLevel.length} comentário{recentViewData.topLevel.length !== 1 ? 's' : ''} listado{recentViewData.topLevel.length !== 1 ? 's' : ''}
             </p>
           )}
+          </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
