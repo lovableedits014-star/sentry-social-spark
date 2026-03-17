@@ -374,7 +374,7 @@ export default function Territorial() {
           <p className="text-xs text-muted-foreground">
             Onde seus apoiadores estão? Este mapa mostra a concentração geográfica com zonas de calor: 
             <strong className="text-primary"> verde</strong> = alta densidade, 
-            <strong className="text-yellow-600"> amarelo</strong> = média, 
+            <strong className="text-accent-foreground"> amarelo</strong> = média, 
             <strong className="text-destructive"> vermelho</strong> = poucos apoiadores (oportunidade de crescer).
           </p>
         </div>
