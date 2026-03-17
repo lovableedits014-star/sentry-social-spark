@@ -65,6 +65,10 @@ function DistributionRow({ label, count, total, color = "bg-primary" }: { label:
 // ── Main component ──
 export default function Territorial() {
   const [search, setSearch] = useState("");
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isRecrutamentoRoute = location.pathname === "/recrutamento" || searchParams.get("tab") === "recrutamento";
+  const defaultTab = isRecrutamentoRoute ? "recrutamento" : "mapa";
 
   // ── Client query ──
   const { data: client } = useQuery({
