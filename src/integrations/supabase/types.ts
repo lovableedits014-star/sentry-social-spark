@@ -887,6 +887,41 @@ export type Database = {
           },
         ]
       }
+      custom_themes: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          keywords: string[]
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          keywords?: string[]
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          keywords?: string[]
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_themes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispatch_items: {
         Row: {
           created_at: string
