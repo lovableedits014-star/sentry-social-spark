@@ -252,6 +252,7 @@ const Comments = () => {
 
   const reloadComments = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["comments-data"] });
+    queryClient.invalidateQueries({ queryKey: ["recent-comments-independent"] });
   }, [queryClient]);
 
   const handleSyncComments = useCallback(async () => {
