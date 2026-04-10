@@ -78,16 +78,14 @@ export default function Disparos() {
 
   const clientId = client?.id;
 
-  // WhatsApp instance status
-  const { data: whatsInstance } = useQuery({
-    queryKey: ["whatsapp-instance", clientId],
+  // WhatsApp Bridge status
+  const { data: bridgeConfigured } = useQuery({
+    queryKey: ["whatsapp-bridge-status", clientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("whatsapp_instances" as any)
-        .select("*")
-        .eq("client_id", clientId)
-        .maybeSingle();
-      return data as any;
+      const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "check_bridge" },
+      });
+      return !error && data?.configured;
     },
     enabled: !!clientId,
   });
