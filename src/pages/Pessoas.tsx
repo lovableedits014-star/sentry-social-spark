@@ -599,11 +599,11 @@ export default function Pessoas() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
-                              variant="ghost" size="icon"
+                              variant="outline" size="icon"
                               className="h-7 w-7"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="text-lg leading-none">⋯</span>
+                              <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
