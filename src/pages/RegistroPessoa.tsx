@@ -39,11 +39,12 @@ const SOCIAL_PLATFORMS = [
     bgColor: "bg-pink-50 dark:bg-pink-950/20 border-pink-200 dark:border-pink-800",
     activeBg: "bg-pink-100 dark:bg-pink-950/40",
     emoji: "📸",
+    helpImage: "/assets/help-instagram.png",
     steps: [
       { text: "Abra o aplicativo do Instagram no seu celular", emoji: "📱" },
       { text: "Toque no ícone da sua foto (canto inferior direito) para ir ao seu perfil", emoji: "👤" },
-      { text: "No seu perfil, toque nos 3 pontinhos ⋯ (canto superior direito) ou no menu ☰", emoji: "⚙️" },
-      { text: 'Vai aparecer um menu. Procure e toque em "Copiar link do perfil"', emoji: "🔗" },
+      { text: "No seu perfil, toque em \"Compartilhar Perfil\"", emoji: "⚙️" },
+      { text: 'Toque em "Copiar Link"', emoji: "🔗" },
       { text: "Pronto! Agora volte aqui e toque no botão COLAR abaixo 👇", emoji: "✅" },
     ],
     parse: (input: string): { usuario: string; url: string } | null => {
@@ -62,11 +63,11 @@ const SOCIAL_PLATFORMS = [
     bgColor: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800",
     activeBg: "bg-blue-100 dark:bg-blue-950/40",
     emoji: "👍",
+    helpImage: "/assets/help-facebook.png",
     steps: [
       { text: "Abra o aplicativo do Facebook no seu celular", emoji: "📱" },
-      { text: "Toque na sua foto de perfil (geralmente no canto superior esquerdo ou no menu)", emoji: "👤" },
-      { text: "Dentro do seu perfil, toque nos 3 pontinhos ⋯ (perto do botão Editar Perfil)", emoji: "⚙️" },
-      { text: 'Toque em "Copiar link" ou "Copiar link do perfil"', emoji: "🔗" },
+      { text: "Toque na sua foto de perfil (canto superior direito)", emoji: "👤" },
+      { text: "Toque em \"Compartilhar perfil\" e depois em \"Copiar link\"", emoji: "🔗" },
       { text: "Pronto! Agora volte aqui e toque no botão COLAR abaixo 👇", emoji: "✅" },
     ],
     parse: (input: string): { usuario: string; url: string } | null => {
@@ -250,6 +251,12 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
                 </div>
               ))}
             </div>
+
+            {platform.helpImage && (
+              <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
+                <img src={platform.helpImage} alt={`Como copiar link do ${platform.label}`} className="w-full h-auto" />
+              </div>
+            )}
 
             {/* Paste area */}
             <div className="space-y-2 pt-1">
