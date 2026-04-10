@@ -7,6 +7,7 @@ import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
 import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
+import PublicLinksCard from "@/components/settings/PublicLinksCard";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
