@@ -143,7 +143,9 @@ export default function SuperAdmin() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Super Admin</h1>
-              <p className="text-slate-400 text-sm">Painel exclusivo — {user?.email}</p>
+              <p className="text-slate-400 text-sm">
+                Painel global de gestão da plataforma. Monitore o status de todos os clientes, gerencie acessos, visualize métricas de uso e configure parâmetros globais do sistema.
+              </p>
             </div>
           </div>
           <div className="flex gap-2">

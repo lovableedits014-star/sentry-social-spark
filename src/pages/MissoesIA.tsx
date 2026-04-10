@@ -26,8 +26,7 @@ export default function MissoesIA() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">Missões Inteligentes</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            A IA analisa os temas em alta nos comentários das suas redes sociais e sugere missões de engajamento personalizadas. 
-            Você pode aprovar as sugestões e publicá-las como <strong>Missões Ativas</strong> para que seus apoiadores interajam com os posts estratégicos diretamente pelo portal.
+            Transforme seguidores em uma rede ativa. A IA sugere missões baseadas nos temas em alta, permitindo que seus apoiadores interajam com posts estratégicos no Facebook e Instagram diretamente pelo portal exclusivo.
           </p>
         </div>
       </div>
