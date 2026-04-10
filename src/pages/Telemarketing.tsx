@@ -44,16 +44,19 @@ export default function Telemarketing() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (clientId) {
-      supabase
-        .from("clients")
-        .select("name")
-        .eq("id", clientId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data) setClientName(data.name);
-        });
-    }
+    // Force anon role to ensure RLS anon policies apply
+    supabase.auth.signOut().then(() => {
+      if (clientId) {
+        supabase
+          .from("clients")
+          .select("name")
+          .eq("id", clientId)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setClientName(data.name);
+          });
+      }
+    });
   }, [clientId]);
 
   const handleLogin = async () => {
@@ -93,7 +96,7 @@ export default function Telemarketing() {
       .eq("client_id", clientId!)
       .order("created_at", { ascending: true });
 
-    const lista: ContatoTele[] = [
+    const allContatos: ContatoTele[] = [
       ...(contratadosData || []).map((c: any) => ({
         id: c.id,
         nome: c.nome,
@@ -123,6 +126,9 @@ export default function Telemarketing() {
         tabela: "contratado_indicados" as const,
       })),
     ];
+
+    // Filter out contacts that have already been called — they must NOT return to the funnel
+    const lista = allContatos.filter(c => !c.ligacao_status || c.ligacao_status === "pendente");
 
     setContatos(lista);
     const firstPending = lista.findIndex(
@@ -189,13 +195,20 @@ export default function Telemarketing() {
       }
     }
 
-    const { error } = await supabase
+    const { data: updatedRows, error } = await supabase
       .from(current.tabela)
       .update(updateData)
-      .eq("id", current.id);
+      .eq("id", current.id)
+      .select();
 
     if (error) {
       toast.error("Erro ao salvar: " + error.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      toast.error("Falha ao salvar no banco — nenhuma linha foi atualizada. Tente recarregar a página.");
       setSaving(false);
       return;
     }
