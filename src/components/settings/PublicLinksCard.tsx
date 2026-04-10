@@ -12,6 +12,7 @@ interface PublicLinksCardProps {
 interface LinkEntry {
   label: string;
   description: string;
+  detail: string;
   path: string;
   icon: React.ReactNode;
   color: string;
@@ -26,55 +27,63 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
     {
       label: "Cadastro de Apoiador",
       description: "Link público para novos apoiadores se cadastrarem",
+      detail: "Envie este link para qualquer pessoa que queira se tornar apoiador da campanha. Ao acessar, o visitante preenche nome, telefone e dados básicos. Após o cadastro, ele é redirecionado automaticamente para o Portal do Apoiador onde já pode começar a realizar missões de engajamento. Este link pode ser compartilhado em redes sociais, WhatsApp, materiais impressos, etc. Cada pessoa cadastrada entra na sua base política do CRM.",
       path: `/cadastro/${clientId}`,
       icon: <Users className="w-4 h-4" />,
       color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
-      label: "Registro de Pessoa",
-      description: "Link público para registro no CRM político",
+      label: "Registro de Pessoa (CRM)",
+      description: "Formulário público de registro direto no CRM político",
+      detail: "Link alternativo de cadastro que registra a pessoa diretamente na base política (CRM de Pessoas) com campos mais completos: endereço, bairro, cidade, zona/seção eleitoral, intenção de voto e classificação política. Ideal para uso em ações de campo, eventos e porta-a-porta onde o cabo eleitoral coleta informações detalhadas. Diferente do cadastro de apoiador, este foco é na inteligência política e mapeamento territorial.",
       path: `/registro/${clientId}`,
       icon: <UserCheck className="w-4 h-4" />,
       color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
     {
       label: "Portal do Apoiador",
-      description: "Acesso ao portal de missões e engajamento",
+      description: "Painel de missões e engajamento para apoiadores cadastrados",
+      detail: "Este é o painel onde apoiadores já cadastrados acessam suas missões de engajamento: curtir, comentar e compartilhar publicações nas redes sociais do candidato. O apoiador faz login com o telefone cadastrado, visualiza as missões ativas, cumpre as tarefas e sobe no ranking de engajamento. Também permite gerar um link de indicação para convidar outros apoiadores (sistema de multiplicadores). Funciona como PWA — pode ser instalado no celular como um app.",
       path: `/portal/${clientId}`,
       icon: <ClipboardList className="w-4 h-4" />,
       color: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     },
     {
       label: "Cadastro de Funcionário",
-      description: "Link para funcionários se registrarem",
+      description: "Link para funcionários da campanha se registrarem no sistema",
+      detail: "Envie este link para os funcionários fixos da campanha (assessores, coordenadores, equipe de gabinete). Ao se cadastrar, o funcionário recebe um código de indicação exclusivo para recrutar apoiadores — cada pessoa que ele indicar é vinculada automaticamente ao seu perfil, alimentando o ranking de influenciadores. Funcionários têm obrigatoriedade de presença (check-in diário) e participação nas missões de engajamento.",
       path: `/funcionario/${clientId}`,
       icon: <Briefcase className="w-4 h-4" />,
       color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     },
     {
       label: "Portal do Funcionário",
-      description: "Acesso ao painel do funcionário",
+      description: "Painel de gestão do funcionário com check-in e indicações",
+      detail: "Painel exclusivo do funcionário já cadastrado. Aqui ele realiza o check-in diário de presença, visualiza suas missões de engajamento ativas, acompanha quantas pessoas já indicou e compartilha seu link de indicação personalizado. O funcionário também pode ver seu desempenho no ranking de influenciadores. O acesso é feito com o telefone cadastrado — sem necessidade de senha.",
       path: `/portal-funcionario/${clientId}`,
       icon: <Briefcase className="w-4 h-4" />,
       color: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     },
     {
       label: "Cadastro de Contratado (Líder)",
-      description: "Link para líderes contratados se cadastrarem",
+      description: "Link para líderes contratados se cadastrarem como multiplicadores",
+      detail: "Este link é destinado aos líderes contratados — pessoas remuneradas que têm a obrigação de indicar um número mínimo de contatos (quota de indicados). Ao se cadastrar, o líder recebe acesso ao Portal do Contratado onde pode adicionar seus indicados (nome, telefone, bairro). Cada líder tem uma meta de indicações e seus indicados entram automaticamente na fila do telemarketing para verificação de voto. Para cadastrar liderados (sub-contratados vinculados a um líder), use o formato: /contratado/{clientId}/{liderId}.",
       path: `/contratado/${clientId}`,
       icon: <UserCheck className="w-4 h-4" />,
       color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
     },
     {
       label: "Portal do Contratado",
-      description: "Acesso ao painel do contratado / líder",
+      description: "Painel do líder contratado para gerenciar indicados e check-in",
+      detail: "Painel onde o líder contratado gerencia seus indicados: adiciona novos contatos, acompanha o progresso da sua quota, realiza check-in diário e visualiza o status de verificação dos seus indicados pelo telemarketing. O líder também pode ver quais indicados já foram ligados, quais confirmaram voto e quais recusaram. Acesso via telefone cadastrado. É o hub central de produtividade do contratado.",
       path: `/portal-contratado/${clientId}`,
       icon: <ClipboardList className="w-4 h-4" />,
       color: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
     },
     {
       label: "Central de Telemarketing",
-      description: "Acesso dos operadores à central de ligações",
+      description: "Acesso dos operadores à fila unificada de ligações",
+      detail: "Link para os operadores de telemarketing acessarem a central de ligações. A fila exibe todos os contatos pendentes: líderes, liderados e indicados que ainda não receberam ligação. O operador registra o resultado de cada chamada (atendeu, não atendeu, recusou), a intenção de voto e observações. Contatos que já foram atendidos saem permanentemente da fila. O acesso é controlado pelos operadores cadastrados em Configurações > Central de Telemarketing.",
       path: `/telemarketing/${clientId}`,
       icon: <Link2 className="w-4 h-4" />,
       color: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
