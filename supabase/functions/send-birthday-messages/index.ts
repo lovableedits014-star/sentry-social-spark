@@ -39,6 +39,18 @@ Deno.serve(async (req) => {
     for (const config of configs) {
       const clientId = config.client_id;
 
+      // Get per-client bridge config
+      const { data: clientData } = await admin
+        .from("clients")
+        .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
+        .eq("id", clientId)
+        .single();
+
+      const bridgeUrl = clientData?.whatsapp_bridge_url;
+      const bridgeApiKey = clientData?.whatsapp_bridge_api_key;
+
+      if (!bridgeUrl || !bridgeApiKey) continue; // Skip clients without bridge config
+
       // Find people with birthday today (month + day match)
       const today = new Date();
       const month = String(today.getMonth() + 1).padStart(2, "0");
