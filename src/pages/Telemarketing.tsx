@@ -303,8 +303,11 @@ export default function Telemarketing() {
         <div>
           <h1 className="text-lg font-bold flex items-center gap-2">
             <Phone className="w-5 h-5 text-primary" />
-            Telemarketing
+            Telemarketing e Verificação
           </h1>
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight max-w-sm mb-2">
+            Central de atendimento para validar indicações e intenção de voto. Utilize o click-to-call para ligar diretamente do seu celular e registre o resultado para alimentar sua inteligência eleitoral em tempo real.
+          </p>
           <p className="text-xs text-muted-foreground">
             Operador: <span className="font-medium text-foreground">{operadorNome}</span>
           </p>
