@@ -118,7 +118,9 @@ export default function Pessoas() {
   const [bairros, setBairros] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [pessoaTagsMap, setPessoaTagsMap] = useState<Record<string, any[]>>({});
-
+  const [funcionarioMap, setFuncionarioMap] = useState<Record<string, any>>({});
+  const [promoteTarget, setPromoteTarget] = useState<any>(null);
+  const [demoteTarget, setDemoteTarget] = useState<any>(null);
   useEffect(() => { resolveClient(); }, []);
 
   useEffect(() => {
