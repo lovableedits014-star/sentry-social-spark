@@ -31,22 +31,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get Bridge API config
-    const { data: platformConfigs } = await admin
-      .from("platform_config")
-      .select("key, value")
-      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
-    const configMap: Record<string, string> = {};
-    (platformConfigs || []).forEach((c: any) => { configMap[c.key] = c.value; });
-
-    const bridgeUrl = configMap.whatsapp_bridge_url;
-    const bridgeApiKey = configMap.whatsapp_bridge_api_key;
-
-    if (!bridgeUrl || !bridgeApiKey) {
-      return new Response(JSON.stringify({ error: "Ponte WhatsApp não configurada" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Bridge config is now per-client, loaded inside the loop
 
     let totalSent = 0;
     let totalFailed = 0;

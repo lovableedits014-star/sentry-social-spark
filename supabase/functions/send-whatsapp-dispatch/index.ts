@@ -51,10 +51,10 @@ Deno.serve(async (req) => {
     const BATCH_PAUSE_MS = (batch_pause || DEFAULT_BATCH_PAUSE) * 1000;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
-    // Verify ownership
+    // Verify ownership and get bridge config
     const { data: clientData } = await adminClient
       .from("clients")
-      .select("id")
+      .select("id, whatsapp_bridge_url, whatsapp_bridge_api_key")
       .eq("id", client_id)
       .eq("user_id", user.id)
       .single();
@@ -62,20 +62,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
     }
 
-    // Get Bridge API config
-    const { data: configs } = await adminClient
-      .from("platform_config")
-      .select("key, value")
-      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
-    const configMap: Record<string, string> = {};
-    (configs || []).forEach((c: any) => { configMap[c.key] = c.value; });
-
-    const bridgeUrl = configMap.whatsapp_bridge_url;
-    const bridgeApiKey = configMap.whatsapp_bridge_api_key;
+    const bridgeUrl = clientData.whatsapp_bridge_url;
+    const bridgeApiKey = clientData.whatsapp_bridge_api_key;
 
     if (!bridgeUrl || !bridgeApiKey) {
       return new Response(
-        JSON.stringify({ error: "Ponte WhatsApp não configurada. Contacte o administrador." }),
+        JSON.stringify({ error: "Ponte WhatsApp não configurada para este cliente. Contacte o administrador." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
