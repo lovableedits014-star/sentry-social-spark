@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2, Briefcase, UserPlus, UserMinus } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2, Briefcase, UserPlus, UserMinus, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -599,11 +599,11 @@ export default function Pessoas() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
-                              variant="ghost" size="icon"
+                              variant="outline" size="icon"
                               className="h-7 w-7"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="text-lg leading-none">⋯</span>
+                              <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
