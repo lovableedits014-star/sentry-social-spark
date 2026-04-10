@@ -32,11 +32,31 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action, phone, message } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     if (action === "check_bridge") {
-      // Check if bridge is configured
+      const { data: configs } = await adminClient
+        .from("platform_config")
+        .select("key, value")
+        .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
+
+      const configMap: Record<string, string> = {};
+      (configs || []).forEach((c: any) => { configMap[c.key] = c.value; });
+
+      const bridgeUrl = configMap.whatsapp_bridge_url;
+      const bridgeApiKey = configMap.whatsapp_bridge_api_key;
+      const configured = !!(bridgeUrl && bridgeApiKey);
+
+      return new Response(
+        JSON.stringify({ success: true, configured }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "test_send") {
+      // Read bridge config from DB
       const { data: configs } = await adminClient
         .from("platform_config")
         .select("key, value")
@@ -48,16 +68,32 @@ Deno.serve(async (req) => {
       const bridgeUrl = configMap.whatsapp_bridge_url;
       const bridgeApiKey = configMap.whatsapp_bridge_api_key;
 
-      const configured = !!(bridgeUrl && bridgeApiKey);
+      if (!bridgeUrl || !bridgeApiKey) {
+        return new Response(
+          JSON.stringify({ error: "Ponte API não configurada" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const bridgeRes = await fetch(bridgeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": bridgeApiKey,
+        },
+        body: JSON.stringify({ action: "send", phone, message }),
+      });
+
+      const bridgeData = await bridgeRes.json().catch(() => ({}));
 
       return new Response(
-        JSON.stringify({ success: true, configured }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify(bridgeData),
+        { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({ error: "Ação não suportada. A gestão de instâncias agora é feita no sistema externo." }),
+      JSON.stringify({ error: "Ação não suportada." }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

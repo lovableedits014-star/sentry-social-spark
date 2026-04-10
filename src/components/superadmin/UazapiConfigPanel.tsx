@@ -76,23 +76,19 @@ export default function UazapiConfigPanel() {
     }
     setTesting(true);
     try {
-      const res = await fetch(bridgeUrl.trim(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": bridgeApiKey.trim(),
-        },
-        body: JSON.stringify({
-          action: "send",
+      const res = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: {
+          action: "test_send",
           phone,
           message: "✅ Teste da Ponte WhatsApp — Sentinelle. Se você recebeu esta mensagem, a integração está funcionando!",
-        }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const data = res.data ?? {};
+      const error = res.error;
+      if (!error) {
         toast.success("Mensagem de teste enviada com sucesso!");
       } else {
-        toast.error("Falha no envio: " + (data?.error || data?.message || res.statusText));
+        toast.error("Falha no envio: " + (data?.error || error.message || "Erro desconhecido"));
       }
     } catch (err: any) {
       toast.error("Erro de conexão: " + err.message);
