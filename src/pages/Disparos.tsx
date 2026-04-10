@@ -78,16 +78,14 @@ export default function Disparos() {
 
   const clientId = client?.id;
 
-  // WhatsApp instance status
-  const { data: whatsInstance } = useQuery({
-    queryKey: ["whatsapp-instance", clientId],
+  // WhatsApp Bridge status
+  const { data: bridgeConfigured } = useQuery({
+    queryKey: ["whatsapp-bridge-status", clientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("whatsapp_instances" as any)
-        .select("*")
-        .eq("client_id", clientId)
-        .maybeSingle();
-      return data as any;
+      const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "check_bridge" },
+      });
+      return !error && data?.configured;
     },
     enabled: !!clientId,
   });
@@ -232,8 +230,8 @@ export default function Disparos() {
       toast.error("Nenhum destinatário encontrado com o filtro selecionado");
       return;
     }
-    if (whatsInstance?.status !== "connected") {
-      toast.error("WhatsApp não está conectado. Configure em Configurações.");
+    if (!bridgeConfigured) {
+      toast.error("Ponte WhatsApp não configurada. Contacte o administrador.");
       return;
     }
 
@@ -267,7 +265,7 @@ export default function Disparos() {
     }
   };
 
-  const isConnected = whatsInstance?.status === "connected";
+  const isConnected = !!bridgeConfigured;
   const activeDispatch = dispatches.find((d) => d.status === "pendente" || d.status === "enviando");
 
   return (
@@ -311,7 +309,7 @@ export default function Disparos() {
           <CardContent className="p-4 flex items-center gap-3">
             <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
-              <strong>WhatsApp conectado</strong> — Número: {whatsInstance?.phone_number || "Conectado"}
+              <strong>Ponte WhatsApp configurada</strong> — Pronto para envios
             </p>
           </CardContent>
         </Card>
