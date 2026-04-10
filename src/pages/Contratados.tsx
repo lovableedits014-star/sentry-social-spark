@@ -20,6 +20,7 @@ import {
   ChevronRight, Award, TrendingUp, Trash2, Crown, PhoneCall,
 } from "lucide-react";
 import TelemarketingResultsPanel from "@/components/contratados/TelemarketingResultsPanel";
+import TelemarketingReportsPanel from "@/components/contratados/TelemarketingReportsPanel";
 import { toast } from "sonner";
 
 interface Contratado {
@@ -551,11 +552,12 @@ export default function Contratados() {
 
       {/* Tabs: Por Líder / Todos / Indicados */}
       <Tabs defaultValue="lideres">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="lideres" className="gap-1.5"><Crown className="w-3.5 h-3.5" />Por Líder</TabsTrigger>
           <TabsTrigger value="contratados" className="gap-1.5"><Briefcase className="w-3.5 h-3.5" />Todos</TabsTrigger>
           <TabsTrigger value="indicados" className="gap-1.5"><Users className="w-3.5 h-3.5" />Indicados ({totalIndicados})</TabsTrigger>
           <TabsTrigger value="telemarketing" className="gap-1.5"><PhoneCall className="w-3.5 h-3.5" />Ligações</TabsTrigger>
+          <TabsTrigger value="relatorios" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
         </TabsList>
 
         {/* ─── POR LÍDER TAB ──────────────────────────────────── */}
@@ -888,6 +890,11 @@ export default function Contratados() {
         {/* ─── TELEMARKETING TAB ──────────────────────────────── */}
         <TabsContent value="telemarketing" className="mt-4">
           <TelemarketingResultsPanel contratados={contratados as any} indicados={indicados as any} />
+        </TabsContent>
+
+        {/* ─── RELATÓRIOS TAB ──────────────────────────────────── */}
+        <TabsContent value="relatorios" className="mt-4">
+          <TelemarketingReportsPanel contratados={contratados as any} indicados={indicados as any} />
         </TabsContent>
       </Tabs>
 
