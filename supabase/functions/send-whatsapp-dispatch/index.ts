@@ -5,9 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Default conservative policy (overridable via request body)
 const DEFAULT_BATCH_SIZE = 10;
-const DEFAULT_DELAY_MIN = 5; // seconds
+const DEFAULT_DELAY_MIN = 5;
 const DEFAULT_DELAY_MAX = 15;
 const DEFAULT_BATCH_PAUSE = 60;
 const MAX_RUNTIME_MS = 55000;
@@ -37,7 +36,6 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify user
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -64,24 +62,20 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
     }
 
-    // Get UAZAPI config
+    // Get Bridge API config
     const { data: configs } = await adminClient
       .from("platform_config")
       .select("key, value")
-      .in("key", ["uazapi_url", "uazapi_admin_token"]);
+      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
     const configMap: Record<string, string> = {};
     (configs || []).forEach((c: any) => { configMap[c.key] = c.value; });
 
-    // Get instance
-    const { data: instance } = await adminClient
-      .from("whatsapp_instances")
-      .select("instance_name, instance_token, status")
-      .eq("client_id", client_id)
-      .single();
+    const bridgeUrl = configMap.whatsapp_bridge_url;
+    const bridgeApiKey = configMap.whatsapp_bridge_api_key;
 
-    if (!instance || instance.status !== "connected") {
+    if (!bridgeUrl || !bridgeApiKey) {
       return new Response(
-        JSON.stringify({ error: "WhatsApp não conectado" }),
+        JSON.stringify({ error: "Ponte WhatsApp não configurada. Contacte o administrador." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -106,7 +100,6 @@ Deno.serve(async (req) => {
         .not("telefone", "is", null);
       recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
     } else {
-      // Pessoas - optionally filtered by tag
       if (tag_filtro) {
         const { data: tagData } = await adminClient
           .from("tags")
@@ -181,24 +174,16 @@ Deno.serve(async (req) => {
       nome: r.nome,
     }));
 
-    // Insert items in batches of 100
     for (let i = 0; i < items.length; i += 100) {
       await adminClient.from("whatsapp_dispatch_items").insert(items.slice(i, i + 100));
     }
 
-    // Use EdgeRuntime.waitUntil if available to process in background
     const processDispatch = async () => {
-      const uazapiUrl = configMap.uazapi_url;
-      const instanceName = instance.instance_name;
-      const instanceToken = instance.instance_token || configMap.uazapi_admin_token;
-
       let sent = 0;
       let failed = 0;
 
       for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
-        // Check runtime limit
         if (Date.now() - startTime > MAX_RUNTIME_MS) {
-          // Graceful stop - update dispatch as partial
           await adminClient.from("whatsapp_dispatches").update({
             enviados: sent,
             falhas: failed,
@@ -220,15 +205,16 @@ Deno.serve(async (req) => {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
             const phoneClean = recipient.telefone.replace(/\D/g, "");
 
-            const sendRes = await fetch(`${uazapiUrl}/message/sendText/${instanceName}`, {
+            const sendRes = await fetch(bridgeUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                apikey: instanceToken,
+                "X-Api-Key": bridgeApiKey,
               },
               body: JSON.stringify({
-                number: phoneClean,
-                text: personalizedMsg,
+                action: "send",
+                phone: phoneClean,
+                message: personalizedMsg,
               }),
             });
 
@@ -254,7 +240,6 @@ Deno.serve(async (req) => {
               .eq("telefone", recipient.telefone);
           }
 
-          // Update progress every 5 messages
           if ((sent + failed) % 5 === 0) {
             await adminClient.from("whatsapp_dispatches").update({
               enviados: sent,
@@ -263,17 +248,14 @@ Deno.serve(async (req) => {
             }).eq("id", dispatch.id);
           }
 
-          // Delay between messages
           await sleep(randomDelay(DELAY_MIN_MS, DELAY_MAX_MS));
         }
 
-        // Batch pause (skip on last batch)
         if (batch < Math.ceil(recipients.length / BATCH_SIZE) - 1) {
           await sleep(BATCH_PAUSE_MS);
         }
       }
 
-      // Final update
       await adminClient.from("whatsapp_dispatches").update({
         enviados: sent,
         falhas: failed,
@@ -283,11 +265,9 @@ Deno.serve(async (req) => {
       }).eq("id", dispatch.id);
     };
 
-    // Process in background if EdgeRuntime available
     if (typeof (globalThis as any).EdgeRuntime !== "undefined") {
       (globalThis as any).EdgeRuntime.waitUntil(processDispatch());
     } else {
-      // Fallback: process synchronously (limited by timeout)
       await processDispatch();
     }
 

@@ -31,17 +31,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get UAZAPI config
+    // Get Bridge API config
     const { data: platformConfigs } = await admin
       .from("platform_config")
       .select("key, value")
-      .in("key", ["uazapi_url", "uazapi_admin_token"]);
+      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
     const configMap: Record<string, string> = {};
     (platformConfigs || []).forEach((c: any) => { configMap[c.key] = c.value; });
 
-    const uazapiUrl = configMap.uazapi_url;
-    if (!uazapiUrl) {
-      return new Response(JSON.stringify({ error: "UAZAPI not configured" }), {
+    const bridgeUrl = configMap.whatsapp_bridge_url;
+    const bridgeApiKey = configMap.whatsapp_bridge_api_key;
+
+    if (!bridgeUrl || !bridgeApiKey) {
+      return new Response(JSON.stringify({ error: "Ponte WhatsApp não configurada" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -51,15 +53,6 @@ Deno.serve(async (req) => {
 
     for (const config of configs) {
       const clientId = config.client_id;
-
-      // Get WhatsApp instance for this client
-      const { data: instance } = await admin
-        .from("whatsapp_instances")
-        .select("instance_name, instance_token, status")
-        .eq("client_id", clientId)
-        .single();
-
-      if (!instance || instance.status !== "connected") continue;
 
       // Find people with birthday today (month + day match)
       const today = new Date();
@@ -93,46 +86,46 @@ Deno.serve(async (req) => {
 
       if (toSend.length === 0) continue;
 
-      const instanceToken = instance.instance_token || configMap.uazapi_admin_token;
-      const instanceName = instance.instance_name;
-
       for (const pessoa of toSend) {
         try {
           const personalizedMsg = config.mensagem_template.replace(/{nome}/g, pessoa.nome);
           const phoneClean = pessoa.telefone.replace(/\D/g, "");
 
-          // Send image first if configured
-          if (config.image_url) {
-            await fetch(`${uazapiUrl}/message/sendImage/${instanceName}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", apikey: instanceToken },
-              body: JSON.stringify({
-                number: phoneClean,
-                imageUrl: config.image_url,
-                caption: personalizedMsg,
-              }),
-            });
-          } else {
-            // Text only
-            await fetch(`${uazapiUrl}/message/sendText/${instanceName}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", apikey: instanceToken },
-              body: JSON.stringify({
-                number: phoneClean,
-                text: personalizedMsg,
-              }),
-            });
-          }
-
-          // Log success
-          await admin.from("whatsapp_birthday_log").insert({
-            client_id: clientId,
-            pessoa_id: pessoa.id,
-            pessoa_nome: pessoa.nome,
-            telefone: pessoa.telefone,
-            status: "enviado",
+          // Send via Bridge API (text only — images handled externally)
+          const sendRes = await fetch(bridgeUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Api-Key": bridgeApiKey,
+            },
+            body: JSON.stringify({
+              action: "send",
+              phone: phoneClean,
+              message: personalizedMsg,
+            }),
           });
-          totalSent++;
+
+          if (sendRes.ok) {
+            await admin.from("whatsapp_birthday_log").insert({
+              client_id: clientId,
+              pessoa_id: pessoa.id,
+              pessoa_nome: pessoa.nome,
+              telefone: pessoa.telefone,
+              status: "enviado",
+            });
+            totalSent++;
+          } else {
+            const errText = await sendRes.text();
+            await admin.from("whatsapp_birthday_log").insert({
+              client_id: clientId,
+              pessoa_id: pessoa.id,
+              pessoa_nome: pessoa.nome,
+              telefone: pessoa.telefone,
+              status: "falha",
+              erro: errText.slice(0, 200),
+            });
+            totalFailed++;
+          }
         } catch (err) {
           await admin.from("whatsapp_birthday_log").insert({
             client_id: clientId,

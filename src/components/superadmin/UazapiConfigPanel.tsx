@@ -9,9 +9,9 @@ import { toast } from "sonner";
 import { Loader2, Save, Eye, EyeOff, Server, Globe } from "lucide-react";
 
 export default function UazapiConfigPanel() {
-  const [apiUrl, setApiUrl] = useState("");
-  const [adminToken, setAdminToken] = useState("");
-  const [showToken, setShowToken] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState("");
+  const [bridgeApiKey, setBridgeApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,23 +23,23 @@ export default function UazapiConfigPanel() {
     const { data } = await supabase
       .from("platform_config" as any)
       .select("key, value")
-      .in("key", ["uazapi_url", "uazapi_admin_token"]);
+      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
 
     const configs = (data as any[]) || [];
     configs.forEach((c) => {
-      if (c.key === "uazapi_url") setApiUrl(c.value);
-      if (c.key === "uazapi_admin_token") setAdminToken(c.value);
+      if (c.key === "whatsapp_bridge_url") setBridgeUrl(c.value);
+      if (c.key === "whatsapp_bridge_api_key") setBridgeApiKey(c.value);
     });
     setLoading(false);
   };
 
   const handleSave = async () => {
-    if (!apiUrl.trim()) {
-      toast.error("URL da API é obrigatória");
+    if (!bridgeUrl.trim()) {
+      toast.error("URL da Ponte API é obrigatória");
       return;
     }
-    if (!adminToken.trim()) {
-      toast.error("Token de administrador é obrigatório");
+    if (!bridgeApiKey.trim()) {
+      toast.error("Chave da API é obrigatória");
       return;
     }
 
@@ -47,15 +47,14 @@ export default function UazapiConfigPanel() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Upsert both config values
-      for (const [key, value] of [["uazapi_url", apiUrl.trim()], ["uazapi_admin_token", adminToken.trim()]]) {
+      for (const [key, value] of [["whatsapp_bridge_url", bridgeUrl.trim()], ["whatsapp_bridge_api_key", bridgeApiKey.trim()]]) {
         const { error } = await supabase
           .from("platform_config" as any)
           .upsert({ key, value, updated_by: user?.id, updated_at: new Date().toISOString() } as any, { onConflict: "key" });
         if (error) throw error;
       }
 
-      toast.success("Configuração UAZAPI salva com sucesso!");
+      toast.success("Configuração da Ponte WhatsApp salva com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao salvar: " + err.message);
     } finally {
@@ -81,12 +80,12 @@ export default function UazapiConfigPanel() {
             <Server className="w-4 h-4 text-green-400" />
           </div>
           <div>
-            <CardTitle className="text-white text-base">Configuração UAZAPI</CardTitle>
+            <CardTitle className="text-white text-base">Ponte WhatsApp API</CardTitle>
             <CardDescription className="text-slate-400">
-              Token de administrador para gerenciar instâncias WhatsApp dos clientes
+              Conecte ao sistema externo de WhatsApp (Bridge API) para envio de mensagens
             </CardDescription>
           </div>
-          {adminToken && apiUrl ? (
+          {bridgeApiKey && bridgeUrl ? (
             <Badge className="bg-green-500/20 text-green-400 border-green-500/30 ml-auto">Configurado</Badge>
           ) : (
             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 ml-auto">Pendente</Badge>
@@ -96,35 +95,35 @@ export default function UazapiConfigPanel() {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label className="text-slate-300 text-xs flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5" /> URL da API UAZAPI
+            <Globe className="w-3.5 h-3.5" /> URL do Endpoint Bridge
           </Label>
           <Input
-            value={apiUrl}
-            onChange={(e) => setApiUrl(e.target.value)}
-            placeholder="https://api.uazapi.com"
+            value={bridgeUrl}
+            onChange={(e) => setBridgeUrl(e.target.value)}
+            placeholder="https://xxx.supabase.co/functions/v1/whatsapp-bridge"
             className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
           />
         </div>
 
         <div className="space-y-2">
           <Label className="text-slate-300 text-xs flex items-center gap-1.5">
-            <Server className="w-3.5 h-3.5" /> Token de Administrador
+            <Server className="w-3.5 h-3.5" /> Chave da API (X-Api-Key)
           </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Input
-                type={showToken ? "text" : "password"}
-                value={adminToken}
-                onChange={(e) => setAdminToken(e.target.value)}
-                placeholder="Seu token admin da UAZAPI"
+                type={showKey ? "text" : "password"}
+                value={bridgeApiKey}
+                onChange={(e) => setBridgeApiKey(e.target.value)}
+                placeholder="Sua chave de API gerada no sistema Bridge"
                 className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 pr-10"
               />
               <button
                 type="button"
-                onClick={() => setShowToken(!showToken)}
+                onClick={() => setShowKey(!showKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
               >
-                {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
@@ -140,7 +139,7 @@ export default function UazapiConfigPanel() {
         </Button>
 
         <p className="text-xs text-slate-500">
-          ⚠️ Este token é usado para criar e gerenciar instâncias WhatsApp de todos os clientes da plataforma.
+          ⚠️ Esta configuração é global — todos os clientes usarão esta ponte para envio de mensagens WhatsApp.
         </p>
       </CardContent>
     </Card>
