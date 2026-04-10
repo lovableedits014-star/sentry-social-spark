@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action, phone, message } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     if (action === "check_bridge") {
@@ -55,7 +56,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "test_send") {
-      const { phone, message } = await req.json().catch(() => ({}));
       // Read bridge config from DB
       const { data: configs } = await adminClient
         .from("platform_config")
