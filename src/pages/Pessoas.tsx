@@ -683,6 +683,42 @@ export default function Pessoas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Promote to Funcionário */}
+      <AlertDialog open={!!promoteTarget} onOpenChange={(open) => !open && setPromoteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transformar em Funcionário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja transformar <strong>{promoteTarget?.nome}</strong> em funcionário? Um novo registro será criado no módulo de Funcionários com os dados desta pessoa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePromoteToFuncionario}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Demote from Funcionário */}
+      <AlertDialog open={!!demoteTarget} onOpenChange={(open) => !open && setDemoteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover de Funcionários</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja remover <strong>{demoteTarget?.nome}</strong> da lista de funcionários? O registro de funcionário será excluído, mas a pessoa continuará cadastrada aqui.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDemoteFuncionario} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
