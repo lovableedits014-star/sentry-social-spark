@@ -483,9 +483,25 @@ export default function Pessoas() {
                   const supporter = p.supporter_id ? supporterMap[p.supporter_id] : null;
                   const score = supporter?.engagement_score ?? null;
                   const classification = supporter?.classification ?? null;
+                  const isFuncionario = !!(p.telefone && funcionarioMap[p.telefone]);
                   return (
                     <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
-                      <TableCell className="font-medium">{p.nome}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {p.nome}
+                          {isFuncionario && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-500/20 gap-0.5">
+                                  <Briefcase className="w-2.5 h-2.5" />
+                                  Func.
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>Esta pessoa é um funcionário</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-1.5">
                           <span>{p.telefone || "—"}</span>
@@ -580,13 +596,46 @@ export default function Pessoas() {
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost" size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-lg leading-none">⋯</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            {isFuncionario ? (
+                              <DropdownMenuItem onClick={() => setDemoteTarget(p)} className="gap-2 text-amber-700">
+                                <UserMinus className="w-4 h-4" />
+                                Remover de Funcionários
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (!p.telefone) {
+                                    toast.error("Pessoa precisa ter telefone para ser funcionário");
+                                    return;
+                                  }
+                                  setPromoteTarget(p);
+                                }}
+                                className="gap-2"
+                              >
+                                <UserPlus className="w-4 h-4" />
+                                Transformar em Funcionário
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(p)}
+                              className="gap-2 text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
