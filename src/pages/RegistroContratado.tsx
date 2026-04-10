@@ -29,10 +29,11 @@ const SOCIAL_PLATFORMS = [
     steps: [
       { text: "Abra o Instagram no celular", emoji: "📱" },
       { text: "Vá ao seu perfil (ícone no canto inferior direito)", emoji: "👤" },
-      { text: "Toque nos 3 pontinhos ⋯ ou ☰", emoji: "⚙️" },
-      { text: 'Toque em "Copiar link do perfil"', emoji: "🔗" },
+      { text: "Toque em \"Compartilhar Perfil\"", emoji: "⚙️" },
+      { text: 'Toque em "Copiar Link"', emoji: "🔗" },
       { text: "Volte aqui e toque COLAR 👇", emoji: "✅" },
     ],
+    helpImage: "/assets/help-instagram.png",
     parse: (input: string) => {
       const m = input.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
       if (m) return { usuario: m[1], url: `https://instagram.com/${m[1]}` };
@@ -47,11 +48,11 @@ const SOCIAL_PLATFORMS = [
     activeBg: "bg-blue-100 dark:bg-blue-950/40", emoji: "👍",
     steps: [
       { text: "Abra o Facebook no celular", emoji: "📱" },
-      { text: "Vá ao seu perfil", emoji: "👤" },
-      { text: "Toque nos 3 pontinhos ⋯", emoji: "⚙️" },
-      { text: 'Toque em "Copiar link"', emoji: "🔗" },
+      { text: "Toque na sua foto de perfil", emoji: "👤" },
+      { text: "Toque em \"Compartilhar perfil\" → \"Copiar link\"", emoji: "🔗" },
       { text: "Volte aqui e toque COLAR 👇", emoji: "✅" },
     ],
+    helpImage: "/assets/help-facebook.png",
     parse: (input: string) => {
       const m = input.match(/(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/(?:profile\.php\?id=)?([a-zA-Z0-9.]+)/i);
       if (m) return { usuario: m[1], url: input.trim() };
@@ -156,6 +157,11 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (s: SocialEnt
                 </div>
               ))}
             </div>
+            {p.helpImage && (
+              <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
+                <img src={p.helpImage} alt={`Como copiar link do ${p.label}`} className="w-full h-auto" />
+              </div>
+            )}
             <div className="space-y-2 pt-1">
               <Button type="button" size="lg" variant="outline" className="w-full gap-2 text-base font-semibold border-2 border-dashed border-primary/40 hover:border-primary py-5" onClick={() => handlePaste(activePlatform)}>
                 <ClipboardPaste className="w-5 h-5" />📋 Tocar aqui para COLAR o link
