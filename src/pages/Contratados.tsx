@@ -552,11 +552,12 @@ export default function Contratados() {
 
       {/* Tabs: Por Líder / Todos / Indicados */}
       <Tabs defaultValue="lideres">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="lideres" className="gap-1.5"><Crown className="w-3.5 h-3.5" />Por Líder</TabsTrigger>
           <TabsTrigger value="contratados" className="gap-1.5"><Briefcase className="w-3.5 h-3.5" />Todos</TabsTrigger>
           <TabsTrigger value="indicados" className="gap-1.5"><Users className="w-3.5 h-3.5" />Indicados ({totalIndicados})</TabsTrigger>
           <TabsTrigger value="telemarketing" className="gap-1.5"><PhoneCall className="w-3.5 h-3.5" />Ligações</TabsTrigger>
+          <TabsTrigger value="relatorios" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
         </TabsList>
 
         {/* ─── POR LÍDER TAB ──────────────────────────────────── */}
