@@ -123,10 +123,11 @@ const Dashboard = () => {
   const allComments = dashData?.allComments ?? [];
   const supportersCount = dashData?.supportersCount ?? 0;
 
-  // Keep clientId in state for actions
-  if (dashData?.clientId && dashData.clientId !== clientId) {
-    setClientId(dashData.clientId);
-  }
+  useEffect(() => {
+    if (dashData?.clientId) {
+      setClientId(dashData.clientId);
+    }
+  }, [dashData?.clientId]);
 
   const reloadData = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-data"] });

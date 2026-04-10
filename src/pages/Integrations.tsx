@@ -405,8 +405,8 @@ const Integrations = () => {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
-        <p className="text-muted-foreground mt-2">
-          Configure suas chaves de API e integrações
+        <p className="text-muted-foreground mt-2 text-sm max-w-3xl">
+          Configure a inteligência do seu painel. Conecte sua página do Facebook e Instagram para monitorar comentários, e escolha entre diferentes provedores de IA (Lovable, OpenAI, Anthropic, Gemini) para automatizar respostas e análises de sentimento.
         </p>
       </div>
 
