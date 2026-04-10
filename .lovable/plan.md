@@ -1,75 +1,34 @@
 
 
-# Plano: Migrar WhatsApp da UAZAPI para Ponte API (Bridge)
+## Diagnóstico e Plano de Correção — Telemarketing + Indicados
 
-## Contexto
+### Problema Identificado
 
-Atualmente o sistema usa UAZAPI com endpoints como `/message/sendText/{instanceName}` e autenticação via header `apikey`. Você criou um novo sistema "ponte" em outro projeto Lovable que centraliza o WhatsApp, expondo uma API simples:
+Verifiquei o banco de dados e confirmei: a indicada **Leiliane** continua com `ligacao_status: pendente` e `operador_nome: null`. A atualização **nunca chegou ao banco**, mesmo que o telemarketing tenha mostrado sucesso na tela.
 
-- **URL**: `https://vxqvrsaxppbgxookyimz.supabase.co/functions/v1/whatsapp-bridge`
-- **Auth**: Header `X-Api-Key`
-- **Body**: `{ "action": "send", "phone": "55...", "message": "Texto" }`
+**Causa raiz**: O Supabase, quando uma atualização é bloqueada por RLS (Row Level Security), **não retorna erro** — simplesmente atualiza 0 linhas. O código atual só verifica `error`, não verifica se alguma linha foi de fato alterada. Resultado: o estado local é atualizado (aparece como salvo na tela), mas o banco permanece inalterado.
 
-## O que muda
+O segundo problema: o painel do telemarketing usa o Supabase client que pode carregar uma sessão autenticada antiga (cookie do admin). Nesse caso, as políticas `anon` não se aplicam, e as políticas `authenticated` exigem ser o dono do client — o que não funciona para um operador sem conta Supabase.
 
-### 1. Configuração no banco (platform_config)
-Substituir as chaves `uazapi_url` e `uazapi_admin_token` por:
-- `whatsapp_bridge_url` (a URL do endpoint bridge)
-- `whatsapp_bridge_api_key` (a chave X-Api-Key gerada no outro sistema)
+### Plano de Correção (3 itens)
 
-### 2. Edge Functions afetadas (3 arquivos)
+**1. Corrigir a gravação no Telemarketing** (`src/pages/Telemarketing.tsx`)
+- Forçar logout do Supabase Auth ao entrar na central (garantir que opera como `anon`)
+- Alterar o `handleSave` para usar `.select()` após o `.update()` e verificar se retornou dados (confirmar que a linha foi realmente atualizada)
+- Se retornar vazio, mostrar toast de erro: "Falha ao salvar no banco"
 
-**`send-whatsapp-dispatch/index.ts`** (disparos em massa):
-- Trocar a chamada `fetch(uazapiUrl/message/sendText/instanceName)` por `fetch(bridgeUrl)` com body `{ action: "send", phone, message }` e header `X-Api-Key`
-- Remover dependência de `instance_name` e `instance_token` da UAZAPI
-- Manter toda a lógica de batching, delays e anti-banimento
+**2. Remover contatos já ligados do funil** (`src/pages/Telemarketing.tsx`)
+- Na carga inicial de contatos, filtrar fora quem já tem `ligacao_status` diferente de `pendente` e não-nulo
+- Contatos que já "atenderam", "recusaram" ou "não atenderam" **não voltam** à fila
+- O operador só vê contatos pendentes
 
-**`send-birthday-messages/index.ts`** (aniversários):
-- Mesma migração: trocar chamadas UAZAPI por ponte API
-- Para imagens: verificar se a ponte suporta envio de imagem ou adaptar para texto
+**3. Atualizar a interface Indicado na aba Ligações** (`src/pages/Contratados.tsx`)
+- Adicionar os campos `ligacao_status`, `vota_candidato`, `candidato_alternativo`, `operador_nome`, `ligacao_em` à interface `Indicado`
+- Garantir que o `TelemarketingResultsPanel` receba e exiba corretamente esses dados dos indicados
 
-**`manage-whatsapp-instance/index.ts`**:
-- Remover completamente ou simplificar. A instância agora é gerenciada no outro sistema, não mais aqui
+### Detalhes Técnicos
 
-### 3. UI do Super Admin
-**`UazapiConfigPanel.tsx`**: Renomear para "Ponte WhatsApp API" e trocar os campos para `whatsapp_bridge_url` e `whatsapp_bridge_api_key`
-
-### 4. UI de Settings do cliente
-**`WhatsAppInstanceCard.tsx`**: Remover o card de instância UAZAPI (QR code, criar instância etc.) pois a instância é gerenciada no outro sistema. Substituir por um card simples que mostra o status da conexão (se a ponte está configurada)
-
-**`WhatsAppConfigCard.tsx`**: Atualizar o aviso que menciona "mesmo número da instância UAZAPI"
-
-### 5. Settings page
-Remover `WhatsAppInstanceCard` e simplificar
-
-## Seção Técnica
-
-```text
-Antes (UAZAPI):
-  App → Edge Function → UAZAPI API → WhatsApp
-
-Depois (Ponte):
-  App → Edge Function → Bridge API (outro projeto) → WhatsApp
-```
-
-Chamada antiga:
-```
-POST {uazapiUrl}/message/sendText/{instanceName}
-Header: apikey: {token}
-Body: { number, text }
-```
-
-Chamada nova:
-```
-POST {bridgeUrl}
-Header: X-Api-Key: {apiKey}
-Body: { action: "send", phone: "55...", message: "Texto" }
-```
-
-## Resumo das alterações
-- 3 edge functions reescritas (dispatch, birthday, manage-instance)
-- 2 componentes UI atualizados (UazapiConfigPanel → BridgeConfigPanel, WhatsAppConfigCard)
-- 1 componente removido (WhatsAppInstanceCard)
-- Settings.tsx e SuperAdmin.tsx atualizados
-- Chaves do platform_config migradas
+- **RLS fix**: Chamar `await supabase.auth.signOut()` no `useEffect` inicial da página de Telemarketing para garantir role `anon`
+- **Verificação de update**: Trocar `.update(data).eq("id", id)` por `.update(data).eq("id", id).select()` e checar `data.length > 0`
+- **Filtro do funil**: `lista.filter(c => !c.ligacao_status || c.ligacao_status === "pendente")` aplicado no momento do carregamento, não só na navegação
 
