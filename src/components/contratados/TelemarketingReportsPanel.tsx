@@ -235,13 +235,13 @@ export default function TelemarketingReportsPanel({ contratados, indicados }: Pr
           </CardHeader>
           <CardContent>
             {voteData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={voteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                  <Pie data={voteData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={90} innerRadius={40} paddingAngle={2}>
                     {voteData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Tooltip formatter={(value: number, name: string) => [`${value}`, name]} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -259,13 +259,13 @@ export default function TelemarketingReportsPanel({ contratados, indicados }: Pr
           </CardHeader>
           <CardContent>
             {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                  <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={90} innerRadius={40} paddingAngle={2}>
                     {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Tooltip formatter={(value: number, name: string) => [`${value}`, name]} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -284,16 +284,16 @@ export default function TelemarketingReportsPanel({ contratados, indicados }: Pr
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(200, leaderBreakdown.length * 40)}>
-              <BarChart data={leaderBreakdown} layout="vertical" margin={{ left: 10, right: 20 }}>
+            <ResponsiveContainer width="100%" height={Math.max(250, leaderBreakdown.length * 50)}>
+              <BarChart data={leaderBreakdown} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
                 <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="nome" width={80} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="nome" width={100} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="sim" name="Vota ✅" fill={VOTE_COLORS.sim} stackId="a" />
+                <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                <Bar dataKey="sim" name="Vota ✅" fill={VOTE_COLORS.sim} stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="nao" name="Não vota ❌" fill={VOTE_COLORS.nao} stackId="a" />
                 <Bar dataKey="indeciso" name="Indeciso 🤔" fill={VOTE_COLORS.indeciso} stackId="a" />
-                <Bar dataKey="pendente" name="Pendente" fill={VOTE_COLORS.sem} stackId="a" />
+                <Bar dataKey="pendente" name="Pendente" fill={VOTE_COLORS.sem} stackId="a" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
