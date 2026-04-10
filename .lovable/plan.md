@@ -1,38 +1,75 @@
 
 
-# Indicador "Apoiador Cadastrado" nos Comentarios
+# Plano: Migrar WhatsApp da UAZAPI para Ponte API (Bridge)
 
-## Objetivo
-Mostrar automaticamente nos comentarios quando o autor ja esta cadastrado como apoiador, evitando duplicacoes e facilitando a gestao.
+## Contexto
 
-## Como vai funcionar
-- Ao lado do nome do autor do comentario, aparecera um badge verde com "Apoiador" quando ele ja estiver cadastrado na base
-- Um tooltip explicara a classificacao atual (ativo, passivo, neutro, critico) e o nome cadastrado
-- O botao "Adicionar aos Apoiadores" sera substituido por um indicador visual quando o autor ja estiver cadastrado
+Atualmente o sistema usa UAZAPI com endpoints como `/message/sendText/{instanceName}` e autenticação via header `apikey`. Você criou um novo sistema "ponte" em outro projeto Lovable que centraliza o WhatsApp, expondo uma API simples:
 
-## Detalhes Tecnicos
+- **URL**: `https://vxqvrsaxppbgxookyimz.supabase.co/functions/v1/whatsapp-bridge`
+- **Auth**: Header `X-Api-Key`
+- **Body**: `{ "action": "send", "phone": "55...", "message": "Texto" }`
 
-### 1. Comments.tsx - Buscar apoiadores cadastrados
-- Apos carregar os comentarios, fazer uma query em `supporter_profiles` para o client_id atual
-- Construir um Map de `platform:platform_user_id` -> `{ name, classification }` com os dados do supporter vinculado
-- Passar esse Map como prop `registeredSupporters` para `PostCard` e `CommentItem`
+## O que muda
 
-### 2. CommentItem.tsx - Exibir badge de apoiador
-- Receber a nova prop `registeredSupporters`
-- Verificar se o `platform:platform_user_id` do comentario existe no Map
-- Se existir, mostrar um badge verde "Apoiador" com tooltip contendo nome e classificacao
-- Esconder o botao "Adicionar aos Apoiadores" quando ja estiver cadastrado
+### 1. Configuração no banco (platform_config)
+Substituir as chaves `uazapi_url` e `uazapi_admin_token` por:
+- `whatsapp_bridge_url` (a URL do endpoint bridge)
+- `whatsapp_bridge_api_key` (a chave X-Api-Key gerada no outro sistema)
 
-### 3. PostCard.tsx - Repassar prop
-- Receber e repassar `registeredSupporters` para cada `CommentItem`
+### 2. Edge Functions afetadas (3 arquivos)
 
-### 4. AddToSupportersButton.tsx
-- Nenhuma alteracao necessaria (o botao simplesmente nao sera renderizado quando o apoiador ja estiver cadastrado)
+**`send-whatsapp-dispatch/index.ts`** (disparos em massa):
+- Trocar a chamada `fetch(uazapiUrl/message/sendText/instanceName)` por `fetch(bridgeUrl)` com body `{ action: "send", phone, message }` e header `X-Api-Key`
+- Remover dependência de `instance_name` e `instance_token` da UAZAPI
+- Manter toda a lógica de batching, delays e anti-banimento
 
-### Fluxo resumido
+**`send-birthday-messages/index.ts`** (aniversários):
+- Mesma migração: trocar chamadas UAZAPI por ponte API
+- Para imagens: verificar se a ponte suporta envio de imagem ou adaptar para texto
 
-1. Pagina carrega comentarios + lista de supporter_profiles do cliente
-2. Para cada comentario, verifica se o author_id ja existe em supporter_profiles
-3. Se sim: badge verde "Apoiador" com tooltip da classificacao, sem botao de cadastro
-4. Se nao: comportamento atual mantido (botao "Adicionar aos Apoiadores" visivel)
+**`manage-whatsapp-instance/index.ts`**:
+- Remover completamente ou simplificar. A instância agora é gerenciada no outro sistema, não mais aqui
+
+### 3. UI do Super Admin
+**`UazapiConfigPanel.tsx`**: Renomear para "Ponte WhatsApp API" e trocar os campos para `whatsapp_bridge_url` e `whatsapp_bridge_api_key`
+
+### 4. UI de Settings do cliente
+**`WhatsAppInstanceCard.tsx`**: Remover o card de instância UAZAPI (QR code, criar instância etc.) pois a instância é gerenciada no outro sistema. Substituir por um card simples que mostra o status da conexão (se a ponte está configurada)
+
+**`WhatsAppConfigCard.tsx`**: Atualizar o aviso que menciona "mesmo número da instância UAZAPI"
+
+### 5. Settings page
+Remover `WhatsAppInstanceCard` e simplificar
+
+## Seção Técnica
+
+```text
+Antes (UAZAPI):
+  App → Edge Function → UAZAPI API → WhatsApp
+
+Depois (Ponte):
+  App → Edge Function → Bridge API (outro projeto) → WhatsApp
+```
+
+Chamada antiga:
+```
+POST {uazapiUrl}/message/sendText/{instanceName}
+Header: apikey: {token}
+Body: { number, text }
+```
+
+Chamada nova:
+```
+POST {bridgeUrl}
+Header: X-Api-Key: {apiKey}
+Body: { action: "send", phone: "55...", message: "Texto" }
+```
+
+## Resumo das alterações
+- 3 edge functions reescritas (dispatch, birthday, manage-instance)
+- 2 componentes UI atualizados (UazapiConfigPanel → BridgeConfigPanel, WhatsAppConfigCard)
+- 1 componente removido (WhatsAppInstanceCard)
+- Settings.tsx e SuperAdmin.tsx atualizados
+- Chaves do platform_config migradas
 
