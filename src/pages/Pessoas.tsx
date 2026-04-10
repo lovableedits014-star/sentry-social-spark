@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, TrendingUp, Star, MessageCircle, CheckCircle2, Briefcase, UserPlus, UserMinus } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NovaPessoaDialog from "@/components/pessoas/NovaPessoaDialog";
@@ -117,7 +118,9 @@ export default function Pessoas() {
   const [bairros, setBairros] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [pessoaTagsMap, setPessoaTagsMap] = useState<Record<string, any[]>>({});
-
+  const [funcionarioMap, setFuncionarioMap] = useState<Record<string, any>>({});
+  const [promoteTarget, setPromoteTarget] = useState<any>(null);
+  const [demoteTarget, setDemoteTarget] = useState<any>(null);
   useEffect(() => { resolveClient(); }, []);
 
   useEffect(() => {
@@ -201,14 +204,18 @@ export default function Pessoas() {
 
       const pessoaIds = (data || []).map((p: any) => p.id);
       const supporterIds = (data || []).map((p: any) => p.supporter_id).filter(Boolean);
+      const phones = (data || []).map((p: any) => p.telefone).filter(Boolean);
 
-      // Fetch supporter data and tags in parallel
-      const [suppResult, tagsResult] = await Promise.all([
+      // Fetch supporter data, tags, and funcionarios in parallel
+      const [suppResult, tagsResult, funcResult] = await Promise.all([
         supporterIds.length > 0
           ? supabase.from("supporters").select("id, engagement_score, classification").in("id", supporterIds)
           : Promise.resolve({ data: [] }),
         pessoaIds.length > 0
           ? supabase.from("pessoas_tags").select("pessoa_id, tag_id, tags:tag_id(id, nome)").in("pessoa_id", pessoaIds) as any
+          : Promise.resolve({ data: [] }),
+        clientId
+          ? supabase.from("funcionarios").select("id, nome, telefone, status").eq("client_id", clientId)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -219,6 +226,13 @@ export default function Pessoas() {
       } else {
         setSupporterMap({});
       }
+
+      // Build funcionario map by phone
+      const fMap: Record<string, any> = {};
+      (funcResult.data || []).forEach((f: any) => {
+        if (f.telefone) fMap[f.telefone] = f;
+      });
+      setFuncionarioMap(fMap);
 
       // Build tags map: pessoaId -> tags[]
       const tMap: Record<string, any[]> = {};
@@ -254,6 +268,42 @@ export default function Pessoas() {
       fetchFilterOptions();
     }
     setDeleteTarget(null);
+  }
+
+  async function handlePromoteToFuncionario() {
+    if (!promoteTarget || !clientId) return;
+    const { error } = await supabase.from("funcionarios").insert({
+      client_id: clientId,
+      nome: promoteTarget.nome,
+      telefone: promoteTarget.telefone || "",
+      email: promoteTarget.email || null,
+      cidade: promoteTarget.cidade || null,
+      bairro: promoteTarget.bairro || null,
+      endereco: promoteTarget.endereco || null,
+    } as any);
+    if (error) {
+      toast.error("Erro ao transformar em funcionário");
+      console.error(error);
+    } else {
+      toast.success(`${promoteTarget.nome} agora é funcionário!`);
+      fetchPessoas();
+    }
+    setPromoteTarget(null);
+  }
+
+  async function handleDemoteFuncionario() {
+    if (!demoteTarget) return;
+    const func = funcionarioMap[demoteTarget.telefone];
+    if (!func) return;
+    const { error } = await supabase.from("funcionarios").delete().eq("id", func.id);
+    if (error) {
+      toast.error("Erro ao remover funcionário");
+      console.error(error);
+    } else {
+      toast.success(`${demoteTarget.nome} removido dos funcionários`);
+      fetchPessoas();
+    }
+    setDemoteTarget(null);
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -433,9 +483,25 @@ export default function Pessoas() {
                   const supporter = p.supporter_id ? supporterMap[p.supporter_id] : null;
                   const score = supporter?.engagement_score ?? null;
                   const classification = supporter?.classification ?? null;
+                  const isFuncionario = !!(p.telefone && funcionarioMap[p.telefone]);
                   return (
                     <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pessoas/${p.id}`)}>
-                      <TableCell className="font-medium">{p.nome}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {p.nome}
+                          {isFuncionario && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-500/20 gap-0.5">
+                                  <Briefcase className="w-2.5 h-2.5" />
+                                  Func.
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>Esta pessoa é um funcionário</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-1.5">
                           <span>{p.telefone || "—"}</span>
@@ -530,13 +596,46 @@ export default function Pessoas() {
                         {format(new Date(p.created_at), "dd/MM/yyyy")}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost" size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-lg leading-none">⋯</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            {isFuncionario ? (
+                              <DropdownMenuItem onClick={() => setDemoteTarget(p)} className="gap-2 text-amber-700">
+                                <UserMinus className="w-4 h-4" />
+                                Remover de Funcionários
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (!p.telefone) {
+                                    toast.error("Pessoa precisa ter telefone para ser funcionário");
+                                    return;
+                                  }
+                                  setPromoteTarget(p);
+                                }}
+                                className="gap-2"
+                              >
+                                <UserPlus className="w-4 h-4" />
+                                Transformar em Funcionário
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(p)}
+                              className="gap-2 text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -580,6 +679,42 @@ export default function Pessoas() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Promote to Funcionário */}
+      <AlertDialog open={!!promoteTarget} onOpenChange={(open) => !open && setPromoteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transformar em Funcionário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja transformar <strong>{promoteTarget?.nome}</strong> em funcionário? Um novo registro será criado no módulo de Funcionários com os dados desta pessoa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePromoteToFuncionario}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Demote from Funcionário */}
+      <AlertDialog open={!!demoteTarget} onOpenChange={(open) => !open && setDemoteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover de Funcionários</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja remover <strong>{demoteTarget?.nome}</strong> da lista de funcionários? O registro de funcionário será excluído, mas a pessoa continuará cadastrada aqui.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDemoteFuncionario} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remover
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
