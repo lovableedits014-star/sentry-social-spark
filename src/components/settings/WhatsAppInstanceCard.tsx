@@ -19,7 +19,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   const checkBridgeStatus = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "check_bridge" },
+        body: { action: "check_bridge", client_id: clientId },
       });
       if (!error && data?.configured) {
         setConfigured(true);
