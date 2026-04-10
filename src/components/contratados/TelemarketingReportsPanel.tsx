@@ -235,13 +235,13 @@ export default function TelemarketingReportsPanel({ contratados, indicados }: Pr
           </CardHeader>
           <CardContent>
             {voteData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={voteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                  <Pie data={voteData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={90} innerRadius={40} paddingAngle={2}>
                     {voteData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Tooltip formatter={(value: number, name: string) => [`${value}`, name]} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -259,13 +259,13 @@ export default function TelemarketingReportsPanel({ contratados, indicados }: Pr
           </CardHeader>
           <CardContent>
             {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                  <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={90} innerRadius={40} paddingAngle={2}>
                     {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Tooltip formatter={(value: number, name: string) => [`${value}`, name]} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
