@@ -83,7 +83,7 @@ export default function Disparos() {
     queryKey: ["whatsapp-bridge-status", clientId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "check_bridge" },
+        body: { action: "check_bridge", client_id: clientId },
       });
       return !error && data?.configured;
     },
