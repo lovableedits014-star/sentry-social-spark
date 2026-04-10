@@ -64,6 +64,43 @@ export default function UazapiConfigPanel() {
     }
   };
 
+  const handleTest = async () => {
+    const phone = testPhone.replace(/\D/g, "");
+    if (!phone || phone.length < 10) {
+      toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");
+      return;
+    }
+    if (!bridgeUrl.trim() || !bridgeApiKey.trim()) {
+      toast.error("Salve a configuração antes de testar");
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await fetch(bridgeUrl.trim(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": bridgeApiKey.trim(),
+        },
+        body: JSON.stringify({
+          action: "send",
+          phone,
+          message: "✅ Teste da Ponte WhatsApp — Sentinelle. Se você recebeu esta mensagem, a integração está funcionando!",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Mensagem de teste enviada com sucesso!");
+      } else {
+        toast.error("Falha no envio: " + (data?.error || data?.message || res.statusText));
+      }
+    } catch (err: any) {
+      toast.error("Erro de conexão: " + err.message);
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="bg-slate-800/60 border-slate-700">
@@ -139,6 +176,36 @@ export default function UazapiConfigPanel() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
           Salvar Configuração
         </Button>
+
+        {/* Test section */}
+        {bridgeUrl && bridgeApiKey && (
+          <div className="border-t border-slate-600 pt-4 space-y-2">
+            <Label className="text-slate-300 text-xs flex items-center gap-1.5">
+              <Send className="w-3.5 h-3.5" /> Enviar mensagem de teste
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="5511999999999"
+                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 font-mono max-w-[200px]"
+                maxLength={15}
+              />
+              <Button
+                onClick={handleTest}
+                disabled={testing || !testPhone}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                {testing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                Testar
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Digite seu número com DDI e receba uma mensagem de confirmação no WhatsApp.
+            </p>
+          </div>
+        )}
 
         <p className="text-xs text-slate-500">
           ⚠️ Esta configuração é global — todos os clientes usarão esta ponte para envio de mensagens WhatsApp.
