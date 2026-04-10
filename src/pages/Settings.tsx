@@ -46,6 +46,9 @@ const Settings = () => {
       {/* WhatsApp Oficial */}
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
 
+      {/* Links de Acesso Público */}
+      {clientId && <PublicLinksCard clientId={clientId} />}
+
       {/* Telemarketing Module */}
       {clientId && <TelemarketingSettingsCard clientId={clientId} />}
 
