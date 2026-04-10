@@ -50,6 +50,11 @@ interface Indicado {
   status: string;
   contratado_id: string;
   created_at: string;
+  ligacao_status: string | null;
+  vota_candidato: string | null;
+  candidato_alternativo: string | null;
+  operador_nome: string | null;
+  ligacao_em: string | null;
 }
 
 interface DispatchJob {
