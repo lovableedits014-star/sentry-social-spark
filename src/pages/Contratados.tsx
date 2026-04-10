@@ -20,6 +20,7 @@ import {
   ChevronRight, Award, TrendingUp, Trash2, Crown, PhoneCall,
 } from "lucide-react";
 import TelemarketingResultsPanel from "@/components/contratados/TelemarketingResultsPanel";
+import TelemarketingReportsPanel from "@/components/contratados/TelemarketingReportsPanel";
 import { toast } from "sonner";
 
 interface Contratado {
