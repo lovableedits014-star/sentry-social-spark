@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Eye, EyeOff, Server, Globe } from "lucide-react";
+import { Loader2, Save, Eye, EyeOff, Server, Globe, Send } from "lucide-react";
 
 export default function UazapiConfigPanel() {
   const [bridgeUrl, setBridgeUrl] = useState("");
@@ -14,6 +14,8 @@ export default function UazapiConfigPanel() {
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     loadConfig();
