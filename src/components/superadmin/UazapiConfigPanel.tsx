@@ -90,10 +90,6 @@ export default function UazapiConfigPanel() {
       } else {
         toast.error("Falha no envio: " + (data?.error || error.message || "Erro desconhecido"));
       }
-        toast.success("Mensagem de teste enviada com sucesso!");
-      } else {
-        toast.error("Falha no envio: " + (data?.error || data?.message || res.statusText));
-      }
     } catch (err: any) {
       toast.error("Erro de conexão: " + err.message);
     } finally {
