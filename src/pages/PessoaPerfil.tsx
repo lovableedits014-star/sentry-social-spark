@@ -37,7 +37,7 @@ const ORIGEM_LABELS: Record<string, string> = {
   importacao: "Importação", manual: "Manual",
 };
 const PLATFORM_ICONS: Record<string, string> = {
-  facebook: "🔵", instagram: "📸", twitter: "🐦", tiktok: "🎵", youtube: "▶️",
+  facebook: "🔵", instagram: "📸", twitter: "🐦", youtube: "▶️",
 };
 const CLASSIFICATION_LABELS: Record<string, string> = {
   apoiador_ativo: "Apoiador Ativo",
