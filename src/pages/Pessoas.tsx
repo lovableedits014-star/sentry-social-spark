@@ -270,6 +270,42 @@ export default function Pessoas() {
     setDeleteTarget(null);
   }
 
+  async function handlePromoteToFuncionario() {
+    if (!promoteTarget || !clientId) return;
+    const { error } = await supabase.from("funcionarios").insert({
+      client_id: clientId,
+      nome: promoteTarget.nome,
+      telefone: promoteTarget.telefone || "",
+      email: promoteTarget.email || null,
+      cidade: promoteTarget.cidade || null,
+      bairro: promoteTarget.bairro || null,
+      endereco: promoteTarget.endereco || null,
+    } as any);
+    if (error) {
+      toast.error("Erro ao transformar em funcionário");
+      console.error(error);
+    } else {
+      toast.success(`${promoteTarget.nome} agora é funcionário!`);
+      fetchPessoas();
+    }
+    setPromoteTarget(null);
+  }
+
+  async function handleDemoteFuncionario() {
+    if (!demoteTarget) return;
+    const func = funcionarioMap[demoteTarget.telefone];
+    if (!func) return;
+    const { error } = await supabase.from("funcionarios").delete().eq("id", func.id);
+    if (error) {
+      toast.error("Erro ao remover funcionário");
+      console.error(error);
+    } else {
+      toast.success(`${demoteTarget.nome} removido dos funcionários`);
+      fetchPessoas();
+    }
+    setDemoteTarget(null);
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
