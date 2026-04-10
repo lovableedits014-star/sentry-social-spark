@@ -31,28 +31,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get Bridge API config
-    const { data: platformConfigs } = await admin
-      .from("platform_config")
-      .select("key, value")
-      .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
-    const configMap: Record<string, string> = {};
-    (platformConfigs || []).forEach((c: any) => { configMap[c.key] = c.value; });
-
-    const bridgeUrl = configMap.whatsapp_bridge_url;
-    const bridgeApiKey = configMap.whatsapp_bridge_api_key;
-
-    if (!bridgeUrl || !bridgeApiKey) {
-      return new Response(JSON.stringify({ error: "Ponte WhatsApp não configurada" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Bridge config is now per-client, loaded inside the loop
 
     let totalSent = 0;
     let totalFailed = 0;
 
     for (const config of configs) {
       const clientId = config.client_id;
+
+      // Get per-client bridge config
+      const { data: clientData } = await admin
+        .from("clients")
+        .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
+        .eq("id", clientId)
+        .single();
+
+      const bridgeUrl = clientData?.whatsapp_bridge_url;
+      const bridgeApiKey = clientData?.whatsapp_bridge_api_key;
+
+      if (!bridgeUrl || !bridgeApiKey) continue; // Skip clients without bridge config
 
       // Find people with birthday today (month + day match)
       const today = new Date();

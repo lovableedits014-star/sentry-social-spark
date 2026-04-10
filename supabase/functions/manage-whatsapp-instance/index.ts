@@ -5,10 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// This function is now simplified since WhatsApp instance management
-// is handled by the external Bridge system.
-// It only checks bridge connectivity status.
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,22 +29,40 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, phone, message } = body;
+    const { action, phone, message, client_id } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
+    // Resolve client_id: use provided or find from user
+    let resolvedClientId = client_id;
+    if (!resolvedClientId) {
+      const { data: clientData } = await adminClient
+        .from("clients")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      resolvedClientId = clientData?.id;
+    }
+
+    if (!resolvedClientId) {
+      return new Response(
+        JSON.stringify({ error: "Client not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get per-client bridge config
+    const { data: clientConfig } = await adminClient
+      .from("clients")
+      .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .eq("id", resolvedClientId)
+      .single();
+
+    const bridgeUrl = clientConfig?.whatsapp_bridge_url;
+    const bridgeApiKey = clientConfig?.whatsapp_bridge_api_key;
+
     if (action === "check_bridge") {
-      const { data: configs } = await adminClient
-        .from("platform_config")
-        .select("key, value")
-        .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
-
-      const configMap: Record<string, string> = {};
-      (configs || []).forEach((c: any) => { configMap[c.key] = c.value; });
-
-      const bridgeUrl = configMap.whatsapp_bridge_url;
-      const bridgeApiKey = configMap.whatsapp_bridge_api_key;
       const configured = !!(bridgeUrl && bridgeApiKey);
-
       return new Response(
         JSON.stringify({ success: true, configured }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -56,21 +70,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "test_send") {
-      // Read bridge config from DB
-      const { data: configs } = await adminClient
-        .from("platform_config")
-        .select("key, value")
-        .in("key", ["whatsapp_bridge_url", "whatsapp_bridge_api_key"]);
-
-      const configMap: Record<string, string> = {};
-      (configs || []).forEach((c: any) => { configMap[c.key] = c.value; });
-
-      const bridgeUrl = configMap.whatsapp_bridge_url;
-      const bridgeApiKey = configMap.whatsapp_bridge_api_key;
-
       if (!bridgeUrl || !bridgeApiKey) {
         return new Response(
-          JSON.stringify({ error: "Ponte API não configurada" }),
+          JSON.stringify({ error: "Ponte API não configurada para este cliente" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

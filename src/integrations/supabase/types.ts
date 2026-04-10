@@ -369,6 +369,8 @@ export type Database = {
           name: string
           updated_at: string | null
           user_id: string
+          whatsapp_bridge_api_key: string | null
+          whatsapp_bridge_url: string | null
           whatsapp_oficial: string | null
         }
         Insert: {
@@ -379,6 +381,8 @@ export type Database = {
           name: string
           updated_at?: string | null
           user_id: string
+          whatsapp_bridge_api_key?: string | null
+          whatsapp_bridge_url?: string | null
           whatsapp_oficial?: string | null
         }
         Update: {
@@ -389,6 +393,8 @@ export type Database = {
           name?: string
           updated_at?: string | null
           user_id?: string
+          whatsapp_bridge_api_key?: string | null
+          whatsapp_bridge_url?: string | null
           whatsapp_oficial?: string | null
         }
         Relationships: []
