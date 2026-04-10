@@ -120,29 +120,36 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
             return (
               <div
                 key={i}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
+                className="rounded-lg border bg-muted/30 overflow-hidden"
               >
-                <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${link.color}`}>
-                  {link.icon}
+                <div className="flex items-center gap-3 p-3">
+                  <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${link.color}`}>
+                    {link.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">{link.label}</p>
+                    <p className="text-xs text-muted-foreground">{link.description}</p>
+                  </div>
+                  <Input
+                    readOnly
+                    value={fullUrl}
+                    className="max-w-[320px] text-xs font-mono bg-background h-8 hidden sm:block"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-8 w-8 p-0"
+                    onClick={() => handleCopy(fullUrl, i)}
+                  >
+                    {isCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </Button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-tight">{link.label}</p>
-                  <p className="text-xs text-muted-foreground">{link.description}</p>
+                <div className="px-3 pb-3 pt-0">
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed bg-background/50 rounded-md p-2 border border-border/50">
+                    {link.detail}
+                  </p>
                 </div>
-                <Input
-                  readOnly
-                  value={fullUrl}
-                  className="max-w-[320px] text-xs font-mono bg-background h-8 hidden sm:block"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 h-8 w-8 p-0"
-                  onClick={() => handleCopy(fullUrl, i)}
-                >
-                  {isCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                </Button>
               </div>
             );
           })}
