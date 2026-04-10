@@ -891,6 +891,11 @@ export default function Contratados() {
         <TabsContent value="telemarketing" className="mt-4">
           <TelemarketingResultsPanel contratados={contratados as any} indicados={indicados as any} />
         </TabsContent>
+
+        {/* ─── RELATÓRIOS TAB ──────────────────────────────────── */}
+        <TabsContent value="relatorios" className="mt-4">
+          <TelemarketingReportsPanel contratados={contratados as any} indicados={indicados as any} />
+        </TabsContent>
       </Tabs>
 
       {/* Contract Templates Manager */}
