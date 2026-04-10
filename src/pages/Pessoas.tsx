@@ -204,14 +204,18 @@ export default function Pessoas() {
 
       const pessoaIds = (data || []).map((p: any) => p.id);
       const supporterIds = (data || []).map((p: any) => p.supporter_id).filter(Boolean);
+      const phones = (data || []).map((p: any) => p.telefone).filter(Boolean);
 
-      // Fetch supporter data and tags in parallel
-      const [suppResult, tagsResult] = await Promise.all([
+      // Fetch supporter data, tags, and funcionarios in parallel
+      const [suppResult, tagsResult, funcResult] = await Promise.all([
         supporterIds.length > 0
           ? supabase.from("supporters").select("id, engagement_score, classification").in("id", supporterIds)
           : Promise.resolve({ data: [] }),
         pessoaIds.length > 0
           ? supabase.from("pessoas_tags").select("pessoa_id, tag_id, tags:tag_id(id, nome)").in("pessoa_id", pessoaIds) as any
+          : Promise.resolve({ data: [] }),
+        clientId
+          ? supabase.from("funcionarios").select("id, nome, telefone, status").eq("client_id", clientId)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -222,6 +226,13 @@ export default function Pessoas() {
       } else {
         setSupporterMap({});
       }
+
+      // Build funcionario map by phone
+      const fMap: Record<string, any> = {};
+      (funcResult.data || []).forEach((f: any) => {
+        if (f.telefone) fMap[f.telefone] = f;
+      });
+      setFuncionarioMap(fMap);
 
       // Build tags map: pessoaId -> tags[]
       const tMap: Record<string, any[]> = {};
