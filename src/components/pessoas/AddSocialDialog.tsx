@@ -18,7 +18,6 @@ const PLATFORM_OPTIONS = [
   { value: "facebook", label: "Facebook" },
   { value: "instagram", label: "Instagram" },
   { value: "twitter", label: "Twitter / X" },
-  { value: "tiktok", label: "TikTok" },
   { value: "youtube", label: "YouTube" },
 ];
 
