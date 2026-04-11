@@ -111,7 +111,12 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       } else if (qrCodeRef.current) {
         setState("awaiting_scan");
       } else {
-        // During reconnect polling, keep waiting for QR to appear
+        // If the card is still in its initial loading state and the bridge only
+        // reports a disconnected session, show the disconnected UI instead of
+        // leaving the screen stuck in "Verificando conexão WhatsApp...".
+        setState((current) => (current === "loading" ? "disconnected" : current));
+
+        // During reconnect polling, keep waiting for QR to appear.
         pollAttemptsRef.current += 1;
         if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) {
           stopPolling();
@@ -119,7 +124,6 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
           setState("disconnected");
           toast.error("Tempo esgotado aguardando QR Code. Tente reconectar novamente.");
         }
-        // else keep polling in awaiting_scan state
       }
     } catch {
       stopPolling();
