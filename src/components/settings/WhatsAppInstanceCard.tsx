@@ -46,6 +46,8 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   const [testing, setTesting] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrCodeRef = useRef<string | null>(null);
+  const pollAttemptsRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 20; // ~60s at 3s interval
 
   const setStoredQrCode = (value: string | null) => {
     qrCodeRef.current = value;
@@ -109,9 +111,15 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       } else if (qrCodeRef.current) {
         setState("awaiting_scan");
       } else {
-        stopPolling();
-        setStoredQrCode(null);
-        setState("disconnected");
+        // During reconnect polling, keep waiting for QR to appear
+        pollAttemptsRef.current += 1;
+        if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) {
+          stopPolling();
+          setStoredQrCode(null);
+          setState("disconnected");
+          toast.error("Tempo esgotado aguardando QR Code. Tente reconectar novamente.");
+        }
+        // else keep polling in awaiting_scan state
       }
     } catch {
       stopPolling();
@@ -122,6 +130,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
 
   const startPolling = () => {
     stopPolling();
+    pollAttemptsRef.current = 0;
     pollingRef.current = setInterval(async () => {
       await pollInstanceStatus();
     }, 3000);
@@ -238,7 +247,9 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       }
 
       toast.info("A reconexão não retornou QR Code. Gerando uma nova instância...");
-      await createNewInstance("Novo QR Code gerado. Escaneie novamente.");
+      setState("awaiting_scan");
+      setStoredQrCode(null);
+      startPolling();
     } catch (err: any) {
       stopPolling();
       setStoredQrCode(null);
@@ -337,23 +348,39 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         )}
 
         {/* AWAITING SCAN */}
-        {state === "awaiting_scan" && qrCode && (
+        {state === "awaiting_scan" && (
           <div className="text-center space-y-4 py-2">
-            <div className="bg-white rounded-xl p-4 inline-block shadow-sm border">
-              <img src={qrCode} alt="QR Code WhatsApp" className="w-64 h-64 mx-auto" />
-            </div>
-            <div>
-              <p className="font-medium text-green-700 dark:text-green-400">
-                📱 Escaneie o QR Code com seu WhatsApp
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Abra o WhatsApp → Menu (⋮) → Aparelhos conectados → Conectar aparelho
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Aguardando leitura do QR Code...
-            </div>
+            {qrCode ? (
+              <>
+                <div className="bg-white rounded-xl p-4 inline-block shadow-sm border">
+                  <img src={qrCode} alt="QR Code WhatsApp" className="w-64 h-64 mx-auto" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-700 dark:text-green-400">
+                    📱 Escaneie o QR Code com seu WhatsApp
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Abra o WhatsApp → Menu (⋮) → Aparelhos conectados → Conectar aparelho
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Aguardando leitura do QR Code...
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                </div>
+                <div>
+                  <p className="font-medium">Gerando QR Code...</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Aguarde enquanto a ponte gera o QR Code para conexão.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
