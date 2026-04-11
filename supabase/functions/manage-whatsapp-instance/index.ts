@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const BRIDGE_URL = "https://vxqvrsaxppbgxookyimz.supabase.co/functions/v1/whatsapp-bridge";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -19,6 +21,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const bridgeToken = Deno.env.get("WHATSAPP_BRIDGE_TOKEN");
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -29,10 +32,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, phone, message, client_id } = body;
+    const { action, phone, message, client_id, name } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
-    // Resolve client_id: use provided or find from user
+    // Resolve client_id
     let resolvedClientId = client_id;
     if (!resolvedClientId) {
       const { data: clientData } = await adminClient
@@ -54,49 +57,96 @@ Deno.serve(async (req) => {
     // Get per-client bridge config
     const { data: clientConfig } = await adminClient
       .from("clients")
-      .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .select("name, whatsapp_bridge_url, whatsapp_bridge_api_key")
       .eq("id", resolvedClientId)
       .single();
 
-    const bridgeUrl = clientConfig?.whatsapp_bridge_url;
-    const bridgeApiKey = clientConfig?.whatsapp_bridge_api_key;
+    const clientApiKey = clientConfig?.whatsapp_bridge_api_key;
 
+    // === CREATE INSTANCE ===
+    if (action === "create_instance") {
+      if (!bridgeToken) {
+        return new Response(
+          JSON.stringify({ error: "Bridge token não configurado no servidor" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const instanceName = name || clientConfig?.name || "WhatsApp Bot";
+
+      const bridgeRes = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Bridge-Token": bridgeToken,
+        },
+        body: JSON.stringify({ action: "create_instance", name: instanceName }),
+      });
+
+      const bridgeData = await bridgeRes.json().catch(() => ({}));
+
+      if (!bridgeRes.ok || !bridgeData.success) {
+        return new Response(
+          JSON.stringify({ error: bridgeData.error || "Erro ao criar instância", details: bridgeData }),
+          { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Save the api_key and bridge URL to client record
+      await adminClient
+        .from("clients")
+        .update({
+          whatsapp_bridge_url: BRIDGE_URL,
+          whatsapp_bridge_api_key: bridgeData.api_key,
+        } as any)
+        .eq("id", resolvedClientId);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          qrcode: bridgeData.qrcode,
+          instance: bridgeData.instance,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // === CHECK BRIDGE (legacy) ===
     if (action === "check_bridge") {
-      const configured = !!(bridgeUrl && bridgeApiKey);
+      const configured = !!(clientConfig?.whatsapp_bridge_url && clientApiKey);
       return new Response(
         JSON.stringify({ success: true, configured }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (action === "test_send") {
-      if (!bridgeUrl || !bridgeApiKey) {
-        return new Response(
-          JSON.stringify({ error: "Ponte API não configurada para este cliente" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const bridgeRes = await fetch(bridgeUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": bridgeApiKey,
-        },
-        body: JSON.stringify({ action: "send", phone, message }),
-      });
-
-      const bridgeData = await bridgeRes.json().catch(() => ({}));
-
+    // === ACTIONS THAT REQUIRE API KEY ===
+    if (!clientApiKey) {
       return new Response(
-        JSON.stringify(bridgeData),
-        { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Instância WhatsApp não configurada. Crie uma instância primeiro." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // Proxy all other actions to bridge with X-Api-Key
+    const proxyBody: any = { action };
+    if (phone) proxyBody.phone = phone;
+    if (message) proxyBody.message = message;
+
+    const bridgeRes = await fetch(BRIDGE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": clientApiKey,
+      },
+      body: JSON.stringify(proxyBody),
+    });
+
+    const bridgeData = await bridgeRes.json().catch(() => ({}));
+
     return new Response(
-      JSON.stringify({ error: "Ação não suportada." }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify(bridgeData),
+      { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("manage-whatsapp-instance error:", err);
