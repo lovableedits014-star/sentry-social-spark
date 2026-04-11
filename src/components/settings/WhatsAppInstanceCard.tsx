@@ -238,7 +238,9 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       }
 
       toast.info("A reconexão não retornou QR Code. Gerando uma nova instância...");
-      await createNewInstance("Novo QR Code gerado. Escaneie novamente.");
+      setState("awaiting_scan");
+      setStoredQrCode(null);
+      startPolling();
     } catch (err: any) {
       stopPolling();
       setStoredQrCode(null);
