@@ -7,6 +7,80 @@ const corsHeaders = {
 
 const BRIDGE_URL = "https://vxqvrsaxppbgxookyimz.supabase.co/functions/v1/whatsapp-bridge";
 
+const jsonHeaders = {
+  ...corsHeaders,
+  "Content-Type": "application/json",
+};
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+
+const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null | undefined) =>
+  status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
+
+async function createClientInstance(params: {
+  adminClient: ReturnType<typeof createClient>;
+  bridgeToken: string | undefined;
+  clientId: string;
+  clientName?: string | null;
+  providedName?: string | null;
+}) {
+  const { adminClient, bridgeToken, clientId, clientName, providedName } = params;
+
+  if (!bridgeToken) {
+    return jsonResponse({ error: "Bridge token não configurado no servidor" }, 500);
+  }
+
+  const instanceName = providedName || clientName || "WhatsApp Bot";
+
+  const bridgeRes = await fetch(BRIDGE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Bridge-Token": bridgeToken,
+    },
+    body: JSON.stringify({ action: "create_instance", name: instanceName }),
+  });
+
+  const bridgeData = await bridgeRes.json().catch(() => ({}));
+
+  if (!bridgeRes.ok || !bridgeData.success) {
+    return jsonResponse(
+      { error: bridgeData.error || "Erro ao criar instância", details: bridgeData },
+      bridgeRes.status,
+    );
+  }
+
+  if (!bridgeData.api_key) {
+    return jsonResponse(
+      { error: "A ponte não retornou a api_key da instância", details: bridgeData },
+      502,
+    );
+  }
+
+  const { error: updateError } = await adminClient
+    .from("clients")
+    .update({
+      whatsapp_bridge_url: BRIDGE_URL,
+      whatsapp_bridge_api_key: bridgeData.api_key,
+    } as any)
+    .eq("id", clientId);
+
+  if (updateError) {
+    return jsonResponse(
+      { error: "Erro ao salvar as credenciais da instância", details: updateError.message },
+      500,
+    );
+  }
+
+  return jsonResponse({
+    success: true,
+    qrcode: bridgeData.qrcode,
+    instance: bridgeData.instance,
+    recreated: true,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -65,67 +139,33 @@ Deno.serve(async (req) => {
 
     // === CREATE INSTANCE ===
     if (action === "create_instance") {
-      if (!bridgeToken) {
-        return new Response(
-          JSON.stringify({ error: "Bridge token não configurado no servidor" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const instanceName = name || clientConfig?.name || "WhatsApp Bot";
-
-      const bridgeRes = await fetch(BRIDGE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Bridge-Token": bridgeToken,
-        },
-        body: JSON.stringify({ action: "create_instance", name: instanceName }),
+      return await createClientInstance({
+        adminClient,
+        bridgeToken,
+        clientId: resolvedClientId,
+        clientName: clientConfig?.name,
+        providedName: name,
       });
-
-      const bridgeData = await bridgeRes.json().catch(() => ({}));
-
-      if (!bridgeRes.ok || !bridgeData.success) {
-        return new Response(
-          JSON.stringify({ error: bridgeData.error || "Erro ao criar instância", details: bridgeData }),
-          { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Save the api_key and bridge URL to client record
-      await adminClient
-        .from("clients")
-        .update({
-          whatsapp_bridge_url: BRIDGE_URL,
-          whatsapp_bridge_api_key: bridgeData.api_key,
-        } as any)
-        .eq("id", resolvedClientId);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          qrcode: bridgeData.qrcode,
-          instance: bridgeData.instance,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     // === CHECK BRIDGE (legacy) ===
     if (action === "check_bridge") {
       const configured = !!(clientConfig?.whatsapp_bridge_url && clientApiKey);
-      return new Response(
-        JSON.stringify({ success: true, configured }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ success: true, configured });
     }
 
     // === ACTIONS THAT REQUIRE API KEY ===
     if (!clientApiKey) {
-      return new Response(
-        JSON.stringify({ error: "Instância WhatsApp não configurada. Crie uma instância primeiro." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (action === "reconnect") {
+        return await createClientInstance({
+          adminClient,
+          bridgeToken,
+          clientId: resolvedClientId,
+          clientName: clientConfig?.name,
+        });
+      }
+
+      return jsonResponse({ error: "Instância WhatsApp não configurada. Crie uma instância primeiro." }, 400);
     }
 
     // Proxy all other actions to bridge with X-Api-Key
@@ -144,15 +184,27 @@ Deno.serve(async (req) => {
 
     const bridgeData = await bridgeRes.json().catch(() => ({}));
 
-    return new Response(
-      JSON.stringify(bridgeData),
-      { status: bridgeRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+      return await createClientInstance({
+        adminClient,
+        bridgeToken,
+        clientId: resolvedClientId,
+        clientName: clientConfig?.name,
+      });
+    }
+
+    if (action === "instance_status" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+      return jsonResponse({
+        success: false,
+        status: "disconnected",
+        error: bridgeData.error,
+        requires_reconnect: true,
+      });
+    }
+
+    return jsonResponse(bridgeData, bridgeRes.status);
   } catch (err) {
     console.error("manage-whatsapp-instance error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: err.message }, 500);
   }
 });
