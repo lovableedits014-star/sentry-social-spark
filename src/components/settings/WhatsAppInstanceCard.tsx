@@ -17,6 +17,26 @@ interface WhatsAppInstanceCardProps {
 
 type ConnectionState = "loading" | "not_configured" | "awaiting_scan" | "connected" | "disconnected";
 
+type BridgeResponse = {
+  error?: string;
+  qrcode?: string | null;
+  status?: string | null;
+  instance?: {
+    status?: string | null;
+  } | null;
+};
+
+const CONNECTED_STATUSES = new Set(["connected", "open"]);
+
+const getBridgeStatus = (data?: BridgeResponse | null) =>
+  (data?.status || data?.instance?.status || "").toLowerCase();
+
+const getQrCodeValue = (qrcode?: string | null) => {
+  if (typeof qrcode !== "string") return null;
+  const normalized = qrcode.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
 export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardProps) {
   const [state, setState] = useState<ConnectionState>("loading");
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -25,6 +45,12 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrCodeRef = useRef<string | null>(null);
+
+  const setStoredQrCode = (value: string | null) => {
+    qrCodeRef.current = value;
+    setQrCode(value);
+  };
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -45,12 +71,16 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         body: { action: "check_bridge", client_id: clientId },
       });
       if (error || !data?.configured) {
+        stopPolling();
+        setStoredQrCode(null);
         setState("not_configured");
         return;
       }
       // Bridge is configured, check actual instance status
       await pollInstanceStatus();
     } catch {
+      stopPolling();
+      setStoredQrCode(null);
       setState("not_configured");
     }
   };
@@ -60,21 +90,32 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
         body: { action: "instance_status", client_id: clientId },
       });
-      if (error) {
+      if (error || data?.error) {
+        stopPolling();
+        setStoredQrCode(null);
         setState("disconnected");
         return;
       }
-      const status = data?.status || data?.instance?.status;
-      if (status === "connected" || status === "open") {
+      const status = getBridgeStatus(data as BridgeResponse);
+      const nextQrCode = getQrCodeValue((data as BridgeResponse)?.qrcode);
+
+      if (CONNECTED_STATUSES.has(status)) {
+        setStoredQrCode(null);
         setState("connected");
         stopPolling();
-      } else if (data?.qrcode) {
-        setQrCode(data.qrcode);
+      } else if (nextQrCode) {
+        setStoredQrCode(nextQrCode);
+        setState("awaiting_scan");
+      } else if (qrCodeRef.current) {
         setState("awaiting_scan");
       } else {
+        stopPolling();
+        setStoredQrCode(null);
         setState("disconnected");
       }
     } catch {
+      stopPolling();
+      setStoredQrCode(null);
       setState("disconnected");
     }
   };
@@ -83,27 +124,49 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
     stopPolling();
     pollingRef.current = setInterval(async () => {
       await pollInstanceStatus();
-    }, 4000);
+    }, 3000);
+  };
+
+  const createNewInstance = async (successMessage: string) => {
+    const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
+      body: { action: "create_instance", client_id: clientId },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Erro desconhecido");
+    }
+
+    const response = (data ?? {}) as BridgeResponse;
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    const nextQrCode = getQrCodeValue(response.qrcode);
+    const status = getBridgeStatus(response);
+
+    if (nextQrCode) {
+      setStoredQrCode(nextQrCode);
+      setState("awaiting_scan");
+      startPolling();
+      toast.success(successMessage);
+      return;
+    }
+
+    if (CONNECTED_STATUSES.has(status)) {
+      setStoredQrCode(null);
+      setState("connected");
+      stopPolling();
+      toast.success("WhatsApp conectado!");
+      return;
+    }
+
+    throw new Error("A ponte não retornou um QR Code válido.");
   };
 
   const handleCreateInstance = async () => {
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "create_instance", client_id: clientId },
-      });
-      if (error) {
-        toast.error("Erro ao criar instância: " + (error.message || "Erro desconhecido"));
-        return;
-      }
-      if (data?.qrcode) {
-        setQrCode(data.qrcode);
-        setState("awaiting_scan");
-        startPolling();
-        toast.success("Instância criada! Escaneie o QR Code com seu WhatsApp.");
-      } else {
-        toast.error(data?.error || "Resposta inesperada da ponte");
-      }
+      await createNewInstance("Instância criada! Escaneie o QR Code com seu WhatsApp.");
     } catch (err: any) {
       toast.error("Erro: " + err.message);
     } finally {
@@ -117,23 +180,69 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
         body: { action: "reconnect", client_id: clientId },
       });
+
       if (error) {
         toast.error("Erro ao reconectar: " + error.message);
         return;
       }
-      if (data?.qrcode) {
-        setQrCode(data.qrcode);
+
+      const response = (data ?? {}) as BridgeResponse;
+      if (response.error) {
+        toast.error("Erro ao reconectar: " + response.error);
+        return;
+      }
+
+      const nextQrCode = getQrCodeValue(response.qrcode);
+      const status = getBridgeStatus(response);
+
+      if (nextQrCode) {
+        setStoredQrCode(nextQrCode);
         setState("awaiting_scan");
         startPolling();
         toast.info("Novo QR Code gerado. Escaneie novamente.");
-      } else if (data?.status === "connected" || data?.status === "open") {
-        setState("connected");
-        toast.success("WhatsApp reconectado!");
-      } else {
-        toast.info("Reconexão solicitada. Verificando status...");
-        startPolling();
+        return;
       }
+
+      if (CONNECTED_STATUSES.has(status)) {
+        setStoredQrCode(null);
+        setState("connected");
+        stopPolling();
+        toast.success("WhatsApp reconectado!");
+        return;
+      }
+
+      const { data: statusData, error: statusError } = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "instance_status", client_id: clientId },
+      });
+
+      if (!statusError) {
+        const latestResponse = (statusData ?? {}) as BridgeResponse;
+        const latestQrCode = getQrCodeValue(latestResponse.qrcode);
+        const latestStatus = getBridgeStatus(latestResponse);
+
+        if (latestQrCode) {
+          setStoredQrCode(latestQrCode);
+          setState("awaiting_scan");
+          startPolling();
+          toast.info("Novo QR Code gerado. Escaneie novamente.");
+          return;
+        }
+
+        if (CONNECTED_STATUSES.has(latestStatus)) {
+          setStoredQrCode(null);
+          setState("connected");
+          stopPolling();
+          toast.success("WhatsApp reconectado!");
+          return;
+        }
+      }
+
+      toast.info("A reconexão não retornou QR Code. Gerando uma nova instância...");
+      await createNewInstance("Novo QR Code gerado. Escaneie novamente.");
     } catch (err: any) {
+      stopPolling();
+      setStoredQrCode(null);
+      setState("disconnected");
       toast.error("Erro: " + err.message);
     } finally {
       setReconnecting(false);
