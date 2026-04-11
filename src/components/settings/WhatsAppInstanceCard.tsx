@@ -46,6 +46,8 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   const [testing, setTesting] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrCodeRef = useRef<string | null>(null);
+  const pollAttemptsRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 20; // ~60s at 3s interval
 
   const setStoredQrCode = (value: string | null) => {
     qrCodeRef.current = value;
@@ -109,9 +111,15 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       } else if (qrCodeRef.current) {
         setState("awaiting_scan");
       } else {
-        stopPolling();
-        setStoredQrCode(null);
-        setState("disconnected");
+        // During reconnect polling, keep waiting for QR to appear
+        pollAttemptsRef.current += 1;
+        if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) {
+          stopPolling();
+          setStoredQrCode(null);
+          setState("disconnected");
+          toast.error("Tempo esgotado aguardando QR Code. Tente reconectar novamente.");
+        }
+        // else keep polling in awaiting_scan state
       }
     } catch {
       stopPolling();
@@ -122,6 +130,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
 
   const startPolling = () => {
     stopPolling();
+    pollAttemptsRef.current = 0;
     pollingRef.current = setInterval(async () => {
       await pollInstanceStatus();
     }, 3000);
