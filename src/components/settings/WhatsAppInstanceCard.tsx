@@ -339,23 +339,39 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         )}
 
         {/* AWAITING SCAN */}
-        {state === "awaiting_scan" && qrCode && (
+        {state === "awaiting_scan" && (
           <div className="text-center space-y-4 py-2">
-            <div className="bg-white rounded-xl p-4 inline-block shadow-sm border">
-              <img src={qrCode} alt="QR Code WhatsApp" className="w-64 h-64 mx-auto" />
-            </div>
-            <div>
-              <p className="font-medium text-green-700 dark:text-green-400">
-                📱 Escaneie o QR Code com seu WhatsApp
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Abra o WhatsApp → Menu (⋮) → Aparelhos conectados → Conectar aparelho
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Aguardando leitura do QR Code...
-            </div>
+            {qrCode ? (
+              <>
+                <div className="bg-white rounded-xl p-4 inline-block shadow-sm border">
+                  <img src={qrCode} alt="QR Code WhatsApp" className="w-64 h-64 mx-auto" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-700 dark:text-green-400">
+                    📱 Escaneie o QR Code com seu WhatsApp
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Abra o WhatsApp → Menu (⋮) → Aparelhos conectados → Conectar aparelho
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Aguardando leitura do QR Code...
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                </div>
+                <div>
+                  <p className="font-medium">Gerando QR Code...</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Aguarde enquanto a ponte gera o QR Code para conexão.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
