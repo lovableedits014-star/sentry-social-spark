@@ -489,18 +489,29 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
                 A sessão expirou ou o aparelho foi desconectado. Reconecte escaneando um novo QR Code.
               </p>
             </div>
-            <Button
-              onClick={handleReconnect}
-              disabled={reconnecting}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {reconnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              Reconectar WhatsApp
-            </Button>
+            <div className="flex flex-col gap-2 max-w-[280px] mx-auto">
+              <Button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                className="bg-green-600 hover:bg-green-700 text-white w-full"
+              >
+                {reconnecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Reconectar WhatsApp
+              </Button>
+              <Button
+                onClick={handleDisconnect}
+                disabled={reconnecting}
+                variant="ghost"
+                className="text-muted-foreground hover:text-red-500 hover:bg-red-50"
+              >
+                <Unplug className="w-4 h-4 mr-2" />
+                Remover instância
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
