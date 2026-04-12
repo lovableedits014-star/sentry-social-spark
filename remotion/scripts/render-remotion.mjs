@@ -32,11 +32,11 @@ await renderMedia({
   composition,
   serveUrl: bundled,
   codec: "h264",
-  outputLocation: "/mnt/documents/sentinelle-video.mp4",
+  outputLocation: "/mnt/documents/sentinelle-demo-completo.mp4",
   puppeteerInstance: browser,
   muted: true,
   concurrency: 1,
 });
 
-console.log("Done! Output: /mnt/documents/sentinelle-video.mp4");
+console.log("Done! Output: /mnt/documents/sentinelle-demo-completo.mp4");
 await browser.close({ silent: false });
