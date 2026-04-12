@@ -245,6 +245,7 @@ Deno.serve(async (req) => {
         bridgeToken,
         clientId: resolvedClientId,
         clientName: clientConfig?.name,
+        currentApiKey: clientApiKey,
       });
     }
 
