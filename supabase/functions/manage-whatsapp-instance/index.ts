@@ -18,17 +18,60 @@ const jsonResponse = (body: unknown, status = 200) =>
 const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null | undefined) =>
   status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
 
+async function deleteExistingInstance(params: {
+  adminClient: ReturnType<typeof createClient>;
+  clientId: string;
+  clientApiKey: string | undefined;
+}) {
+  const { adminClient, clientId, clientApiKey } = params;
+
+  if (clientApiKey) {
+    try {
+      console.log(`Deleting existing instance for client ${clientId}...`);
+      const res = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": clientApiKey,
+        },
+        body: JSON.stringify({ action: "delete_instance" }),
+      });
+      console.log(`Bridge delete_instance response status: ${res.status}`);
+    } catch (err) {
+      console.error("Error deleting instance from bridge:", err);
+    }
+  }
+
+  const { error: updateError } = await adminClient
+    .from("clients")
+    .update({
+      whatsapp_bridge_url: null,
+      whatsapp_bridge_api_key: null,
+    } as any)
+    .eq("id", clientId);
+
+  if (updateError) {
+    console.error("Error clearing client bridge credentials:", updateError);
+  }
+}
+
 async function createClientInstance(params: {
   adminClient: ReturnType<typeof createClient>;
   bridgeToken: string | undefined;
   clientId: string;
   clientName?: string | null;
   providedName?: string | null;
+  currentApiKey?: string | null;
 }) {
-  const { adminClient, bridgeToken, clientId, clientName, providedName } = params;
+  const { adminClient, bridgeToken, clientId, clientName, providedName, currentApiKey } = params;
 
   if (!bridgeToken) {
     return jsonResponse({ error: "Bridge token não configurado no servidor" }, 500);
+  }
+
+  // Ensure old instance is gone before creating a new one
+  if (currentApiKey) {
+    await deleteExistingInstance({ adminClient, clientId, clientApiKey: currentApiKey });
   }
 
   const instanceName = providedName || clientName || "WhatsApp Bot";
