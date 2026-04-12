@@ -187,6 +187,30 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
     }
   };
 
+  const handleDisconnect = async () => {
+    if (!confirm("Tem certeza que deseja desconectar e remover esta instância do WhatsApp?")) {
+      return;
+    }
+
+    setReconnecting(true);
+    try {
+      const { error } = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "disconnect", client_id: clientId },
+      });
+
+      if (error) throw error;
+
+      stopPolling();
+      setStoredQrCode(null);
+      setState("not_configured");
+      toast.success("Instância desconectada com sucesso.");
+    } catch (err: any) {
+      toast.error("Erro ao desconectar: " + err.message);
+    } finally {
+      setReconnecting(false);
+    }
+  };
+
   const handleReconnect = async () => {
     setReconnecting(true);
     try {
@@ -194,17 +218,17 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         body: { action: "reconnect", client_id: clientId },
       });
 
-      if (error) {
-        toast.error("Erro ao reconectar: " + error.message);
+      if (error || (data as BridgeResponse)?.error) {
+        console.log("Reconnect failed, trying clean disconnect and recreate...");
+        // If reconnect fails (e.g. 401), try explicit disconnect and recreate
+        await supabase.functions.invoke("manage-whatsapp-instance", {
+          body: { action: "disconnect", client_id: clientId },
+        });
+        await handleCreateInstance();
         return;
       }
 
       const response = (data ?? {}) as BridgeResponse;
-      if (response.error) {
-        toast.error("Erro ao reconectar: " + response.error);
-        return;
-      }
-
       const nextQrCode = getQrCodeValue(response.qrcode);
       const status = getBridgeStatus(response);
 
@@ -224,6 +248,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         return;
       }
 
+      // Fallback: check status again
       const { data: statusData, error: statusError } = await supabase.functions.invoke("manage-whatsapp-instance", {
         body: { action: "instance_status", client_id: clientId },
       });
@@ -251,9 +276,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       }
 
       toast.info("A reconexão não retornou QR Code. Gerando uma nova instância...");
-      setState("awaiting_scan");
-      setStoredQrCode(null);
-      startPolling();
+      await handleCreateInstance();
     } catch (err: any) {
       stopPolling();
       setStoredQrCode(null);
@@ -428,17 +451,29 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
               </div>
             </div>
 
-            {/* Reconnect */}
-            <Button
-              onClick={handleReconnect}
-              disabled={reconnecting}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              {reconnecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
-              Reconectar / Gerar novo QR Code
-            </Button>
+            {/* Reconnect and Disconnect */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+              >
+                {reconnecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Reconectar
+              </Button>
+              <Button
+                onClick={handleDisconnect}
+                disabled={reconnecting}
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+              >
+                <Unplug className="w-4 h-4 mr-1" />
+                Desconectar
+              </Button>
+            </div>
           </div>
         )}
 
@@ -454,18 +489,29 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
                 A sessão expirou ou o aparelho foi desconectado. Reconecte escaneando um novo QR Code.
               </p>
             </div>
-            <Button
-              onClick={handleReconnect}
-              disabled={reconnecting}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {reconnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              Reconectar WhatsApp
-            </Button>
+            <div className="flex flex-col gap-2 max-w-[280px] mx-auto">
+              <Button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                className="bg-green-600 hover:bg-green-700 text-white w-full"
+              >
+                {reconnecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Reconectar WhatsApp
+              </Button>
+              <Button
+                onClick={handleDisconnect}
+                disabled={reconnecting}
+                variant="ghost"
+                className="text-muted-foreground hover:text-red-500 hover:bg-red-50"
+              >
+                <Unplug className="w-4 h-4 mr-2" />
+                Remover instância
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
