@@ -188,7 +188,18 @@ Deno.serve(async (req) => {
         clientId: resolvedClientId,
         clientName: clientConfig?.name,
         providedName: name,
+        currentApiKey: clientApiKey,
       });
+    }
+
+    // === DISCONNECT ===
+    if (action === "disconnect") {
+      await deleteExistingInstance({
+        adminClient,
+        clientId: resolvedClientId,
+        clientApiKey,
+      });
+      return jsonResponse({ success: true, message: "Instância deletada com sucesso" });
     }
 
     // === CHECK BRIDGE (legacy) ===
@@ -205,6 +216,7 @@ Deno.serve(async (req) => {
           bridgeToken,
           clientId: resolvedClientId,
           clientName: clientConfig?.name,
+          currentApiKey: null, // No old key since we already checked !clientApiKey
         });
       }
 
