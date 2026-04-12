@@ -451,17 +451,29 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
               </div>
             </div>
 
-            {/* Reconnect */}
-            <Button
-              onClick={handleReconnect}
-              disabled={reconnecting}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              {reconnecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
-              Reconectar / Gerar novo QR Code
-            </Button>
+            {/* Reconnect and Disconnect */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+              >
+                {reconnecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Reconectar
+              </Button>
+              <Button
+                onClick={handleDisconnect}
+                disabled={reconnecting}
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+              >
+                <Unplug className="w-4 h-4 mr-1" />
+                Desconectar
+              </Button>
+            </div>
           </div>
         )}
 
