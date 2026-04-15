@@ -266,4 +266,5 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("manage-whatsapp-instance error:", err);
     return jsonResponse({ success: false, error: err.message });
+  }
 });
