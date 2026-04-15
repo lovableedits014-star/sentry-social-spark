@@ -258,9 +258,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    return jsonResponse(bridgeData, bridgeRes.status);
+    // Always return 200 so the Supabase SDK can read the body
+    if (!bridgeRes.ok) {
+      return jsonResponse({ success: false, error: bridgeData?.error || `Erro na ponte (status ${bridgeRes.status})`, details: bridgeData });
+    }
+    return jsonResponse(bridgeData);
   } catch (err) {
     console.error("manage-whatsapp-instance error:", err);
-    return jsonResponse({ error: err.message }, 500);
-  }
+    return jsonResponse({ success: false, error: err.message });
 });
