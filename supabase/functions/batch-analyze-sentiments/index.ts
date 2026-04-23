@@ -1,6 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getClientLLMConfig, callLLM, type LLMMessage } from '../_shared/llm-router.ts';
+import { applyHeuristicGuard } from '../_shared/sentiment-heuristics.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -221,7 +222,7 @@ REGRA DE OURO sobre OUTROS CANDIDATOS:
    (Isso é apoio à mesma corrente política — NÃO confunda com crítica!)
 • Se o comentário menciona OUTRO candidato em tom de COMPARAÇÃO DEPRECIATIVA contra "${ctx.candidato}" (ex: "fulano é melhor que você", "voto no outro") → NEGATIVE
 
-REGRA PRINCIPAL: A maioria dos comentários em redes sociais expressa alguma opinião. "neutral" é RARO — use apenas quando realmente não há sentimento.
+REGRA PRINCIPAL: "neutral" é uma classificação LEGÍTIMA quando o comentário expressa pedido cívico, expectativa, demanda coletiva ou informação prática SEM atacar ${ctx.candidato}.
 
 CLASSIFICAÇÃO:
 
@@ -234,7 +235,7 @@ CLASSIFICAÇÃO:
   • Pedidos com tom positivo: "continua assim", "não desista"
   • Marcações com tom de apoio: "@amigo olha que legal"
 
-"negative" — QUALQUER forma de crítica, reclamação, ataque, ironia destrutiva, cobrança agressiva, deboche, desprezo. Inclui:
+"negative" — SOMENTE quando houver ataque, ironia destrutiva, ofensa, deboche, acusação ou cobrança claramente hostil contra ${ctx.candidato}. Inclui:
   • Críticas: "não faz nada", "só promessa", "cadê?", "vergonha"
   • Ironia/sarcasmo: "ah claro, vai resolver sim 🤡", "tá de parabéns hein"
   • Cobranças hostis: "e o asfalto?", "minha rua tá abandonada"
@@ -242,10 +243,13 @@ CLASSIFICAÇÃO:
   • Xingamentos e ofensas de qualquer tipo
   • Deboche: "kkkk", "😂" quando zombando
 
-"neutral" — SOMENTE quando não há nenhum sentimento detectável:
+"neutral" — quando não há hostilidade contra ${ctx.candidato}, mesmo que exista pedido, expectativa ou cobrança cívica. Inclui:
   • Marcação pura sem opinião: "@fulano"
   • Pergunta factual sem tom: "que horas é o evento?"
   • Comentário puramente informativo: "o endereço é rua X"
+  • Pedido coletivo de melhoria sem ataque: "queremos melhorias", "precisamos disso no bairro"
+  • Expectativa por entrega sem insulto: "esperamos resultados", "seguimos aguardando"
+  • Reivindicação territorial/comunitária sem deboche: "nós precisamos no bairro universitário"
 
 REGRAS OBRIGATÓRIAS:
 1. Se há QUALQUER palavra de apoio, elogio ou carinho → positive
@@ -253,11 +257,12 @@ REGRAS OBRIGATÓRIAS:
 3. "neutral" SÓ quando é impossível detectar sentimento
 4. Emojis sozinhos (❤️👏🙏💪) → positive
 5. Risadas em contexto de deboche → negative
-6. Na dúvida entre positive e neutral → positive
-7. Na dúvida entre negative e neutral → negative
+6. Na dúvida entre positive e neutral → neutral se for apenas demanda, pedido ou expectativa sem elogio explícito
+7. Na dúvida entre negative e neutral → neutral se não houver insulto, sarcasmo, deboche ou ataque direto
 8. Comentários religiosos de apoio ("Deus abençoe") → positive
 9. Projeções otimistas sobre QUALQUER candidato aliado ("tem futuro", "vai vencer", "é o cara") → positive
-10. Palavras como "nosso", "nossa" antes de político/candidato indicam APOIO → positive`
+10. Palavras como "nosso", "nossa" antes de político/candidato indicam APOIO → positive
+11. Comentários como "queremos melhorias", "esperamos resultados" e "precisamos no bairro X" sem ofensa ou deboche → neutral`
     },
     {
       role: 'user',
@@ -283,6 +288,9 @@ POST sobre obras / COMENTÁRIO "Parabéns pelo trabalho" → positive
 "Pior prefeito da história" → negative
 "@maria" → neutral
 "Que horas começa?" → neutral
+POST sobre audiência pública / COMENTÁRIO "É isso mesmo, queremos melhorias" → neutral
+POST sobre reunião de demandas do bairro / COMENTÁRIO "Esperamos resultados dessa reunião" → neutral
+POST sobre visita institucional / COMENTÁRIO "Nós precisamos no bairro universitário" → neutral
 POST "Inscrições abertas para o Seminário" / COMENTÁRIO "Como fazer" → neutral (pergunta sobre o evento, não crítica)
 POST "Inscrições abertas" / COMENTÁRIO "Como faz para se inscrever" → neutral (pergunta prática)
 POST sobre evento / COMENTÁRIO "Tem link?" → neutral
@@ -354,6 +362,12 @@ Resposta:`
     }
   }
 
+  for (const result of results) {
+    const original = comments.find((comment) => comment.id === result.id);
+    if (!original) continue;
+    result.sentiment = applyHeuristicGuard(result.sentiment as 'positive' | 'negative' | 'neutral', original.text, original.post_message);
+  }
+
   // 🔒 DOUBLE-CHECK: Re-validate every "negative" with a different prompt to catch false negatives
   console.log(`🔒 Double-checking ${results.filter(r => r.sentiment === 'negative').length} negatives...`);
   for (const r of results) {
@@ -389,10 +403,11 @@ async function analyzeSingle(
       content: `Classifique o sentimento de um comentário no perfil de "${ctx.candidato}" (${ctx.cargo}).
 Sempre interprete do ponto de vista do dono do perfil. Menções a aliados/candidatos da mesma corrente em tom otimista = positive.
 IMPORTANTE: Considere o CONTEXTO DO POST. Perguntas factuais sobre o post (ex: "Como fazer?", "Onde é?", "Tem link?") em posts de evento/inscrição = NEUTRAL, NUNCA negative.
+Pedidos comunitários, reivindicações territoriais e expectativas por melhoria sem ataque direto (ex: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro") = NEUTRAL.
 - positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
-- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
-- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática
-Na dúvida, escolha positive ou negative. Neutral é RARO.
+- negative: crítica hostil, ironia destrutiva, deboche, xingamento, ataque pessoal, emojis negativos (🤡🤮😡)
+- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática, cobrança cívica sem hostilidade
+Na dúvida entre neutral e negative, escolha neutral se não houver ataque explícito.
 Responda APENAS com uma palavra: positive, negative ou neutral.`,
     },
     {
@@ -409,12 +424,12 @@ Responda APENAS com uma palavra: positive, negative ou neutral.`,
 
   const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
   if (['positive', 'negative', 'neutral'].includes(result)) {
-    return result;
+    return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
   }
   // Try to extract from longer response
-  if (result.includes('positive')) return 'positive';
-  if (result.includes('negative')) return 'negative';
-  return 'neutral';
+  if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+  if (result.includes('negative')) return applyHeuristicGuard('negative', text, postMessage);
+  return applyHeuristicGuard('neutral', text, postMessage);
 }
 
 /**
@@ -439,6 +454,9 @@ async function verifyNegative(
 ⚠️ ATENÇÃO AO CONTEXTO DO POST:
 Se o POST é um anúncio/convite/evento/inscrição e o COMENTÁRIO é só uma PERGUNTA prática (Como fazer? Onde? Quando? Tem link?) → NÃO é negativo, é NEUTRAL!
 Pergunta factual ≠ crítica.
+
+Pedidos comunitários e cobranças cívicas genéricas também NÃO são negativos por si só.
+Exemplos: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro" → NEUTRAL se não houver ofensa, deboche ou ataque direto.
 
 Um comentário só é REALMENTE negativo se:
 • Critica, ataca, ofende ou debocha de "${ctx.candidato}" especificamente
@@ -469,9 +487,9 @@ Responda APENAS uma palavra: positive, negative ou neutral.`,
   });
 
   const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
-  if (['positive', 'negative', 'neutral'].includes(result)) return result;
-  if (result.includes('positive')) return 'positive';
-  if (result.includes('negative')) return 'negative';
-  if (result.includes('neutral')) return 'neutral';
-  return 'negative'; // se ambíguo, mantém negativo original
+  if (['positive', 'negative', 'neutral'].includes(result)) return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
+  if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+  if (result.includes('negative')) return applyHeuristicGuard('negative', text, postMessage);
+  if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
+  return applyHeuristicGuard('negative', text, postMessage); // se ambíguo, aplica guarda antes de manter
 }
