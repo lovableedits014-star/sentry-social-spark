@@ -129,22 +129,31 @@ Deno.serve(async (req) => {
 async function analyzeSentiment(
   llmConfig: { provider: string; apiKey: string; model: string },
   text: string,
+  postMessage: string | null,
   ctx: { candidato: string; cargo: string }
 ): Promise<string> {
+  const postCtx = postMessage
+    ? postMessage.substring(0, 200).replace(/\s+/g, ' ').trim()
+    : '(sem contexto do post)';
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Você classifica sentimentos de comentários no perfil de "${ctx.candidato}" (${ctx.cargo}). Sempre interprete do ponto de vista do dono do perfil. Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE. "neutral" é RARO.
+      content: `Você classifica sentimentos de comentários no perfil de "${ctx.candidato}" (${ctx.cargo}). Sempre interprete do ponto de vista do dono do perfil.
+
+⚠️ USE O CONTEXTO DO POST: você recebe POST + COMENTÁRIO. Perguntas factuais sobre o post (ex: "Como fazer?", "Onde é?", "Tem link?", "Que horas?") em posts de evento/inscrição/anúncio = NEUTRAL, NUNCA negative.
+
+Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE.
 - positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
 - negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮)  
-- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
-Na dúvida entre neutral e positive/negative, escolha positive ou negative.`,
+- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática
+Na dúvida entre positive e negative, evite neutral. Mas perguntas práticas sobre o post SÃO neutral.`,
     },
     {
       role: 'user',
       content: `Classifique o sentimento e responda APENAS "positive", "negative" ou "neutral":
 
-"${text}"`,
+POST: "${postCtx}"
+COMENTÁRIO: "${text}"`,
     },
   ];
 
@@ -174,20 +183,26 @@ Na dúvida entre neutral e positive/negative, escolha positive ou negative.`,
 async function verifyNegative(
   llmConfig: { provider: string; apiKey: string; model: string },
   text: string,
+  postMessage: string | null,
   ctx: { candidato: string; cargo: string }
 ): Promise<string> {
+  const postCtx = postMessage
+    ? postMessage.substring(0, 200).replace(/\s+/g, ' ').trim()
+    : '(sem contexto do post)';
   const messages: LLMMessage[] = [
     {
       role: 'system',
       content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
 
+⚠️ ATENÇÃO AO POST: Se o POST é anúncio/evento/inscrição e o COMENTÁRIO é só pergunta prática (Como fazer? Onde? Tem link?) → NEUTRAL, não negativo!
+
 REALMENTE negativo só se: critica/ataca/debocha/ofende "${ctx.candidato}" especificamente, ou faz comparação desfavorável.
 
-NÃO é negativo (responda positive ou neutral) se: elogia/projeta futuro para "${ctx.candidato}" OU ALIADOS, menciona outro candidato da mesma corrente em tom de apoio (ex: "tem futuro com nosso pré-candidato X" = POSITIVE), ou é neutro/factual.
+NÃO é negativo (responda positive ou neutral) se: elogia/projeta futuro para "${ctx.candidato}" OU ALIADOS, menciona outro candidato da mesma corrente em tom de apoio (ex: "tem futuro com nosso pré-candidato X" = POSITIVE), é pergunta prática sobre o post, ou é neutro/factual.
 
 Responda APENAS: positive, negative ou neutral.`,
     },
-    { role: 'user', content: `"${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?` },
+    { role: 'user', content: `POST: "${postCtx}"\nCOMENTÁRIO: "${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?` },
   ];
 
   try {
