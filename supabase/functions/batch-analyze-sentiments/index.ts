@@ -330,7 +330,7 @@ Resposta:`
     console.log(`🔄 Analyzing ${unmatchedComments.length} unmatched comments individually`);
     for (const comment of unmatchedComments) {
       try {
-        const sentiment = await analyzeSingle(llmConfig, comment.text);
+        const sentiment = await analyzeSingle(llmConfig, comment.text, ctx);
         results.push({ id: comment.id, sentiment });
       } catch (e) {
         console.error(`Failed individual analysis for ${comment.id}:`, e);
@@ -339,17 +339,36 @@ Resposta:`
     }
   }
 
+  // 🔒 DOUBLE-CHECK: Re-validate every "negative" with a different prompt to catch false negatives
+  console.log(`🔒 Double-checking ${results.filter(r => r.sentiment === 'negative').length} negatives...`);
+  for (const r of results) {
+    if (r.sentiment !== 'negative') continue;
+    const original = comments.find(c => c.id === r.id);
+    if (!original) continue;
+    try {
+      const verdict = await verifyNegative(llmConfig, original.text, ctx);
+      if (verdict !== 'negative') {
+        console.log(`✅ Reclassified ${r.id}: negative → ${verdict} ("${original.text.substring(0, 60)}")`);
+        r.sentiment = verdict;
+      }
+    } catch (e) {
+      console.error(`Double-check failed for ${r.id}:`, e);
+    }
+  }
+
   return results;
 }
 
 async function analyzeSingle(
   llmConfig: { provider: string; apiKey: string; model: string },
-  text: string
+  text: string,
+  ctx: { candidato: string; cargo: string }
 ): Promise<string> {
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Classifique o sentimento de comentários em redes sociais de políticos brasileiros.
+      content: `Classifique o sentimento de um comentário no perfil de "${ctx.candidato}" (${ctx.cargo}).
+Sempre interprete do ponto de vista do dono do perfil. Menções a aliados/candidatos da mesma corrente em tom otimista = positive.
 - positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
 - negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
 - neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
@@ -376,4 +395,54 @@ Responda APENAS com uma palavra: positive, negative ou neutral.`,
   if (result.includes('positive')) return 'positive';
   if (result.includes('negative')) return 'negative';
   return 'neutral';
+}
+
+/**
+ * Second-pass validator: re-checks comments classified as "negative"
+ * with a stricter prompt focused on detecting actual hostility.
+ * Returns the corrected sentiment.
+ */
+async function verifyNegative(
+  llmConfig: { provider: string; apiKey: string; model: string },
+  text: string,
+  ctx: { candidato: string; cargo: string }
+): Promise<string> {
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `Você é um VERIFICADOR rigoroso. Um analista anterior classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Sua tarefa é CONFIRMAR ou CORRIGIR.
+
+Um comentário só é REALMENTE negativo se:
+• Critica, ataca, ofende ou debocha de "${ctx.candidato}" especificamente
+• Compara desfavoravelmente "${ctx.candidato}" com outros
+• Faz cobrança hostil, sarcasmo destrutivo ou xingamento
+
+Um comentário NÃO é negativo (responda positive ou neutral) se:
+• Elogia ou projeta futuro otimista para "${ctx.candidato}" ou ALIADOS
+• Menciona OUTRO candidato/político da mesma corrente em tom de apoio (ex: "tem futuro com nosso candidato fulano")
+• Apenas usa risadas/ironia leve sem alvo claro
+• É marcação, pergunta factual ou neutro
+
+ATENÇÃO: "Esse tem futuro com nosso pré-candidato X" é POSITIVE (apoio à corrente, NÃO crítica).
+
+Responda APENAS uma palavra: positive, negative ou neutral.`,
+    },
+    {
+      role: 'user',
+      content: `Comentário a verificar: "${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?`,
+    },
+  ];
+
+  const response = await callLLM(llmConfig as any, {
+    messages,
+    maxTokens: 10,
+    temperature: 0,
+  });
+
+  const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
+  if (['positive', 'negative', 'neutral'].includes(result)) return result;
+  if (result.includes('positive')) return 'positive';
+  if (result.includes('negative')) return 'negative';
+  if (result.includes('neutral')) return 'neutral';
+  return 'negative'; // se ambíguo, mantém negativo original
 }
