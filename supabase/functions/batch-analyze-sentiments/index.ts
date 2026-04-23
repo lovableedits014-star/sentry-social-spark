@@ -262,7 +262,7 @@ REGRAS OBRIGATÓRIAS:
     {
       role: 'user',
       content: `EXEMPLOS DE REFERÊNCIA:
-"Parabéns pelo trabalho" → positive
+POST sobre obras / COMENTÁRIO "Parabéns pelo trabalho" → positive
 "Deus abençoe sua gestão" → positive  
 "👏👏👏" → positive
 "Tamo junto prefeito!" → positive
@@ -283,6 +283,11 @@ REGRAS OBRIGATÓRIAS:
 "Pior prefeito da história" → negative
 "@maria" → neutral
 "Que horas começa?" → neutral
+POST "Inscrições abertas para o Seminário" / COMENTÁRIO "Como fazer" → neutral (pergunta sobre o evento, não crítica)
+POST "Inscrições abertas" / COMENTÁRIO "Como faz para se inscrever" → neutral (pergunta prática)
+POST sobre evento / COMENTÁRIO "Tem link?" → neutral
+POST sobre evento / COMENTÁRIO "Onde é?" → neutral
+POST sobre evento / COMENTÁRIO "Posso levar meu filho?" → neutral
 
 Agora classifique cada comentário abaixo. Responda APENAS no formato: número|sentimento (um por linha)
 
