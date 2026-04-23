@@ -322,7 +322,6 @@ export default function RegistroFuncionario() {
             <div className="space-y-2">
               <Label htmlFor="data_nascimento" className="flex items-center gap-2"><Cake className="w-4 h-4 text-muted-foreground" />Data de nascimento *</Label>
               <Input id="data_nascimento" type="date" value={dataNascimento} onChange={e => { setDataNascimento(e.target.value); setError(""); }} required />
-              <p className="text-xs text-muted-foreground">Usaremos para enviar uma mensagem de feliz aniversário 🎉</p>
             </div>
 
             <SocialLinkCapture onSocialsChange={setSocials} />
