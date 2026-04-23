@@ -1,6 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getClientLLMConfig, callLLM, type LLMMessage } from '../_shared/llm-router.ts';
+import { applyHeuristicGuard } from '../_shared/sentiment-heuristics.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -90,6 +91,7 @@ Deno.serve(async (req) => {
     };
 
     let sentiment = await analyzeSentiment(llmConfig, comment.text, comment.post_message, ctx);
+    sentiment = applyHeuristicGuard(sentiment as 'positive' | 'negative' | 'neutral', comment.text, comment.post_message);
 
     // Double-check negatives
     if (sentiment === 'negative') {
@@ -142,11 +144,13 @@ async function analyzeSentiment(
 
 ⚠️ USE O CONTEXTO DO POST: você recebe POST + COMENTÁRIO. Perguntas factuais sobre o post (ex: "Como fazer?", "Onde é?", "Tem link?", "Que horas?") em posts de evento/inscrição/anúncio = NEUTRAL, NUNCA negative.
 
+⚠️ COBRANÇA CÍVICA NÃO É ATAQUE: pedidos coletivos, reivindicações territoriais e expectativa por melhoria sem ofensa direta (ex: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro") = NEUTRAL.
+
 Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE.
 - positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
-- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮)  
-- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática
-Na dúvida entre positive e negative, evite neutral. Mas perguntas práticas sobre o post SÃO neutral.`,
+- negative: crítica hostil, ironia destrutiva, deboche, xingamento, emojis negativos (🤡🤮)
+- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática, demandas cívicas sem hostilidade
+Na dúvida entre neutral e negative, escolha neutral se não houver ataque direto.`,
     },
     {
       role: 'user',
@@ -167,16 +171,16 @@ COMENTÁRIO: "${text}"`,
     const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
     
     if (['positive', 'negative', 'neutral'].includes(result)) {
-      return result;
+      return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
     }
     // Extract from longer responses
-    if (result.includes('positive')) return 'positive';
-    if (result.includes('negative')) return 'negative';
-    if (result.includes('neutral')) return 'neutral';
-    return 'neutral';
+    if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+    if (result.includes('negative')) return applyHeuristicGuard('negative', text, postMessage);
+    if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
+    return applyHeuristicGuard('neutral', text, postMessage);
   } catch (error) {
     console.error('Sentiment analysis failed:', error);
-    return 'neutral';
+    return applyHeuristicGuard('neutral', text, postMessage);
   }
 }
 
@@ -192,9 +196,11 @@ async function verifyNegative(
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
+        content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
 
 ⚠️ ATENÇÃO AO POST: Se o POST é anúncio/evento/inscrição e o COMENTÁRIO é só pergunta prática (Como fazer? Onde? Tem link?) → NEUTRAL, não negativo!
+
+⚠️ DEMANDA CÍVICA TAMBÉM NÃO É NEGATIVA: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro" = NEUTRAL se não houver ataque direto.
 
 REALMENTE negativo só se: critica/ataca/debocha/ofende "${ctx.candidato}" especificamente, ou faz comparação desfavorável.
 
@@ -208,11 +214,11 @@ Responda APENAS: positive, negative ou neutral.`,
   try {
     const response = await callLLM(llmConfig as any, { messages, maxTokens: 10, temperature: 0 });
     const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
-    if (['positive', 'negative', 'neutral'].includes(result)) return result;
-    if (result.includes('positive')) return 'positive';
-    if (result.includes('neutral')) return 'neutral';
-    return 'negative';
+    if (['positive', 'negative', 'neutral'].includes(result)) return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
+    if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+    if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
+    return applyHeuristicGuard('negative', text, postMessage);
   } catch {
-    return 'negative';
+    return applyHeuristicGuard('negative', text, postMessage);
   }
 }
