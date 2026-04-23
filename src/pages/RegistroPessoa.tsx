@@ -472,7 +472,6 @@ export default function RegistroPessoa() {
                 Data de nascimento *
               </Label>
               <Input id="data_nascimento" type="date" value={dataNascimento} onChange={(e) => { setDataNascimento(e.target.value); setError(""); }} required />
-              <p className="text-xs text-muted-foreground">Usaremos para enviar uma mensagem no seu aniversário 🎉</p>
             </div>
 
             <div className="space-y-2">
