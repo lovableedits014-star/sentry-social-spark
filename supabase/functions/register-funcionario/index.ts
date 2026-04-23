@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
     const {
       client_id, nome, telefone, email, senha,
-      cidade, bairro, endereco, redes_sociais,
+      cidade, bairro, endereco, redes_sociais, data_nascimento,
     } = await req.json();
 
     if (!client_id || !nome || !telefone || !email || !senha) {
@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
       nivel_apoio: "militante",
       origem_contato: "formulario",
       supporter_id: supporterId,
+      data_nascimento: data_nascimento || null,
     });
 
     // Also create pessoa_social for engagement mapping

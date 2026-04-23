@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText,
-  MessageCircle, Briefcase, Eye, EyeOff, Mail, Lock,
+  MessageCircle, Briefcase, Eye, EyeOff, Mail, Lock, Cake,
   Instagram, Facebook, ClipboardPaste, X, Check, ChevronDown, ChevronUp,
 } from "lucide-react";
 
@@ -184,6 +184,7 @@ export default function RegistroContratado() {
   const [endereco, setEndereco] = useState("");
   const [zonaEleitoral, setZonaEleitoral] = useState("");
   const [secaoEleitoral, setSecaoEleitoral] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [notas, setNotas] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
@@ -233,6 +234,7 @@ export default function RegistroContratado() {
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
     if (!zonaEleitoral.trim()) { setError("Informe sua zona eleitoral."); return; }
     if (!secaoEleitoral.trim()) { setError("Informe sua seção eleitoral."); return; }
+    if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
 
     setLoading(true);
     setError("");
@@ -250,6 +252,7 @@ export default function RegistroContratado() {
         endereco: endereco.trim() || null,
         zona_eleitoral: zonaEleitoral.trim(),
         secao_eleitoral: secaoEleitoral.trim(),
+        data_nascimento: dataNascimento,
         notas: notas.trim() || null,
         redes_sociais: socials,
         is_lider: !liderId,
@@ -381,6 +384,12 @@ export default function RegistroContratado() {
                 <Input value={secaoEleitoral} onChange={e => { setSecaoEleitoral(e.target.value); setError(""); }} placeholder="Seção *" required />
               </div>
               <p className="text-xs text-muted-foreground">Encontre no seu título de eleitor ou no app e-Título</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="data_nascimento" className="flex items-center gap-2"><Cake className="w-4 h-4 text-muted-foreground" />Data de nascimento *</Label>
+              <Input id="data_nascimento" type="date" value={dataNascimento} onChange={e => { setDataNascimento(e.target.value); setError(""); }} required />
+              <p className="text-xs text-muted-foreground">Usaremos para enviar uma mensagem no seu aniversário 🎉</p>
             </div>
 
             <SocialLinkCapture onSocialsChange={setSocials} />

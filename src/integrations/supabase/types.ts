@@ -2938,21 +2938,38 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: number
       }
-      register_pessoa_public: {
-        Args: {
-          p_bairro?: string
-          p_cidade?: string
-          p_client_id: string
-          p_email?: string
-          p_endereco?: string
-          p_nome: string
-          p_notas?: string
-          p_socials?: Json
-          p_telefone: string
-          p_tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
-        }
-        Returns: string
-      }
+      register_pessoa_public:
+        | {
+            Args: {
+              p_bairro?: string
+              p_cidade?: string
+              p_client_id: string
+              p_email?: string
+              p_endereco?: string
+              p_nome: string
+              p_notas?: string
+              p_socials?: Json
+              p_telefone: string
+              p_tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_bairro?: string
+              p_cidade?: string
+              p_client_id: string
+              p_data_nascimento?: string
+              p_email?: string
+              p_endereco?: string
+              p_nome: string
+              p_notas?: string
+              p_socials?: Json
+              p_telefone: string
+              p_tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
+            }
+            Returns: string
+          }
       snapshot_monthly_scores: {
         Args: { p_client_id: string }
         Returns: number
