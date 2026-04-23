@@ -1,0 +1,1 @@
+DELETE FROM pessoas WHERE created_at = '2026-04-12 14:13:17.355799+00';
