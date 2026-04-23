@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle, Facebook, Instagram, ClipboardPaste, X, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle, Facebook, Instagram, ClipboardPaste, X, Check, ChevronDown, ChevronUp, Cake } from "lucide-react";
 
 const TIPO_OPTIONS = [
   { value: "eleitor", label: "Eleitor" },
@@ -464,6 +464,15 @@ export default function RegistroPessoa() {
                 <Input value={bairro} onChange={(e) => { setBairro(e.target.value); setError(""); }} placeholder="Bairro *" required />
               </div>
               <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Endereço (opcional)" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="data_nascimento" className="flex items-center gap-2">
+                <Cake className="w-4 h-4 text-muted-foreground" />
+                Data de nascimento *
+              </Label>
+              <Input id="data_nascimento" type="date" value={dataNascimento} onChange={(e) => { setDataNascimento(e.target.value); setError(""); }} required />
+              <p className="text-xs text-muted-foreground">Usaremos para enviar uma mensagem no seu aniversário 🎉</p>
             </div>
 
             <div className="space-y-2">
