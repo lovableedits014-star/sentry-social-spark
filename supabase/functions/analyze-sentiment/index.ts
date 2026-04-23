@@ -78,7 +78,27 @@ Deno.serve(async (req) => {
     const llmConfig = await getClientLLMConfig(supabaseClient, clientId);
     console.log(`📡 Using LLM provider: ${llmConfig.provider} for sentiment analysis`);
 
-    const sentiment = await analyzeSentiment(llmConfig, comment.text);
+    // Get political context
+    const { data: clientCtx } = await supabaseClient
+      .from('clients')
+      .select('name, cargo')
+      .eq('id', clientId)
+      .single();
+    const ctx = {
+      candidato: clientCtx?.name || 'o político',
+      cargo: clientCtx?.cargo || 'político',
+    };
+
+    let sentiment = await analyzeSentiment(llmConfig, comment.text, ctx);
+
+    // Double-check negatives
+    if (sentiment === 'negative') {
+      const verdict = await verifyNegative(llmConfig, comment.text, ctx);
+      if (verdict !== 'negative') {
+        console.log(`✅ Reclassified: negative → ${verdict}`);
+        sentiment = verdict;
+      }
+    }
 
     // Update comment
     await supabaseClient
@@ -108,12 +128,13 @@ Deno.serve(async (req) => {
 
 async function analyzeSentiment(
   llmConfig: { provider: string; apiKey: string; model: string },
-  text: string
+  text: string,
+  ctx: { candidato: string; cargo: string }
 ): Promise<string> {
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Você classifica sentimentos de comentários em redes sociais de políticos brasileiros. A maioria dos comentários expressa opinião — "neutral" é RARO.
+      content: `Você classifica sentimentos de comentários no perfil de "${ctx.candidato}" (${ctx.cargo}). Sempre interprete do ponto de vista do dono do perfil. Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE. "neutral" é RARO.
 - positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
 - negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮)  
 - neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
@@ -147,5 +168,36 @@ Na dúvida entre neutral e positive/negative, escolha positive ou negative.`,
   } catch (error) {
     console.error('Sentiment analysis failed:', error);
     return 'neutral';
+  }
+}
+
+async function verifyNegative(
+  llmConfig: { provider: string; apiKey: string; model: string },
+  text: string,
+  ctx: { candidato: string; cargo: string }
+): Promise<string> {
+  const messages: LLMMessage[] = [
+    {
+      role: 'system',
+      content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
+
+REALMENTE negativo só se: critica/ataca/debocha/ofende "${ctx.candidato}" especificamente, ou faz comparação desfavorável.
+
+NÃO é negativo (responda positive ou neutral) se: elogia/projeta futuro para "${ctx.candidato}" OU ALIADOS, menciona outro candidato da mesma corrente em tom de apoio (ex: "tem futuro com nosso pré-candidato X" = POSITIVE), ou é neutro/factual.
+
+Responda APENAS: positive, negative ou neutral.`,
+    },
+    { role: 'user', content: `"${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?` },
+  ];
+
+  try {
+    const response = await callLLM(llmConfig as any, { messages, maxTokens: 10, temperature: 0 });
+    const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
+    if (['positive', 'negative', 'neutral'].includes(result)) return result;
+    if (result.includes('positive')) return 'positive';
+    if (result.includes('neutral')) return 'neutral';
+    return 'negative';
+  } catch {
+    return 'negative';
   }
 }
