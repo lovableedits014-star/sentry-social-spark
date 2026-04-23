@@ -345,7 +345,7 @@ Resposta:`
     console.log(`🔄 Analyzing ${unmatchedComments.length} unmatched comments individually`);
     for (const comment of unmatchedComments) {
       try {
-        const sentiment = await analyzeSingle(llmConfig, comment.text, ctx);
+        const sentiment = await analyzeSingle(llmConfig, comment.text, comment.post_message, ctx);
         results.push({ id: comment.id, sentiment });
       } catch (e) {
         console.error(`Failed individual analysis for ${comment.id}:`, e);
@@ -361,7 +361,7 @@ Resposta:`
     const original = comments.find(c => c.id === r.id);
     if (!original) continue;
     try {
-      const verdict = await verifyNegative(llmConfig, original.text, ctx);
+      const verdict = await verifyNegative(llmConfig, original.text, original.post_message, ctx);
       if (verdict !== 'negative') {
         console.log(`✅ Reclassified ${r.id}: negative → ${verdict} ("${original.text.substring(0, 60)}")`);
         r.sentiment = verdict;
@@ -377,22 +377,27 @@ Resposta:`
 async function analyzeSingle(
   llmConfig: { provider: string; apiKey: string; model: string },
   text: string,
+  postMessage: string | null,
   ctx: { candidato: string; cargo: string }
 ): Promise<string> {
+  const postCtx = postMessage
+    ? postMessage.substring(0, 200).replace(/\s+/g, ' ').trim()
+    : '(sem contexto do post)';
   const messages: LLMMessage[] = [
     {
       role: 'system',
       content: `Classifique o sentimento de um comentário no perfil de "${ctx.candidato}" (${ctx.cargo}).
 Sempre interprete do ponto de vista do dono do perfil. Menções a aliados/candidatos da mesma corrente em tom otimista = positive.
+IMPORTANTE: Considere o CONTEXTO DO POST. Perguntas factuais sobre o post (ex: "Como fazer?", "Onde é?", "Tem link?") em posts de evento/inscrição = NEUTRAL, NUNCA negative.
 - positive: apoio, elogio, incentivo, gratidão, emojis positivos (❤️👏🙏💪🔥)
 - negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮😡)
-- neutral: SOMENTE marcações puras ou perguntas factuais sem emoção
+- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática
 Na dúvida, escolha positive ou negative. Neutral é RARO.
 Responda APENAS com uma palavra: positive, negative ou neutral.`,
     },
     {
       role: 'user',
-      content: `"${text}"`,
+      content: `POST: "${postCtx}"\nCOMENTÁRIO: "${text}"`,
     },
   ];
 
@@ -420,12 +425,20 @@ Responda APENAS com uma palavra: positive, negative ou neutral.`,
 async function verifyNegative(
   llmConfig: { provider: string; apiKey: string; model: string },
   text: string,
+  postMessage: string | null,
   ctx: { candidato: string; cargo: string }
 ): Promise<string> {
+  const postCtx = postMessage
+    ? postMessage.substring(0, 200).replace(/\s+/g, ' ').trim()
+    : '(sem contexto do post)';
   const messages: LLMMessage[] = [
     {
       role: 'system',
       content: `Você é um VERIFICADOR rigoroso. Um analista anterior classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Sua tarefa é CONFIRMAR ou CORRIGIR.
+
+⚠️ ATENÇÃO AO CONTEXTO DO POST:
+Se o POST é um anúncio/convite/evento/inscrição e o COMENTÁRIO é só uma PERGUNTA prática (Como fazer? Onde? Quando? Tem link?) → NÃO é negativo, é NEUTRAL!
+Pergunta factual ≠ crítica.
 
 Um comentário só é REALMENTE negativo se:
 • Critica, ataca, ofende ou debocha de "${ctx.candidato}" especificamente
@@ -436,15 +449,16 @@ Um comentário NÃO é negativo (responda positive ou neutral) se:
 • Elogia ou projeta futuro otimista para "${ctx.candidato}" ou ALIADOS
 • Menciona OUTRO candidato/político da mesma corrente em tom de apoio (ex: "tem futuro com nosso candidato fulano")
 • Apenas usa risadas/ironia leve sem alvo claro
-• É marcação, pergunta factual ou neutro
+• É marcação, pergunta factual sobre o post, ou neutro
 
 ATENÇÃO: "Esse tem futuro com nosso pré-candidato X" é POSITIVE (apoio à corrente, NÃO crítica).
+ATENÇÃO: "Como fazer" ou "Como faz para se inscrever" em post de evento = NEUTRAL.
 
 Responda APENAS uma palavra: positive, negative ou neutral.`,
     },
     {
       role: 'user',
-      content: `Comentário a verificar: "${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?`,
+      content: `POST: "${postCtx}"\nCOMENTÁRIO a verificar: "${text}"\n\nÉ realmente negativo contra ${ctx.candidato}?`,
     },
   ];
 
