@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     // Get comment (verify it belongs to this client)
     const { data: comment, error: commentError } = await supabaseClient
       .from('comments')
-      .select('text')
+      .select('text, post_message')
       .eq('id', commentId)
       .eq('client_id', clientId)
       .single();
@@ -89,11 +89,11 @@ Deno.serve(async (req) => {
       cargo: clientCtx?.cargo || 'político',
     };
 
-    let sentiment = await analyzeSentiment(llmConfig, comment.text, ctx);
+    let sentiment = await analyzeSentiment(llmConfig, comment.text, comment.post_message, ctx);
 
     // Double-check negatives
     if (sentiment === 'negative') {
-      const verdict = await verifyNegative(llmConfig, comment.text, ctx);
+      const verdict = await verifyNegative(llmConfig, comment.text, comment.post_message, ctx);
       if (verdict !== 'negative') {
         console.log(`✅ Reclassified: negative → ${verdict}`);
         sentiment = verdict;
