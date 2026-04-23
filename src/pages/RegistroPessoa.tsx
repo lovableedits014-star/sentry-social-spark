@@ -304,6 +304,7 @@ export default function RegistroPessoa() {
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
   const [tipoPessoa, setTipoPessoa] = useState("cidadao");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [notas, setNotas] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
 
@@ -329,6 +330,7 @@ export default function RegistroPessoa() {
     if (!telefone.trim()) { setError("Informe seu telefone."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
     if (!bairro.trim()) { setError("Informe seu bairro."); return; }
+    if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
 
     setLoading(true);
     setError("");
@@ -344,6 +346,7 @@ export default function RegistroPessoa() {
       p_tipo_pessoa: tipoPessoa as "eleitor" | "apoiador" | "lideranca" | "voluntario" | "cidadao" | "jornalista" | "influenciador" | "adversario",
       p_notas: notas.trim() || null,
       p_socials: socials as unknown as any,
+      p_data_nascimento: dataNascimento || null,
     });
 
     if (rpcError) {
