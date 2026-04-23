@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Link2, Users, UserCheck, Briefcase, ClipboardList } from "lucide-react";
+import { Copy, Check, Link2, Users, UserCheck, Briefcase, ClipboardList, QrCode, Printer, Download } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface PublicLinksCardProps {
   clientId: string;
@@ -20,6 +22,7 @@ interface LinkEntry {
 
 export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [qrLink, setQrLink] = useState<LinkEntry | null>(null);
 
   const baseUrl = window.location.origin;
 
@@ -97,6 +100,47 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const qrUrl = qrLink ? `${baseUrl}${qrLink.path}` : "";
+
+  const handleDownloadQr = () => {
+    const canvas = document.getElementById("qr-print-canvas") as HTMLCanvasElement | null;
+    if (!canvas || !qrLink) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `qrcode-${qrLink.label.toLowerCase().replace(/\s+/g, "-")}.png`;
+    a.click();
+  };
+
+  const handlePrintQr = () => {
+    const canvas = document.getElementById("qr-print-canvas") as HTMLCanvasElement | null;
+    if (!canvas || !qrLink) return;
+    const dataUrl = canvas.toDataURL("image/png");
+    const w = window.open("", "_blank", "width=600,height=700");
+    if (!w) {
+      toast.error("Permita pop-ups para imprimir");
+      return;
+    }
+    w.document.write(`
+      <html><head><title>QR Code - ${qrLink.label}</title>
+      <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        p { color: #555; font-size: 13px; margin: 4px 0 24px; }
+        img { width: 320px; height: 320px; }
+        .url { margin-top: 20px; font-family: monospace; font-size: 12px; word-break: break-all; color: #333; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+        <h1>${qrLink.label}</h1>
+        <p>${qrLink.description}</p>
+        <img src="${dataUrl}" alt="QR Code" />
+        <div class="url">${qrUrl}</div>
+        <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 500); }</script>
+      </body></html>
+    `);
+    w.document.close();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -144,6 +188,15 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
                   >
                     {isCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-8 w-8 p-0"
+                    onClick={() => setQrLink(link)}
+                    title="Gerar QR Code"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
                 <div className="px-3 pb-3 pt-0">
                   <p className="text-xs text-muted-foreground/80 leading-relaxed bg-background/50 rounded-md p-2 border border-border/50">
@@ -155,6 +208,40 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
           })}
         </div>
       </CardContent>
+      <Dialog open={!!qrLink} onOpenChange={(open) => !open && setQrLink(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>QR Code — {qrLink?.label}</DialogTitle>
+            <DialogDescription>
+              Escaneie com a câmera do celular ou imprima para distribuir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="bg-white p-4 rounded-lg border">
+              {qrLink && (
+                <QRCodeCanvas
+                  id="qr-print-canvas"
+                  value={qrUrl}
+                  size={256}
+                  level="H"
+                  includeMargin={false}
+                />
+              )}
+            </div>
+            <p className="text-xs font-mono text-muted-foreground text-center break-all px-2">
+              {qrUrl}
+            </p>
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" className="flex-1" onClick={handleDownloadQr}>
+                <Download className="w-4 h-4 mr-2" /> Baixar PNG
+              </Button>
+              <Button className="flex-1" onClick={handlePrintQr}>
+                <Printer className="w-4 h-4 mr-2" /> Imprimir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
