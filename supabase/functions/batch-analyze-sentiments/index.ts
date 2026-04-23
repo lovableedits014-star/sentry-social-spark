@@ -188,13 +188,16 @@ Deno.serve(async (req) => {
 
 async function analyzeBatch(
   llmConfig: { provider: string; apiKey: string; model: string },
-  comments: { id: string; text: string; author_name: string | null }[],
+  comments: { id: string; text: string; author_name: string | null; post_message: string | null }[],
   ctx: { candidato: string; cargo: string }
 ): Promise<{ id: string; sentiment: string }[]> {
-  // Build batch prompt for more accurate analysis
-  const commentList = comments.map((c, idx) => 
-    `[${idx + 1}] "${c.text}"`
-  ).join('\n');
+  // Build batch prompt with POST CONTEXT for each comment
+  const commentList = comments.map((c, idx) => {
+    const postCtx = c.post_message
+      ? c.post_message.substring(0, 200).replace(/\s+/g, ' ').trim()
+      : '(sem contexto do post)';
+    return `[${idx + 1}]\n  POST: "${postCtx}"\n  COMENTÁRIO: "${c.text}"`;
+  }).join('\n\n');
 
   const messages: LLMMessage[] = [
     {
@@ -204,6 +207,13 @@ async function analyzeBatch(
 CONTEXTO POLÍTICO (CRÍTICO!):
 Você está analisando comentários no perfil de "${ctx.candidato}" (${ctx.cargo}).
 SEMPRE interprete o sentimento DO PONTO DE VISTA do dono do perfil (${ctx.candidato}).
+
+⚠️ REGRA SUPREMA — CONTEXTO DO POST:
+Cada item traz POST (a publicação) + COMENTÁRIO (o que o usuário escreveu).
+Você DEVE ler o POST primeiro para entender sobre o que o comentário fala.
+• Se o POST é um CONVITE/EVENTO/INSCRIÇÃO e o COMENTÁRIO é uma PERGUNTA sobre como participar (ex: "Como fazer?", "Como faz para se inscrever?", "Onde é?", "Que horas?", "Tem link?") → NEUTRAL (interesse genuíno, não crítica!)
+• Se o POST é um anúncio e o COMENTÁRIO pede informação prática → NEUTRAL
+• Perguntas factuais SEM tom de cobrança/ironia → NEUTRAL, NUNCA negative
 
 REGRA DE OURO sobre OUTROS CANDIDATOS:
 • Se o comentário ELOGIA, PROJETA FUTURO ou APOIA "${ctx.candidato}" ou ALIADOS dele → POSITIVE
