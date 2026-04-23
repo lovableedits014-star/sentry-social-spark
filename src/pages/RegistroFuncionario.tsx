@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, CheckCircle2, AlertCircle, MapPin, Phone,
-  Mail, Lock, Eye, EyeOff, Users2,
+  Mail, Lock, Eye, EyeOff, Users2, Cake,
   Instagram, Facebook, ClipboardPaste, X, Check, ChevronDown, ChevronUp,
 } from "lucide-react";
 
@@ -179,6 +179,7 @@ export default function RegistroFuncionario() {
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
 
@@ -198,6 +199,7 @@ export default function RegistroFuncionario() {
     if (!email.trim()) { setError("Informe seu e-mail."); return; }
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
+    if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
     if (socials.length === 0) { setError("Cadastre pelo menos uma rede social."); return; }
 
     setLoading(true);
@@ -213,6 +215,7 @@ export default function RegistroFuncionario() {
         cidade: cidade.trim(),
         bairro: bairro.trim() || null,
         endereco: endereco.trim() || null,
+        data_nascimento: dataNascimento,
         redes_sociais: socials,
       },
     });
@@ -314,6 +317,12 @@ export default function RegistroFuncionario() {
                 <Input value={bairro} onChange={e => setBairro(e.target.value)} placeholder="Bairro" />
               </div>
               <Input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereço completo" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="data_nascimento" className="flex items-center gap-2"><Cake className="w-4 h-4 text-muted-foreground" />Data de nascimento *</Label>
+              <Input id="data_nascimento" type="date" value={dataNascimento} onChange={e => { setDataNascimento(e.target.value); setError(""); }} required />
+              <p className="text-xs text-muted-foreground">Usaremos para enviar uma mensagem de feliz aniversário 🎉</p>
             </div>
 
             <SocialLinkCapture onSocialsChange={setSocials} />
