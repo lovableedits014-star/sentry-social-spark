@@ -65,6 +65,18 @@ Deno.serve(async (req) => {
     const llmConfig = await getClientLLMConfig(supabaseClient, clientId);
     console.log(`📡 Using LLM provider: ${llmConfig.provider} for batch sentiment analysis`);
 
+    // Get political context (candidate name + role) for smarter analysis
+    const { data: clientCtx } = await supabaseClient
+      .from('clients')
+      .select('name, cargo')
+      .eq('id', clientId)
+      .single();
+    const politicalContext = {
+      candidato: clientCtx?.name || 'o político',
+      cargo: clientCtx?.cargo || 'político',
+    };
+    console.log(`🎯 Political context: ${politicalContext.candidato} (${politicalContext.cargo})`);
+
     // Fetch comments needing analysis (paginated, no 1000 limit)
     const PAGE_SIZE = 500;
     let allComments: { id: string; text: string; author_name: string | null }[] = [];
@@ -125,7 +137,7 @@ Deno.serve(async (req) => {
       const batch = allComments.slice(i, i + BATCH_SIZE);
       
       try {
-        const sentiments = await analyzeBatch(llmConfig, batch);
+        const sentiments = await analyzeBatch(llmConfig, batch, politicalContext);
         
         // Update each comment
         for (const { id, sentiment } of sentiments) {
