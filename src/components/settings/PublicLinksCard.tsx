@@ -188,6 +188,15 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
                   >
                     {isCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-8 w-8 p-0"
+                    onClick={() => setQrLink(link)}
+                    title="Gerar QR Code"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
                 <div className="px-3 pb-3 pt-0">
                   <p className="text-xs text-muted-foreground/80 leading-relaxed bg-background/50 rounded-md p-2 border border-border/50">
@@ -199,6 +208,40 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
           })}
         </div>
       </CardContent>
+      <Dialog open={!!qrLink} onOpenChange={(open) => !open && setQrLink(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>QR Code — {qrLink?.label}</DialogTitle>
+            <DialogDescription>
+              Escaneie com a câmera do celular ou imprima para distribuir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="bg-white p-4 rounded-lg border">
+              {qrLink && (
+                <QRCodeCanvas
+                  id="qr-print-canvas"
+                  value={qrUrl}
+                  size={256}
+                  level="H"
+                  includeMargin={false}
+                />
+              )}
+            </div>
+            <p className="text-xs font-mono text-muted-foreground text-center break-all px-2">
+              {qrUrl}
+            </p>
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" className="flex-1" onClick={handleDownloadQr}>
+                <Download className="w-4 h-4 mr-2" /> Baixar PNG
+              </Button>
+              <Button className="flex-1" onClick={handlePrintQr}>
+                <Printer className="w-4 h-4 mr-2" /> Imprimir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
