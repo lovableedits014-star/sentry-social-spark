@@ -144,11 +144,13 @@ async function analyzeSentiment(
 
 ⚠️ USE O CONTEXTO DO POST: você recebe POST + COMENTÁRIO. Perguntas factuais sobre o post (ex: "Como fazer?", "Onde é?", "Tem link?", "Que horas?") em posts de evento/inscrição/anúncio = NEUTRAL, NUNCA negative.
 
+⚠️ COBRANÇA CÍVICA NÃO É ATAQUE: pedidos coletivos, reivindicações territoriais e expectativa por melhoria sem ofensa direta (ex: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro") = NEUTRAL.
+
 Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE.
 - positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
-- negative: crítica, reclamação, ironia, deboche, xingamento, emojis negativos (🤡🤮)  
-- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática
-Na dúvida entre positive e negative, evite neutral. Mas perguntas práticas sobre o post SÃO neutral.`,
+- negative: crítica hostil, ironia destrutiva, deboche, xingamento, emojis negativos (🤡🤮)
+- neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática, demandas cívicas sem hostilidade
+Na dúvida entre neutral e negative, escolha neutral se não houver ataque direto.`,
     },
     {
       role: 'user',
@@ -169,16 +171,16 @@ COMENTÁRIO: "${text}"`,
     const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
     
     if (['positive', 'negative', 'neutral'].includes(result)) {
-      return result;
+      return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
     }
     // Extract from longer responses
-    if (result.includes('positive')) return 'positive';
-    if (result.includes('negative')) return 'negative';
-    if (result.includes('neutral')) return 'neutral';
-    return 'neutral';
+    if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+    if (result.includes('negative')) return applyHeuristicGuard('negative', text, postMessage);
+    if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
+    return applyHeuristicGuard('neutral', text, postMessage);
   } catch (error) {
     console.error('Sentiment analysis failed:', error);
-    return 'neutral';
+    return applyHeuristicGuard('neutral', text, postMessage);
   }
 }
 
