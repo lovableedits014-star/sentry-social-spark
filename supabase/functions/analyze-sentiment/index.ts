@@ -196,9 +196,11 @@ async function verifyNegative(
   const messages: LLMMessage[] = [
     {
       role: 'system',
-      content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
+        content: `Você é um VERIFICADOR. Um analista classificou este comentário como NEGATIVO contra "${ctx.candidato}" (${ctx.cargo}). Confirme ou corrija.
 
 ⚠️ ATENÇÃO AO POST: Se o POST é anúncio/evento/inscrição e o COMENTÁRIO é só pergunta prática (Como fazer? Onde? Tem link?) → NEUTRAL, não negativo!
+
+⚠️ DEMANDA CÍVICA TAMBÉM NÃO É NEGATIVA: "queremos melhorias", "esperamos resultados", "precisamos disso no bairro" = NEUTRAL se não houver ataque direto.
 
 REALMENTE negativo só se: critica/ataca/debocha/ofende "${ctx.candidato}" especificamente, ou faz comparação desfavorável.
 
@@ -212,11 +214,11 @@ Responda APENAS: positive, negative ou neutral.`,
   try {
     const response = await callLLM(llmConfig as any, { messages, maxTokens: 10, temperature: 0 });
     const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
-    if (['positive', 'negative', 'neutral'].includes(result)) return result;
-    if (result.includes('positive')) return 'positive';
-    if (result.includes('neutral')) return 'neutral';
-    return 'negative';
+    if (['positive', 'negative', 'neutral'].includes(result)) return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
+    if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
+    if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
+    return applyHeuristicGuard('negative', text, postMessage);
   } catch {
-    return 'negative';
+    return applyHeuristicGuard('negative', text, postMessage);
   }
 }
