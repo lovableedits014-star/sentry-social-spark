@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     // Fetch comments needing analysis (paginated, no 1000 limit)
     const PAGE_SIZE = 500;
-    let allComments: { id: string; text: string; author_name: string | null }[] = [];
+    let allComments: { id: string; text: string; author_name: string | null; post_message: string | null }[] = [];
     let page = 0;
     let hasMore = true;
 
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
       let query = supabaseClient
         .from('comments')
-        .select('id, text, author_name')
+        .select('id, text, author_name, post_message')
         .eq('client_id', clientId)
         .not('text', 'eq', '__post_stub__')
         .eq('is_page_owner', false)
