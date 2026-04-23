@@ -188,7 +188,8 @@ Deno.serve(async (req) => {
 
 async function analyzeBatch(
   llmConfig: { provider: string; apiKey: string; model: string },
-  comments: { id: string; text: string; author_name: string | null }[]
+  comments: { id: string; text: string; author_name: string | null }[],
+  ctx: { candidato: string; cargo: string }
 ): Promise<{ id: string; sentiment: string }[]> {
   // Build batch prompt for more accurate analysis
   const commentList = comments.map((c, idx) => 
@@ -199,6 +200,16 @@ async function analyzeBatch(
     {
       role: 'system',
       content: `Você é um analista de sentimentos RIGOROSO especializado em comentários de redes sociais de políticos brasileiros.
+
+CONTEXTO POLÍTICO (CRÍTICO!):
+Você está analisando comentários no perfil de "${ctx.candidato}" (${ctx.cargo}).
+SEMPRE interprete o sentimento DO PONTO DE VISTA do dono do perfil (${ctx.candidato}).
+
+REGRA DE OURO sobre OUTROS CANDIDATOS:
+• Se o comentário ELOGIA, PROJETA FUTURO ou APOIA "${ctx.candidato}" ou ALIADOS dele → POSITIVE
+• Se o comentário menciona OUTRO candidato/político em tom de APOIO ou PROJEÇÃO POSITIVA (ex: "tem futuro com nosso pré-candidato", "vai dar certo com fulano", "nosso deputado é o melhor") → POSITIVE
+   (Isso é apoio à mesma corrente política — NÃO confunda com crítica!)
+• Se o comentário menciona OUTRO candidato em tom de COMPARAÇÃO DEPRECIATIVA contra "${ctx.candidato}" (ex: "fulano é melhor que você", "voto no outro") → NEGATIVE
 
 REGRA PRINCIPAL: A maioria dos comentários em redes sociais expressa alguma opinião. "neutral" é RARO — use apenas quando realmente não há sentimento.
 
@@ -234,7 +245,9 @@ REGRAS OBRIGATÓRIAS:
 5. Risadas em contexto de deboche → negative
 6. Na dúvida entre positive e neutral → positive
 7. Na dúvida entre negative e neutral → negative
-8. Comentários religiosos de apoio ("Deus abençoe") → positive`
+8. Comentários religiosos de apoio ("Deus abençoe") → positive
+9. Projeções otimistas sobre QUALQUER candidato aliado ("tem futuro", "vai vencer", "é o cara") → positive
+10. Palavras como "nosso", "nossa" antes de político/candidato indicam APOIO → positive`
     },
     {
       role: 'user',
