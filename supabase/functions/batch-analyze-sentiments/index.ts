@@ -261,6 +261,11 @@ REGRAS OBRIGATÓRIAS:
 "❤️🙏" → positive
 "Obrigado por tudo" → positive
 "Que Deus te proteja" → positive
+"Esse tem futuro com o nosso pré-candidato a deputado Junior" → positive (projeção otimista para aliado)
+"Vamos a luta vereador" → positive (incentivo, "vamos juntos")
+"Nosso próximo prefeito 💪" → positive
+"Tmj meu líder" → positive
+"Conta comigo nessa caminhada" → positive
 "Só promessa e nada de ação" → negative
 "Cadê o asfalto da minha rua?" → negative
 "Vergonha 🤡" → negative
