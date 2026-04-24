@@ -1,3 +1,3 @@
 import { captureNext } from "./handler-capture.ts";
 captureNext("register-supporter");
-import "./register-supporter/index.ts";
+await import("./register-supporter/index.ts");

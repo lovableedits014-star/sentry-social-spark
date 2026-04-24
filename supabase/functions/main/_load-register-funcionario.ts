@@ -1,3 +1,3 @@
 import { captureNext } from "./handler-capture.ts";
 captureNext("register-funcionario");
-import "./register-funcionario/index.ts";
+await import("./register-funcionario/index.ts");
