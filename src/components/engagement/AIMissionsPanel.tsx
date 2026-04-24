@@ -120,7 +120,7 @@ export default function AIMissionsPanel() {
 
       // 4. Call edge function
       const { data: fnData, error: fnError } = await supabase.functions.invoke("suggest-missions", {
-        body: { themes: themes.slice(0, 5), commentSamples },
+        body: { themes: themes.slice(0, 5), commentSamples, clientId },
       });
 
       if (fnError) throw fnError;

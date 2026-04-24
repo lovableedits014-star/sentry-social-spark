@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { callLLM, getClientLLMConfig } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,9 +12,21 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { stats, alerts } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const { stats, alerts, clientId } = await req.json();
+
+    if (!clientId) {
+      return new Response(
+        JSON.stringify({ error: "clientId is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const llmConfig = await getClientLLMConfig(supabase, clientId);
 
     const alertsSummary = (alerts || [])
       .map(
@@ -40,53 +54,27 @@ Gere um resumo executivo em português brasileiro com:
 
 Seja direto, prático e use linguagem adequada para assessoria política/comunicação.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Você é um analista de comunicação política e gestão de crises. Analise dados de sentimento de comentários em redes sociais e gere resumos executivos concisos e acionáveis. Responda sempre em português brasileiro. Use formatação Markdown.",
-          },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const response = await callLLM(llmConfig, {
+      messages: [
+        {
+          role: "system",
+          content:
+            "Você é um analista de comunicação política e gestão de crises. Analise dados de sentimento de comentários em redes sociais e gere resumos executivos concisos e acionáveis. Responda sempre em português brasileiro. Use formatação Markdown.",
+        },
+        { role: "user", content: userPrompt },
+      ],
+      maxTokens: 1500,
+      temperature: 0.7,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-      
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit excedido. Tente novamente em instantes." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA insuficientes." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error("AI gateway error: " + response.status);
-    }
-
-    const aiData = await response.json();
-    const summary = aiData.choices?.[0]?.message?.content || "Resumo indisponível.";
-
-    return new Response(JSON.stringify({ summary }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ summary: response.content, provider: response.provider, usage: response.usage }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (e) {
-    console.error("analyze-crisis error:", e);
-    return new Response(JSON.stringify({ error: e.message }), {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("analyze-crisis error:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
