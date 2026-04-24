@@ -17,14 +17,14 @@ import {
   serveMainRouter,
 } from "./handler-capture.ts";
 
-import "../register-supporter/index.ts";
-import "../register-contratado/index.ts";
-import "../register-funcionario/index.ts";
-import "../link-supporter-account/index.ts";
-import "../create-team-user/index.ts";
-import "../calculate-ied/index.ts";
-import "../check-alerts/index.ts";
-import "../resolve-whatsapp-link/index.ts";
+import "./register-supporter/index.ts";
+import "./register-contratado/index.ts";
+import "./register-funcionario/index.ts";
+import "./link-supporter-account/index.ts";
+import "./create-team-user/index.ts";
+import "./calculate-ied/index.ts";
+import "./check-alerts/index.ts";
+import "./resolve-whatsapp-link/index.ts";
 
 restoreOriginalDenoServe();
 
