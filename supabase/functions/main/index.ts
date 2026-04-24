@@ -1067,6 +1067,235 @@ async function resolveWhatsappLinkHandler(req: Request): Promise<Response> {
   }
 }
 
+// =====================================================================
+// manage-whatsapp-instance — proxy para a Bridge UAZAPI por cliente.
+// =====================================================================
+const WHATSAPP_BRIDGE_URL =
+  "https://vxqvrsaxppbgxookyimz.supabase.co/functions/v1/whatsapp-bridge";
+
+function isInvalidApiKeyResponse(status: number, data: { error?: string } | null | undefined) {
+  return (
+    status === 401 &&
+    typeof data?.error === "string" &&
+    data.error.toLowerCase().includes("invalid api key")
+  );
+}
+
+async function bridgeDeleteInstance(adminClient: any, clientId: string, clientApiKey: string | null | undefined) {
+  if (clientApiKey) {
+    try {
+      console.log(`[manage-whatsapp-instance] deleting instance for client ${clientId}`);
+      const res = await fetch(WHATSAPP_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+        body: JSON.stringify({ action: "delete_instance" }),
+      });
+      console.log(`[manage-whatsapp-instance] delete_instance status=${res.status}`);
+    } catch (err) {
+      console.error("[manage-whatsapp-instance] delete error:", err);
+    }
+  }
+
+  const { error: updateError } = await adminClient
+    .from("clients")
+    .update({ whatsapp_bridge_url: null, whatsapp_bridge_api_key: null })
+    .eq("id", clientId);
+
+  if (updateError) console.error("[manage-whatsapp-instance] clear creds error:", updateError);
+}
+
+async function bridgeCreateInstance(params: {
+  adminClient: any;
+  bridgeToken: string | undefined;
+  clientId: string;
+  clientName?: string | null;
+  providedName?: string | null;
+  currentApiKey?: string | null;
+}): Promise<Response> {
+  const { adminClient, bridgeToken, clientId, clientName, providedName, currentApiKey } = params;
+
+  if (!bridgeToken) {
+    return jsonResponse(500, { error: "WHATSAPP_BRIDGE_TOKEN não configurado no servidor" });
+  }
+
+  if (currentApiKey) {
+    await bridgeDeleteInstance(adminClient, clientId, currentApiKey);
+  }
+
+  const instanceName = providedName || clientName || "WhatsApp Bot";
+
+  const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Bridge-Token": bridgeToken },
+    body: JSON.stringify({ action: "create_instance", name: instanceName }),
+  });
+
+  const bridgeData = await bridgeRes.json().catch(() => ({} as any));
+
+  if (!bridgeRes.ok || !bridgeData.success) {
+    return jsonResponse(bridgeRes.status || 500, {
+      error: bridgeData.error || "Erro ao criar instância",
+      details: bridgeData,
+    });
+  }
+
+  if (!bridgeData.api_key) {
+    return jsonResponse(502, {
+      error: "A ponte não retornou a api_key da instância",
+      details: bridgeData,
+    });
+  }
+
+  const { error: updateError } = await adminClient
+    .from("clients")
+    .update({
+      whatsapp_bridge_url: WHATSAPP_BRIDGE_URL,
+      whatsapp_bridge_api_key: bridgeData.api_key,
+    })
+    .eq("id", clientId);
+
+  if (updateError) {
+    return jsonResponse(500, {
+      error: "Erro ao salvar as credenciais da instância",
+      details: updateError.message,
+    });
+  }
+
+  return jsonResponse(200, {
+    success: true,
+    qrcode: bridgeData.qrcode,
+    instance: bridgeData.instance,
+    recreated: true,
+  });
+}
+
+async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return jsonResponse(401, { error: "Unauthorized" });
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const bridgeToken = Deno.env.get("WHATSAPP_BRIDGE_TOKEN");
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) return jsonResponse(401, { error: "Unauthorized" });
+
+    const body = await req.json().catch(() => ({} as any));
+    const { action, phone, message, client_id, name } = body || {};
+    if (!action) return jsonResponse(400, { error: "action é obrigatório" });
+
+    const adminClient = createClient(supabaseUrl, serviceKey);
+
+    let resolvedClientId = client_id;
+    if (!resolvedClientId) {
+      const { data: clientRow } = await adminClient
+        .from("clients")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      resolvedClientId = clientRow?.id;
+    }
+
+    if (!resolvedClientId) return jsonResponse(404, { error: "Client not found" });
+
+    const { data: clientConfig } = await adminClient
+      .from("clients")
+      .select("name, whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .eq("id", resolvedClientId)
+      .single();
+
+    const clientApiKey = clientConfig?.whatsapp_bridge_api_key as string | null | undefined;
+
+    if (action === "create_instance") {
+      return await bridgeCreateInstance({
+        adminClient,
+        bridgeToken,
+        clientId: resolvedClientId,
+        clientName: clientConfig?.name,
+        providedName: name,
+        currentApiKey: clientApiKey,
+      });
+    }
+
+    if (action === "disconnect") {
+      await bridgeDeleteInstance(adminClient, resolvedClientId, clientApiKey);
+      return jsonResponse(200, { success: true, message: "Instância deletada com sucesso" });
+    }
+
+    if (action === "check_bridge") {
+      const configured = !!(clientConfig?.whatsapp_bridge_url && clientApiKey);
+      return jsonResponse(200, { success: true, configured });
+    }
+
+    if (!clientApiKey) {
+      if (action === "reconnect") {
+        return await bridgeCreateInstance({
+          adminClient,
+          bridgeToken,
+          clientId: resolvedClientId,
+          clientName: clientConfig?.name,
+          currentApiKey: null,
+        });
+      }
+      return jsonResponse(400, {
+        error: "Instância WhatsApp não configurada. Crie uma instância primeiro.",
+      });
+    }
+
+    const proxyBody: Record<string, unknown> = { action };
+    if (phone) proxyBody.phone = phone;
+    if (message) proxyBody.message = message;
+
+    const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+      body: JSON.stringify(proxyBody),
+    });
+
+    const bridgeData = await bridgeRes.json().catch(() => ({} as any));
+
+    if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+      return await bridgeCreateInstance({
+        adminClient,
+        bridgeToken,
+        clientId: resolvedClientId,
+        clientName: clientConfig?.name,
+        currentApiKey: clientApiKey,
+      });
+    }
+
+    if (action === "instance_status" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+      return jsonResponse(200, {
+        success: false,
+        status: "disconnected",
+        error: bridgeData.error,
+        requires_reconnect: true,
+      });
+    }
+
+    if (!bridgeRes.ok) {
+      return jsonResponse(200, {
+        success: false,
+        error: bridgeData?.error || `Erro na ponte (status ${bridgeRes.status})`,
+        details: bridgeData,
+      });
+    }
+
+    return jsonResponse(200, bridgeData);
+  } catch (error) {
+    console.error("[manage-whatsapp-instance] error:", error);
+    return jsonResponse(200, { success: false, error: errorMessage(error) });
+  }
+}
+
 const handlers: Record<string, Handler> = {
   "register-supporter": registerSupporterHandler,
   "register-contratado": registerContratadoHandler,
@@ -1076,6 +1305,7 @@ const handlers: Record<string, Handler> = {
   "calculate-ied": calculateIedHandler,
   "check-alerts": checkAlertsHandler,
   "resolve-whatsapp-link": resolveWhatsappLinkHandler,
+  "manage-whatsapp-instance": manageWhatsappInstanceHandler,
 };
 
 Deno.serve(async (req: Request) => {
