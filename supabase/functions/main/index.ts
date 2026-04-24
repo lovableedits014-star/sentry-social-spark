@@ -10,7 +10,6 @@
 
 import {
   ALLOWED_FUNCTIONS,
-  captureNext,
   corsHeaders,
   getCapturedHandler,
   jsonResponse,
@@ -18,22 +17,17 @@ import {
   serveMainRouter,
 } from "./handler-capture.ts";
 
-captureNext("register-supporter");
-import "./register-supporter/index.ts";
-captureNext("register-contratado");
-import "./register-contratado/index.ts";
-captureNext("register-funcionario");
-import "./register-funcionario/index.ts";
-captureNext("link-supporter-account");
-import "./link-supporter-account/index.ts";
-captureNext("create-team-user");
-import "./create-team-user/index.ts";
-captureNext("calculate-ied");
-import "./calculate-ied/index.ts";
-captureNext("check-alerts");
-import "./check-alerts/index.ts";
-captureNext("resolve-whatsapp-link");
-import "./resolve-whatsapp-link/index.ts";
+// Cada wrapper chama captureNext("<name>") e DEPOIS `await import("./<name>/index.ts")`.
+// Como o `await` dentro do wrapper só prossegue após o captureNext rodar, o
+// mapeamento name→handler fica determinístico (não depende da ordem dos imports).
+await import("./_load-register-supporter.ts");
+await import("./_load-register-contratado.ts");
+await import("./_load-register-funcionario.ts");
+await import("./_load-link-supporter-account.ts");
+await import("./_load-create-team-user.ts");
+await import("./_load-calculate-ied.ts");
+await import("./_load-check-alerts.ts");
+await import("./_load-resolve-whatsapp-link.ts");
 
 restoreOriginalDenoServe();
 
@@ -55,6 +49,8 @@ serveMainRouter(async (req: Request) => {
   }
 
   const functionName = segments[0];
+
+  console.log(`[main-router] path=${url.pathname} function=${functionName ?? "(none)"}`);
 
   if (!functionName) {
     return jsonResponse(200, {
