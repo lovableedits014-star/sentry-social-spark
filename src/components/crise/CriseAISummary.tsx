@@ -28,6 +28,20 @@ export default function CriseAISummary({ alerts, stats, hoursWindow }: Props) {
   const generate = async () => {
     setLoading(true);
     try {
+      // Resolve clientId for the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+      let clientId: string | null = null;
+      const { data: client } = await supabase
+        .from("clients").select("id").eq("user_id", user.id).maybeSingle();
+      if (client) clientId = client.id;
+      if (!clientId) {
+        const { data: tm } = await supabase
+          .from("team_members").select("client_id").eq("user_id", user.id).maybeSingle();
+        if (tm) clientId = tm.client_id;
+      }
+      if (!clientId) throw new Error("Cliente não encontrado");
+
       const payload = {
         stats: {
           totalComments: stats.totalComments,
@@ -47,6 +61,7 @@ export default function CriseAISummary({ alerts, stats, hoursWindow }: Props) {
           topKeywords: a.topKeywords.slice(0, 5),
           exampleComments: a.exampleComments.slice(0, 2),
         })),
+        clientId,
       };
 
       const { data, error } = await supabase.functions.invoke("analyze-crisis", {
