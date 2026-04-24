@@ -25,6 +25,7 @@ export interface LLMResponse {
   content: string;
   provider: LLMProvider;
   model: string;
+  usage?: number;
 }
 
 // Default models for each provider
@@ -62,12 +63,32 @@ export async function getClientLLMConfig(
     .eq('client_id', clientId)
     .single();
 
-  // Default to Lovable AI if no custom provider configured
-  if (!integration || !integration.llm_provider || !integration.llm_api_key) {
-    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
+  // If client has custom config, use it
+  if (integration && integration.llm_provider && integration.llm_api_key) {
+    return {
+      provider: integration.llm_provider as LLMProvider,
+      apiKey: integration.llm_api_key,
+      model:
+        integration.llm_model ||
+        DEFAULT_MODELS[integration.llm_provider as LLMProvider],
+    };
+  }
+
+  // Fallback 1: Global env var defaults (for self-hosted deploys)
+  const defaultProvider = Deno.env.get('DEFAULT_LLM_PROVIDER') as LLMProvider | undefined;
+  const defaultKey = Deno.env.get('DEFAULT_LLM_API_KEY');
+  const defaultModel = Deno.env.get('DEFAULT_LLM_MODEL');
+  if (defaultProvider && defaultKey) {
+    return {
+      provider: defaultProvider,
+      apiKey: defaultKey,
+      model: defaultModel || DEFAULT_MODELS[defaultProvider],
+    };
+  }
+
+  // Fallback 2: Lovable AI Gateway (only if running on Lovable Cloud)
+  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+  if (lovableKey) {
     return {
       provider: 'lovable',
       apiKey: lovableKey,
@@ -75,11 +96,9 @@ export async function getClientLLMConfig(
     };
   }
 
-  return {
-    provider: integration.llm_provider as LLMProvider,
-    apiKey: integration.llm_api_key,
-    model: integration.llm_model || DEFAULT_MODELS[integration.llm_provider as LLMProvider],
-  };
+  throw new Error(
+    'No LLM provider configured. Configure one in Settings > Integrations or set DEFAULT_LLM_PROVIDER + DEFAULT_LLM_API_KEY env vars.'
+  );
 }
 
 /**
@@ -143,6 +162,7 @@ async function callLovableAI(
     content: data.choices[0].message.content,
     provider: 'lovable',
     model,
+    usage: data.usage?.total_tokens,
   };
 }
 
@@ -178,6 +198,7 @@ async function callOpenAI(
     content: data.choices[0].message.content,
     provider: 'openai',
     model,
+    usage: data.usage?.total_tokens,
   };
 }
 
@@ -222,6 +243,9 @@ async function callAnthropic(
     content: data.content[0].text,
     provider: 'anthropic',
     model,
+    usage:
+      (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0) ||
+      undefined,
   };
 }
 
@@ -263,6 +287,7 @@ async function callGemini(
     content: data.candidates[0].content.parts[0].text,
     provider: 'gemini',
     model,
+    usage: data.usageMetadata?.totalTokenCount,
   };
 }
 
@@ -298,6 +323,7 @@ async function callGroq(
     content: data.choices[0].message.content,
     provider: 'groq',
     model,
+    usage: data.usage?.total_tokens,
   };
 }
 
@@ -333,6 +359,7 @@ async function callMistral(
     content: data.choices[0].message.content,
     provider: 'mistral',
     model,
+    usage: data.usage?.total_tokens,
   };
 }
 
@@ -381,5 +408,8 @@ async function callCohere(
     content: data.text,
     provider: 'cohere',
     model,
+    usage:
+      (data.meta?.tokens?.input_tokens ?? 0) +
+        (data.meta?.tokens?.output_tokens ?? 0) || undefined,
   };
 }
