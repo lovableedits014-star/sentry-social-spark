@@ -10,6 +10,7 @@
 
 import {
   ALLOWED_FUNCTIONS,
+  captureNext,
   corsHeaders,
   getCapturedHandler,
   jsonResponse,
@@ -17,13 +18,21 @@ import {
   serveMainRouter,
 } from "./handler-capture.ts";
 
+captureNext("register-supporter");
 import "./register-supporter/index.ts";
+captureNext("register-contratado");
 import "./register-contratado/index.ts";
+captureNext("register-funcionario");
 import "./register-funcionario/index.ts";
+captureNext("link-supporter-account");
 import "./link-supporter-account/index.ts";
+captureNext("create-team-user");
 import "./create-team-user/index.ts";
+captureNext("calculate-ied");
 import "./calculate-ied/index.ts";
+captureNext("check-alerts");
 import "./check-alerts/index.ts";
+captureNext("resolve-whatsapp-link");
 import "./resolve-whatsapp-link/index.ts";
 
 restoreOriginalDenoServe();
