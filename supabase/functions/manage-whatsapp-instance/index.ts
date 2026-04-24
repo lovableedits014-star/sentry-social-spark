@@ -19,7 +19,7 @@ const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null
   status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
 
 async function deleteExistingInstance(params: {
-  adminClient: ReturnType<typeof createClient>;
+  adminClient: any;
   clientId: string;
   clientApiKey: string | undefined;
 }) {
@@ -56,7 +56,7 @@ async function deleteExistingInstance(params: {
 }
 
 async function createClientInstance(params: {
-  adminClient: ReturnType<typeof createClient>;
+  adminClient: any;
   bridgeToken: string | undefined;
   clientId: string;
   clientName?: string | null;
@@ -265,6 +265,6 @@ Deno.serve(async (req) => {
     return jsonResponse(bridgeData);
   } catch (err) {
     console.error("manage-whatsapp-instance error:", err);
-    return jsonResponse({ success: false, error: err.message });
+    return jsonResponse({ success: false, error: (err as Error).message });
   }
 });
