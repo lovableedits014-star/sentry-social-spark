@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { z } from 'npm:zod@3.23.8';
 import { callLLM, type LLMConfig, type LLMMessage } from '../_shared/llm-router.ts';
 
 const corsHeaders = {
