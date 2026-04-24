@@ -100,10 +100,38 @@ async function loadHandler(functionName: string): Promise<Handler> {
     };
 
     try {
-      // Import dinâmico do módulo da function. Usar caminho relativo
-      // garante que o resolver do edge-runtime encontre o arquivo dentro
-      // de /home/deno/functions/<name>/index.ts.
-      await import(`../${functionName}/index.ts`);
+      // Import dinâmico do módulo da function.
+      //
+      // No edge-runtime self-hosted, o `main-service` é compilado para
+      // /var/tmp/sb-compile-edge-runtime/main/index.ts, então caminhos
+      // relativos (`../<name>/index.ts`) tentam resolver para um diretório
+      // que NÃO existe (apenas o `main` é compilado para lá).
+      //
+      // O código-fonte real continua montado em /home/deno/functions/<name>/index.ts
+      // (volume do container). Resolvemos a URL absoluta a partir de
+      // `import.meta.url` para apontar para o irmão correto. Como o `main`
+      // pode estar tanto em /home/deno/functions/main/ quanto em
+      // /var/tmp/.../main/, tentamos primeiro o vizinho via `import.meta.url`
+      // e, se falhar, caímos para o caminho absoluto canônico do volume.
+      const candidates = [
+        new URL(`../${functionName}/index.ts`, import.meta.url).href,
+        `file:///home/deno/functions/${functionName}/index.ts`,
+      ];
+
+      let lastErr: unknown = null;
+      let imported = false;
+      for (const url of candidates) {
+        try {
+          await import(url);
+          imported = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (!imported) {
+        throw lastErr ?? new Error(`Não foi possível importar "${functionName}".`);
+      }
     } finally {
       // Restaura o Deno.serve original imediatamente para não interferir
       // em qualquer outro código que rode no isolate.
