@@ -79,9 +79,29 @@ serveMainRouter(async (req: Request) => {
     const innerPath = "/" + segments.slice(1).join("/");
     const innerUrl = new URL(innerPath + url.search, url.origin);
 
+    // Clona headers explicitamente para garantir que Authorization, apikey
+    // e demais cabeçalhos enviados pelo cliente cheguem intactos no handler
+    // alvo. Em alguns runtimes, passar `req.headers` direto pode perder
+    // entradas multivaloradas ou ser tratado como imutável.
+    const innerHeaders = new Headers();
+    req.headers.forEach((value, key) => {
+      innerHeaders.set(key, value);
+    });
+
+    // Garante que o header `apikey` exista quando só veio Authorization
+    // (ou vice-versa). Várias libs do Supabase esperam ambos presentes.
+    const authHeader = innerHeaders.get("authorization");
+    const apiKeyHeader = innerHeaders.get("apikey");
+    if (authHeader && !apiKeyHeader) {
+      const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (bearer) innerHeaders.set("apikey", bearer);
+    } else if (apiKeyHeader && !authHeader) {
+      innerHeaders.set("authorization", `Bearer ${apiKeyHeader}`);
+    }
+
     const innerReq = new Request(innerUrl.toString(), {
       method: req.method,
-      headers: req.headers,
+      headers: innerHeaders,
       body:
         req.method === "GET" || req.method === "HEAD"
           ? undefined
