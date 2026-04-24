@@ -30,7 +30,7 @@ export function jsonResponse(status: number, body: unknown): Response {
 }
 
 const handlerCache = new Map<string, Handler>();
-let captureIndex = 0;
+let pendingFunctionName: string | null = null;
 
 const originalDenoServe = Deno.serve.bind(Deno);
 
@@ -71,16 +71,32 @@ function createServerStub(): unknown {
     throw new Error("Deno.serve foi chamado sem um handler capturável.");
   }
 
-  const functionName = FUNCTION_IMPORT_ORDER[captureIndex];
-  if (!functionName) {
-    throw new Error("Uma function extra chamou Deno.serve fora da allowlist do main-service.");
+  if (!pendingFunctionName) {
+    throw new Error(
+      "Deno.serve chamado sem contexto. Use captureNext('<name>') antes do import.",
+    );
   }
-
-  handlerCache.set(functionName, handler);
-  captureIndex += 1;
+  if (!ALLOWED_FUNCTIONS.has(pendingFunctionName)) {
+    throw new Error(`Function "${pendingFunctionName}" fora da allowlist.`);
+  }
+  if (handlerCache.has(pendingFunctionName)) {
+    console.warn(`[handler-capture] handler para "${pendingFunctionName}" sobrescrito.`);
+  }
+  handlerCache.set(pendingFunctionName, handler);
+  console.log(`[handler-capture] capturado handler para "${pendingFunctionName}"`);
+  pendingFunctionName = null;
 
   return createServerStub();
 };
+
+export function captureNext(functionName: string): void {
+  if (pendingFunctionName) {
+    throw new Error(
+      `captureNext("${functionName}") chamado mas ainda há captura pendente para "${pendingFunctionName}".`,
+    );
+  }
+  pendingFunctionName = functionName;
+}
 
 export function getCapturedHandler(functionName: string): Handler | undefined {
   return handlerCache.get(functionName);
