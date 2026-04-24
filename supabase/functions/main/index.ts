@@ -3,10 +3,18 @@
 // O edge-runtime é iniciado com:
 //   edge-runtime start --main-service /home/deno/functions/main
 //
-// Nesse modo, TODAS as requisições chegam aqui. Este arquivo extrai o
-// nome da function do path (/<function-name>/...) e a executa em um
-// worker isolado, preservando a estrutura padrão de cada function em
-// supabase/functions/<nome>/index.ts (sem precisar alterá-las).
+// Nesse modo TODAS as requisições chegam aqui. Em vez de usar
+// `EdgeRuntime.userWorkers` (que falha com "Cannot read properties of
+// undefined (reading 'streamRid')" em algumas versões do edge-runtime),
+// importamos cada function dinamicamente UMA ÚNICA VEZ e capturamos o
+// handler que ela registra via `Deno.serve(handler)`.
+//
+// Vantagens:
+//   - Nenhuma function precisa ser modificada (continuam usando
+//     `Deno.serve` ou `serve` do std/http normalmente).
+//   - Sem dependência de APIs internas (`userWorkers`).
+//   - Cold start só na primeira chamada de cada function; depois fica
+//     em cache no mesmo isolate.
 //
 // Allowlist explícito: só roteia para as 8 functions da Fase 1.
 // Para liberar mais functions depois, basta adicionar o nome ao Set.
@@ -36,12 +44,92 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-// `EdgeRuntime` é um global injetado pelo runtime self-hosted.
-// Tipamos de forma frouxa para não exigir lib types extras.
-// deno-lint-ignore no-explicit-any
-declare const EdgeRuntime: any;
+// ---------------------------------------------------------------------------
+// Captura de handlers via monkey-patch de `Deno.serve` e do `serve` do std.
+// ---------------------------------------------------------------------------
 
-Deno.serve(async (req: Request) => {
+type Handler = (req: Request) => Response | Promise<Response>;
+
+const handlerCache = new Map<string, Handler>();
+const loadingLocks = new Map<string, Promise<Handler>>();
+
+// Guarda o `Deno.serve` original — o main-service já está usando ele para
+// receber as requisições reais (este arquivo). Vamos substituí-lo
+// temporariamente apenas durante o `import()` de cada function-alvo.
+const originalDenoServe = Deno.serve.bind(Deno);
+
+async function loadHandler(functionName: string): Promise<Handler> {
+  const cached = handlerCache.get(functionName);
+  if (cached) return cached;
+
+  const inFlight = loadingLocks.get(functionName);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    let captured: Handler | null = null;
+
+    // Substitui Deno.serve apenas para capturar o handler registrado pela
+    // function. Aceita as várias assinaturas suportadas:
+    //   Deno.serve(handler)
+    //   Deno.serve(options, handler)
+    //   Deno.serve({ handler, ... })
+    // Retornamos um stub minimamente compatível com Deno.HttpServer para
+    // não quebrar code-paths que aguardem `.finished`.
+    // deno-lint-ignore no-explicit-any
+    (Deno as any).serve = (...args: unknown[]): unknown => {
+      for (const arg of args) {
+        if (typeof arg === "function") {
+          captured = arg as Handler;
+          break;
+        }
+        if (arg && typeof arg === "object" && "handler" in (arg as Record<string, unknown>)) {
+          const h = (arg as { handler?: unknown }).handler;
+          if (typeof h === "function") {
+            captured = h as Handler;
+            break;
+          }
+        }
+      }
+      return {
+        finished: Promise.resolve(),
+        shutdown: () => Promise.resolve(),
+        ref: () => {},
+        unref: () => {},
+        addr: { transport: "tcp", hostname: "0.0.0.0", port: 0 },
+      };
+    };
+
+    try {
+      // Import dinâmico do módulo da function. Usar caminho relativo
+      // garante que o resolver do edge-runtime encontre o arquivo dentro
+      // de /home/deno/functions/<name>/index.ts.
+      await import(`../${functionName}/index.ts`);
+    } finally {
+      // Restaura o Deno.serve original imediatamente para não interferir
+      // em qualquer outro código que rode no isolate.
+      // deno-lint-ignore no-explicit-any
+      (Deno as any).serve = originalDenoServe;
+    }
+
+    if (!captured) {
+      throw new Error(
+        `Function "${functionName}" não registrou nenhum handler via Deno.serve.`,
+      );
+    }
+
+    handlerCache.set(functionName, captured);
+    return captured;
+  })();
+
+  loadingLocks.set(functionName, promise);
+  try {
+    return await promise;
+  } finally {
+    loadingLocks.delete(functionName);
+  }
+}
+
+originalDenoServe(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -81,29 +169,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Cria/reutiliza um worker isolado para a function alvo.
-    // O runtime self-hosted expõe `EdgeRuntime.userWorkers.fetch`, que
-    // carrega `supabase/functions/<name>/index.ts` em um isolate próprio.
-    const servicePath = `/home/deno/functions/${functionName}`;
+    const handler = await loadHandler(functionName);
 
-    const memoryLimitMb = 256;
-    const workerTimeoutMs = 60_000; // 60s, igual ao limite padrão
-    const noModuleCache = false;
-    const importMapPath = null;
-    const envVarsObj = Deno.env.toObject();
-    const envVars = Object.entries(envVarsObj);
-
-    const worker = await EdgeRuntime.userWorkers.create({
-      servicePath,
-      memoryLimitMb,
-      workerTimeoutMs,
-      noModuleCache,
-      importMapPath,
-      envVars,
-    });
-
-    // Reescreve o path para que a function alvo veja "/" como raiz,
-    // mantendo querystring e segmentos extras.
+    // Reescreve o path para que a function alvo "veja" `/` como raiz,
+    // mantendo querystring e qualquer segmento extra. Isso replica o
+    // comportamento que a function teria se estivesse rodando isolada.
     const innerPath = "/" + segments.slice(1).join("/");
     const innerUrl = new URL(innerPath + url.search, url.origin);
 
@@ -116,7 +186,7 @@ Deno.serve(async (req: Request) => {
           : await req.arrayBuffer(),
     });
 
-    const res = await worker.fetch(innerReq);
+    const res = await handler(innerReq);
 
     // Garante CORS mesmo se a function alvo não tiver setado.
     const headers = new Headers(res.headers);
