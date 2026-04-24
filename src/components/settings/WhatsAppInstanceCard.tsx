@@ -111,7 +111,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         return;
       }
       const status = getBridgeStatus(data as BridgeResponse);
-      const nextQrCode = getQrCodeValue((data as BridgeResponse)?.qrcode);
+      const nextQrCode = getQrCodeFromResponse(data as BridgeResponse);
 
       if (CONNECTED_STATUSES.has(status)) {
         setStoredQrCode(null);
@@ -166,7 +166,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       throw new Error(response.error);
     }
 
-    const nextQrCode = getQrCodeValue(response.qrcode);
+    const nextQrCode = getQrCodeFromResponse(response);
     const status = getBridgeStatus(response);
 
     if (nextQrCode) {
@@ -241,7 +241,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       }
 
       const response = (data ?? {}) as BridgeResponse;
-      const nextQrCode = getQrCodeValue(response.qrcode);
+      const nextQrCode = getQrCodeFromResponse(response);
       const status = getBridgeStatus(response);
 
       if (nextQrCode) {
@@ -267,7 +267,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
 
       if (!statusError) {
         const latestResponse = (statusData ?? {}) as BridgeResponse;
-        const latestQrCode = getQrCodeValue(latestResponse.qrcode);
+        const latestQrCode = getQrCodeFromResponse(latestResponse);
         const latestStatus = getBridgeStatus(latestResponse);
 
         if (latestQrCode) {
