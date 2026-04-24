@@ -1132,14 +1132,19 @@ async function bridgeCreateInstance(params: {
 
   const bridgeData = await bridgeRes.json().catch(() => ({} as any));
 
-  if (!bridgeRes.ok || !bridgeData.success) {
+  // The Bridge sometimes responds with success=false but still preserves the
+  // instance (and returns api_key). In that case, we save the key and try to
+  // fetch the QR via instance_status. Only hard-fail when no api_key at all.
+  const apiKey = bridgeData?.api_key || bridgeData?.instance?.api_key || null;
+
+  if (!bridgeRes.ok && !apiKey) {
     return jsonResponse(bridgeRes.status || 500, {
       error: bridgeData.error || "Erro ao criar instância",
       details: bridgeData,
     });
   }
 
-  if (!bridgeData.api_key) {
+  if (!apiKey) {
     return jsonResponse(502, {
       error: "A ponte não retornou a api_key da instância",
       details: bridgeData,
@@ -1150,7 +1155,7 @@ async function bridgeCreateInstance(params: {
     .from("clients")
     .update({
       whatsapp_bridge_url: WHATSAPP_BRIDGE_URL,
-      whatsapp_bridge_api_key: bridgeData.api_key,
+      whatsapp_bridge_api_key: apiKey,
     })
     .eq("id", clientId);
 
@@ -1161,9 +1166,45 @@ async function bridgeCreateInstance(params: {
     });
   }
 
+  // Try to read the QR code from the create response first.
+  let qrcode: string | null =
+    (typeof bridgeData?.qrcode === "string" && bridgeData.qrcode) ||
+    (typeof bridgeData?.instance?.qrcode === "string" && bridgeData.instance.qrcode) ||
+    null;
+  let status: string | null =
+    bridgeData?.status || bridgeData?.instance?.status || null;
+
+  // If the Bridge didn't return a QR immediately (status="connecting" or QR
+  // generation deferred), poll instance_status briefly to pick it up.
+  if (!qrcode) {
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const statusRes = await fetch(WHATSAPP_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+        body: JSON.stringify({ action: "instance_status" }),
+      });
+      const statusData = await statusRes.json().catch(() => ({} as any));
+      const nextQr =
+        (typeof statusData?.qrcode === "string" && statusData.qrcode) ||
+        (typeof statusData?.instance?.qrcode === "string" && statusData.instance.qrcode) ||
+        null;
+      const nextStatus = statusData?.status || statusData?.instance?.status || null;
+      if (nextStatus) status = nextStatus;
+      if (nextQr) {
+        qrcode = nextQr;
+        break;
+      }
+      if (nextStatus && ["connected", "open"].includes(String(nextStatus).toLowerCase())) {
+        break;
+      }
+    }
+  }
+
   return jsonResponse(200, {
     success: true,
-    qrcode: bridgeData.qrcode,
+    qrcode,
+    status,
     instance: bridgeData.instance,
     recreated: true,
   });
