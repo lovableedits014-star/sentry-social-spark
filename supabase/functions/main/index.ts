@@ -1,5 +1,5 @@
 // Roteador único para edge-runtime self-hosted (EasyPanel) em modo main-service.
-// Não usa import() dinâmico, EdgeRuntime.userWorkers nem monkey-patch de Deno.serve.
+// Entry point estático com despacho manual direto.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
