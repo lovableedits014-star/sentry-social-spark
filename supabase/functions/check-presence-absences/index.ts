@@ -25,9 +25,15 @@ function cleanPhoneForBridge(raw: string): string {
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
-function buildMessage(nome: string, days: number, clientName: string): string {
+const DEFAULT_TEMPLATE = `Olá, {nome}! 👋\n\nNotamos que você não acessou o portal da campanha *{campanha}* há {dias} dias.\n\nO seu acesso diário é muito importante: é nele que você confirma sua presença e recebe as missões para interagir nas redes sociais. 🙌\n\nLembre-se: o registro precisa ser feito *todos os dias*. Conto com você!`;
+
+function buildMessage(nome: string, days: number, clientName: string, template?: string | null): string {
   const firstName = nome.split(" ")[0];
-  return `Olá, ${firstName}! 👋\n\nNotamos que você não acessou o portal da campanha *${clientName}* há ${days} dias.\n\nO seu acesso diário é muito importante: é nele que você confirma sua presença e recebe as missões para interagir nas redes sociais. 🙌\n\nLembre-se: o registro precisa ser feito *todos os dias*. Conto com você!`;
+  const tpl = template && template.trim() ? template : DEFAULT_TEMPLATE;
+  return tpl
+    .replace(/\{nome\}/g, firstName)
+    .replace(/\{dias\}/g, String(days))
+    .replace(/\{campanha\}/g, clientName);
 }
 
 Deno.serve(async (req) => {
@@ -48,7 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: clients } = await admin
       .from("clients")
-      .select("id, name, presence_absence_days_threshold, whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .select("id, name, presence_absence_days_threshold, presence_absence_message_template, whatsapp_bridge_url, whatsapp_bridge_api_key")
       .match(body.client_id ? { id: body.client_id } : {});
 
     if (!clients || clients.length === 0) {
@@ -142,7 +148,12 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const message = buildMessage(person.nome, person.days_since_checkin, client.name);
+          const message = buildMessage(
+            person.nome,
+            person.days_since_checkin,
+            client.name,
+            (client as any).presence_absence_message_template,
+          );
           const phoneClean = cleanPhoneForBridge(person.telefone);
 
           const sendRes = await fetch(bridgeUrl, {
