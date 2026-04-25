@@ -1506,6 +1506,57 @@ export type Database = {
         }
         Relationships: []
       }
+      lider_invite_tokens: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          note: string | null
+          token: string
+          used_at: string | null
+          used_by_contratado_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          note?: string | null
+          token?: string
+          used_at?: string | null
+          used_by_contratado_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          note?: string | null
+          token?: string
+          used_at?: string | null
+          used_by_contratado_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lider_invite_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lider_invite_tokens_used_by_contratado_id_fkey"
+            columns: ["used_by_contratado_id"]
+            isOneToOne: false
+            referencedRelation: "contratados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_dispatches: {
         Row: {
           batch_delay_seconds: number
