@@ -73,6 +73,10 @@ export default function WhatsAppGate({
     role === "funcionario" ? "funcionário" : role === "contratado" ? "contratado" : "apoiador";
 
   const handleOpenWhatsApp = async () => {
+    // CRITICAL: abrir a janela SINCRONAMENTE no clique, antes de qualquer await.
+    // Senão o navegador (especialmente mobile) bloqueia o popup como não-iniciado pelo usuário.
+    const popup = window.open("about:blank", "_blank");
+
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("resolve-whatsapp-link", {
@@ -81,16 +85,24 @@ export default function WhatsAppGate({
       if (error) throw error;
       const waUrl = data?.wa_url as string | undefined;
       if (!waUrl) {
+        if (popup) popup.close();
         toast.error("WhatsApp Oficial não configurado para esta campanha.");
         return;
       }
       const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
         clientName ? ` em ${clientName}` : ""
       }.`;
-      window.open(`${waUrl}?text=${encodeURIComponent(msg)}`, "_blank");
+      const finalUrl = `${waUrl}?text=${encodeURIComponent(msg)}`;
+      if (popup && !popup.closed) {
+        popup.location.href = finalUrl;
+      } else {
+        // Fallback: navegação no próprio tab se o popup foi bloqueado
+        window.location.href = finalUrl;
+      }
       setOpened(true);
       toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
     } catch (err: any) {
+      if (popup) popup.close();
       toast.error(err?.message || "Erro ao abrir WhatsApp");
     } finally {
       setLoading(false);
