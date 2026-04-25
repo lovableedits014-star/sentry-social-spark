@@ -29,6 +29,7 @@ type Influencer = {
   score: number;
   byPlatform: Record<string, { comments: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
   profileUrls: Record<string, string>;
+  profilePictures: Record<string, string>;
 };
 
 function computeScore(inf: Influencer): number {
@@ -52,19 +53,29 @@ const PlatformBadges = ({
   platforms,
   breakdown,
   urls,
+  pictures,
 }: {
   platforms: string[];
   breakdown: Influencer["byPlatform"];
   urls: Record<string, string>;
+  pictures: Record<string, string>;
 }) => (
   <div className="flex flex-wrap gap-1">
     {platforms.map((p) => {
       const b = breakdown[p];
       const Icon = p === "instagram" ? Instagram : Facebook;
       const url = urls[p];
+      const pic = pictures[p];
       const content = (
         <>
-          <Icon className="w-3 h-3" />
+          {pic ? (
+            <Avatar className="w-3.5 h-3.5">
+              <AvatarImage src={pic} />
+              <AvatarFallback><Icon className="w-2 h-2" /></AvatarFallback>
+            </Avatar>
+          ) : (
+            <Icon className="w-3 h-3" />
+          )}
           {b?.comments || 0}
         </>
       );
@@ -261,10 +272,14 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
           byPlatform: {},
           profileUrls: supporterProfileUrls.get(supporterId) || {},
+          profilePictures: {},
         };
         map.set(supporterId, inf);
       }
       if (!inf.authorPicture && c.author_profile_picture) inf.authorPicture = c.author_profile_picture;
+      if (c.author_profile_picture && !inf.profilePictures[platform]) {
+        inf.profilePictures[platform] = c.author_profile_picture;
+      }
       inf.platforms.add(platform);
       if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
       const pb = inf.byPlatform[platform];
@@ -400,7 +415,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-1 border-t">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Por rede</span>
-                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
+                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                   </div>
                   <div className="space-y-1">
                     <SentimentBar pos={inf.positiveCount} neg={inf.negativeCount} neu={inf.neutralCount} />
@@ -461,7 +476,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
+                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
