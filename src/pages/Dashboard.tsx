@@ -16,6 +16,8 @@ import { CommentItem, type CommentData } from "@/components/CommentItem";
 import { IEDPanel } from "@/components/IEDPanel";
 import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
+import { Checkbox } from "@/components/ui/checkbox";
+import { EyeOff } from "lucide-react";
 
 interface DashboardComment {
   id: string;
@@ -63,6 +65,9 @@ const Dashboard = () => {
   const [responding, setResponding] = useState<string | null>(null);
   const [managingComment, setManagingComment] = useState<string | null>(null);
   const [reactingComment, setReactingComment] = useState<string | null>(null);
+  const [classifyingComment, setClassifyingComment] = useState<string | null>(null);
+  const [selectedCrisis, setSelectedCrisis] = useState<Set<string>>(new Set());
+  const [bulkHiding, setBulkHiding] = useState(false);
   const queryClient = useQueryClient();
 
   const fetchDashboardData = useCallback(async () => {
@@ -274,6 +279,73 @@ const Dashboard = () => {
     } finally {
       setReactingComment(null);
     }
+  };
+
+  // Manual sentiment reclassification
+  const handleClassifySentiment = async (
+    commentId: string,
+    sentiment: 'positive' | 'neutral' | 'negative'
+  ) => {
+    setClassifyingComment(commentId);
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .update({ sentiment })
+        .eq('id', commentId);
+      if (error) throw error;
+      toast.success(
+        sentiment === 'positive' ? 'Reclassificado como positivo' :
+        sentiment === 'negative' ? 'Reclassificado como negativo' : 'Reclassificado como neutro'
+      );
+      reloadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao reclassificar');
+    } finally {
+      setClassifyingComment(null);
+    }
+  };
+
+  // Bulk hide selected negative comments
+  const handleBulkHide = async () => {
+    if (selectedCrisis.size === 0 || bulkHiding) return;
+    setBulkHiding(true);
+    const ids = Array.from(selectedCrisis);
+    let success = 0;
+    let failed = 0;
+    try {
+      for (const id of ids) {
+        try {
+          const { data, error } = await supabase.functions.invoke('manage-comment', {
+            body: { commentId: id, clientId, action: 'hide' }
+          });
+          if (error || !data?.success) failed++;
+          else success++;
+        } catch {
+          failed++;
+        }
+      }
+      if (success > 0) toast.success(`${success} comentário(s) ocultado(s)`);
+      if (failed > 0) toast.error(`${failed} falha(s) ao ocultar`);
+      setSelectedCrisis(new Set());
+      reloadData();
+    } finally {
+      setBulkHiding(false);
+    }
+  };
+
+  const toggleCrisisSelection = (id: string) => {
+    setSelectedCrisis(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllCrisis = (allIds: string[]) => {
+    setSelectedCrisis(prev => {
+      if (prev.size === allIds.length) return new Set();
+      return new Set(allIds);
+    });
   };
 
   // Filter comments by period
@@ -577,7 +649,7 @@ const Dashboard = () => {
             </Badge>
           </div>
           <CardDescription>
-            Comentários negativos que precisam de atenção — responda, exclua ou bloqueie
+            Comentários negativos que precisam de atenção — responda, reclassifique o sentimento ou selecione vários para ocultar de uma vez
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -588,23 +660,65 @@ const Dashboard = () => {
               <p className="text-xs mt-1">Sua reputação está protegida.</p>
             </div>
           ) : (
-            <div className="divide-y divide-border rounded-lg border overflow-hidden">
-              {negativeComments.map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment as CommentData}
-                  onGenerateResponse={handleGenerateResponse}
-                  onSendResponse={handleSendResponse}
-                  onManageComment={handleManageComment}
-                  onReactToComment={handleReactToComment}
-                  isGenerating={generatingResponse === comment.id}
-                  isResponding={responding === comment.id}
-                  isManaging={managingComment === comment.id}
-                  isReacting={reactingComment === comment.id}
-                  showPostInfo={true}
-                />
-              ))}
-            </div>
+            <>
+              {/* Bulk action bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 p-2.5 rounded-lg bg-muted/40 border border-border">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedCrisis.size === negativeComments.length && negativeComments.length > 0}
+                    onCheckedChange={() => toggleAllCrisis(negativeComments.map(c => c.id))}
+                    aria-label="Selecionar todos"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {selectedCrisis.size > 0
+                      ? `${selectedCrisis.size} selecionado(s)`
+                      : 'Selecionar todos'}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleBulkHide}
+                  disabled={selectedCrisis.size === 0 || bulkHiding}
+                >
+                  {bulkHiding ? (
+                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Ocultando...</>
+                  ) : (
+                    <><EyeOff className="w-3.5 h-3.5 mr-1.5" />Ocultar selecionados</>
+                  )}
+                </Button>
+              </div>
+
+              <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                {negativeComments.map((comment) => (
+                  <div key={comment.id} className="flex items-start gap-2 bg-background">
+                    <div className="pt-4 pl-3">
+                      <Checkbox
+                        checked={selectedCrisis.has(comment.id)}
+                        onCheckedChange={() => toggleCrisisSelection(comment.id)}
+                        aria-label="Selecionar comentário"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CommentItem
+                        comment={comment as CommentData}
+                        onGenerateResponse={handleGenerateResponse}
+                        onSendResponse={handleSendResponse}
+                        onManageComment={handleManageComment}
+                        onReactToComment={handleReactToComment}
+                        onClassifySentiment={handleClassifySentiment}
+                        isGenerating={generatingResponse === comment.id}
+                        isResponding={responding === comment.id}
+                        isManaging={managingComment === comment.id}
+                        isReacting={reactingComment === comment.id}
+                        isClassifying={classifyingComment === comment.id}
+                        showPostInfo={true}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {stats.negative > negativeComments.length && (
