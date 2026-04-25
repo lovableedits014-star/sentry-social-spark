@@ -383,7 +383,7 @@ export default function PortalContratado() {
       <div className="p-4 space-y-4 max-w-lg mx-auto">
 
         {/* Gerador de foto de campanha (visível mesmo antes do gate, é independente) */}
-        {clientId && portalUnlocked && <CampaignFrameGenerator clientId={clientId} />}
+        {clientId && portalUnlocked && <CampaignFrameGenerator clientId={clientId} variant="showcase" />}
 
         {/* ── GATE: WhatsApp + Contract ────────────────────────── */}
         {!portalUnlocked && (

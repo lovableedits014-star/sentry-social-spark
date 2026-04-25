@@ -362,7 +362,7 @@ export default function PortalFuncionario() {
       <div className="p-4 space-y-4 max-w-lg mx-auto">
 
         {/* Gerador de foto de campanha */}
-        {clientId && <CampaignFrameGenerator clientId={clientId} />}
+        {clientId && <CampaignFrameGenerator clientId={clientId} variant="showcase" />}
 
         {/* ── CHECK-IN ────────────────────────── */}
         <Card className="overflow-hidden">
