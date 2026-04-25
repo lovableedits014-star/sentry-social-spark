@@ -9,9 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  CalendarCheck, AlertTriangle, Users, Search, Download, Loader2, Send, ShieldCheck,
+  CalendarCheck, AlertTriangle, Users, Search, Download, Loader2, Send, ShieldCheck, CheckCircle2, XCircle, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type Row = {
   person_type: "funcionario" | "lider" | "liderado" | "apoiador";
@@ -88,6 +92,44 @@ export default function ControlePresenca() {
       queryClient.invalidateQueries({ queryKey: ["presence-overview", clientId] });
     },
     onError: (e: any) => toast.error(e.message ?? "Não foi possível atualizar"),
+  });
+
+  const bulkToggle = useMutation({
+    mutationFn: async ({ type, value }: { type: Row["person_type"] | "all"; value: boolean }) => {
+      if (!clientId) return { affected: 0 };
+      const targets: Array<{ table: string; isLider?: boolean }> =
+        type === "funcionario" ? [{ table: "funcionarios" }]
+        : type === "lider" ? [{ table: "contratados", isLider: true }]
+        : type === "liderado" ? [{ table: "contratados", isLider: false }]
+        : type === "apoiador" ? [{ table: "supporter_accounts" }]
+        : [
+            { table: "funcionarios" },
+            { table: "contratados" },
+            { table: "supporter_accounts" },
+          ];
+
+      let affected = 0;
+      for (const t of targets) {
+        let q: any = supabase
+          .from(t.table as any)
+          .update({ presenca_obrigatoria: value })
+          .eq("client_id", clientId)
+          .select("id");
+        if (t.table === "contratados" && typeof t.isLider === "boolean") {
+          q = q.eq("is_lider", t.isLider);
+        }
+        const { error, data } = await q;
+        if (error) throw error;
+        affected += data?.length ?? 0;
+      }
+      return { affected };
+    },
+    onSuccess: ({ affected }, vars) => {
+      const label = vars.type === "all" ? "todas as pessoas" : `todos os ${TYPE_LABEL[vars.type as Row["person_type"]]}s`.toLowerCase();
+      toast.success(`${vars.value ? "Marcados" : "Desmarcados"} ${affected} registros (${label})`);
+      queryClient.invalidateQueries({ queryKey: ["presence-overview", clientId] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha na ação em massa"),
   });
 
   const filtered = useMemo(() => {
@@ -171,7 +213,78 @@ export default function ControlePresenca() {
         <p className="text-muted-foreground text-sm mt-1">
           Marque quem é obrigado a fazer check-in diário no portal. O sistema envia um lembrete automático no WhatsApp para quem fica <strong>{threshold}+ dias</strong> sem acessar e gera um alerta com o relatório completo.
         </p>
+        <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
+          <Zap className="w-3 h-3" />
+          Envio 100% automático: a verificação roda todo dia às 08:30 (BRT) e dispara o WhatsApp sem ação manual.
+        </div>
       </div>
+
+      {/* Bulk actions */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            Ações em massa por grupo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-3">
+            Aplique a obrigatoriedade a um grupo inteiro com um clique. Útil quando você decide que todo um time deve marcar presença.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {(["funcionario", "lider", "liderado", "apoiador"] as const).map((t) => (
+              <div key={t} className="flex flex-col gap-1.5 p-3 rounded-lg border bg-muted/20">
+                <span className="text-xs font-medium">{TYPE_LABEL[t]}s</span>
+                <div className="flex gap-1.5">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="default" className="flex-1 h-8 text-xs" disabled={bulkToggle.isPending}>
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Obrigar todos
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Marcar todos como obrigados?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Todos os <strong>{TYPE_LABEL[t]}s</strong> deste cliente passarão a ser obrigados a fazer check-in diário.
+                          Quem ficar {threshold}+ dias sem acessar receberá lembrete automático no WhatsApp.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => bulkToggle.mutate({ type: t, value: true })}>
+                          Confirmar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" disabled={bulkToggle.isPending}>
+                        <XCircle className="w-3.5 h-3.5 mr-1" /> Desmarcar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Desmarcar todos os {TYPE_LABEL[t]}s?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Nenhum {TYPE_LABEL[t]} receberá mais lembrete automático de presença até ser marcado novamente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => bulkToggle.mutate({ type: t, value: false })}>
+                          Confirmar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
