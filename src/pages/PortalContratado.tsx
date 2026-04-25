@@ -683,6 +683,7 @@ export default function PortalContratado() {
           />
         )}
       </div>
+      <InstallAppFab />
     </div>
   );
 }
