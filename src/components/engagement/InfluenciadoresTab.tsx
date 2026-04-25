@@ -529,7 +529,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{inf.registeredName}</p>
-                      <p className="text-xs text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
+                      <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[inf.category] || ORIGIN_LABEL[inf.origin]}</p>
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
@@ -596,7 +596,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate max-w-[150px]">{inf.registeredName}</p>
-                          <p className="text-[10px] text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
+                          <p className="text-[10px] text-muted-foreground">{CATEGORY_LABEL[inf.category] || ORIGIN_LABEL[inf.origin]}</p>
                         </div>
                       </div>
                     </TableCell>
