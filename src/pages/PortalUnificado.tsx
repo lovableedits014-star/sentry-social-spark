@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, LogOut, Loader2, Eye, EyeOff, Briefcase, Users2, Heart, ArrowRight } from "lucide-react";
+import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface Roles {
@@ -64,16 +64,10 @@ export default function PortalUnificado() {
       };
       setRoles(r);
 
-      const total = [r.isFuncionario, r.isContratado, r.isApoiador].filter(Boolean).length;
-      if (total === 1) {
-        if (r.isFuncionario) navigate(`/portal-funcionario/${clientId}`, { replace: true });
-        else if (r.isContratado) navigate(`/portal-contratado/${clientId}`, { replace: true });
-        else navigate(`/portal-apoiador/${clientId}`, { replace: true });
-      } else if (total === 0) {
-        // No registration — treat as new supporter
-        navigate(`/portal-apoiador/${clientId}`, { replace: true });
-      }
-      // If total > 1, show selector
+      // Hierarquia: Funcionário > Líder > Apoiador. Cargo maior predomina.
+      if (r.isFuncionario) navigate(`/portal-funcionario/${clientId}`, { replace: true });
+      else if (r.isContratado) navigate(`/portal-contratado/${clientId}`, { replace: true });
+      else navigate(`/portal-apoiador/${clientId}`, { replace: true });
     } finally {
       setDetecting(false);
     }
@@ -102,12 +96,6 @@ export default function PortalUnificado() {
       toast.success("Conta criada!");
     } catch (err: any) { toast.error(err.message || "Erro ao criar conta"); }
     finally { setAuthLoading(false); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setRoles(null);
   };
 
   if (loading) {
