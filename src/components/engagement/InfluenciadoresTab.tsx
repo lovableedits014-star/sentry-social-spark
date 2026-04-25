@@ -9,14 +9,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Users, RefreshCw, Award, Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus,
+  Users, RefreshCw, Award, Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus, Facebook, Instagram,
 } from "lucide-react";
 
 type Influencer = {
-  platformUserId: string;
-  authorName: string;
+  supporterId: string;
+  registeredName: string;
+  origin: "pessoa" | "funcionario" | "contratado" | "apoiador";
   authorPicture: string | null;
-  platform: string;
+  platforms: Set<string>;
   totalComments: number;
   positiveCount: number;
   negativeCount: number;
@@ -26,9 +27,7 @@ type Influencer = {
   firstSeen: string;
   lastSeen: string;
   score: number;
-  supporterId: string;
-  registeredName: string;
-  origin: "pessoa" | "funcionario" | "contratado" | "apoiador";
+  byPlatform: Record<string, { comments: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
 };
 
 function computeScore(inf: Influencer): number {
@@ -47,6 +46,21 @@ const ORIGIN_LABEL: Record<Influencer["origin"], string> = {
   contratado: "Contratado",
   apoiador: "Apoiador",
 };
+
+const PlatformBadges = ({ platforms, breakdown }: { platforms: string[]; breakdown: Influencer["byPlatform"] }) => (
+  <div className="flex flex-wrap gap-1">
+    {platforms.map((p) => {
+      const b = breakdown[p];
+      const Icon = p === "instagram" ? Instagram : Facebook;
+      return (
+        <Badge key={p} variant="outline" className="text-[10px] gap-1 px-1.5 py-0">
+          <Icon className="w-3 h-3" />
+          {b?.comments || 0}
+        </Badge>
+      );
+    })}
+  </div>
+);
 
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
@@ -173,45 +187,72 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       replyCountByParent.set(r.parent_comment_id, (replyCountByParent.get(r.parent_comment_id) || 0) + 1);
     }
 
+    // Agrupa por supporterId (unifica Facebook + Instagram)
     const map = new Map<string, Influencer>();
     for (const c of allComments) {
       if (!c.platform_user_id) continue;
-      const key = `${c.platform || "facebook"}:${c.platform_user_id}`;
+      const platform = c.platform || "facebook";
+      const key = `${platform}:${c.platform_user_id}`;
       const supporterId = profileKeyToSupporter.get(key);
       if (!supporterId) continue;
       const meta = supporterMeta.get(supporterId);
       if (!meta) continue;
-      let inf = map.get(key);
+      let inf = map.get(supporterId);
       if (!inf) {
         inf = {
-          platformUserId: c.platform_user_id, authorName: c.author_name || c.platform_user_id,
-          authorPicture: c.author_profile_picture, platform: c.platform || "facebook",
-          totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
-          repliesReceived: 0, uniquePosts: 0, firstSeen: c.comment_created_time || "",
-          lastSeen: c.comment_created_time || "", score: 0,
           supporterId, registeredName: meta.name, origin: meta.origin,
+          authorPicture: c.author_profile_picture,
+          platforms: new Set<string>(),
+          totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          repliesReceived: 0, uniquePosts: 0,
+          firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
+          byPlatform: {},
         };
-        map.set(key, inf);
+        map.set(supporterId, inf);
       }
+      if (!inf.authorPicture && c.author_profile_picture) inf.authorPicture = c.author_profile_picture;
+      inf.platforms.add(platform);
+      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
+      const pb = inf.byPlatform[platform];
+      pb.comments++;
       inf.totalComments++;
-      if (c.sentiment === "positive") inf.positiveCount++;
-      else if (c.sentiment === "negative") inf.negativeCount++;
-      else inf.neutralCount++;
+      if (c.sentiment === "positive") { inf.positiveCount++; pb.pos++; }
+      else if (c.sentiment === "negative") { inf.negativeCount++; pb.neg++; }
+      else { inf.neutralCount++; pb.neu++; }
       const ts = c.comment_created_time || "";
       if (ts < inf.firstSeen || !inf.firstSeen) inf.firstSeen = ts;
       if (ts > inf.lastSeen) inf.lastSeen = ts;
     }
 
+    // Calcula posts únicos e respostas por supporter (unificado)
+    const commentsBySupporter = new Map<string, any[]>();
+    for (const c of allComments) {
+      const supporterId = profileKeyToSupporter.get(`${c.platform || "facebook"}:${c.platform_user_id}`);
+      if (!supporterId) continue;
+      if (!commentsBySupporter.has(supporterId)) commentsBySupporter.set(supporterId, []);
+      commentsBySupporter.get(supporterId)!.push(c);
+    }
     for (const inf of map.values()) {
-      const userComments = allComments.filter(
-        (c) => c.platform_user_id === inf.platformUserId && (c.platform || "facebook") === inf.platform
-      );
+      const userComments = commentsBySupporter.get(inf.supporterId) || [];
       inf.uniquePosts = new Set(userComments.map((c) => c.post_id)).size;
       let repliesCount = 0;
       for (const c of userComments) {
-        repliesCount += replyCountByParent.get(c.comment_id || "") || 0;
+        const r = replyCountByParent.get(c.comment_id || "") || 0;
+        repliesCount += r;
+        const pb = inf.byPlatform[c.platform || "facebook"];
+        if (pb) pb.replies += r;
       }
       inf.repliesReceived = repliesCount;
+      // posts únicos por plataforma
+      const postsByPlat: Record<string, Set<string>> = {};
+      for (const c of userComments) {
+        const p = c.platform || "facebook";
+        if (!postsByPlat[p]) postsByPlat[p] = new Set();
+        postsByPlat[p].add(c.post_id);
+      }
+      for (const [p, set] of Object.entries(postsByPlat)) {
+        if (inf.byPlatform[p]) inf.byPlatform[p].posts = set.size;
+      }
       inf.score = computeScore(inf);
     }
 
@@ -278,14 +319,15 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           {topInfluencers.map((inf, idx) => {
             const RankIcon = RANK_ICONS[idx] || Star;
             const rankColor = RANK_COLORS[idx] || "text-muted-foreground";
+            const platformList = Array.from(inf.platforms).sort();
             return (
-              <Card key={`${inf.platform}:${inf.platformUserId}`} className={idx === 0 ? "border-primary/40 shadow-md" : ""}>
+              <Card key={inf.supporterId} className={idx === 0 ? "border-primary/40 shadow-md" : ""}>
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <Avatar className="w-12 h-12">
                         <AvatarImage src={inf.authorPicture || undefined} />
-                        <AvatarFallback className="text-sm font-bold">{(inf.registeredName || inf.authorName).charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-sm font-bold">{inf.registeredName.charAt(0).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-background border flex items-center justify-center">
                         <RankIcon className={`w-3 h-3 ${rankColor}`} />
@@ -293,7 +335,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{inf.registeredName}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{inf.platform} · {ORIGIN_LABEL[inf.origin]}</p>
+                      <p className="text-xs text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
@@ -301,6 +343,10 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">comentários</p></div>
                     <div><p className="text-lg font-bold">{inf.uniquePosts}</p><p className="text-[10px] text-muted-foreground">posts</p></div>
                     <div><p className="text-lg font-bold">{inf.repliesReceived}</p><p className="text-[10px] text-muted-foreground">respostas</p></div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Por rede</span>
+                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} />
                   </div>
                   <div className="space-y-1">
                     <SentimentBar pos={inf.positiveCount} neg={inf.negativeCount} neu={inf.neutralCount} />
@@ -334,6 +380,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>Nome</TableHead>
+                  <TableHead className="hidden sm:table-cell">Redes</TableHead>
                   <TableHead className="text-center hidden sm:table-cell">Comentários</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Posts</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Respostas</TableHead>
@@ -342,20 +389,25 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {restInfluencers.map((inf, idx) => (
-                  <TableRow key={`${inf.platform}:${inf.platformUserId}`}>
+                {restInfluencers.map((inf, idx) => {
+                  const platformList = Array.from(inf.platforms).sort();
+                  return (
+                  <TableRow key={inf.supporterId}>
                     <TableCell className="font-medium text-muted-foreground">{idx + 4}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="w-7 h-7">
                           <AvatarImage src={inf.authorPicture || undefined} />
-                          <AvatarFallback className="text-[10px]">{(inf.registeredName || inf.authorName).charAt(0).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback className="text-[10px]">{inf.registeredName.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate max-w-[150px]">{inf.registeredName}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{inf.platform} · {ORIGIN_LABEL[inf.origin]}</p>
+                          <p className="text-[10px] text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
@@ -365,7 +417,8 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </TableCell>
                     <TableCell className="text-right font-semibold">{inf.score}</TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
