@@ -10,6 +10,7 @@ const DEFAULT_DELAY_MIN = 5;
 const DEFAULT_DELAY_MAX = 15;
 const DEFAULT_BATCH_PAUSE = 60;
 const MAX_RUNTIME_MS = 55000;
+const SAO_PAULO_OFFSET_HOURS = -3; // UTC-3 (sem horário de verão atualmente)
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,6 +18,20 @@ function sleep(ms: number) {
 
 function randomDelay(minMs: number, maxMs: number) {
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+function isWithinWindow(start: string, end: string): boolean {
+  // start/end no formato "HH:MM:SS"
+  const now = new Date();
+  // converte UTC -> America/Sao_Paulo (UTC-3)
+  const localMin = ((now.getUTCHours() + SAO_PAULO_OFFSET_HOURS + 24) % 24) * 60 + now.getUTCMinutes();
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  if (startMin <= endMin) return localMin >= startMin && localMin < endMin;
+  // janela cruza meia-noite
+  return localMin >= startMin || localMin < endMin;
 }
 
 function cleanPhoneForBridge(raw: string): string {
@@ -78,6 +93,14 @@ function getSendFailure(res: Response, data: any) {
   return null;
 }
 
+// Identifica se o erro indica que a INSTÂNCIA está desconectada (failover total),
+// e não apenas falha de envio para esse destinatário.
+function isInstanceDisconnectedError(res: Response, data: any): boolean {
+  if (res.status === 401) return true;
+  const msg = String(data?.error || "").toLowerCase();
+  return msg.includes("instance") && (msg.includes("disconnect") || msg.includes("not connected") || msg.includes("offline"));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -110,10 +133,10 @@ Deno.serve(async (req) => {
     const BATCH_PAUSE_MS = (batch_pause || DEFAULT_BATCH_PAUSE) * 1000;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
-    // Verify ownership and get bridge config
+    // Verify ownership and get bridge config + window settings
     const { data: clientData } = await adminClient
       .from("clients")
-      .select("id, whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .select("id, whatsapp_bridge_url, whatsapp_bridge_api_key, whatsapp_window_enabled, whatsapp_window_start, whatsapp_window_end, whatsapp_inter_instance_delay_min, whatsapp_inter_instance_delay_max")
       .eq("id", client_id)
       .eq("user_id", user.id)
       .single();
@@ -121,15 +144,28 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
     }
 
-    const bridgeUrl = clientData.whatsapp_bridge_url;
-    const bridgeApiKey = clientData.whatsapp_bridge_api_key;
+    // Verifica se há pelo menos uma instância no pool ou bridge legada
+    const { count: poolCount } = await adminClient
+      .from("whatsapp_instances")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", client_id)
+      .eq("is_active", true)
+      .eq("status", "connected");
 
-    if (!bridgeUrl || !bridgeApiKey) {
+    const hasLegacyBridge = !!(clientData.whatsapp_bridge_url && clientData.whatsapp_bridge_api_key);
+
+    if ((poolCount ?? 0) === 0 && !hasLegacyBridge) {
       return new Response(
-        JSON.stringify({ error: "Ponte WhatsApp não configurada para este cliente. Contacte o administrador." }),
+        JSON.stringify({ error: "Nenhuma instância WhatsApp conectada. Configure uma instância antes de disparar." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const windowEnabled = clientData.whatsapp_window_enabled !== false;
+    const windowStart = clientData.whatsapp_window_start || "08:00:00";
+    const windowEnd = clientData.whatsapp_window_end || "22:00:00";
+    const interMin = (clientData.whatsapp_inter_instance_delay_min ?? 1) * 1000;
+    const interMax = (clientData.whatsapp_inter_instance_delay_max ?? 3) * 1000;
 
     // Build recipient list based on tipo
     let recipients: { telefone: string; nome: string }[] = [];
@@ -232,6 +268,7 @@ Deno.serve(async (req) => {
     const processDispatch = async () => {
       let sent = 0;
       let failed = 0;
+      let lastInstanceId: string | null = null;
 
       for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
         if (Date.now() - startTime > MAX_RUNTIME_MS) {
@@ -252,12 +289,65 @@ Deno.serve(async (req) => {
         for (const recipient of batchItems) {
           if (Date.now() - startTime > MAX_RUNTIME_MS) break;
 
+          // ==== Janela horária ====
+          if (windowEnabled && !isWithinWindow(windowStart, windowEnd)) {
+            await adminClient.from("whatsapp_dispatches").update({
+              status: "pausado_janela",
+              pause_reason: `Fora da janela de envio (${windowStart.slice(0,5)}-${windowEnd.slice(0,5)})`,
+              enviados: sent,
+              falhas: failed,
+              updated_at: new Date().toISOString(),
+            }).eq("id", dispatch.id);
+            return;
+          }
+
+          // ==== Escolhe instância saudável (pool) com fallback legado ====
+          let bridgeUrl: string | null = null;
+          let bridgeApiKey: string | null = null;
+          let instanceId: string | null = null;
+
+          const { data: pickedId } = await adminClient.rpc("pick_healthy_whatsapp_instance", { p_client_id: client_id });
+          if (pickedId) {
+            const { data: inst } = await adminClient
+              .from("whatsapp_instances")
+              .select("id, bridge_url, bridge_api_key")
+              .eq("id", pickedId)
+              .maybeSingle();
+            if (inst?.bridge_url && inst?.bridge_api_key) {
+              bridgeUrl = inst.bridge_url;
+              bridgeApiKey = inst.bridge_api_key;
+              instanceId = inst.id;
+            }
+          }
+
+          // Fallback legado
+          if (!bridgeUrl && hasLegacyBridge) {
+            bridgeUrl = clientData.whatsapp_bridge_url!;
+            bridgeApiKey = clientData.whatsapp_bridge_api_key!;
+          }
+
+          if (!bridgeUrl || !bridgeApiKey) {
+            // Nenhuma instância disponível agora — pausa pra retomar depois
+            await adminClient.from("whatsapp_dispatches").update({
+              status: "pausado_janela",
+              pause_reason: "Nenhuma instância conectada disponível",
+              enviados: sent,
+              falhas: failed,
+              updated_at: new Date().toISOString(),
+            }).eq("id", dispatch.id);
+            return;
+          }
+
+          // Delay extra ao trocar de chip (humaniza)
+          if (lastInstanceId && instanceId && lastInstanceId !== instanceId) {
+            await sleep(randomDelay(interMin, interMax));
+          }
+          lastInstanceId = instanceId;
+
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
             const phoneClean = cleanPhoneForBridge(recipient.telefone);
-            console.log("[WhatsApp send-whatsapp-dispatch] phone recebido no body:", recipient.telefone);
-            console.log("[WhatsApp send-whatsapp-dispatch] phone após sanitize:", phoneClean);
-            console.log("[WhatsApp send-whatsapp-dispatch] phone enviado para whatsapp-bridge:", phoneClean);
+            console.log(`[dispatch] inst=${instanceId ?? "legacy"} phone=${phoneClean}`);
 
             const { res: sendRes, data: sendData } = await fetchBridgeSend({
               bridgeUrl,
@@ -274,12 +364,36 @@ Deno.serve(async (req) => {
                 .update({ status: "enviado", enviado_em: new Date().toISOString() })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
+              if (instanceId) {
+                await adminClient.rpc("log_whatsapp_send", {
+                  p_instance_id: instanceId, p_client_id: client_id,
+                  p_dispatch_id: dispatch.id, p_success: true, p_error_message: null,
+                });
+              }
             } else {
+              // Falha de envio: se a instância caiu, marca como desconectada e re-tenta com outra
+              if (instanceId && isInstanceDisconnectedError(sendRes, sendData)) {
+                await adminClient.from("whatsapp_instances")
+                  .update({ status: "disconnected" })
+                  .eq("id", instanceId);
+                await adminClient.rpc("log_whatsapp_send", {
+                  p_instance_id: instanceId, p_client_id: client_id,
+                  p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                });
+                // Não conta como falha do destinatário; tenta de novo no próximo loop
+                continue;
+              }
               failed++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "falha", erro: String(failure).slice(0, 200) })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
+              if (instanceId) {
+                await adminClient.rpc("log_whatsapp_send", {
+                  p_instance_id: instanceId, p_client_id: client_id,
+                  p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                });
+              }
             }
           } catch (err) {
             failed++;
@@ -287,6 +401,12 @@ Deno.serve(async (req) => {
               .update({ status: "falha", erro: String(err).slice(0, 200) })
               .eq("dispatch_id", dispatch.id)
               .eq("telefone", recipient.telefone);
+            if (instanceId) {
+              await adminClient.rpc("log_whatsapp_send", {
+                p_instance_id: instanceId, p_client_id: client_id,
+                p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(err).slice(0, 200),
+              });
+            }
           }
 
           if ((sent + failed) % 5 === 0) {
