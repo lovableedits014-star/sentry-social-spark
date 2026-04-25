@@ -1,13 +1,12 @@
-// Self-hosted Supabase client (easychain).
-// Hardcoded — bypasses Lovable Cloud env vars so the app talks to the
-// self-hosted instance both in preview and in production.
+// Supabase client — apontando para Lovable Cloud (backend gerenciado).
+// Mantemos o nome do arquivo para evitar refatorar todos os imports.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = 'https://supabase.easychain.com.br';
+const SUPABASE_URL = 'https://qherclscaqbxytlgbunl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
-export const SUPABASE_PROJECT_ID = 'easychain';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoZXJjbHNjYXFieHl0bGdidW5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5NzE4NTYsImV4cCI6MjA4NjU0Nzg1Nn0.3X2TICQF5fIhuwcH2Pf46-MjeODR1A1kwXF-PUBv4k8';
+export const SUPABASE_PROJECT_ID = 'qherclscaqbxytlgbunl';
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
