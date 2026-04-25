@@ -1308,17 +1308,30 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
     if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
+    let bridgeRes: Response;
+    let bridgeData: any;
     if (action === "send" && typeof phone === "string" && phone) {
-      proxyBody.phone = normalizeBrazilianPhoneWithNinthDigit(phone);
+      let lastRes: Response | null = null;
+      let lastData: any = null;
+      for (const candidate of brazilianPhoneVariants(phone)) {
+        lastRes = await fetch(WHATSAPP_BRIDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+          body: JSON.stringify({ ...proxyBody, phone: candidate }),
+        });
+        lastData = await lastRes.json().catch(() => ({} as any));
+        if (lastRes.ok && lastData?.success !== false) break;
+      }
+      bridgeRes = lastRes!;
+      bridgeData = lastData;
+    } else {
+      bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+        body: JSON.stringify(proxyBody),
+      });
+      bridgeData = await bridgeRes.json().catch(() => ({} as any));
     }
-
-    const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
-      body: JSON.stringify(proxyBody),
-    });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({} as any));
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await bridgeCreateInstance({
