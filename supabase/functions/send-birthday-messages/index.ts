@@ -58,17 +58,37 @@ Deno.serve(async (req) => {
     for (const config of configs) {
       const clientId = config.client_id;
 
-      // Get per-client bridge config
-      const { data: clientData } = await admin
-        .from("clients")
-        .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
-        .eq("id", clientId)
-        .single();
+      // Prefer the PRIMARY WhatsApp instance from the pool.
+      // Fallback to legacy single-bridge config on the client record if no primary is set.
+      let bridgeUrl: string | null = null;
+      let bridgeApiKey: string | null = null;
 
-      const bridgeUrl = clientData?.whatsapp_bridge_url;
-      const bridgeApiKey = clientData?.whatsapp_bridge_api_key;
+      const { data: primaryInstance } = await admin
+        .from("whatsapp_instances")
+        .select("bridge_url, bridge_api_key, status, is_active")
+        .eq("client_id", clientId)
+        .eq("is_primary", true)
+        .maybeSingle();
 
-      if (!bridgeUrl || !bridgeApiKey) continue; // Skip clients without bridge config
+      if (
+        primaryInstance?.bridge_url &&
+        primaryInstance?.bridge_api_key &&
+        primaryInstance.is_active &&
+        primaryInstance.status === "connected"
+      ) {
+        bridgeUrl = primaryInstance.bridge_url;
+        bridgeApiKey = primaryInstance.bridge_api_key;
+      } else {
+        const { data: clientData } = await admin
+          .from("clients")
+          .select("whatsapp_bridge_url, whatsapp_bridge_api_key")
+          .eq("id", clientId)
+          .single();
+        bridgeUrl = clientData?.whatsapp_bridge_url ?? null;
+        bridgeApiKey = clientData?.whatsapp_bridge_api_key ?? null;
+      }
+
+      if (!bridgeUrl || !bridgeApiKey) continue; // Skip clients without any usable bridge
 
       // Find people with birthday today (month + day match)
       const today = new Date();
