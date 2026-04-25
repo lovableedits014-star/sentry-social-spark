@@ -283,6 +283,13 @@ const Index = () => {
           style={{ backgroundImage: "linear-gradient(hsl(217,91%,60%) 1px, transparent 1px), linear-gradient(90deg, hsl(217,91%,60%) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
 
         <div ref={heroSection.ref} className={`relative z-10 max-w-5xl transition-all duration-1000 ${heroSection.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <div className="flex justify-center mb-6">
+            <img
+              src="/sentinelle-logo.png"
+              alt="Sentinelle"
+              className="h-48 md:h-64 w-auto object-contain drop-shadow-[0_0_40px_rgba(59,130,246,0.45)] animate-fade-in"
+            />
+          </div>
           <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-full px-5 py-2 mb-8 text-sm text-blue-300">
             <Zap className="w-4 h-4 text-yellow-400 fill-yellow-400" />
             <span>{totalModules}+ módulos integrados — a plataforma mais completa do mercado político</span>
