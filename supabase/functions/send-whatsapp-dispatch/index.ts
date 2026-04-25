@@ -25,6 +25,46 @@ function cleanPhoneForBridge(raw: string): string {
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
+const TRANSIENT_BRIDGE_STATUSES = new Set([502, 503, 504]);
+
+async function fetchBridgeSend(params: { bridgeUrl: string; bridgeApiKey: string; phone: string; message: string }) {
+  const { bridgeUrl, bridgeApiKey, phone, message } = params;
+
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    const res = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": bridgeApiKey,
+      },
+      body: JSON.stringify({ action: "send", phone, message }),
+    });
+
+    const data = await res.json().catch(async () => ({ error: await res.text().catch(() => "Resposta inválida da ponte") }));
+
+    if (TRANSIENT_BRIDGE_STATUSES.has(res.status) && attempt < 2) {
+      console.warn(`Bridge send returned ${res.status}; retrying attempt ${attempt + 2}/3`);
+      await sleep(1000 * (attempt + 1));
+      continue;
+    }
+
+    return { res, data };
+  }
+
+  throw new Error("Falha inesperada ao comunicar com a ponte WhatsApp");
+}
+
+function getSendFailure(res: Response, data: any) {
+  if (!res.ok) return data?.error || `Erro na ponte WhatsApp (status ${res.status})`;
+  if (data?.success === false) return data?.error || "Ponte recusou o envio";
+  if (data?.delivered === false) return data?.error || "Mensagem não entregue pelo WhatsApp";
+
+  const hasDeliverySignal = data?.delivered === true || Boolean(data?.messageId || data?.message_id || data?.id || data?.key?.id);
+  if (!hasDeliverySignal) return data?.error || "Ponte não confirmou entrega da mensagem";
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -206,30 +246,25 @@ Deno.serve(async (req) => {
             console.log("[WhatsApp send-whatsapp-dispatch] phone após sanitize:", phoneClean);
             console.log("[WhatsApp send-whatsapp-dispatch] phone enviado para whatsapp-bridge:", phoneClean);
 
-            const sendRes = await fetch(bridgeUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Api-Key": bridgeApiKey,
-              },
-              body: JSON.stringify({
-                action: "send",
-                phone: phoneClean,
-                message: personalizedMsg,
-              }),
+            const { res: sendRes, data: sendData } = await fetchBridgeSend({
+              bridgeUrl,
+              bridgeApiKey,
+              phone: phoneClean,
+              message: personalizedMsg,
             });
 
-            if (sendRes.ok) {
+            const failure = getSendFailure(sendRes, sendData);
+
+            if (!failure) {
               sent++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "enviado", enviado_em: new Date().toISOString() })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
             } else {
-              const errBody = await sendRes.text();
               failed++;
               await adminClient.from("whatsapp_dispatch_items")
-                .update({ status: "falha", erro: errBody.slice(0, 200) })
+                .update({ status: "falha", erro: String(failure).slice(0, 200) })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
             }
