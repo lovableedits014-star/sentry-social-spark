@@ -5,6 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, MessageCircle, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+type WhatsAppLink = {
+  appUrl: string;
+  webUrl: string;
+};
+
 interface WhatsAppGateProps {
   clientId: string;
   clientName?: string;
@@ -37,7 +42,7 @@ export default function WhatsAppGate({
   const [loading, setLoading] = useState(false);
   const [opened, setOpened] = useState(false);
   const [autoChecking, setAutoChecking] = useState(false);
-  const [whatsAppHref, setWhatsAppHref] = useState<string | null>(null);
+  const [whatsAppLink, setWhatsAppLink] = useState<WhatsAppLink | null>(null);
   const intervalRef = useRef<number | null>(null);
 
   const roleLabel =
@@ -57,7 +62,12 @@ export default function WhatsAppGate({
         const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
           clientName ? ` em ${clientName}` : ""
         }.`;
-        setWhatsAppHref(`${waUrl}?text=${encodeURIComponent(msg)}`);
+        const phone = waUrl.replace(/\D/g, "");
+        const text = encodeURIComponent(msg);
+        setWhatsAppLink({
+          appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
+          webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+        });
       } catch (err) {
         console.error("[WhatsAppGate] resolve link error:", err);
       }
