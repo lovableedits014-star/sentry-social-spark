@@ -7,11 +7,13 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Download, ImageIcon, Loader2, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_COMPOSITION, FrameComposition, preloadComposition, renderComposition } from "./types";
 
 interface Frame {
   id: string;
   nome: string;
   image_url: string;
+  composition: FrameComposition | null;
 }
 
 interface Props {
@@ -36,7 +38,7 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const photoImgRef = useRef<HTMLImageElement | null>(null);
-  const frameImgRef = useRef<HTMLImageElement | null>(null);
+  const cacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load active frames for client
@@ -45,23 +47,35 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
     (async () => {
       const { data } = await supabase
         .from("campaign_frames")
-        .select("id, nome, image_url")
+        .select("id, nome, image_url, composition")
         .eq("client_id", clientId)
         .eq("is_active", true)
         .order("display_order", { ascending: true });
-      const list = (data ?? []) as Frame[];
+      const list = (data ?? []) as any as Frame[];
       setFrames(list);
       if (list.length > 0 && !selectedFrame) setSelectedFrame(list[0]);
     })();
   }, [open, clientId]);
 
-  // Preload selected frame image
+  // Get effective composition (composition column OR fallback wrapping image_url)
+  const getComposition = (f: Frame | null): FrameComposition => {
+    if (!f) return DEFAULT_COMPOSITION;
+    if (f.composition) return f.composition;
+    return {
+      ...DEFAULT_COMPOSITION,
+      layers: [{ id: "legacy", name: "Moldura", imageUrl: f.image_url, x: 540, y: 540, scale: 1, rotation: 0, opacity: 1 }],
+    };
+  };
+
+  // Preload composition images when frame changes
   useEffect(() => {
-    if (!selectedFrame) { frameImgRef.current = null; redraw(); return; }
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => { frameImgRef.current = img; redraw(); };
-    img.src = selectedFrame.image_url;
+    if (!selectedFrame) return;
+    (async () => {
+      const cache = await preloadComposition(getComposition(selectedFrame));
+      cacheRef.current = cache;
+      redraw();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame]);
 
   const redraw = useCallback(() => {
@@ -69,44 +83,14 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-    // White background
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-    // Photo (clipped to circle)
-    const photo = photoImgRef.current;
-    if (photo) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE / 2, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-
-      // Cover-fit base
-      const baseScale = Math.max(CANVAS_SIZE / photo.width, CANVAS_SIZE / photo.height);
-      const scale = baseScale * zoom;
-      const drawW = photo.width * scale;
-      const drawH = photo.height * scale;
-      const dx = (CANVAS_SIZE - drawW) / 2 + offset.x;
-      const dy = (CANVAS_SIZE - drawH) / 2 + offset.y;
-      ctx.drawImage(photo, dx, dy, drawW, drawH);
-      ctx.restore();
-    } else {
-      // Placeholder circle
-      ctx.fillStyle = "#f1f5f9";
-      ctx.beginPath();
-      ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE / 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Frame overlay
-    const frame = frameImgRef.current;
-    if (frame) {
-      ctx.drawImage(frame, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-    }
-  }, [zoom, offset]);
+    const comp = getComposition(selectedFrame);
+    renderComposition(ctx, comp, {
+      photo: photoImgRef.current,
+      photoZoom: zoom,
+      photoOffset: offset,
+      imageCache: cacheRef.current,
+    });
+  }, [zoom, offset, selectedFrame]);
 
   useEffect(() => { redraw(); }, [redraw]);
 
@@ -141,7 +125,8 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!dragging) return;
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-    const ratio = CANVAS_SIZE / rect.width;
+    const comp = getComposition(selectedFrame);
+    const ratio = comp.canvas.width / rect.width;
     setOffset({
       x: (e.clientX - dragStart.x) * ratio,
       y: (e.clientY - dragStart.y) * ratio,
