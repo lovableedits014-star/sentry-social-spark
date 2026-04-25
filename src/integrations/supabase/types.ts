@@ -3030,6 +3030,10 @@ export type Database = {
         Args: { p_team_member_id: string }
         Returns: number
       }
+      ensure_supporter_for_entity: {
+        Args: { p_client_id: string; p_nome: string; p_redes: Json }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
