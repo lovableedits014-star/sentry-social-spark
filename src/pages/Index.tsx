@@ -253,10 +253,9 @@ const Index = () => {
 
       {/* ── NAV ── */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrollY > 60 ? "bg-[hsl(217,33%,8%)]/95 backdrop-blur-md border-b border-white/10 shadow-xl" : ""}`}>
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-9 h-9 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.4)]" />
-            <span className="text-lg font-bold tracking-tight">Sentinelle</span>
+        <div className="container mx-auto px-6 h-24 flex items-center justify-between">
+          <div className="flex items-center">
+            <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-20 w-auto object-contain drop-shadow-[0_0_16px_rgba(59,130,246,0.45)]" />
           </div>
           <div className="flex items-center gap-3">
             <a href="https://wa.me/5567992773931?text=Olá!%20Quero%20conhecer%20o%20Sentinelle" target="_blank" rel="noopener noreferrer">
