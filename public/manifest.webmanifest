@@ -2,7 +2,6 @@
   "name": "Sentinelle - Portal",
   "short_name": "Sentinelle",
   "description": "Portal de engajamento Sentinelle",
-  "start_url": "/pwa-start",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
