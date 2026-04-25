@@ -8,15 +8,20 @@ import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 import PublicLinksCard from "@/components/settings/PublicLinksCard";
+import UsageEstimatePanel from "@/components/settings/UsageEstimatePanel";
+
+const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
 const Settings = () => {
   const [clientId, setClientId] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     const fetchClient = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setIsSuperAdmin(user.email === SUPER_ADMIN_EMAIL);
       const { data } = await supabase
         .from("clients")
         .select("id, name")
@@ -42,6 +47,9 @@ const Settings = () => {
 
       {/* WhatsApp Instance (UAZAPI) */}
       {clientId && <WhatsAppInstanceCard clientId={clientId} />}
+
+      {/* Consumo & Custos — apenas Super Admin */}
+      {clientId && isSuperAdmin && <UsageEstimatePanel clientId={clientId} />}
 
       {/* WhatsApp Oficial */}
       {clientId && <WhatsAppConfigCard clientId={clientId} />}
