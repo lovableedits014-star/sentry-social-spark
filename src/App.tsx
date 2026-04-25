@@ -29,6 +29,8 @@ import MissoesIA from "./pages/MissoesIA";
 import Funcionarios from "./pages/Funcionarios";
 import Alertas from "./pages/Alertas";
 import Contratados from "./pages/Contratados";
+import ContratadosDisparos from "./pages/ContratadosDisparos";
+import ContratadosRelatorios from "./pages/ContratadosRelatorios";
 import RegistroContratado from "./pages/RegistroContratado";
 import PortalContratado from "./pages/PortalContratado";
 import RegistroFuncionario from "./pages/RegistroFuncionario";
@@ -92,6 +94,8 @@ const App = () => (
             <Route path="/funcionarios" element={<Funcionarios />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/contratados" element={<Contratados />} />
+            <Route path="/contratados/disparos" element={<ContratadosDisparos />} />
+            <Route path="/contratados/relatorios" element={<ContratadosRelatorios />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
