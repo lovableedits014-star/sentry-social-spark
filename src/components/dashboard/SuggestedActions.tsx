@@ -123,7 +123,7 @@ export function SuggestedActions({ clientId }: SuggestedActionsProps) {
           description: "Atue rápido para evitar escalada de crise digital.",
           metric: `${negPend} para responder`,
           cta: "Abrir gestão de crise",
-          to: "/dashboard",
+          to: "/comments?sentiment=negative&status=pending",
         });
       }
 
@@ -226,7 +226,7 @@ export function SuggestedActions({ clientId }: SuggestedActionsProps) {
           description: "Acumulou backlog na última semana — modere para manter engajamento ativo.",
           metric: `${pendSemana} aguardando`,
           cta: "Abrir moderação",
-          to: "/comentarios",
+          to: "/comments?status=pending",
         });
       }
 
