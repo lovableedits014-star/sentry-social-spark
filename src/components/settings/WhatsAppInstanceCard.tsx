@@ -54,18 +54,7 @@ const getQrCodeFromResponse = (data?: BridgeResponse | null) => {
 const cleanPhoneForBridge = (raw: string) => {
   const digits = raw.replace(/\D/g, "");
   if (!digits) return "";
-  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
-  // Auto-corrige celular BR sem o 9: 55 + DDD(2) + 8 dígitos = 12 → injeta 9
-  // Esperado: 55 + DDD(2) + 9 + 8 dígitos = 13
-  if (withCountry.length === 12) {
-    const ddd = withCountry.slice(2, 4);
-    const rest = withCountry.slice(4);
-    // Só injeta 9 se o primeiro dígito do número não for já 9 (evita duplicar)
-    if (!rest.startsWith("9")) {
-      return `55${ddd}9${rest}`;
-    }
-  }
-  return withCountry;
+  return digits.startsWith("55") ? digits : `55${digits}`;
 };
 
 export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardProps) {
@@ -325,31 +314,10 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
 
   const handleTestSend = async () => {
     const phone = testPhone;
-    const digits = phone.replace(/\D/g, "");
-
-    let normalizedPhone = digits;
-
-    if (digits.length === 11 && digits.startsWith("67")) {
-      normalizedPhone = "55" + digits;
-    }
-
-    if (digits.length === 12 && digits.startsWith("55")) {
-      const ddd = digits.slice(2, 4);
-      const number = digits.slice(4);
-
-      if (number.length === 8) {
-        normalizedPhone = `55${ddd}9${number}`;
-      }
-    }
-
-    if (digits.length === 10) {
-      const ddd = digits.slice(0, 2);
-      const number = digits.slice(2);
-      normalizedPhone = `55${ddd}9${number}`;
-    }
+    const normalizedPhone = cleanPhoneForBridge(phone);
 
     console.log("[TESTE WHATSAPP] digitado:", phone);
-    console.log("[TESTE WHATSAPP] enviado:", normalizedPhone);
+    console.log("[TESTE WHATSAPP] enviado sem alterar dígitos locais:", normalizedPhone);
 
     if (!normalizedPhone || normalizedPhone.length < 10) {
       toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");
