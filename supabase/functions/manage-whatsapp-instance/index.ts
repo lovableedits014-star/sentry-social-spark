@@ -234,6 +234,12 @@ Deno.serve(async (req) => {
     if (phone) proxyBody.phone = action === "send" ? cleanPhoneForBridge(phone) : phone;
     if (message) proxyBody.message = message;
 
+    if (action === "send" && typeof phone === "string" && phone) {
+      console.log("[WhatsApp manage-whatsapp-instance] phone recebido no body:", phone);
+      console.log("[WhatsApp manage-whatsapp-instance] phone após sanitize:", proxyBody.phone);
+      console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge:", proxyBody.phone);
+    }
+
     const bridgeRes = await fetch(BRIDGE_URL, {
       method: "POST",
       headers: {
