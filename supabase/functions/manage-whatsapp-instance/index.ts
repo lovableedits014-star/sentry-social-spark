@@ -48,6 +48,41 @@ function cleanPhoneForBridge(raw: string): string {
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const TRANSIENT_BRIDGE_STATUSES = new Set([502, 503, 504]);
+
+async function fetchBridgeAction(params: {
+  action: string;
+  apiKey: string;
+  body: Record<string, unknown>;
+  retries?: number;
+}) {
+  const { action, apiKey, body, retries = action === "send" ? 2 : 0 } = params;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const bridgeRes = await fetch(BRIDGE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const bridgeData = await bridgeRes.json().catch(() => ({}));
+
+    if (TRANSIENT_BRIDGE_STATUSES.has(bridgeRes.status) && attempt < retries) {
+      console.warn(`Bridge ${action} returned ${bridgeRes.status}; retrying attempt ${attempt + 2}/${retries + 1}`);
+      await sleep(1000 * (attempt + 1));
+      continue;
+    }
+
+    return { bridgeRes, bridgeData };
+  }
+
+  throw new Error("Falha inesperada ao comunicar com a ponte WhatsApp");
+}
+
 async function deleteExistingInstance(params: {
   adminClient: any;
   clientId: string;
@@ -305,16 +340,11 @@ Deno.serve(async (req) => {
       console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
     }
 
-    const bridgeRes = await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": clientApiKey,
-      },
-      body: JSON.stringify(proxyBody),
+    const { bridgeRes, bridgeData } = await fetchBridgeAction({
+      action,
+      apiKey: clientApiKey,
+      body: proxyBody,
     });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({}));
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await createClientInstance({
