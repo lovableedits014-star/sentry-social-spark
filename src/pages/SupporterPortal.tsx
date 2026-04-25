@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
+import WhatsAppGate from "@/components/portal/WhatsAppGate";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
@@ -42,6 +43,7 @@ interface SupporterAccount {
   neighborhood: string | null;
   state: string | null;
   client_id: string;
+  whatsapp_confirmado?: boolean;
 }
 
 interface ClientInfo {
