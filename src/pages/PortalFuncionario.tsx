@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import WhatsAppGate from "@/components/portal/WhatsAppGate";
 import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
+import InstallAppFab from "@/components/portal/InstallAppFab";
 
 interface Mission {
   id: string;
