@@ -307,6 +307,8 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
 
   const handleTestSend = async () => {
     const phone = cleanPhoneForBridge(testPhone);
+    console.log("[WhatsApp test] telefone digitado:", testPhone);
+    console.log("[WhatsApp test] telefone enviado para a function:", phone);
     if (!phone || phone.length < 10) {
       toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");
       return;
@@ -452,10 +454,10 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
               <div className="flex gap-2">
                 <Input
                   value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value.replace(/[^0-9]/g, ""))}
+                  onChange={(e) => setTestPhone(e.target.value)}
                   placeholder="5511999999999"
                   className="font-mono max-w-[220px]"
-                  maxLength={15}
+                  maxLength={24}
                 />
                 <Button
                   onClick={handleTestSend}
