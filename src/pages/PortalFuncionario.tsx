@@ -356,6 +356,14 @@ export default function PortalFuncionario() {
           role="funcionario"
           userName={funcionario.nome}
           onConfirmed={() => setFuncionario({ ...funcionario, whatsapp_confirmado: true })}
+          checkConfirmed={async () => {
+            const { data } = await supabase
+              .from("funcionarios" as any)
+              .select("whatsapp_confirmado")
+              .eq("id", funcionario.id)
+              .maybeSingle();
+            return Boolean((data as any)?.whatsapp_confirmado);
+          }}
         />
       )}
       {/* Header */}
