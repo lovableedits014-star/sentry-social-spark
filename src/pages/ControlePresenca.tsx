@@ -110,16 +110,17 @@ export default function ControlePresenca() {
 
       let affected = 0;
       for (const t of targets) {
-        let q = supabase
+        let q: any = supabase
           .from(t.table as any)
           .update({ presenca_obrigatoria: value })
-          .eq("client_id", clientId);
+          .eq("client_id", clientId)
+          .select("id");
         if (t.table === "contratados" && typeof t.isLider === "boolean") {
           q = q.eq("is_lider", t.isLider);
         }
-        const { error, count } = await q.select("id", { count: "exact", head: true });
+        const { error, data } = await q;
         if (error) throw error;
-        affected += count ?? 0;
+        affected += data?.length ?? 0;
       }
       return { affected };
     },
