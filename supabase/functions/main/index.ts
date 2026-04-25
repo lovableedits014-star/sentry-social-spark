@@ -1361,6 +1361,7 @@ const handlers: Record<string, Handler> = {
   "check-alerts": checkAlertsHandler,
   "resolve-whatsapp-link": resolveWhatsappLinkHandler,
   "manage-whatsapp-instance": manageWhatsappInstanceHandler,
+  "send-whatsapp-dispatch": sendWhatsappDispatchHandler,
 };
 
 Deno.serve(async (req: Request) => {
