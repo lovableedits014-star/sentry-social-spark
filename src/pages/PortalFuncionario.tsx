@@ -103,7 +103,7 @@ export default function PortalFuncionario() {
 
     const { data: func } = await supabase
       .from("funcionarios" as any)
-      .select("id, nome, telefone, email, cidade, client_id, referral_code, referral_count, redes_sociais, whatsapp_confirmado")
+      .select("id, nome, telefone, email, cidade, client_id, referral_code, referral_count, redes_sociais, whatsapp_confirmado, supporter_id")
       .eq("client_id", clientId)
       .eq("user_id", session.user.id)
       .maybeSingle();
