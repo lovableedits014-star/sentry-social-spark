@@ -13,6 +13,7 @@ import {
   Plus, Copy, Crown, Trophy, ClipboardList, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
+import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 
 interface Mission {
   id: string;
@@ -359,6 +360,9 @@ export default function PortalFuncionario() {
       </div>
 
       <div className="p-4 space-y-4 max-w-lg mx-auto">
+
+        {/* Gerador de foto de campanha */}
+        {clientId && <CampaignFrameGenerator clientId={clientId} />}
 
         {/* ── CHECK-IN ────────────────────────── */}
         <Card className="overflow-hidden">
