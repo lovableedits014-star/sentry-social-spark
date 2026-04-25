@@ -10,6 +10,7 @@ import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 import PublicLinksCard from "@/components/settings/PublicLinksCard";
 import UsageEstimatePanel from "@/components/settings/UsageEstimatePanel";
 import CampaignFramesCard from "@/components/settings/CampaignFramesCard";
+import PresenceSettingsCard from "@/components/settings/PresenceSettingsCard";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -60,6 +61,9 @@ const Settings = () => {
 
       {/* Molduras de Foto de Campanha */}
       {clientId && <CampaignFramesCard clientId={clientId} />}
+
+      {/* Controle de Presença Diária */}
+      {clientId && <PresenceSettingsCard clientId={clientId} />}
 
       {/* Telemarketing Module */}
       {clientId && <TelemarketingSettingsCard clientId={clientId} />}
