@@ -21,6 +21,8 @@ type BridgeResponse = {
   error?: string;
   qrcode?: string | null;
   status?: string | null;
+  success?: boolean;
+  requires_reconnect?: boolean;
   instance?: {
     status?: string | null;
     qrcode?: string | null;
@@ -179,7 +181,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
     }
 
     const response = (data ?? {}) as BridgeResponse;
-    if (response.error) {
+    if (response.error && !response.requires_reconnect) {
       throw new Error(response.error);
     }
 
