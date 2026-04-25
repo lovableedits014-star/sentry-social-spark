@@ -110,7 +110,14 @@ export default function WhatsAppGate({
   const openResolvedWhatsApp = (link: WhatsAppLink) => {
     setOpened(true);
     toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
-    window.location.href = link.webUrl;
+    // Abre em nova aba/app (não navega a página atual). Isso evita que, ao voltar,
+    // o navegador dispare novamente o popup nativo "Abrir no WhatsApp?" e mantém
+    // o polling automático rodando nesta aba.
+    const w = window.open(link.webUrl, "_blank", "noopener,noreferrer");
+    if (!w) {
+      // Se o navegador bloqueou o popup, faz fallback para a navegação direta.
+      window.location.href = link.webUrl;
+    }
   };
 
   const handleOpenWhatsApp = async () => {
