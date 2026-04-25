@@ -46,10 +46,6 @@ const RedirectToCadastro = ({ extraQuery = "" }: { extraQuery?: string }) => {
   const target = `/cadastro/${clientId}${location.search}${extraQuery ? sep + extraQuery : ""}`;
   return <Navigate to={target} replace />;
 };
-const RedirectToPortal = () => {
-  const { clientId } = useParams();
-  return <Navigate to={`/portal/${clientId}`} replace />;
-};
 
 const queryClient = new QueryClient();
 
