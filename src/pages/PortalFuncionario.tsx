@@ -608,6 +608,7 @@ export default function PortalFuncionario() {
           onChange={(next) => setFuncionario({ ...funcionario, redes_sociais: next })}
         />
       </div>
+      <InstallAppFab />
     </div>
   );
 }
