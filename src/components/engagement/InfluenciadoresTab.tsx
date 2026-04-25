@@ -119,6 +119,50 @@ function buildProfileUrl(platform: string, username: string | null, platformUser
   return null;
 }
 
+// ===== Cache de fotos de perfil (localStorage) =====
+// Estrutura: { [supporterId:platform]: { url: string, ts: number } }
+const PIC_CACHE_KEY = "engagement.profilePics.v1";
+const PIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — revalida diariamente
+
+type PicCache = Record<string, { url: string; ts: number }>;
+
+function loadPicCache(): PicCache {
+  try {
+    const raw = localStorage.getItem(PIC_CACHE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as PicCache;
+  } catch {
+    return {};
+  }
+}
+
+function savePicCache(cache: PicCache) {
+  try {
+    localStorage.setItem(PIC_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // quota exceeded — limpa entradas antigas
+    try {
+      const now = Date.now();
+      const trimmed: PicCache = {};
+      for (const [k, v] of Object.entries(cache)) {
+        if (now - v.ts < PIC_CACHE_TTL_MS) trimmed[k] = v;
+      }
+      localStorage.setItem(PIC_CACHE_KEY, JSON.stringify(trimmed));
+    } catch { /* desiste silenciosamente */ }
+  }
+}
+
+function picCacheGet(cache: PicCache, supporterId: string, platform: string): string | null {
+  const entry = cache[`${supporterId}:${platform}`];
+  if (!entry) return null;
+  if (Date.now() - entry.ts > PIC_CACHE_TTL_MS) return null; // expirado → força revalidação
+  return entry.url;
+}
+
+function picCacheSet(cache: PicCache, supporterId: string, platform: string, url: string) {
+  cache[`${supporterId}:${platform}`] = { url, ts: Date.now() };
+}
+
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
 
@@ -142,6 +186,8 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const fetchData = async () => {
     setLoading(true);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const picCache = loadPicCache();
+    let cacheDirty = false;
 
     // 1) Carrega supporters vinculados a alguma entidade cadastrada
     const [pessoasRes, funcionariosRes, contratadosRes, accountsRes] = await Promise.all([
@@ -277,8 +323,19 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         map.set(supporterId, inf);
       }
       if (!inf.authorPicture && c.author_profile_picture) inf.authorPicture = c.author_profile_picture;
-      if (c.author_profile_picture && !inf.profilePictures[platform]) {
-        inf.profilePictures[platform] = c.author_profile_picture;
+      // Foto: prioriza foto do comentário mais recente; senão usa cache
+      if (c.author_profile_picture) {
+        // Sobrescreve só se ainda não tem foto OU o cache para este (supporter,plataforma) está expirado/ausente
+        const cached = picCacheGet(picCache, supporterId, platform);
+        if (!inf.profilePictures[platform] || !cached || cached !== c.author_profile_picture) {
+          inf.profilePictures[platform] = c.author_profile_picture;
+          picCacheSet(picCache, supporterId, platform, c.author_profile_picture);
+          cacheDirty = true;
+        }
+      } else if (!inf.profilePictures[platform]) {
+        // sem foto no comentário → tenta cache
+        const cached = picCacheGet(picCache, supporterId, platform);
+        if (cached) inf.profilePictures[platform] = cached;
       }
       inf.platforms.add(platform);
       if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
@@ -329,6 +386,18 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       .filter((i) => i.totalComments >= 1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
+
+    // Hidratação final: garante que toda plataforma vinculada tente puxar do cache
+    for (const inf of sorted) {
+      for (const plat of inf.platforms) {
+        if (!inf.profilePictures[plat]) {
+          const cached = picCacheGet(picCache, inf.supporterId, plat);
+          if (cached) inf.profilePictures[plat] = cached;
+        }
+      }
+    }
+
+    if (cacheDirty) savePicCache(picCache);
 
     setInfluencers(sorted);
     setLoading(false);
