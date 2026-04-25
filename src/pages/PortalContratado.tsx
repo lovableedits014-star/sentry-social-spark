@@ -13,6 +13,7 @@ import {
   Plus, Award, MessageCircle, Copy, Crown, AlertTriangle, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 
 interface Mission {
   id: string;
@@ -380,6 +381,9 @@ export default function PortalContratado() {
       </div>
 
       <div className="p-4 space-y-4 max-w-lg mx-auto">
+
+        {/* Gerador de foto de campanha (visível mesmo antes do gate, é independente) */}
+        {clientId && portalUnlocked && <CampaignFrameGenerator clientId={clientId} />}
 
         {/* ── GATE: WhatsApp + Contract ────────────────────────── */}
         {!portalUnlocked && (
