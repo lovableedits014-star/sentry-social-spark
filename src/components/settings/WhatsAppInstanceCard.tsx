@@ -54,6 +54,19 @@ const getQrCodeFromResponse = (data?: BridgeResponse | null) => {
 const cleanPhoneForBridge = (raw: string) => {
   const digits = raw.replace(/\D/g, "");
   if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const local = digits.slice(4);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : digits;
+  }
+
+  if (digits.length === 11) {
+    const ddd = digits.slice(0, 2);
+    const local = digits.slice(2);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : `55${digits}`;
+  }
+
   return digits.startsWith("55") ? digits : `55${digits}`;
 };
 
@@ -317,7 +330,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
     const normalizedPhone = cleanPhoneForBridge(phone);
 
     console.log("[TESTE WHATSAPP] digitado:", phone);
-    console.log("[TESTE WHATSAPP] enviado sem alterar dígitos locais:", normalizedPhone);
+    console.log("[TESTE WHATSAPP] enviado para whatsapp-bridge:", normalizedPhone);
 
     if (!normalizedPhone || normalizedPhone.length < 10) {
       toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");

@@ -85,6 +85,19 @@ function normalizeName(name: string): string {
 function cleanPhoneForBridge(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
   if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const local = digits.slice(4);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : digits;
+  }
+
+  if (digits.length === 11) {
+    const ddd = digits.slice(0, 2);
+    const local = digits.slice(2);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : `55${digits}`;
+  }
+
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
@@ -1297,16 +1310,13 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
       });
     }
 
-    // IMPORTANT: do not transform `phone` here. The frontend is responsible
-    // for sending the fully-formed number (e.g. 5567992248348). Any
-    // normalization risks dropping the 9th digit. Forward as-is.
     const proxyBody: Record<string, unknown> = { action };
-    if (phone) proxyBody.phone = phone;
+    if (phone) proxyBody.phone = action === "send" ? cleanPhoneForBridge(String(phone)) : phone;
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
       console.log("[WhatsApp main] phone recebido no body:", phone);
-      console.log("[WhatsApp main] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
+      console.log("[WhatsApp main] phone enviado para whatsapp-bridge:", proxyBody.phone);
     }
 
     const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
@@ -1370,40 +1380,31 @@ function dispatchRandomDelay(minMs: number, maxMs: number) {
 }
 
 /**
- * Normaliza número para a Bridge PRESERVANDO o nono dígito.
+ * Normaliza número para a Bridge removendo o nono dígito de celulares BR,
+ * pois a ponte/WhatsApp confirma entrega nesse formato neste projeto.
  * Regras:
  *   "(67) 99224-8348"   -> 5567992248348
  *   "67992248348"       -> 5567992248348
- *   "5567992248348"     -> 5567992248348
- *   "556792248348"      -> 5567992248348  (insere o 9 que está faltando)
- *   "6792248348"        -> 5567992248348
+ *   "5567992248348"     -> 556792248348
+ *   "556792248348"      -> 556792248348
+ *   "6792248348"        -> 556792248348
  */
 function dispatchNormalizePhone(raw: string): string {
   const digits = String(raw || "").replace(/\D/g, "");
   if (!digits) return "";
 
-  // Já vem como 13 dígitos com 55 + DDD + 9 + 8 dígitos
-  if (digits.length === 13 && digits.startsWith("55")) return digits;
-
-  // 11 dígitos = DDD + 9 + 8 dígitos (sem 55)
-  if (digits.length === 11) return `55${digits}`;
-
-  // 12 dígitos com 55 + DDD + 8 dígitos (faltando o 9)
-  if (digits.length === 12 && digits.startsWith("55")) {
+  if (digits.length === 13 && digits.startsWith("55")) {
     const ddd = digits.slice(2, 4);
-    const rest = digits.slice(4);
-    if (rest.length === 8) return `55${ddd}9${rest}`;
-    return digits;
+    const local = digits.slice(4);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : digits;
   }
 
-  // 10 dígitos = DDD + 8 dígitos (sem 55, sem 9)
-  if (digits.length === 10) {
+  if (digits.length === 11) {
     const ddd = digits.slice(0, 2);
-    const rest = digits.slice(2);
-    return `55${ddd}9${rest}`;
+    const local = digits.slice(2);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : `55${digits}`;
   }
 
-  // Fallback: prefixa 55 se ainda não tiver
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 

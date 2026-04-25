@@ -42,9 +42,22 @@ const sanitizeBridgeData = (data: any) => {
   return safe;
 };
 
-function cleanPhoneForBridge(raw: string): string {
+function normalizeBrazilPhoneForBridge(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
   if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const local = digits.slice(4);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : digits;
+  }
+
+  if (digits.length === 11) {
+    const ddd = digits.slice(0, 2);
+    const local = digits.slice(2);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : `55${digits}`;
+  }
+
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
@@ -332,12 +345,12 @@ Deno.serve(async (req) => {
     // the fully-formed number (e.g. 5567992248348). Any normalization risks
     // dropping the 9th digit. Forward exactly what was received.
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = phone;
+    if (phone) proxyBody.phone = action === "send" ? normalizeBrazilPhoneForBridge(phone) : phone;
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
       console.log("[WhatsApp manage-whatsapp-instance] phone recebido no body:", phone);
-      console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
+      console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge:", proxyBody.phone);
     }
 
     const { bridgeRes, bridgeData } = await fetchBridgeAction({
