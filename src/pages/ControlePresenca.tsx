@@ -234,19 +234,33 @@ export default function ControlePresenca() {
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {(["funcionario", "lider", "liderado", "apoiador"] as const).map((t) => {
               const pending = bulkToggle.isPending && bulkToggle.variables?.type === t;
+              const groupRows = (rows || []).filter((r) => r.person_type === t);
+              const groupTotal = groupRows.length;
+              const groupObrigados = groupRows.filter((r) => r.presenca_obrigatoria).length;
+              const allObrigados = groupTotal > 0 && groupObrigados === groupTotal;
               return (
               <div key={t} className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/20 min-w-0">
-                <span className="text-xs font-medium truncate">{TYPE_LABEL[t]}s</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium truncate">{TYPE_LABEL[t]}s</span>
+                  <Badge variant={allObrigados ? "default" : "secondary"} className="text-[10px] shrink-0">
+                    {groupObrigados}/{groupTotal}
+                  </Badge>
+                </div>
                 <div className="flex flex-col gap-1.5">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="default" className="w-full h-8 text-xs px-2" disabled={bulkToggle.isPending}>
+                      <Button
+                        size="sm"
+                        variant={allObrigados ? "outline" : "default"}
+                        className="w-full h-8 text-xs px-2"
+                        disabled={bulkToggle.isPending || allObrigados}
+                      >
                         {pending && bulkToggle.variables?.value === true ? (
                           <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin shrink-0" />
                         ) : (
                           <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" />
                         )}
-                        <span className="truncate">Obrigar todos</span>
+                        <span className="truncate">{allObrigados ? "Todos obrigados" : "Obrigar todos"}</span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -267,13 +281,18 @@ export default function ControlePresenca() {
                   </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="w-full h-8 text-xs px-2" disabled={bulkToggle.isPending}>
+                      <Button
+                        size="sm"
+                        variant={groupObrigados > 0 ? "default" : "outline"}
+                        className="w-full h-8 text-xs px-2"
+                        disabled={bulkToggle.isPending || groupObrigados === 0}
+                      >
                         {pending && bulkToggle.variables?.value === false ? (
                           <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin shrink-0" />
                         ) : (
                           <XCircle className="w-3.5 h-3.5 mr-1 shrink-0" />
                         )}
-                        <span className="truncate">Desmarcar todos</span>
+                        <span className="truncate">{groupObrigados === 0 ? "Nenhum obrigado" : "Desmarcar todos"}</span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
