@@ -93,10 +93,56 @@ async function createClientInstance(params: {
 
   const bridgeData = await bridgeRes.json().catch(() => ({}));
 
+  // Persist api_key even when QR generation failed — the instance exists on the
+  // bridge and we'll need the key to retry/reconnect. Without this, the next
+  // call would create another instance from scratch and loop forever.
+  if (bridgeData.api_key) {
+    const { error: updateError } = await adminClient
+      .from("clients")
+      .update({
+        whatsapp_bridge_url: BRIDGE_URL,
+        whatsapp_bridge_api_key: bridgeData.api_key,
+      } as any)
+      .eq("id", clientId);
+
+    if (updateError) {
+      return jsonResponse(
+        { error: "Erro ao salvar as credenciais da instância", details: updateError.message },
+        500,
+      );
+    }
+  }
+
+  // Bridge created the instance but failed to issue a QR code immediately.
+  // Try to fetch a QR via reconnect using the freshly-saved api_key.
+  if ((!bridgeRes.ok || !bridgeData.success) && bridgeData.api_key) {
+    try {
+      const retryRes = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": bridgeData.api_key,
+        },
+        body: JSON.stringify({ action: "reconnect" }),
+      });
+      const retryData = await retryRes.json().catch(() => ({}));
+      if (retryRes.ok && (retryData.qrcode || retryData.instance?.qrcode)) {
+        return jsonResponse({
+          success: true,
+          qrcode: retryData.qrcode ?? retryData.instance?.qrcode,
+          instance: retryData.instance,
+          recreated: true,
+        });
+      }
+    } catch (err) {
+      console.error("Retry reconnect after create failed:", err);
+    }
+  }
+
   if (!bridgeRes.ok || !bridgeData.success) {
     return jsonResponse(
       { error: bridgeData.error || "Erro ao criar instância", details: bridgeData },
-      bridgeRes.status,
+      200,
     );
   }
 
@@ -104,21 +150,6 @@ async function createClientInstance(params: {
     return jsonResponse(
       { error: "A ponte não retornou a api_key da instância", details: bridgeData },
       502,
-    );
-  }
-
-  const { error: updateError } = await adminClient
-    .from("clients")
-    .update({
-      whatsapp_bridge_url: BRIDGE_URL,
-      whatsapp_bridge_api_key: bridgeData.api_key,
-    } as any)
-    .eq("id", clientId);
-
-  if (updateError) {
-    return jsonResponse(
-      { error: "Erro ao salvar as credenciais da instância", details: updateError.message },
-      500,
     );
   }
 
