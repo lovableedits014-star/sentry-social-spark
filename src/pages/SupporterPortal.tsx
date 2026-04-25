@@ -815,15 +815,15 @@ export default function SupporterPortal() {
                       <Label className="text-xs flex items-center gap-1">
                         <Facebook className="w-3 h-3 text-blue-600" /> Facebook (username)
                       </Label>
-                      <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva (sem @)" />
-                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é facebook.com/joaosilva, coloque "joaosilva"</p>
+                      <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva ou cole a URL do perfil" />
+                      <p className="text-xs text-muted-foreground">Pode colar a URL completa (ex: facebook.com/joaosilva) que extraímos automaticamente.</p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs flex items-center gap-1">
                         <Instagram className="w-3 h-3 text-pink-500" /> Instagram (username)
                       </Label>
-                      <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva (sem @)" />
-                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é instagram.com/joaosilva, coloque "joaosilva"</p>
+                      <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva ou cole a URL do perfil" />
+                      <p className="text-xs text-muted-foreground">Pode colar a URL completa (ex: instagram.com/joaosilva) que extraímos automaticamente.</p>
                     </div>
                     <div className="border-t pt-3 mt-2">
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
