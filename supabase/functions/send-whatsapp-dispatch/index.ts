@@ -20,23 +20,17 @@ function randomDelay(minMs: number, maxMs: number) {
 }
 
 /**
- * Gera variantes de telefone brasileiro (com e sem o 9 do celular),
- * sempre com DDI 55. Tenta primeiro a forma com 9.
+ * Normaliza telefone brasileiro para envio mantendo o 9º dígito do celular.
+ * Ex.: 6792248348 -> 5567992248348 / 556792248348 -> 5567992248348.
  */
-function brazilianPhoneVariants(raw: string): string[] {
+function normalizeBrazilianPhoneWithNinthDigit(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return [];
+  if (!digits) return raw;
   const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
   const ddd = withCountry.slice(2, 4);
   const rest = withCountry.slice(4);
-  const variants = new Set<string>();
-  variants.add(withCountry);
-  if (rest.length === 9 && rest.startsWith("9")) {
-    variants.add(`55${ddd}${rest.slice(1)}`);
-  } else if (rest.length === 8) {
-    variants.add(`55${ddd}9${rest}`);
-  }
-  return Array.from(variants);
+  if (rest.length === 8) return `55${ddd}9${rest}`;
+  return withCountry;
 }
 
 Deno.serve(async (req) => {
@@ -215,43 +209,29 @@ Deno.serve(async (req) => {
 
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
-            const variants = brazilianPhoneVariants(recipient.telefone);
-            let sendRes: Response | null = null;
-            let errBody = "";
-            for (const candidate of variants) {
-              sendRes = await fetch(bridgeUrl, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Api-Key": bridgeApiKey,
-                },
-                body: JSON.stringify({
-                  action: "send",
-                  phone: candidate,
-                  message: personalizedMsg,
-                }),
-              });
-              if (sendRes.ok) {
-                const data = await sendRes.clone().json().catch(() => ({} as any));
-                const failedSoftly =
-                  data?.success === false ||
-                  /not.?(exist|found|registered)|no.?wa|not.?on.?whats|invalid.?(jid|number)/i.test(
-                    String(data?.error ?? data?.message ?? "")
-                  );
-                if (!failedSoftly) break;
-                errBody = String(data?.error ?? data?.message ?? "número não encontrado");
-              } else {
-                errBody = await sendRes.text();
-              }
-            }
+            const phoneClean = normalizeBrazilianPhoneWithNinthDigit(recipient.telefone);
 
-            if (sendRes && sendRes.ok && !errBody) {
+            const sendRes = await fetch(bridgeUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Api-Key": bridgeApiKey,
+              },
+              body: JSON.stringify({
+                action: "send",
+                phone: phoneClean,
+                message: personalizedMsg,
+              }),
+            });
+
+            if (sendRes.ok) {
               sent++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "enviado", enviado_em: new Date().toISOString() })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
             } else {
+              const errBody = await sendRes.text();
               failed++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "falha", erro: errBody.slice(0, 200) })
