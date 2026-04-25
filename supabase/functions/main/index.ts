@@ -1297,16 +1297,16 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
       });
     }
 
+    // IMPORTANT: do not transform `phone` here. The frontend is responsible
+    // for sending the fully-formed number (e.g. 5567992248348). Any
+    // normalization risks dropping the 9th digit. Forward as-is.
     const proxyBody: Record<string, unknown> = { action };
     if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
-      const sanitizedPhone = cleanPhoneForBridge(phone);
       console.log("[WhatsApp main] phone recebido no body:", phone);
-      console.log("[WhatsApp main] phone após sanitize:", sanitizedPhone);
-      proxyBody.phone = sanitizedPhone;
-      console.log("[WhatsApp main] phone enviado para whatsapp-bridge:", proxyBody.phone);
+      console.log("[WhatsApp main] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
     }
 
     const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
