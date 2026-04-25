@@ -9,6 +9,12 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function cleanPhoneForBridge(raw: string): string {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") ? digits : `55${digits}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -86,7 +92,7 @@ Deno.serve(async (req) => {
       for (const pessoa of toSend) {
         try {
           const personalizedMsg = config.mensagem_template.replace(/{nome}/g, pessoa.nome);
-          const phoneClean = pessoa.telefone.replace(/\D/g, "");
+          const phoneClean = cleanPhoneForBridge(pessoa.telefone);
 
           // Send via Bridge API (text only — images handled externally)
           const sendRes = await fetch(bridgeUrl, {
