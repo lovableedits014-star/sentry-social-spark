@@ -26,6 +26,9 @@ type Influencer = {
   firstSeen: string;
   lastSeen: string;
   score: number;
+  supporterId: string;
+  registeredName: string;
+  origin: "pessoa" | "funcionario" | "contratado" | "apoiador";
 };
 
 function computeScore(inf: Influencer): number {
@@ -37,6 +40,13 @@ function computeScore(inf: Influencer): number {
     inf.negativeCount * 2
   );
 }
+
+const ORIGIN_LABEL: Record<Influencer["origin"], string> = {
+  pessoa: "CRM",
+  funcionario: "Funcionário",
+  contratado: "Contratado",
+  apoiador: "Apoiador",
+};
 
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
@@ -62,6 +72,61 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     setLoading(true);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
+    // 1) Carrega supporters vinculados a alguma entidade cadastrada
+    const [pessoasRes, funcionariosRes, contratadosRes, accountsRes] = await Promise.all([
+      supabase.from("pessoas").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("funcionarios").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("contratados" as any).select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("supporter_accounts").select("supporter_id, name").eq("client_id", clientId).not("supporter_id", "is", null),
+    ]);
+
+    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"] }>();
+    for (const r of (accountsRes.data || []) as any[]) {
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador" });
+    }
+    for (const r of (contratadosRes.data || []) as any[]) {
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado" });
+    }
+    for (const r of (funcionariosRes.data || []) as any[]) {
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario" });
+    }
+    for (const r of (pessoasRes.data || []) as any[]) {
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa" });
+    }
+
+    const supporterIds = Array.from(supporterMeta.keys());
+    if (supporterIds.length === 0) {
+      setInfluencers([]);
+      setLoading(false);
+      return;
+    }
+
+    // 2) Busca perfis sociais (platform + platform_user_id) desses supporters
+    const profileKeyToSupporter = new Map<string, string>();
+    {
+      let pFrom = 0;
+      const pSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from("supporter_profiles")
+          .select("supporter_id, platform, platform_user_id")
+          .in("supporter_id", supporterIds)
+          .range(pFrom, pFrom + pSize - 1);
+        if (!data || data.length === 0) break;
+        for (const sp of data) {
+          profileKeyToSupporter.set(`${sp.platform}:${sp.platform_user_id}`, sp.supporter_id);
+        }
+        pFrom += pSize;
+        if (data.length < pSize) break;
+      }
+    }
+
+    if (profileKeyToSupporter.size === 0) {
+      setInfluencers([]);
+      setLoading(false);
+      return;
+    }
+
     let allComments: any[] = [];
     let from = 0;
     const pageSize = 1000;
@@ -75,7 +140,11 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         .neq("text", "__post_stub__")
         .range(from, from + pageSize - 1);
       if (data && data.length > 0) {
-        allComments = allComments.concat(data);
+        // filtra apenas os vinculados a entidades cadastradas
+        const filtered = data.filter((c) =>
+          profileKeyToSupporter.has(`${c.platform || "facebook"}:${c.platform_user_id}`)
+        );
+        allComments = allComments.concat(filtered);
         from += pageSize;
         if (data.length < pageSize) break;
       } else break;
@@ -108,6 +177,10 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     for (const c of allComments) {
       if (!c.platform_user_id) continue;
       const key = `${c.platform || "facebook"}:${c.platform_user_id}`;
+      const supporterId = profileKeyToSupporter.get(key);
+      if (!supporterId) continue;
+      const meta = supporterMeta.get(supporterId);
+      if (!meta) continue;
       let inf = map.get(key);
       if (!inf) {
         inf = {
@@ -116,6 +189,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
           repliesReceived: 0, uniquePosts: 0, firstSeen: c.comment_created_time || "",
           lastSeen: c.comment_created_time || "", score: 0,
+          supporterId, registeredName: meta.name, origin: meta.origin,
         };
         map.set(key, inf);
       }
@@ -142,7 +216,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     }
 
     const sorted = Array.from(map.values())
-      .filter((i) => i.totalComments >= 2)
+      .filter((i) => i.totalComments >= 1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
 
@@ -193,8 +267,8 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <Users className="w-10 h-10 text-muted-foreground/50" />
-            <p className="text-muted-foreground">Nenhum influenciador detectado nos últimos {days} dias.</p>
-            <p className="text-xs text-muted-foreground/70">Sincronize comentários para que o sistema identifique os principais comentaristas.</p>
+            <p className="text-muted-foreground">Nenhuma interação de pessoas cadastradas nos últimos {days} dias.</p>
+            <p className="text-xs text-muted-foreground/70">Apenas pessoas, funcionários, contratados e apoiadores cadastrados — com rede social vinculada — geram pontuação.</p>
           </CardContent>
         </Card>
       )}
@@ -211,15 +285,15 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     <div className="relative">
                       <Avatar className="w-12 h-12">
                         <AvatarImage src={inf.authorPicture || undefined} />
-                        <AvatarFallback className="text-sm font-bold">{inf.authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-sm font-bold">{(inf.registeredName || inf.authorName).charAt(0).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-background border flex items-center justify-center">
                         <RankIcon className={`w-3 h-3 ${rankColor}`} />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{inf.authorName}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{inf.platform}</p>
+                      <p className="font-semibold truncate">{inf.registeredName}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{inf.platform} · {ORIGIN_LABEL[inf.origin]}</p>
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
@@ -275,11 +349,11 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       <div className="flex items-center gap-2">
                         <Avatar className="w-7 h-7">
                           <AvatarImage src={inf.authorPicture || undefined} />
-                          <AvatarFallback className="text-[10px]">{inf.authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback className="text-[10px]">{(inf.registeredName || inf.authorName).charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate max-w-[150px]">{inf.authorName}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{inf.platform}</p>
+                          <p className="text-sm font-medium truncate max-w-[150px]">{inf.registeredName}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{inf.platform} · {ORIGIN_LABEL[inf.origin]}</p>
                         </div>
                       </div>
                     </TableCell>
