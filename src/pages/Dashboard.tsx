@@ -18,6 +18,7 @@ import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
 import { AuditPanel } from "@/components/dashboard/AuditPanel";
 import { DataHealthAlerts } from "@/components/dashboard/DataHealthAlerts";
+import { SuggestedActions } from "@/components/dashboard/SuggestedActions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EyeOff } from "lucide-react";
 
@@ -556,6 +557,9 @@ const Dashboard = () => {
 
       {/* Data Health Alerts — quedas bruscas e ausência de dados */}
       {clientId && <DataHealthAlerts clientId={clientId} />}
+
+      {/* Suggested Actions — próximos passos com links diretos */}
+      {clientId && <SuggestedActions clientId={clientId} />}
 
       {/* Audit Panel — transparência das métricas */}
       {clientId && <AuditPanel clientId={clientId} periodDays={periodDays} />}
