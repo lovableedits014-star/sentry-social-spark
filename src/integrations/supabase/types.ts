@@ -415,6 +415,7 @@ export type Database = {
           logo_url: string | null
           name: string
           presence_absence_days_threshold: number
+          presence_absence_message_template: string
           updated_at: string | null
           user_id: string
           whatsapp_bridge_api_key: string | null
@@ -434,6 +435,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           presence_absence_days_threshold?: number
+          presence_absence_message_template?: string
           updated_at?: string | null
           user_id: string
           whatsapp_bridge_api_key?: string | null
@@ -453,6 +455,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           presence_absence_days_threshold?: number
+          presence_absence_message_template?: string
           updated_at?: string | null
           user_id?: string
           whatsapp_bridge_api_key?: string | null
