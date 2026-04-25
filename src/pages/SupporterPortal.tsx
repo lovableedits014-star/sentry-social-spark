@@ -504,7 +504,7 @@ export default function SupporterPortal() {
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Gerador de foto de campanha */}
-        {clientId && <CampaignFrameGenerator clientId={clientId} />}
+        {clientId && <CampaignFrameGenerator clientId={clientId} variant="showcase" />}
         {/* Tabs: Presença / Convidar / Perfil */}
         <Tabs defaultValue="presenca">
           <TabsList className="grid w-full grid-cols-3 mb-4">
