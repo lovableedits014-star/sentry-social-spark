@@ -6,6 +6,7 @@ import {
   MessageSquare, TrendingUp, TrendingDown, Minus, AlertCircle,
   RefreshCw, Loader2, Users, Shield, Sparkles, Activity, ShieldAlert,
 } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
@@ -21,6 +22,7 @@ import { DataHealthAlerts } from "@/components/dashboard/DataHealthAlerts";
 import { SuggestedActions } from "@/components/dashboard/SuggestedActions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EyeOff } from "lucide-react";
+import { exportDashboardPdf } from "@/lib/dashboard-pdf-export";
 
 interface DashboardComment {
   id: string;
@@ -71,6 +73,7 @@ const Dashboard = () => {
   const [classifyingComment, setClassifyingComment] = useState<string | null>(null);
   const [selectedCrisis, setSelectedCrisis] = useState<Set<string>>(new Set());
   const [bulkHiding, setBulkHiding] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const queryClient = useQueryClient();
 
   const fetchDashboardData = useCallback(async () => {
