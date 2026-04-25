@@ -204,6 +204,47 @@ export type Database = {
           },
         ]
       }
+      campaign_frames: {
+        Row: {
+          client_id: string
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string
+          is_active: boolean
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url: string
+          is_active?: boolean
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_frames_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanha_tarefa_items: {
         Row: {
           client_id: string

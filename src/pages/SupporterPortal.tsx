@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
@@ -502,6 +503,8 @@ export default function SupporterPortal() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
+        {/* Gerador de foto de campanha */}
+        {clientId && <CampaignFrameGenerator clientId={clientId} />}
         {/* Tabs: Presença / Convidar / Perfil */}
         <Tabs defaultValue="presenca">
           <TabsList className="grid w-full grid-cols-3 mb-4">
