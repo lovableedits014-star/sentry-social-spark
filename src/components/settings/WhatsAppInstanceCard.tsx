@@ -202,7 +202,12 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
       return;
     }
 
-    throw new Error("A ponte não retornou um QR Code válido.");
+    // Bridge created the instance but didn't return a QR yet — common with UAZAPI.
+    // Move to awaiting_scan and rely on polling to fetch the QR.
+    setStoredQrCode(null);
+    setState("awaiting_scan");
+    startPolling();
+    toast.info("Instância criada. Aguardando geração do QR Code...");
   };
 
   const handleCreateInstance = async () => {
