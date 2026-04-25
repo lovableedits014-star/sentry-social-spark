@@ -36,6 +36,7 @@ import PortalFuncionario from "./pages/PortalFuncionario";
 import Telemarketing from "./pages/Telemarketing";
 import CadastroUnificado from "./pages/CadastroUnificado";
 import CadastroLiderConvite from "./pages/CadastroLiderConvite";
+import PortalUnificado from "./pages/PortalUnificado";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 
 // Wrappers de redirect para preservar links antigos
@@ -72,7 +73,9 @@ const App = () => (
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/telemarketing/:clientId" element={<Telemarketing />} />
-          <Route path="/portal/:clientId" element={<SupporterPortal />} />
+          {/* Portal unificado: detecta papéis e direciona */}
+          <Route path="/portal/:clientId" element={<PortalUnificado />} />
+          <Route path="/portal-apoiador/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
