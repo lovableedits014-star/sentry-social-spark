@@ -598,27 +598,14 @@ export default function PortalFuncionario() {
         </Tabs>
 
         {/* ── Social networks status ────────────────────────── */}
-        {funcionario.redes_sociais && funcionario.redes_sociais.length > 0 && (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm font-semibold mb-2">Suas Redes Sociais Vinculadas</p>
-              <div className="space-y-2">
-                {funcionario.redes_sociais.map((s: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    {s.plataforma === "instagram" && <Instagram className="w-4 h-4 text-pink-500" />}
-                    {s.plataforma === "facebook" && <Facebook className="w-4 h-4 text-blue-600" />}
-                    {s.plataforma === "tiktok" && <span className="text-sm">🎵</span>}
-                    <span className="text-muted-foreground">@{s.usuario}</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 ml-auto" />
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Suas interações nessas redes são monitoradas automaticamente para o ranking de engajamento.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <SocialNetworksEditor
+          table="funcionarios"
+          recordId={funcionario.id}
+          clientId={funcionario.client_id}
+          supporterId={funcionario.supporter_id || null}
+          initial={funcionario.redes_sociais || []}
+          onChange={(next) => setFuncionario({ ...funcionario, redes_sociais: next })}
+        />
       </div>
     </div>
   );
