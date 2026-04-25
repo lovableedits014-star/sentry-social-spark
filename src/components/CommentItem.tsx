@@ -184,6 +184,21 @@ export const CommentItem = memo(function CommentItem({
     stats.negative >= stats.positive && stats.negative >= stats.neutral ? "negative" : "neutral"
   ) : null;
 
+  // Build profile URL for the author
+  const profileUrl = (() => {
+    if (comment.author_unavailable) return null;
+    const platform = comment.platform || 'facebook';
+    if (platform === 'instagram') {
+      const handle = comment.author_name?.replace(/^@/, '').trim();
+      if (handle) return `https://www.instagram.com/${handle}/`;
+      return null;
+    }
+    // Facebook
+    if (comment.author_id) return `https://www.facebook.com/${comment.author_id}`;
+    if (comment.platform_user_id) return `https://www.facebook.com/${comment.platform_user_id}`;
+    return null;
+  })();
+
   return (
     <div className={`p-4 transition-colors ${
       isHidden ? 'bg-muted/60 opacity-70 border-l-2 border-muted-foreground/30' :
