@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.check-presence-absences]
 verify_jwt = false
+
+[functions.whatsapp-inbound-webhook]
+verify_jwt = false
