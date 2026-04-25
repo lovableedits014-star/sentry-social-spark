@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 
 type ParsedProfile = {
@@ -60,6 +60,8 @@ export default function SupporterRegister() {
   const [name, setName] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [showFbHelp, setShowFbHelp] = useState(false);
+  const [showIgHelp, setShowIgHelp] = useState(false);
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [email, setEmail] = useState("");
@@ -348,6 +350,26 @@ export default function SupporterRegister() {
                 <Facebook className="w-4 h-4 text-blue-600" />
                 Link do Facebook
               </Label>
+              <button
+                type="button"
+                onClick={() => setShowFbHelp(!showFbHelp)}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                Como pegar o link do meu Facebook?
+                {showFbHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              {showFbHelp && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-3">
+                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
+                    <li>📱 Abra o app do Facebook no seu celular</li>
+                    <li>👤 Toque na sua foto de perfil (canto superior direito)</li>
+                    <li>🔗 Toque em "Compartilhar perfil" e depois em "Copiar link"</li>
+                    <li>✅ Volte aqui e cole no campo abaixo</li>
+                  </ol>
+                  <img src="/assets/help-facebook.png" alt="Como copiar link do Facebook" className="w-full h-auto rounded-md border border-border" />
+                </div>
+              )}
               <Input
                 id="facebook"
                 value={facebookUrl}
@@ -378,6 +400,27 @@ export default function SupporterRegister() {
                 <Instagram className="w-4 h-4 text-pink-500" />
                 Link do Instagram
               </Label>
+              <button
+                type="button"
+                onClick={() => setShowIgHelp(!showIgHelp)}
+                className="flex items-center gap-1.5 text-xs text-pink-600 hover:underline"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                Como pegar o link do meu Instagram?
+                {showIgHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              {showIgHelp && (
+                <div className="rounded-lg border border-pink-200 dark:border-pink-800 bg-pink-50/50 dark:bg-pink-950/20 p-3 space-y-3">
+                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
+                    <li>📱 Abra o app do Instagram no seu celular</li>
+                    <li>👤 Toque no ícone da sua foto (canto inferior direito) para ir ao seu perfil</li>
+                    <li>⚙️ Toque em "Compartilhar Perfil"</li>
+                    <li>🔗 Toque em "Copiar Link"</li>
+                    <li>✅ Volte aqui e cole no campo abaixo</li>
+                  </ol>
+                  <img src="/assets/help-instagram.png" alt="Como copiar link do Instagram" className="w-full h-auto rounded-md border border-border" />
+                </div>
+              )}
               <Input
                 id="instagram"
                 value={instagramUrl}
