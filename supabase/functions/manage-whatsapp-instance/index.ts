@@ -99,9 +99,13 @@ async function createClientInstance(params: {
     return jsonResponse({ error: "Bridge token não configurado no servidor" }, 500);
   }
 
-  // Ensure old instance is gone before creating a new one
+  // Ensure old instance is gone before creating a new one. Even if the bridge
+  // rejects the old key, clear our stored credentials before issuing a fresh QR
+  // so the user never scans a QR linked to a stale/corrupted session.
   if (currentApiKey) {
     await deleteExistingInstance({ adminClient, clientId, clientApiKey: currentApiKey });
+  } else {
+    await deleteExistingInstance({ adminClient, clientId, clientApiKey: undefined });
   }
 
   const instanceName = providedName || clientName || "WhatsApp Bot";
@@ -139,7 +143,7 @@ async function createClientInstance(params: {
 
   // Bridge created the instance but failed to issue a QR code immediately.
   // Try to fetch a QR via reconnect using the freshly-saved api_key.
-  if ((!bridgeRes.ok || !bridgeData.success) && bridgeData.api_key) {
+  if ((!bridgeRes.ok || !bridgeData.success) && bridgeData.api_key && !isQrPendingResponse(bridgeData)) {
     try {
       const retryRes = await fetch(BRIDGE_URL, {
         method: "POST",
