@@ -44,11 +44,11 @@ const IED_SOURCES: MetricSource[] = [
     metric: "Engajamento (peso 25%)",
     table: "pessoas + interacoes_pessoa",
     filters: [
-      "pessoas.nivel_apoio IN (alto, comprometido)",
+      "pessoas.nivel_apoio IN (apoiador, militante)",
       "interacoes_pessoa.criado_em ≥ 30 dias",
     ],
     interval: "Últimos 30 dias",
-    formula: "(% apoio alto × 0.6) + (% interações por pessoa × 0.4) × 100",
+    formula: "(% apoiador+militante × 0.6) + (% interações por pessoa × 0.4) × 100",
   },
   {
     metric: "Check-in (peso 20%)",
