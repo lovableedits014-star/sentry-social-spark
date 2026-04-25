@@ -5,6 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, MessageCircle, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+type WhatsAppLink = {
+  appUrl: string;
+  webUrl: string;
+};
+
 interface WhatsAppGateProps {
   clientId: string;
   clientName?: string;
@@ -37,7 +42,7 @@ export default function WhatsAppGate({
   const [loading, setLoading] = useState(false);
   const [opened, setOpened] = useState(false);
   const [autoChecking, setAutoChecking] = useState(false);
-  const [whatsAppHref, setWhatsAppHref] = useState<string | null>(null);
+  const [whatsAppLink, setWhatsAppLink] = useState<WhatsAppLink | null>(null);
   const intervalRef = useRef<number | null>(null);
 
   const roleLabel =
@@ -57,7 +62,12 @@ export default function WhatsAppGate({
         const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
           clientName ? ` em ${clientName}` : ""
         }.`;
-        setWhatsAppHref(`${waUrl}?text=${encodeURIComponent(msg)}`);
+        const phone = waUrl.replace(/\D/g, "");
+        const text = encodeURIComponent(msg);
+        setWhatsAppLink({
+          appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
+          webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+        });
       } catch (err) {
         console.error("[WhatsAppGate] resolve link error:", err);
       }
@@ -99,10 +109,18 @@ export default function WhatsAppGate({
     };
   }, [opened, checkConfirmed, onConfirmed]);
 
+  const openResolvedWhatsApp = (link: WhatsAppLink) => {
+    setOpened(true);
+    toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+    window.location.href = link.appUrl;
+    window.setTimeout(() => {
+      window.location.href = link.webUrl;
+    }, 1200);
+  };
+
   const handleOpenWhatsApp = async () => {
-    if (whatsAppHref) {
-      setOpened(true);
-      toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+    if (whatsAppLink) {
+      openResolvedWhatsApp(whatsAppLink);
       return;
     }
 
@@ -120,11 +138,14 @@ export default function WhatsAppGate({
       const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
         clientName ? ` em ${clientName}` : ""
       }.`;
-      const finalUrl = `${waUrl}?text=${encodeURIComponent(msg)}`;
-      setWhatsAppHref(finalUrl);
-      window.location.href = finalUrl;
-      setOpened(true);
-      toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+      const phone = waUrl.replace(/\D/g, "");
+      const text = encodeURIComponent(msg);
+      const link = {
+        appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
+        webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+      };
+      setWhatsAppLink(link);
+      openResolvedWhatsApp(link);
     } catch (err: any) {
       toast.error(err?.message || "Erro ao abrir WhatsApp");
     } finally {
@@ -169,35 +190,17 @@ export default function WhatsAppGate({
           </div>
 
           <Button
-            asChild={Boolean(whatsAppHref)}
-            onClick={whatsAppHref ? undefined : handleOpenWhatsApp}
+            onClick={handleOpenWhatsApp}
             disabled={loading}
             size="lg"
             className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {whatsAppHref ? (
-              <a
-                href={whatsAppHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  setOpened(true);
-                  toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
-                }}
-              >
-                <MessageCircle className="w-5 h-5" />
-                {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
-              </a>
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <>
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <MessageCircle className="w-5 h-5" />
-                )}
-                {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
-              </>
+              <MessageCircle className="w-5 h-5" />
             )}
+            {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
           </Button>
 
           {opened && autoChecking && (
