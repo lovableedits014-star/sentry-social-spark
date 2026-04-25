@@ -230,14 +230,16 @@ Deno.serve(async (req) => {
     }
 
     // Proxy all other actions to bridge with X-Api-Key
+    // IMPORTANT: never transform `phone` here. The frontend already sends
+    // the fully-formed number (e.g. 5567992248348). Any normalization risks
+    // dropping the 9th digit. Forward exactly what was received.
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = action === "send" ? cleanPhoneForBridge(phone) : phone;
+    if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
       console.log("[WhatsApp manage-whatsapp-instance] phone recebido no body:", phone);
-      console.log("[WhatsApp manage-whatsapp-instance] phone após sanitize:", proxyBody.phone);
-      console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge:", proxyBody.phone);
+      console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
     }
 
     const bridgeRes = await fetch(BRIDGE_URL, {
