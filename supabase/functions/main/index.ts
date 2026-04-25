@@ -85,6 +85,19 @@ function normalizeName(name: string): string {
 function cleanPhoneForBridge(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
   if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const local = digits.slice(4);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : digits;
+  }
+
+  if (digits.length === 11) {
+    const ddd = digits.slice(0, 2);
+    const local = digits.slice(2);
+    return local.length === 9 && local.startsWith("9") ? `55${ddd}${local.slice(1)}` : `55${digits}`;
+  }
+
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
@@ -1297,16 +1310,13 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
       });
     }
 
-    // IMPORTANT: do not transform `phone` here. The frontend is responsible
-    // for sending the fully-formed number (e.g. 5567992248348). Any
-    // normalization risks dropping the 9th digit. Forward as-is.
     const proxyBody: Record<string, unknown> = { action };
-    if (phone) proxyBody.phone = phone;
+    if (phone) proxyBody.phone = action === "send" ? cleanPhoneForBridge(String(phone)) : phone;
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
       console.log("[WhatsApp main] phone recebido no body:", phone);
-      console.log("[WhatsApp main] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
+      console.log("[WhatsApp main] phone enviado para whatsapp-bridge:", proxyBody.phone);
     }
 
     const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
