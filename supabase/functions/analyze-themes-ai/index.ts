@@ -151,8 +151,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2) Sample if too many (cap at 250 to keep prompt bounded)
-    const MAX_SNIPPETS = 250;
+    // 2) Sample if too many (cap at 200 to keep total bounded)
+    const MAX_SNIPPETS = 200;
     const sampled = snippets.length > MAX_SNIPPETS
       ? snippets.sort(() => Math.random() - 0.5).slice(0, MAX_SNIPPETS)
       : snippets;
@@ -176,11 +176,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4) Build prompt
+    // 4) Build prompt template
     const knownLabels = knownThemes.map((t) => `- "${t.key}": ${t.label}`).join("\n");
-    const indexedSnippets = sampled
-      .map((s, idx) => `[${idx}] (${s.source}${s.sentiment ? `, ${s.sentiment}` : ""}) ${s.text}`)
-      .join("\n");
 
     const systemPrompt = `Você é um analista político especializado em mineração de texto. Sua tarefa é classificar mensagens (comentários de redes sociais, notas de telemarketing e interações de CRM) em temas relevantes para uma campanha política brasileira.
 
@@ -198,7 +195,19 @@ FORMATO DE SAÍDA:
   ]
 }`;
 
-    const userPrompt = `TEMAS CONHECIDOS:
+    // Process in small batches to respect TPM rate limits (e.g. Groq free tier = 6k TPM)
+    const BATCH_SIZE = 40;
+    const allThemes: ThemeClassification[] = [];
+    let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let lastError: string | null = null;
+
+    for (let batchStart = 0; batchStart < sampled.length; batchStart += BATCH_SIZE) {
+      const batch = sampled.slice(batchStart, batchStart + BATCH_SIZE);
+      const indexedSnippets = batch
+        .map((s, idx) => `[${batchStart + idx}] (${s.source}${s.sentiment ? `, ${s.sentiment}` : ""}) ${s.text}`)
+        .join("\n");
+
+      const userPrompt = `TEMAS CONHECIDOS:
 ${knownLabels || "(nenhum)"}
 
 MENSAGENS PARA CLASSIFICAR:
@@ -206,32 +215,61 @@ ${indexedSnippets}
 
 Retorne o JSON.`;
 
-    const llmResponse = await callLLM(llmConfig, {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      maxTokens: 3000,
-      temperature: 0.2,
-    });
+      try {
+        const llmResponse = await callLLM(llmConfig, {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          maxTokens: 1500,
+          temperature: 0.2,
+        });
 
-    // 5) Parse response
-    let parsed: { themes: ThemeClassification[] };
-    try {
-      const cleaned = llmResponse.content
-        .replace(/```json\s*/gi, "")
-        .replace(/```\s*/g, "")
-        .trim();
-      const jsonStart = cleaned.indexOf("{");
-      const jsonEnd = cleaned.lastIndexOf("}");
-      parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
-    } catch (e) {
-      console.error("Parse error:", e, "Raw:", llmResponse.content);
+        if (llmResponse.usage) {
+          totalUsage.prompt_tokens += llmResponse.usage.prompt_tokens || 0;
+          totalUsage.completion_tokens += llmResponse.usage.completion_tokens || 0;
+          totalUsage.total_tokens += llmResponse.usage.total_tokens || 0;
+        }
+
+        const cleaned = llmResponse.content
+          .replace(/```json\s*/gi, "")
+          .replace(/```\s*/g, "")
+          .trim();
+        const jsonStart = cleaned.indexOf("{");
+        const jsonEnd = cleaned.lastIndexOf("}");
+        const batchParsed: { themes: ThemeClassification[] } = JSON.parse(
+          cleaned.slice(jsonStart, jsonEnd + 1)
+        );
+        for (const t of batchParsed.themes || []) {
+          allThemes.push(t);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`Batch ${batchStart} failed:`, msg);
+        lastError = msg;
+        // If it's a rate limit (429/413/TPM), stop early but keep partial results
+        if (/rate.?limit|429|413|tokens per minute|TPM/i.test(msg)) {
+          break;
+        }
+      }
+
+      // Pause between batches to respect TPM limits
+      if (batchStart + BATCH_SIZE < sampled.length) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+
+    if (allThemes.length === 0 && lastError) {
+      const friendly = /rate.?limit|429|413|tokens per minute|TPM/i.test(lastError)
+        ? "Seu provedor de IA atingiu o limite de tokens por minuto. Tente novamente em alguns minutos ou use um modelo com cota maior nas Configurações."
+        : `Falha na análise por IA: ${lastError}`;
       return new Response(
-        JSON.stringify({ error: "Falha ao interpretar resposta da IA", raw: llmResponse.content.slice(0, 500) }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: friendly }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const parsed = { themes: allThemes };
 
     // 6) Aggregate results
     const known = new Set(knownThemes.map((t) => t.key));
@@ -284,7 +322,9 @@ Retorne o JSON.`;
         totalAvailable: snippets.length,
         provider: llmConfig.provider,
         model: llmConfig.model,
-        usage: llmResponse.usage,
+        usage: totalUsage,
+        partial: lastError ? true : false,
+        partialReason: lastError,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
