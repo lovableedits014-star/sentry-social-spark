@@ -208,24 +208,29 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
     // 1) Carrega supporters vinculados a alguma entidade cadastrada
     const [pessoasRes, funcionariosRes, contratadosRes, accountsRes] = await Promise.all([
-      supabase.from("pessoas").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("pessoas").select("supporter_id, nome, tipo_pessoa").eq("client_id", clientId).not("supporter_id", "is", null),
       supabase.from("funcionarios").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
-      supabase.from("contratados" as any).select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("contratados" as any).select("supporter_id, nome, is_lider").eq("client_id", clientId).not("supporter_id", "is", null),
       supabase.from("supporter_accounts").select("supporter_id, name").eq("client_id", clientId).not("supporter_id", "is", null),
     ]);
 
-    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"] }>();
+    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"]; category: string }>();
     for (const r of (accountsRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador", category: "apoiador" });
     }
     for (const r of (contratadosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado", category: r.is_lider ? "lider" : "liderado" });
     }
     for (const r of (funcionariosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario", category: "funcionario" });
     }
     for (const r of (pessoasRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa" });
+      if (r.supporter_id) {
+        const tipo = (r.tipo_pessoa as string) || "cidadao";
+        // mapeia tipo_pessoa para categoria de filtro
+        const cat = ["lider", "liderado", "indicado", "lideranca", "apoiador", "influenciador", "voluntario", "jornalista", "eleitor", "cidadao", "adversario"].includes(tipo) ? tipo : "outro";
+        supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa", category: cat });
+      }
     }
 
     const supporterIds = Array.from(supporterMeta.keys());
