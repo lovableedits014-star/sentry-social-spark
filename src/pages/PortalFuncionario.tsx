@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
+import WhatsAppGate from "@/components/portal/WhatsAppGate";
 
 interface Mission {
   id: string;
@@ -33,6 +34,7 @@ interface FuncionarioInfo {
   referral_code: string;
   referral_count: number;
   redes_sociais: any[];
+  whatsapp_confirmado?: boolean;
 }
 
 interface Referral {
@@ -99,7 +101,7 @@ export default function PortalFuncionario() {
 
     const { data: func } = await supabase
       .from("funcionarios" as any)
-      .select("id, nome, telefone, email, cidade, client_id, referral_code, referral_count, redes_sociais")
+      .select("id, nome, telefone, email, cidade, client_id, referral_code, referral_count, redes_sociais, whatsapp_confirmado")
       .eq("client_id", clientId)
       .eq("user_id", session.user.id)
       .maybeSingle();
@@ -345,6 +347,17 @@ export default function PortalFuncionario() {
   // ─── PORTAL ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
+      {/* WhatsApp anti-ban gate — required on first access */}
+      {funcionario && clientId && !funcionario.whatsapp_confirmado && (
+        <WhatsAppGate
+          clientId={clientId}
+          clientName={clientName}
+          clientLogo={clientLogo}
+          role="funcionario"
+          userName={funcionario.nome}
+          onConfirmed={() => setFuncionario({ ...funcionario, whatsapp_confirmado: true })}
+        />
+      )}
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
