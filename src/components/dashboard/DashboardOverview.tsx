@@ -227,7 +227,7 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
           </Card>
         </Link>
 
-        <Link to="/pessoas?nivel=alto">
+        <Link to="/pessoas?nivel=apoiador">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
               <ShieldCheck className="w-4 h-4 text-green-600 mb-1" />
