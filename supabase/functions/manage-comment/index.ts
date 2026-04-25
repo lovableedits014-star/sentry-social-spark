@@ -251,7 +251,32 @@ Deno.serve(async (req) => {
           );
         }
 
-        result = { success: true, message: 'Usuário bloqueado da página!' };
+        // Auto-hide the comment after blocking the user
+        let autoHideMsg = '';
+        try {
+          const hideResp = await fetch(`https://graph.facebook.com/v21.0/${comment.comment_id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_hidden: true, access_token: pageAccessToken }),
+          });
+          if (hideResp.ok) {
+            await supabaseClient.from('comments').update({ is_hidden: true }).eq('id', commentId);
+            autoHideMsg = ' Comentário ocultado automaticamente.';
+          } else {
+            const hideErr = await hideResp.json().catch(() => ({}));
+            // If already hidden or comment gone, still mark locally
+            if (hideErr?.error?.error_subcode === 1446036) {
+              await supabaseClient.from('comments').update({ is_hidden: true }).eq('id', commentId);
+              autoHideMsg = ' Comentário já estava ocultado.';
+            } else {
+              console.warn('Auto-hide after block failed:', hideErr);
+            }
+          }
+        } catch (e) {
+          console.warn('Auto-hide after block exception:', e);
+        }
+
+        result = { success: true, message: `Usuário bloqueado da página!${autoHideMsg}` };
         break;
       }
 
