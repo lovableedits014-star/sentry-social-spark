@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, Briefcase, ArrowLeft, ClipboardList } from "lucide-react";
+import { Heart, Briefcase, ArrowLeft } from "lucide-react";
 import SupporterRegister from "./SupporterRegister";
 import RegistroFuncionario from "./RegistroFuncionario";
 import RegistroPessoa from "./RegistroPessoa";
@@ -102,24 +102,6 @@ export default function CadastroUnificado() {
               <p className="text-sm text-muted-foreground">
                 Equipe oficial — check-in diário, missões e link para indicar apoiadores.
               </p>
-            </button>
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setPapel("campo")}
-              className="w-full text-left p-4 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-all flex items-center gap-3"
-            >
-              <div className="w-10 h-10 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <ClipboardList className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Cadastro detalhado de campo</p>
-                <p className="text-xs text-muted-foreground">
-                  Para cabos eleitorais — coleta endereço, zona/seção e intenção de voto.
-                </p>
-              </div>
             </button>
           </div>
 
