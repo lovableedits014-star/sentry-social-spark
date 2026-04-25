@@ -313,12 +313,15 @@ export default function SupporterPortal() {
     if (!account) return;
     setSavingProfile(true);
     try {
+      const newFb = editFacebook.replace("@", "").trim() || null;
+      const newIg = editInstagram.replace("@", "").trim() || null;
+
       const { error } = await supabase
         .from("supporter_accounts")
         .update({
           name: editName.trim() || account.name,
-          facebook_username: editFacebook.replace("@", "").trim() || null,
-          instagram_username: editInstagram.replace("@", "").trim() || null,
+          facebook_username: newFb,
+          instagram_username: newIg,
           city: editCity.trim() || null,
           neighborhood: editNeighborhood.trim() || null,
           state: editState.trim() || null,
@@ -330,23 +333,92 @@ export default function SupporterPortal() {
       setAccount({
         ...account,
         name: editName.trim() || account.name,
-        facebook_username: editFacebook.replace("@", "").trim() || null,
-        instagram_username: editInstagram.replace("@", "").trim() || null,
+        facebook_username: newFb,
+        instagram_username: newIg,
         city: editCity.trim() || null,
         neighborhood: editNeighborhood.trim() || null,
         state: editState.trim() || null,
       });
 
       // Update supporter name too if linked
-      if ((account as any).supporter_id) {
+      const supporterId = (account as any).supporter_id as string | null;
+      if (supporterId) {
         await supabase
           .from("supporters")
           .update({ name: editName.trim() || account.name } as any)
-          .eq("id", (account as any).supporter_id);
+          .eq("id", supporterId);
+
+        // Sincroniza supporter_profiles para refletir as redes corrigidas.
+        // Sem isso, a vinculação de comentários antigos não é refeita e o
+        // Ranking de Influenciadores não passa a contabilizar o usuário.
+        const desired = [
+          newFb ? { platform: "facebook", username: newFb } : null,
+          newIg ? { platform: "instagram", username: newIg } : null,
+        ].filter(Boolean) as { platform: string; username: string }[];
+
+        // Remove perfis cujas redes foram apagadas / trocadas
+        const platformsToKeep = desired.map((d) => d.platform);
+        if (platformsToKeep.length > 0) {
+          await supabase
+            .from("supporter_profiles")
+            .delete()
+            .eq("supporter_id", supporterId)
+            .not("platform", "in", `(${platformsToKeep.join(",")})`);
+        } else {
+          await supabase.from("supporter_profiles").delete().eq("supporter_id", supporterId);
+        }
+
+        for (const d of desired) {
+          // Verifica se já existe entry para essa plataforma
+          const { data: existing } = await supabase
+            .from("supporter_profiles")
+            .select("id, platform_user_id, platform_username")
+            .eq("supporter_id", supporterId)
+            .eq("platform", d.platform)
+            .maybeSingle();
+
+          const avatarUrl =
+            d.platform === "facebook"
+              ? `https://graph.facebook.com/${d.username}/picture?type=large&redirect=true`
+              : null;
+
+          if (existing) {
+            if (
+              existing.platform_user_id !== d.username ||
+              existing.platform_username !== d.username
+            ) {
+              await supabase
+                .from("supporter_profiles")
+                .update({
+                  platform_user_id: d.username,
+                  platform_username: d.username,
+                  ...(avatarUrl ? { profile_picture_url: avatarUrl } : {}),
+                } as any)
+                .eq("id", existing.id);
+            }
+          } else {
+            await supabase.from("supporter_profiles").insert({
+              supporter_id: supporterId,
+              platform: d.platform,
+              platform_user_id: d.username,
+              platform_username: d.username,
+              profile_picture_url: avatarUrl,
+            } as any);
+          }
+        }
+
+        // Reprocessa interações órfãs e recalcula o score.
+        if (clientId) {
+          await supabase.rpc("link_orphan_engagement_actions", { p_client_id: clientId } as any);
+          await supabase.rpc("calculate_engagement_score", {
+            p_supporter_id: supporterId,
+            p_days: 30,
+          } as any);
+        }
       }
 
       setEditMode(false);
-      toast.success("Perfil atualizado!");
+      toast.success("Perfil atualizado! Suas interações foram revinculadas.");
     } catch (err: any) {
       toast.error("Erro ao salvar perfil");
     } finally {
