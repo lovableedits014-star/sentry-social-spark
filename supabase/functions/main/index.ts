@@ -1351,6 +1351,334 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
   }
 }
 
+// =============================================================================
+// send-whatsapp-dispatch (mass dispatch via client bridge)
+// =============================================================================
+
+const DISPATCH_DEFAULT_BATCH_SIZE = 10;
+const DISPATCH_DEFAULT_DELAY_MIN = 5;
+const DISPATCH_DEFAULT_DELAY_MAX = 15;
+const DISPATCH_DEFAULT_BATCH_PAUSE = 60;
+const DISPATCH_MAX_RUNTIME_MS = 55000;
+
+function dispatchSleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function dispatchRandomDelay(minMs: number, maxMs: number) {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+/**
+ * Normaliza número para a Bridge PRESERVANDO o nono dígito.
+ * Regras:
+ *   "(67) 99224-8348"   -> 5567992248348
+ *   "67992248348"       -> 5567992248348
+ *   "5567992248348"     -> 5567992248348
+ *   "556792248348"      -> 5567992248348  (insere o 9 que está faltando)
+ *   "6792248348"        -> 5567992248348
+ */
+function dispatchNormalizePhone(raw: string): string {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+
+  // Já vem como 13 dígitos com 55 + DDD + 9 + 8 dígitos
+  if (digits.length === 13 && digits.startsWith("55")) return digits;
+
+  // 11 dígitos = DDD + 9 + 8 dígitos (sem 55)
+  if (digits.length === 11) return `55${digits}`;
+
+  // 12 dígitos com 55 + DDD + 8 dígitos (faltando o 9)
+  if (digits.length === 12 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const rest = digits.slice(4);
+    if (rest.length === 8) return `55${ddd}9${rest}`;
+    return digits;
+  }
+
+  // 10 dígitos = DDD + 8 dígitos (sem 55, sem 9)
+  if (digits.length === 10) {
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+    return `55${ddd}9${rest}`;
+  }
+
+  // Fallback: prefixa 55 se ainda não tiver
+  return digits.startsWith("55") ? digits : `55${digits}`;
+}
+
+async function sendWhatsappDispatchHandler(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const startTime = Date.now();
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: authErr } = await userClient.auth.getUser();
+    const user = userData?.user;
+    if (authErr || !user) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const body = await req.json().catch(() => ({} as any));
+    const {
+      client_id,
+      titulo,
+      mensagem,
+      tipo,
+      tag_filtro,
+      batch_size,
+      delay_min,
+      delay_max,
+      batch_pause,
+    } = body || {};
+
+    if (!client_id || !titulo || !mensagem || !tipo) {
+      return jsonResponse(400, { error: "Campos obrigatórios: client_id, titulo, mensagem, tipo" });
+    }
+
+    const BATCH_SIZE = batch_size || DISPATCH_DEFAULT_BATCH_SIZE;
+    const DELAY_MIN_MS = (delay_min || DISPATCH_DEFAULT_DELAY_MIN) * 1000;
+    const DELAY_MAX_MS = (delay_max || DISPATCH_DEFAULT_DELAY_MAX) * 1000;
+    const BATCH_PAUSE_MS = (batch_pause || DISPATCH_DEFAULT_BATCH_PAUSE) * 1000;
+
+    const adminClient = createClient(supabaseUrl, serviceKey);
+
+    // Verifica posse e busca config da ponte
+    const { data: clientData } = await adminClient
+      .from("clients")
+      .select("id, whatsapp_bridge_url, whatsapp_bridge_api_key")
+      .eq("id", client_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!clientData) {
+      return jsonResponse(403, { error: "Forbidden" });
+    }
+
+    const bridgeUrl = clientData.whatsapp_bridge_url as string | null;
+    const bridgeApiKey = clientData.whatsapp_bridge_api_key as string | null;
+
+    if (!bridgeUrl || !bridgeApiKey) {
+      return jsonResponse(400, {
+        error: "Ponte WhatsApp não configurada para este cliente. Contacte o administrador.",
+      });
+    }
+
+    // Monta lista de destinatários
+    let recipients: { telefone: string; nome: string }[] = [];
+
+    if (tipo === "funcionarios") {
+      const { data } = await adminClient
+        .from("funcionarios")
+        .select("telefone, nome")
+        .eq("client_id", client_id)
+        .eq("status", "ativo")
+        .not("telefone", "is", null);
+      recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+    } else if (tipo === "contratados") {
+      const { data } = await adminClient
+        .from("contratados")
+        .select("telefone, nome")
+        .eq("client_id", client_id)
+        .eq("status", "ativo")
+        .not("telefone", "is", null);
+      recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+    } else {
+      if (tag_filtro) {
+        const { data: tagData } = await adminClient
+          .from("tags")
+          .select("id")
+          .eq("client_id", client_id)
+          .eq("nome", tag_filtro)
+          .single();
+
+        if (tagData) {
+          const { data: pessoaTagData } = await adminClient
+            .from("pessoas_tags")
+            .select("pessoa_id")
+            .eq("tag_id", (tagData as any).id);
+
+          const pessoaIds = (pessoaTagData || []).map((pt: any) => pt.pessoa_id);
+          if (pessoaIds.length > 0) {
+            const { data } = await adminClient
+              .from("pessoas")
+              .select("telefone, nome")
+              .eq("client_id", client_id)
+              .in("id", pessoaIds)
+              .not("telefone", "is", null);
+            recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+          }
+        }
+      } else {
+        const { data } = await adminClient
+          .from("pessoas")
+          .select("telefone, nome")
+          .eq("client_id", client_id)
+          .not("telefone", "is", null)
+          .limit(2000);
+        recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+      }
+    }
+
+    if (recipients.length === 0) {
+      return jsonResponse(400, { error: "Nenhum destinatário encontrado" });
+    }
+
+    // Cria o registro do disparo
+    const { data: dispatch, error: dispatchErr } = await adminClient
+      .from("whatsapp_dispatches")
+      .insert({
+        client_id,
+        tipo,
+        titulo,
+        mensagem_template: mensagem,
+        total_destinatarios: recipients.length,
+        tag_filtro,
+        status: "enviando",
+        started_at: new Date().toISOString(),
+        batch_size: BATCH_SIZE,
+        delay_min_seconds: Math.round(DELAY_MIN_MS / 1000),
+        delay_max_seconds: Math.round(DELAY_MAX_MS / 1000),
+        batch_pause_seconds: Math.round(BATCH_PAUSE_MS / 1000),
+      })
+      .select()
+      .single();
+
+    if (dispatchErr || !dispatch) {
+      throw new Error("Failed to create dispatch: " + (dispatchErr?.message || "unknown"));
+    }
+
+    // Itens do disparo
+    const items = recipients.map((r) => ({
+      dispatch_id: (dispatch as any).id,
+      telefone: r.telefone,
+      nome: r.nome,
+    }));
+
+    for (let i = 0; i < items.length; i += 100) {
+      await adminClient.from("whatsapp_dispatch_items").insert(items.slice(i, i + 100));
+    }
+
+    const processDispatch = async () => {
+      let sent = 0;
+      let failed = 0;
+
+      for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
+        if (Date.now() - startTime > DISPATCH_MAX_RUNTIME_MS) {
+          await adminClient.from("whatsapp_dispatches").update({
+            enviados: sent,
+            falhas: failed,
+            status: sent > 0 ? "concluido" : "falhou",
+            error_message: `Tempo limite atingido. ${sent} enviados de ${recipients.length}.`,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq("id", (dispatch as any).id);
+          return;
+        }
+
+        const batchStart = batch * BATCH_SIZE;
+        const batchItems = recipients.slice(batchStart, batchStart + BATCH_SIZE);
+
+        for (const recipient of batchItems) {
+          if (Date.now() - startTime > DISPATCH_MAX_RUNTIME_MS) break;
+
+          try {
+            const personalizedMsg = String(mensagem).replace(/{nome}/g, recipient.nome || "");
+            const phoneNormalized = dispatchNormalizePhone(recipient.telefone);
+            console.log("[send-whatsapp-dispatch] phone recebido no body:", recipient.telefone);
+            console.log("[send-whatsapp-dispatch] phone após normalize:", phoneNormalized);
+            console.log("[send-whatsapp-dispatch] phone enviado para whatsapp-bridge:", phoneNormalized);
+
+            const sendRes = await fetch(bridgeUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Api-Key": bridgeApiKey,
+              },
+              body: JSON.stringify({
+                action: "send",
+                phone: phoneNormalized,
+                message: personalizedMsg,
+              }),
+            });
+
+            if (sendRes.ok) {
+              sent++;
+              await adminClient.from("whatsapp_dispatch_items")
+                .update({ status: "enviado", enviado_em: new Date().toISOString() })
+                .eq("dispatch_id", (dispatch as any).id)
+                .eq("telefone", recipient.telefone);
+            } else {
+              const errBody = await sendRes.text();
+              failed++;
+              await adminClient.from("whatsapp_dispatch_items")
+                .update({ status: "falha", erro: errBody.slice(0, 200) })
+                .eq("dispatch_id", (dispatch as any).id)
+                .eq("telefone", recipient.telefone);
+            }
+          } catch (err) {
+            failed++;
+            await adminClient.from("whatsapp_dispatch_items")
+              .update({ status: "falha", erro: String(err).slice(0, 200) })
+              .eq("dispatch_id", (dispatch as any).id)
+              .eq("telefone", recipient.telefone);
+          }
+
+          if ((sent + failed) % 5 === 0) {
+            await adminClient.from("whatsapp_dispatches").update({
+              enviados: sent,
+              falhas: failed,
+              updated_at: new Date().toISOString(),
+            }).eq("id", (dispatch as any).id);
+          }
+
+          await dispatchSleep(dispatchRandomDelay(DELAY_MIN_MS, DELAY_MAX_MS));
+        }
+
+        if (batch < Math.ceil(recipients.length / BATCH_SIZE) - 1) {
+          await dispatchSleep(BATCH_PAUSE_MS);
+        }
+      }
+
+      await adminClient.from("whatsapp_dispatches").update({
+        enviados: sent,
+        falhas: failed,
+        status: "concluido",
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", (dispatch as any).id);
+    };
+
+    if (typeof (globalThis as any).EdgeRuntime !== "undefined") {
+      (globalThis as any).EdgeRuntime.waitUntil(processDispatch());
+    } else {
+      // fire-and-forget para liberar a resposta rapidamente
+      processDispatch().catch((err) => console.error("[send-whatsapp-dispatch] bg error:", err));
+    }
+
+    return jsonResponse(200, {
+      success: true,
+      dispatch_id: (dispatch as any).id,
+      total: recipients.length,
+    });
+  } catch (error) {
+    console.error("[send-whatsapp-dispatch] error:", error);
+    return jsonResponse(500, { error: errorMessage(error) });
+  }
+}
+
 const handlers: Record<string, Handler> = {
   "register-supporter": registerSupporterHandler,
   "register-contratado": registerContratadoHandler,
@@ -1361,6 +1689,7 @@ const handlers: Record<string, Handler> = {
   "check-alerts": checkAlertsHandler,
   "resolve-whatsapp-link": resolveWhatsappLinkHandler,
   "manage-whatsapp-instance": manageWhatsappInstanceHandler,
+  "send-whatsapp-dispatch": sendWhatsappDispatchHandler,
 };
 
 Deno.serve(async (req: Request) => {
