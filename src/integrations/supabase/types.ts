@@ -207,31 +207,37 @@ export type Database = {
       campaign_frames: {
         Row: {
           client_id: string
+          composition: Json | null
           created_at: string
           display_order: number
           id: string
           image_url: string
           is_active: boolean
+          kind: string
           nome: string
           updated_at: string
         }
         Insert: {
           client_id: string
+          composition?: Json | null
           created_at?: string
           display_order?: number
           id?: string
           image_url: string
           is_active?: boolean
+          kind?: string
           nome: string
           updated_at?: string
         }
         Update: {
           client_id?: string
+          composition?: Json | null
           created_at?: string
           display_order?: number
           id?: string
           image_url?: string
           is_active?: boolean
+          kind?: string
           nome?: string
           updated_at?: string
         }
