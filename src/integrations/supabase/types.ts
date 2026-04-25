@@ -3192,6 +3192,10 @@ export type Database = {
         Args: { p_days?: number; p_supporter_id: string }
         Returns: number
       }
+      confirm_whatsapp_by_phone: {
+        Args: { p_client_id: string; p_phone: string }
+        Returns: Json
+      }
       count_assigned_supporters: {
         Args: { p_team_member_id: string }
         Returns: number

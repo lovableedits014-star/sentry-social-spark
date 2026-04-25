@@ -587,6 +587,14 @@ export default function SupporterPortal() {
           role="apoiador"
           userName={account.name}
           onConfirmed={() => setAccount({ ...account, whatsapp_confirmado: true })}
+          checkConfirmed={async () => {
+            const { data } = await supabase
+              .from("supporter_accounts")
+              .select("whatsapp_confirmado")
+              .eq("id", account.id)
+              .maybeSingle();
+            return Boolean(data?.whatsapp_confirmado);
+          }}
         />
       )}
       {/* Top bar */}
