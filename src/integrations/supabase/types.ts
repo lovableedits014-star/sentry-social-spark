@@ -3289,6 +3289,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      whatsapp_phone_variants: { Args: { p_phone: string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "client" | "team_member" | "funcionario"
