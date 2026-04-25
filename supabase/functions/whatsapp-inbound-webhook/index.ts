@@ -22,6 +22,12 @@ function extractSenderPhone(payload: any): string | null {
   if (!payload || typeof payload !== "object") return null;
 
   const candidates: any[] = [
+    payload.senderPn,
+    payload.participantPn,
+    payload.remoteJidAlt,
+    payload.data?.senderPn,
+    payload.data?.participantPn,
+    payload.data?.remoteJidAlt,
     payload.from,
     payload.sender,
     payload.phone,

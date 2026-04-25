@@ -67,25 +67,6 @@ Deno.serve(async (req) => {
 
     const waNumber = number.startsWith("55") ? number : `55${number}`;
 
-    const tableByRole: Record<typeof targetRole, string> = {
-      contratado: "contratados",
-      funcionario: "funcionarios",
-      apoiador: "supporter_accounts",
-    };
-
-    const { error: updateError } = await adminClient
-      .from(tableByRole[targetRole])
-      .update({ whatsapp_confirmado: true })
-      .eq("client_id", client_id)
-      .eq("user_id", authData.user.id);
-
-    if (updateError) {
-      return new Response(JSON.stringify({ error: updateError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
