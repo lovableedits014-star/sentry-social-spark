@@ -106,12 +106,12 @@ serve(async (req) => {
     }
 
     // ── 3. ENGAGEMENT SCORE (0-100) ──
-    // % de pessoas com nível de apoio "alto"/"comprometido" + interações registradas
+    // % de pessoas com nível de apoio "apoiador"/"militante" + interações registradas
     const { count: totalApoio } = await supabase
       .from("pessoas")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
-      .in("nivel_apoio", ["alto", "comprometido"]);
+      .in("nivel_apoio", ["apoiador", "militante"]);
 
     const { count: totalInteracoes30d } = await supabase
       .from("interacoes_pessoa")
