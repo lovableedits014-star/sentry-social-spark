@@ -9,6 +9,7 @@ import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettin
 import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 import PublicLinksCard from "@/components/settings/PublicLinksCard";
 import UsageEstimatePanel from "@/components/settings/UsageEstimatePanel";
+import CampaignFramesCard from "@/components/settings/CampaignFramesCard";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -56,6 +57,9 @@ const Settings = () => {
 
       {/* Links de Acesso Público */}
       {clientId && <PublicLinksCard clientId={clientId} />}
+
+      {/* Molduras de Foto de Campanha */}
+      {clientId && <CampaignFramesCard clientId={clientId} />}
 
       {/* Telemarketing Module */}
       {clientId && <TelemarketingSettingsCard clientId={clientId} />}
