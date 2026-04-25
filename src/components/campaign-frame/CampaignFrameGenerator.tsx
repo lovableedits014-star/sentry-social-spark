@@ -109,14 +109,14 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
 
   // Preload composition images when frame changes
   useEffect(() => {
-    if (!selectedFrame) return;
+    if (!selectedFrame || !open) return;
     (async () => {
       const cache = await preloadComposition(getComposition(selectedFrame));
       cacheRef.current = cache;
       redraw();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFrame]);
+  }, [selectedFrame, open]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
