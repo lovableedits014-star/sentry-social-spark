@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import WhatsAppGate from "@/components/portal/WhatsAppGate";
+import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
 
 interface Mission {
   id: string;
@@ -35,6 +36,7 @@ interface FuncionarioInfo {
   referral_count: number;
   redes_sociais: any[];
   whatsapp_confirmado?: boolean;
+  supporter_id?: string | null;
 }
 
 interface Referral {
