@@ -1302,7 +1302,11 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
-      proxyBody.phone = cleanPhoneForBridge(phone);
+      const sanitizedPhone = cleanPhoneForBridge(phone);
+      console.log("[WhatsApp main] phone recebido no body:", phone);
+      console.log("[WhatsApp main] phone após sanitize:", sanitizedPhone);
+      proxyBody.phone = sanitizedPhone;
+      console.log("[WhatsApp main] phone enviado para whatsapp-bridge:", proxyBody.phone);
     }
 
     const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
