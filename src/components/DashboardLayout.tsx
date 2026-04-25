@@ -250,8 +250,8 @@ const DashboardLayout = () => {
       {/* ── DESKTOP sidebar ── */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:flex lg:w-64 flex-col bg-sidebar text-sidebar-foreground shadow-xl">
         <div className="flex h-full flex-col">
-          <div className="flex h-20 items-center justify-center border-b border-sidebar-border px-6">
-            <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-16 w-auto object-contain" />
+          <div className="flex h-40 items-center justify-center border-b border-sidebar-border px-6 py-3">
+            <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-32 w-auto object-contain" />
           </div>
           <SidebarNav />
           <UserSection />
@@ -259,7 +259,7 @@ const DashboardLayout = () => {
       </aside>
 
       {/* ── MOBILE top bar ── */}
-      <header className="lg:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-3 border-b bg-sidebar text-sidebar-foreground px-4 shadow-sm">
+      <header className="lg:hidden fixed top-0 inset-x-0 z-40 h-20 flex items-center gap-3 border-b bg-sidebar text-sidebar-foreground px-4 shadow-sm">
         <button
           onClick={() => setMobileOpen(true)}
           className="p-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
@@ -268,7 +268,7 @@ const DashboardLayout = () => {
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center justify-center flex-1">
-          <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-11 w-auto object-contain" />
+          <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-16 w-auto object-contain" />
         </div>
       </header>
 
@@ -277,9 +277,9 @@ const DashboardLayout = () => {
         <>
           <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMobileOpen(false)} />
           <aside className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar text-sidebar-foreground shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
+            <div className="flex items-center justify-between h-24 px-4 border-b border-sidebar-border">
               <div className="flex items-center justify-center flex-1">
-                <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-12 w-auto object-contain" />
+                <img src="/sentinelle-logo.png" alt="Sentinelle" className="h-20 w-auto object-contain" />
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
