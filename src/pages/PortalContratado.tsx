@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
+import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
 
 interface Mission {
   id: string;
@@ -46,6 +47,7 @@ interface ContratadoInfo {
   contrato_aceito: boolean;
   whatsapp_confirmado: boolean;
   is_lider: boolean;
+  redes_sociais?: any[];
 }
 
 interface Liderado {
@@ -114,7 +116,7 @@ export default function PortalContratado() {
 
     const { data: cont } = await supabase
       .from("contratados")
-      .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado, is_lider")
+      .select("id, nome, telefone, email, cidade, zona_eleitoral, quota_indicados, client_id, contrato_aceito, whatsapp_confirmado, is_lider, redes_sociais")
       .eq("client_id", clientId)
       .eq("user_id", session.user.id)
       .maybeSingle();
@@ -668,6 +670,16 @@ export default function PortalContratado() {
               )}
             </TabsContent>
           </Tabs>
+        )}
+
+        {contratado && (
+          <SocialNetworksEditor
+            table="contratados"
+            recordId={contratado.id}
+            clientId={contratado.client_id}
+            initial={contratado.redes_sociais || []}
+            onChange={(next) => setContratado({ ...contratado, redes_sociais: next })}
+          />
         )}
       </div>
     </div>
