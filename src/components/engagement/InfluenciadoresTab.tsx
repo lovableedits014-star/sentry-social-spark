@@ -220,6 +220,16 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     // Helpers de normalização
     const normName = (s: string | null | undefined) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
     const normPhone = (s: string | null | undefined) => (s || "").replace(/\D/g, "").replace(/^55/, "");
+    // Tokens significativos (>= 3 letras) para matching tolerante por intersecção
+    // Ex.: "MAYER RODRIGUES BACLAN" ∩ "Mayer Baclan" = {mayer, baclan} → match
+    const STOP_TOKENS = new Set(["da", "de", "do", "das", "dos", "e", "jr", "neto", "filho", "the"]);
+    const nameTokens = (s: string | null | undefined): string[] => {
+      const base = (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return base
+        .split(/[^a-z0-9]+/)
+        .map((t) => t.replace(/\d+$/, "")) // remove sufixos numéricos tipo "014"
+        .filter((t) => t.length >= 3 && !STOP_TOKENS.has(t));
+    };
     const PRIORITY: Record<string, number> = {
       funcionario: 100, lider: 90, liderado: 80, indicado: 70,
       lideranca: 60, influenciador: 55, voluntario: 50, jornalista: 45,
@@ -227,10 +237,12 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     };
     const VALID_TIPOS = new Set(["lider", "liderado", "indicado", "lideranca", "apoiador", "influenciador", "voluntario", "jornalista", "eleitor", "cidadao", "adversario"]);
 
-    // Índices por nome e telefone → { category, name, origin }
+    // Índices por nome (exato) e telefone → { category, name, origin }
     type CategoryHit = { name: string; origin: Influencer["origin"]; category: string };
     const byName = new Map<string, CategoryHit>();
     const byPhone = new Map<string, CategoryHit>();
+    // Lista de hits cadastrados (para matching tolerante por tokens)
+    const registeredHits: Array<{ tokens: string[]; hit: CategoryHit }> = [];
     const upsertHit = (key: string, store: Map<string, CategoryHit>, hit: CategoryHit) => {
       if (!key) return;
       const existing = store.get(key);
@@ -238,12 +250,17 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         store.set(key, hit);
       }
     };
+    const registerHit = (hit: CategoryHit) => {
+      const toks = nameTokens(hit.name);
+      if (toks.length > 0) registeredHits.push({ tokens: toks, hit });
+    };
 
     // funcionários (alta prioridade)
     for (const r of (funcionariosRes.data || []) as any[]) {
       const hit: CategoryHit = { name: r.nome, origin: "funcionario", category: "funcionario" };
       upsertHit(normName(r.nome), byName, hit);
       upsertHit(normPhone(r.telefone), byPhone, hit);
+      registerHit(hit);
     }
     // contratados (líder ou liderado)
     for (const r of (contratadosRes.data || []) as any[]) {
@@ -251,12 +268,14 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       const hit: CategoryHit = { name: r.nome, origin: "contratado", category: cat };
       upsertHit(normName(r.nome), byName, hit);
       upsertHit(normPhone(r.telefone), byPhone, hit);
+      registerHit(hit);
     }
     // indicados (de líderes)
     for (const r of (indicadosRes.data || []) as any[]) {
       const hit: CategoryHit = { name: r.nome, origin: "contratado", category: "indicado" };
       upsertHit(normName(r.nome), byName, hit);
       upsertHit(normPhone(r.telefone), byPhone, hit);
+      registerHit(hit);
     }
     // pessoas (CRM)
     for (const r of (pessoasRes.data || []) as any[]) {
@@ -265,12 +284,31 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       const hit: CategoryHit = { name: r.nome, origin: "pessoa", category: cat };
       upsertHit(normName(r.nome), byName, hit);
       upsertHit(normPhone(r.telefone), byPhone, hit);
+      registerHit(hit);
     }
     // apoiadores do portal
     for (const r of (accountsRes.data || []) as any[]) {
       const hit: CategoryHit = { name: r.name, origin: "apoiador", category: "apoiador" };
       upsertHit(normName(r.name), byName, hit);
+      // não registramos apoiador para matching tolerante — evita "promover" categorias por colisão de primeiro nome
     }
+
+    // Função de matching tolerante: para um nome de supporter, tenta encontrar
+    // o melhor cadastro com pelo menos 2 tokens em comum (ou 1 token se o nome do supporter só tem 1 token).
+    const findBestHitByTokens = (supporterName: string): CategoryHit | null => {
+      const supTokens = nameTokens(supporterName);
+      if (supTokens.length === 0) return null;
+      const minOverlap = supTokens.length === 1 ? 1 : 2;
+      let best: { hit: CategoryHit; score: number } | null = null;
+      for (const { tokens, hit } of registeredHits) {
+        const overlap = tokens.filter((t) => supTokens.includes(t)).length;
+        if (overlap < minOverlap) continue;
+        const prio = PRIORITY[hit.category] || 0;
+        const composite = overlap * 1000 + prio;
+        if (!best || composite > best.score) best = { hit, score: composite };
+      }
+      return best?.hit || null;
+    };
 
     // 2) Mapa supporter_id → meta (por supporter_id direto)
     const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"]; category: string }>();
@@ -296,12 +334,18 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       }
     }
 
-    // 3) RECLASSIFICAÇÃO: para cada supporter já mapeado, tenta promover categoria
-    //    usando o índice por nome normalizado (ex.: supporter_account "Mayer" → funcionário)
+    // 3) RECLASSIFICAÇÃO: para cada supporter já mapeado, tenta promover categoria.
+    //    1º — match exato por nome normalizado.
+    //    2º — match tolerante por intersecção de tokens (ex.: "Mayer Baclan" ↔ "MAYER RODRIGUES BACLAN").
     for (const [sid, meta] of supporterMeta.entries()) {
-      const byNameHit = byName.get(normName(meta.name));
-      if (byNameHit && (PRIORITY[byNameHit.category] || 0) > (PRIORITY[meta.category] || 0)) {
-        supporterMeta.set(sid, byNameHit);
+      const exact = byName.get(normName(meta.name));
+      if (exact && (PRIORITY[exact.category] || 0) > (PRIORITY[meta.category] || 0)) {
+        supporterMeta.set(sid, exact);
+        continue;
+      }
+      const tokenHit = findBestHitByTokens(meta.name);
+      if (tokenHit && (PRIORITY[tokenHit.category] || 0) > (PRIORITY[meta.category] || 0)) {
+        supporterMeta.set(sid, tokenHit);
       }
     }
 
