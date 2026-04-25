@@ -28,6 +28,7 @@ type Influencer = {
   lastSeen: string;
   score: number;
   byPlatform: Record<string, { comments: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
+  profileUrls: Record<string, string>;
 };
 
 function computeScore(inf: Influencer): number {
@@ -47,20 +48,65 @@ const ORIGIN_LABEL: Record<Influencer["origin"], string> = {
   apoiador: "Apoiador",
 };
 
-const PlatformBadges = ({ platforms, breakdown }: { platforms: string[]; breakdown: Influencer["byPlatform"] }) => (
+const PlatformBadges = ({
+  platforms,
+  breakdown,
+  urls,
+}: {
+  platforms: string[];
+  breakdown: Influencer["byPlatform"];
+  urls: Record<string, string>;
+}) => (
   <div className="flex flex-wrap gap-1">
     {platforms.map((p) => {
       const b = breakdown[p];
       const Icon = p === "instagram" ? Instagram : Facebook;
-      return (
-        <Badge key={p} variant="outline" className="text-[10px] gap-1 px-1.5 py-0">
+      const url = urls[p];
+      const content = (
+        <>
           <Icon className="w-3 h-3" />
           {b?.comments || 0}
+        </>
+      );
+      if (url) {
+        return (
+          <a
+            key={p}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={`Abrir perfil no ${p === "instagram" ? "Instagram" : "Facebook"}`}
+          >
+            <Badge variant="outline" className="text-[10px] gap-1 px-1.5 py-0 hover:bg-accent hover:border-primary cursor-pointer transition-colors">
+              {content}
+            </Badge>
+          </a>
+        );
+      }
+      return (
+        <Badge key={p} variant="outline" className="text-[10px] gap-1 px-1.5 py-0 opacity-70">
+          {content}
         </Badge>
       );
     })}
   </div>
 );
+
+function buildProfileUrl(platform: string, username: string | null, platformUserId: string): string | null {
+  if (platform === "instagram") {
+    const handle = (username || platformUserId || "").replace(/^@/, "").trim();
+    if (!handle) return null;
+    return `https://instagram.com/${handle}`;
+  }
+  if (platform === "facebook") {
+    if (username && /^[a-zA-Z0-9.]+$/.test(username)) return `https://facebook.com/${username}`;
+    if (platformUserId && /^\d+$/.test(platformUserId)) return `https://facebook.com/${platformUserId}`;
+    if (username) return `https://facebook.com/${username}`;
+    return null;
+  }
+  return null;
+}
 
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
@@ -117,18 +163,25 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
     // 2) Busca perfis sociais (platform + platform_user_id) desses supporters
     const profileKeyToSupporter = new Map<string, string>();
+    const supporterProfileUrls = new Map<string, Record<string, string>>();
     {
       let pFrom = 0;
       const pSize = 1000;
       while (true) {
         const { data } = await supabase
           .from("supporter_profiles")
-          .select("supporter_id, platform, platform_user_id")
+          .select("supporter_id, platform, platform_user_id, platform_username")
           .in("supporter_id", supporterIds)
           .range(pFrom, pFrom + pSize - 1);
         if (!data || data.length === 0) break;
         for (const sp of data) {
           profileKeyToSupporter.set(`${sp.platform}:${sp.platform_user_id}`, sp.supporter_id);
+          const url = buildProfileUrl(sp.platform, (sp as any).platform_username, sp.platform_user_id);
+          if (url) {
+            const existing = supporterProfileUrls.get(sp.supporter_id) || {};
+            existing[sp.platform] = url;
+            supporterProfileUrls.set(sp.supporter_id, existing);
+          }
         }
         pFrom += pSize;
         if (data.length < pSize) break;
@@ -207,6 +260,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           repliesReceived: 0, uniquePosts: 0,
           firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
           byPlatform: {},
+          profileUrls: supporterProfileUrls.get(supporterId) || {},
         };
         map.set(supporterId, inf);
       }
@@ -346,7 +400,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-1 border-t">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Por rede</span>
-                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} />
+                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
                   </div>
                   <div className="space-y-1">
                     <SentimentBar pos={inf.positiveCount} neg={inf.negativeCount} neu={inf.neutralCount} />
@@ -407,7 +461,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} />
+                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
