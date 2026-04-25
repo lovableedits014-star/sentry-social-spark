@@ -94,6 +94,7 @@ export default function PessoaPerfil() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
+  const [editingSocial, setEditingSocial] = useState<any>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => { if (id) fetchData(); }, [id]);
@@ -540,6 +541,15 @@ export default function PessoaPerfil() {
                             </a>
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => { setEditingSocial(s); setSocialOpen(true); }}
+                          title="Editar"
+                        >
+                          ✎
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteSocial(s.id)}>✕</Button>
                       </div>
                     </div>
@@ -563,7 +573,13 @@ export default function PessoaPerfil() {
       </div>
 
       <EditarPessoaDialog open={editOpen} onOpenChange={setEditOpen} pessoa={pessoa} onSuccess={fetchData} />
-      <AddSocialDialog open={socialOpen} onOpenChange={setSocialOpen} pessoaId={pessoa.id} onSuccess={fetchData} />
+      <AddSocialDialog
+        open={socialOpen}
+        onOpenChange={(o) => { setSocialOpen(o); if (!o) setEditingSocial(null); }}
+        pessoaId={pessoa.id}
+        onSuccess={fetchData}
+        editing={editingSocial}
+      />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
