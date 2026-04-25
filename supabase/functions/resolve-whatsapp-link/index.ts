@@ -57,7 +57,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const number = (clientData?.whatsapp_oficial || "").replace(/\D/g, "");
+    const { data: instanceData } = await adminClient
+      .from("whatsapp_instances")
+      .select("phone_number")
+      .eq("client_id", client_id)
+      .eq("status", "connected")
+      .eq("is_active", true)
+      .not("phone_number", "is", null)
+      .order("is_primary", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const number = (instanceData?.phone_number || clientData?.whatsapp_oficial || "").replace(/\D/g, "");
     if (!number) {
       return new Response(JSON.stringify({ error: "WhatsApp oficial não configurado" }), {
         status: 404,
