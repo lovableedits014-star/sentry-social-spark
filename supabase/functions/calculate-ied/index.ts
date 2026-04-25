@@ -74,80 +74,97 @@ serve(async (req) => {
     }
 
     // ── 2. GROWTH SCORE (0-100) ──
-    // Compare supporters created in last 30 days vs previous 30 days
-    const { count: recentSupporters } = await supabase
-      .from("supporters")
+    // Crescimento da base política (pessoas) nos últimos 30 dias vs 30 anteriores
+    const { count: recentPessoas } = await supabase
+      .from("pessoas")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
       .gte("created_at", thirtyDaysAgo.toISOString());
 
-    const { count: previousSupporters } = await supabase
-      .from("supporters")
+    const { count: previousPessoas } = await supabase
+      .from("pessoas")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
       .gte("created_at", sixtyDaysAgo.toISOString())
       .lt("created_at", thirtyDaysAgo.toISOString());
 
-    const { count: totalSupporters } = await supabase
-      .from("supporters")
+    const { count: totalPessoas } = await supabase
+      .from("pessoas")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId);
 
     let growthScore = 0;
-    const recent = recentSupporters || 0;
-    const previous = previousSupporters || 0;
+    const recent = recentPessoas || 0;
+    const previous = previousPessoas || 0;
     if (previous > 0) {
       const growthRate = ((recent - previous) / previous) * 100;
-      // Map: -50% or worse = 0, 0% = 50, +100% or more = 100
       growthScore = Math.round(Math.max(0, Math.min(100, 50 + growthRate / 2)));
     } else if (recent > 0) {
-      growthScore = 80; // New growth from zero
+      growthScore = 80;
     } else {
-      growthScore = (totalSupporters || 0) > 0 ? 30 : 0; // Stagnant but has base
+      growthScore = (totalPessoas || 0) > 0 ? 30 : 0;
     }
 
     // ── 3. ENGAGEMENT SCORE (0-100) ──
-    // Average engagement score of active supporters
-    const { data: supporters } = await supabase
-      .from("supporters")
-      .select("engagement_score")
+    // % de pessoas com nível de apoio "alto"/"comprometido" + interações registradas
+    const { count: totalApoio } = await supabase
+      .from("pessoas")
+      .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
-      .not("engagement_score", "is", null)
-      .gt("engagement_score", 0);
+      .in("nivel_apoio", ["alto", "comprometido"]);
 
-    let engagementScore = 0;
-    if (supporters && supporters.length > 0) {
-      const avgScore = supporters.reduce((sum, s) => sum + (s.engagement_score || 0), 0) / supporters.length;
-      // Normalize: assume max realistic score ~50, map to 0-100
-      engagementScore = Math.round(Math.min(100, (avgScore / 30) * 100));
-    }
+    const { count: totalInteracoes30d } = await supabase
+      .from("interacoes_pessoa")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .gte("criado_em", thirtyDaysAgo.toISOString());
 
-    // Also factor in: what % of supporters are active (have engagement > 0)
-    const activeRatio = (totalSupporters || 0) > 0
-      ? (supporters?.length || 0) / (totalSupporters || 1)
+    const apoioRatio = (totalPessoas || 0) > 0
+      ? Math.min(1, (totalApoio || 0) / (totalPessoas || 1))
       : 0;
-    engagementScore = Math.round(engagementScore * 0.6 + activeRatio * 100 * 0.4);
+    // Meta: pelo menos 1 interação por pessoa nos últimos 30 dias
+    const interacoesRatio = (totalPessoas || 0) > 0
+      ? Math.min(1, (totalInteracoes30d || 0) / (totalPessoas || 1))
+      : 0;
+    const engagementScore = Math.round(apoioRatio * 100 * 0.6 + interacoesRatio * 100 * 0.4);
 
     // ── 4. CHECK-IN SCORE (0-100) ──
-    // Check-in frequency in last 30 days
-    const { count: checkinCount } = await supabase
-      .from("supporter_checkins")
+    // Frequência de check-ins de contratados + funcionários com presença obrigatória
+    const { count: contratadosObrig } = await supabase
+      .from("contratados")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("presenca_obrigatoria", true)
+      .eq("status", "ativo");
+
+    const { count: funcionariosObrig } = await supabase
+      .from("funcionarios")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("presenca_obrigatoria", true)
+      .eq("status", "ativo");
+
+    const { count: contratadoCheckins } = await supabase
+      .from("contratado_checkins")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
       .gte("checkin_at", thirtyDaysAgo.toISOString());
 
-    const { count: accountCount } = await supabase
-      .from("supporter_accounts")
+    const { count: funcionarioCheckins } = await supabase
+      .from("funcionario_checkins")
       .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId);
+      .eq("client_id", clientId)
+      .gte("checkin_at", thirtyDaysAgo.toISOString());
 
+    const totalObrig = (contratadosObrig || 0) + (funcionariosObrig || 0);
+    const totalCheckins = (contratadoCheckins || 0) + (funcionarioCheckins || 0);
     let checkinScore = 0;
-    const accounts = accountCount || 0;
-    const checkins = checkinCount || 0;
-    if (accounts > 0) {
-      // Ideal: each supporter checks in at least once a week (4x in 30 days)
-      const idealCheckins = accounts * 4;
-      checkinScore = Math.round(Math.min(100, (checkins / idealCheckins) * 100));
+    if (totalObrig > 0) {
+      // Ideal: ~22 dias úteis em 30 dias por pessoa com presença obrigatória
+      const idealCheckins = totalObrig * 22;
+      checkinScore = Math.round(Math.min(100, (totalCheckins / idealCheckins) * 100));
+    } else if (totalCheckins > 0) {
+      checkinScore = 50; // Há check-ins mas ninguém marcado como obrigatório
     }
 
     // ── FINAL IED SCORE ──
@@ -161,9 +178,17 @@ serve(async (req) => {
 
     const details = {
       sentiment: { total: totalAnalyzed, positive: positiveCount, negative: negativeCount, neutral: neutralCount },
-      growth: { recent, previous, total: totalSupporters || 0 },
-      engagement: { activeCount: supporters?.length || 0, totalSupporters: totalSupporters || 0 },
-      checkins: { count: checkins, accounts },
+      growth: { recent, previous, total: totalPessoas || 0 },
+      engagement: {
+        pessoasAltoApoio: totalApoio || 0,
+        totalPessoas: totalPessoas || 0,
+        interacoes30d: totalInteracoes30d || 0,
+      },
+      checkins: {
+        contratadoCheckins: contratadoCheckins || 0,
+        funcionarioCheckins: funcionarioCheckins || 0,
+        totalObrigatorios: totalObrig,
+      },
     };
 
     // Upsert score for current week

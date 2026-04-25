@@ -1,309 +1,585 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "react-router-dom";
 import {
-  Users, UserPlus, CalendarCheck, Trophy, Share2, Sparkles,
-  BookUser, TrendingUp, Crown, ArrowRight, Flame, MapPin,
+  Users, UserCheck, CalendarCheck, PhoneCall, Sparkles, Crown, ArrowRight,
+  Flame, BookUser, ShieldCheck, AlertTriangle, TrendingUp, Briefcase, Cake, MessageCircle,
 } from "lucide-react";
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, PieChart, Pie, Cell,
+} from "recharts";
 
 interface DashboardOverviewProps {
   clientId: string;
 }
 
+const formatDate = (d: Date) =>
+  d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
 export function DashboardOverview({ clientId }: DashboardOverviewProps) {
-  // Base Política count
-  const { data: pessoasCount } = useQuery({
-    queryKey: ["overview-pessoas", clientId],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("pessoas")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId);
-      return count || 0;
-    },
-    enabled: !!clientId,
-  });
-
-  // Portal accounts count
-  const { data: accountStats } = useQuery({
-    queryKey: ["overview-accounts", clientId],
-    queryFn: async () => {
-      const { count: total } = await supabase
-        .from("supporter_accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId);
-
-      const { count: referred } = await supabase
-        .from("supporter_accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId)
-        .not("referred_by", "is", null);
-
-      return { total: total || 0, referred: referred || 0 };
-    },
-    enabled: !!clientId,
-  });
-
-  // Check-ins today
-  const { data: checkinStats } = useQuery({
-    queryKey: ["overview-checkins", clientId],
+  // ─────────── KPIs principais ───────────
+  const { data: kpis } = useQuery({
+    queryKey: ["overview-kpis", clientId],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
-      const { count: todayCount } = await supabase
-        .from("supporter_checkins")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId)
-        .eq("checkin_date", today);
-
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { count: weekCount } = await supabase
-        .from("supporter_checkins")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId)
-        .gte("checkin_date", sevenDaysAgo.toISOString().split("T")[0]);
+      const sevenIso = sevenDaysAgo.toISOString();
+      const sevenDate = sevenIso.split("T")[0];
 
-      return { today: todayCount || 0, week: weekCount || 0 };
+      const [
+        pessoasTotal,
+        pessoasNovas7d,
+        pessoasComprometidas,
+        contratadosAtivos,
+        lideresTotal,
+        funcionariosAtivos,
+        contratadoCheckinsHoje,
+        funcionarioCheckinsHoje,
+        indicadosPendentes,
+        indicadosTotal,
+      ] = await Promise.all([
+        supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+        supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId).gte("created_at", sevenIso),
+        supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId).in("nivel_apoio", ["apoiador", "militante"]),
+        supabase.from("contratados").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "ativo"),
+        supabase.from("contratados").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_lider", true).eq("status", "ativo"),
+        supabase.from("funcionarios").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "ativo"),
+        supabase.from("contratado_checkins").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("checkin_date", today),
+        supabase.from("funcionario_checkins").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("checkin_date", today),
+        supabase.from("contratado_indicados").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("ligacao_status", "pendente"),
+        supabase.from("contratado_indicados").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+      ]);
+
+      return {
+        pessoasTotal: pessoasTotal.count || 0,
+        pessoasNovas7d: pessoasNovas7d.count || 0,
+        pessoasComprometidas: pessoasComprometidas.count || 0,
+        contratadosAtivos: contratadosAtivos.count || 0,
+        lideresTotal: lideresTotal.count || 0,
+        funcionariosAtivos: funcionariosAtivos.count || 0,
+        checkinsHoje: (contratadoCheckinsHoje.count || 0) + (funcionarioCheckinsHoje.count || 0),
+        indicadosPendentes: indicadosPendentes.count || 0,
+        indicadosTotal: indicadosTotal.count || 0,
+        sevenDate,
+      };
     },
     enabled: !!clientId,
+    staleTime: 1000 * 60 * 2,
   });
 
-  // Top multiplier
-  const { data: topMultiplier } = useQuery({
-    queryKey: ["overview-top-mult", clientId],
+  // ─────────── Crescimento da base (14 dias) ───────────
+  const { data: growthSeries } = useQuery({
+    queryKey: ["overview-growth-14d", clientId],
     queryFn: async () => {
+      const since = new Date();
+      since.setDate(since.getDate() - 13);
+      since.setHours(0, 0, 0, 0);
       const { data } = await supabase
-        .from("supporters")
-        .select("name, referral_count")
+        .from("pessoas")
+        .select("created_at")
         .eq("client_id", clientId)
-        .gt("referral_count", 0)
-        .order("referral_count", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!clientId,
-  });
+        .gte("created_at", since.toISOString());
 
-  // Top digital leader (composite score - simplified)
-  const { data: topLeader } = useQuery({
-    queryKey: ["overview-top-leader", clientId],
-    queryFn: async () => {
-      const { data: accounts } = await supabase
-        .from("supporter_accounts")
-        .select("id, name, supporter_id")
-        .eq("client_id", clientId);
-
-      if (!accounts || accounts.length === 0) return null;
-
-      const accountIds = accounts.map(a => a.id);
-
-      // Count referrals
-      const { data: referrals } = await supabase
-        .from("referrals")
-        .select("referrer_account_id")
-        .eq("client_id", clientId)
-        .in("referrer_account_id", accountIds);
-
-      const refCounts: Record<string, number> = {};
-      (referrals || []).forEach((r: any) => {
-        refCounts[r.referrer_account_id] = (refCounts[r.referrer_account_id] || 0) + 1;
-      });
-
-      // Count checkins (30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const { data: checkins } = await supabase
-        .from("supporter_checkins")
-        .select("supporter_account_id")
-        .eq("client_id", clientId)
-        .in("supporter_account_id", accountIds)
-        .gte("checkin_date", thirtyDaysAgo.toISOString().split("T")[0]);
-
-      const checkinCounts: Record<string, number> = {};
-      (checkins || []).forEach((c: any) => {
-        checkinCounts[c.supporter_account_id] = (checkinCounts[c.supporter_account_id] || 0) + 1;
-      });
-
-      // Engagement scores
-      const supporterIds = accounts.map(a => a.supporter_id).filter(Boolean) as string[];
-      const engScores: Record<string, number> = {};
-      if (supporterIds.length > 0) {
-        const { data: supporters } = await supabase
-          .from("supporters")
-          .select("id, engagement_score")
-          .in("id", supporterIds);
-        (supporters || []).forEach((s: any) => {
-          engScores[s.id] = s.engagement_score || 0;
-        });
+      const buckets: Record<string, number> = {};
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(since);
+        d.setDate(since.getDate() + i);
+        buckets[formatDate(d)] = 0;
       }
-
-      let best: { name: string; score: number } | null = null;
-      for (const a of accounts) {
-        const score = ((refCounts[a.id] || 0) * 10) +
-          ((checkinCounts[a.id] || 0) * 2) +
-          (a.supporter_id ? (engScores[a.supporter_id] || 0) : 0);
-        if (score > 0 && (!best || score > best.score)) {
-          best = { name: a.name, score };
-        }
-      }
-      return best;
+      (data || []).forEach((p: any) => {
+        const key = formatDate(new Date(p.created_at));
+        if (key in buckets) buckets[key] += 1;
+      });
+      return Object.entries(buckets).map(([date, novas]) => ({ date, novas }));
     },
     enabled: !!clientId,
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Territorial zones
-  const { data: zonesCount } = useQuery({
-    queryKey: ["overview-zones", clientId],
+  // ─────────── Distribuição por nível de apoio ───────────
+  const { data: nivelApoio } = useQuery({
+    queryKey: ["overview-nivel-apoio", clientId],
     queryFn: async () => {
-      const { count } = await supabase
-        .from("territorial_zones")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId);
-      return count || 0;
+      const niveis = ["militante", "apoiador", "simpatizante", "desconhecido", "opositor"] as const;
+      const results = await Promise.all(
+        niveis.map(n =>
+          supabase
+            .from("pessoas")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+            .eq("nivel_apoio", n)
+        )
+      );
+      return niveis.map((n, i) => ({ nivel: n, count: results[i].count || 0 }));
     },
     enabled: !!clientId,
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Active missions
-  const { data: missionsCount } = useQuery({
-    queryKey: ["overview-missions", clientId],
+  // ─────────── Top 5 líderes por liderados ───────────
+  const { data: topLideres } = useQuery({
+    queryKey: ["overview-top-lideres", clientId],
     queryFn: async () => {
-      const { count } = await supabase
-        .from("portal_missions")
-        .select("*", { count: "exact", head: true })
+      const { data: lideres } = await supabase
+        .from("contratados")
+        .select("id, nome")
         .eq("client_id", clientId)
-        .eq("is_active", true);
-      return count || 0;
+        .eq("is_lider", true)
+        .eq("status", "ativo");
+
+      if (!lideres || lideres.length === 0) return [];
+
+      const counts = await Promise.all(
+        lideres.map(async (l: any) => {
+          const { count } = await supabase
+            .from("contratados")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+            .eq("lider_id", l.id);
+          return { nome: l.nome, liderados: count || 0 };
+        })
+      );
+      return counts
+        .filter(c => c.liderados > 0)
+        .sort((a, b) => b.liderados - a.liderados)
+        .slice(0, 5);
     },
     enabled: !!clientId,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const referralPct = accountStats && accountStats.total > 0
-    ? Math.round((accountStats.referred / accountStats.total) * 100) : 0;
+  // ─────────── Aniversariantes hoje ───────────
+  const { data: aniversariantes } = useQuery({
+    queryKey: ["overview-aniversariantes", clientId],
+    queryFn: async () => {
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const { data } = await supabase
+        .from("pessoas")
+        .select("id, nome, data_nascimento")
+        .eq("client_id", clientId)
+        .not("data_nascimento", "is", null);
+      return (data || []).filter((p: any) => {
+        if (!p.data_nascimento) return false;
+        const date = new Date(p.data_nascimento);
+        return (
+          String(date.getMonth() + 1).padStart(2, "0") === mm &&
+          String(date.getDate()).padStart(2, "0") === dd
+        );
+      });
+    },
+    enabled: !!clientId,
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Cores
+  const NIVEL_COLORS: Record<string, string> = {
+    militante: "hsl(142, 71%, 45%)",
+    apoiador: "hsl(160, 60%, 50%)",
+    simpatizante: "hsl(48, 95%, 55%)",
+    desconhecido: "hsl(var(--muted-foreground))",
+    opositor: "hsl(0, 84%, 60%)",
+  };
+  const NIVEL_LABEL: Record<string, string> = {
+    militante: "Militante",
+    apoiador: "Apoiador",
+    simpatizante: "Simpatizante",
+    desconhecido: "Desconhecido",
+    opositor: "Opositor",
+  };
+
+  const totalObrigatorios = (kpis?.contratadosAtivos || 0) + (kpis?.funcionariosAtivos || 0);
+  const presencaPct = totalObrigatorios > 0
+    ? Math.round(((kpis?.checkinsHoje || 0) / totalObrigatorios) * 100)
+    : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Section title */}
       <div className="flex items-center gap-2">
         <Flame className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-bold">Visão Geral da Mobilização</h2>
+        <h2 className="text-lg font-bold">Visão Executiva da Campanha</h2>
       </div>
 
-      {/* Metrics grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Link to="/pessoas" className="block">
+      {/* ── KPIs em 3 pilares ── */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <Link to="/pessoas">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
               <BookUser className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{pessoasCount ?? 0}</p>
+              <p className="text-2xl font-bold">{kpis?.pessoasTotal ?? 0}</p>
               <p className="text-[10px] text-muted-foreground">Base Política</p>
+              {kpis && kpis.pessoasNovas7d > 0 && (
+                <p className="text-[10px] text-green-600 font-medium mt-0.5">
+                  +{kpis.pessoasNovas7d} em 7 dias
+                </p>
+              )}
             </CardContent>
           </Card>
         </Link>
 
-        <Link to="/multiplicadores" className="block">
+        <Link to="/pessoas?nivel=alto">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
-              <Share2 className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{accountStats?.total ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Portal ({referralPct}% indicação)</p>
+              <ShieldCheck className="w-4 h-4 text-green-600 mb-1" />
+              <p className="text-2xl font-bold">{kpis?.pessoasComprometidas ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground">Apoio comprometido</p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link to="/checkins" className="block">
+        <Link to="/contratados">
+          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <Users className="w-4 h-4 text-primary mb-1" />
+              <p className="text-2xl font-bold">{kpis?.contratadosAtivos ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground">
+                Contratados <span className="text-muted-foreground/70">({kpis?.lideresTotal ?? 0} líderes)</span>
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link to="/funcionarios">
+          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
+            <CardContent className="pt-4 pb-3 px-4">
+              <Briefcase className="w-4 h-4 text-primary mb-1" />
+              <p className="text-2xl font-bold">{kpis?.funcionariosAtivos ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground">Funcionários ativos</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link to="/controle-presenca">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
               <CalendarCheck className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{checkinStats?.today ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Check-ins hoje ({checkinStats?.week ?? 0} sem.)</p>
+              <p className="text-2xl font-bold">{kpis?.checkinsHoje ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground">
+                Check-ins hoje {totalObrigatorios > 0 && `· ${presencaPct}%`}
+              </p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link to="/missoes-ia" className="block">
+        <Link to="/telemarketing">
           <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
             <CardContent className="pt-4 pb-3 px-4">
-              <Sparkles className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{missionsCount ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Missões ativas</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link to="/territorial" className="block">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <MapPin className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{zonesCount ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Zonas territoriais</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link to="/territorial?tab=recrutamento" className="block">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <UserPlus className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{accountStats?.referred ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Por indicação</p>
+              <PhoneCall className="w-4 h-4 text-primary mb-1" />
+              <p className="text-2xl font-bold">{kpis?.indicadosPendentes ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground">
+                Indicados a ligar {kpis && kpis.indicadosTotal > 0 && `de ${kpis.indicadosTotal}`}
+              </p>
             </CardContent>
           </Card>
         </Link>
       </div>
 
-      {/* Highlight cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Top Multiplier */}
-        <Link to="/multiplicadores" className="block">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/10">
-            <CardContent className="pt-4 pb-3 px-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Crown className="w-5 h-5 text-primary" />
+      {/* ── Gráficos ── */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Crescimento da base */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Crescimento da Base (14 dias)</CardTitle>
+            </div>
+            <CardDescription>Novas pessoas cadastradas por dia</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!growthSeries || growthSeries.every(g => g.novas === 0) ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs">Nenhum cadastro nos últimos 14 dias</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">Top Multiplicador</p>
-                {topMultiplier ? (
-                  <>
-                    <p className="font-bold truncate">{topMultiplier.name}</p>
-                    <p className="text-xs text-muted-foreground">{topMultiplier.referral_count} indicações</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Nenhuma indicação ainda</p>
-                )}
-              </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-            </CardContent>
-          </Card>
-        </Link>
+            ) : (
+              <ChartContainer
+                config={{ novas: { label: "Novas pessoas", color: "hsl(var(--primary))" } }}
+                className="h-[200px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={growthSeries}>
+                    <defs>
+                      <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <YAxis allowDecimals={false} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area type="monotone" dataKey="novas" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#growthGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Top Digital Leader */}
-        <Link to="/lideres" className="block">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/10">
-            <CardContent className="pt-4 pb-3 px-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Trophy className="w-5 h-5 text-primary" />
+        {/* Nível de apoio */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Termômetro de Apoio</CardTitle>
+            </div>
+            <CardDescription>Distribuição da base por nível de apoio</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!nivelApoio || nivelApoio.every(n => n.count === 0) ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs">Sem pessoas cadastradas</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">Top Líder Digital</p>
-                {topLeader ? (
-                  <>
-                    <p className="font-bold truncate">{topLeader.name}</p>
-                    <p className="text-xs text-muted-foreground">{topLeader.score} pts</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Nenhum líder identificado</p>
-                )}
-              </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-            </CardContent>
-          </Card>
-        </Link>
+            ) : (
+              <ChartContainer
+                config={{ count: { label: "Pessoas", color: "hsl(var(--primary))" } }}
+                className="h-[200px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={nivelApoio.filter(n => n.count > 0).map(n => ({
+                        name: NIVEL_LABEL[n.nivel],
+                        value: n.count,
+                        fill: NIVEL_COLORS[n.nivel],
+                      }))}
+                      cx="50%" cy="50%" outerRadius={75} dataKey="value"
+                      label={({ name, percent }) => percent > 0.05 ? `${name}: ${(percent * 100).toFixed(0)}%` : ''}
+                      labelLine={false}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* ── Top líderes + Aniversariantes ── */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Top líderes */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Top Líderes por Equipe</CardTitle>
+            </div>
+            <CardDescription>Quem mais lidera contratados ativos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!topLideres || topLideres.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Crown className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs">Nenhum líder com equipe ainda</p>
+                <Link to="/contratados" className="text-xs text-primary hover:underline mt-2 inline-block">
+                  Cadastrar líderes →
+                </Link>
+              </div>
+            ) : (
+              <ChartContainer
+                config={{ liderados: { label: "Liderados", color: "hsl(var(--primary))" } }}
+                className="h-[200px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topLideres} layout="vertical" margin={{ left: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis type="number" allowDecimals={false} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <YAxis type="category" dataKey="nome" stroke="hsl(var(--muted-foreground))" fontSize={11} width={75} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="liderados" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Aniversariantes hoje */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Cake className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Aniversariantes Hoje</CardTitle>
+            </div>
+            <CardDescription>Oportunidade de relacionamento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!aniversariantes || aniversariantes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Cake className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs">Ninguém faz aniversário hoje</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border max-h-[200px] overflow-y-auto">
+                {aniversariantes.slice(0, 8).map((p: any) => (
+                  <li key={p.id} className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                      <Cake className="w-4 h-4 text-primary" />
+                      <Link to={`/pessoas/${p.id}`} className="text-sm hover:underline truncate max-w-[180px]">
+                        {p.nome}
+                      </Link>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">🎉 Hoje</Badge>
+                  </li>
+                ))}
+                {aniversariantes.length > 8 && (
+                  <li className="text-[10px] text-muted-foreground text-center pt-2">
+                    +{aniversariantes.length - 8} aniversariantes
+                  </li>
+                )}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Insights acionáveis ── */}
+      <ActionableInsights clientId={clientId} kpis={kpis} />
     </div>
+  );
+}
+
+// ───── Insights acionáveis ─────
+function ActionableInsights({ clientId, kpis }: { clientId: string; kpis: any }) {
+  // Líderes sem check-in há 3+ dias
+  const { data: lideresAusentes } = useQuery({
+    queryKey: ["insight-lideres-ausentes", clientId],
+    queryFn: async () => {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const sinceDate = threeDaysAgo.toISOString().split("T")[0];
+
+      const { data: contratados } = await supabase
+        .from("contratados")
+        .select("id, nome")
+        .eq("client_id", clientId)
+        .eq("status", "ativo")
+        .eq("presenca_obrigatoria", true);
+
+      if (!contratados || contratados.length === 0) return [];
+
+      const ids = contratados.map((c: any) => c.id);
+      const { data: recentes } = await supabase
+        .from("contratado_checkins")
+        .select("contratado_id")
+        .eq("client_id", clientId)
+        .in("contratado_id", ids)
+        .gte("checkin_date", sinceDate);
+
+      const comCheckin = new Set((recentes || []).map((r: any) => r.contratado_id));
+      return contratados.filter((c: any) => !comCheckin.has(c.id)).slice(0, 5);
+    },
+    enabled: !!clientId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Pessoas sem interação há 30+ dias
+  const { data: pessoasFrias } = useQuery({
+    queryKey: ["insight-pessoas-frias", clientId],
+    queryFn: async () => {
+      const thirtyAgo = new Date();
+      thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+      const { count } = await supabase
+        .from("pessoas")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .lt("updated_at", thirtyAgo.toISOString());
+      return count || 0;
+    },
+    enabled: !!clientId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const insights: { icon: any; color: string; titulo: string; desc: string; link?: string; cta?: string }[] = [];
+
+  if (lideresAusentes && lideresAusentes.length > 0) {
+    insights.push({
+      icon: AlertTriangle,
+      color: "text-destructive",
+      titulo: `${lideresAusentes.length} contratado(s) sem check-in há 3+ dias`,
+      desc: lideresAusentes.map((l: any) => l.nome).join(", "),
+      link: "/controle-presenca",
+      cta: "Ver presença",
+    });
+  }
+  if (kpis?.indicadosPendentes > 0) {
+    insights.push({
+      icon: PhoneCall,
+      color: "text-amber-600",
+      titulo: `${kpis.indicadosPendentes} indicados aguardando ligação`,
+      desc: "Faça contato e qualifique a base.",
+      link: "/telemarketing",
+      cta: "Abrir telemarketing",
+    });
+  }
+  if (pessoasFrias && pessoasFrias > 0) {
+    insights.push({
+      icon: MessageCircle,
+      color: "text-blue-600",
+      titulo: `${pessoasFrias} pessoas sem contato há 30+ dias`,
+      desc: "Reative com mensagem ou ação no CRM.",
+      link: "/pessoas",
+      cta: "Reativar",
+    });
+  }
+  if (kpis && kpis.pessoasTotal > 0 && kpis.pessoasComprometidas / kpis.pessoasTotal < 0.1) {
+    insights.push({
+      icon: Sparkles,
+      color: "text-primary",
+      titulo: "Base com baixo nível de comprometimento",
+      desc: `Apenas ${Math.round((kpis.pessoasComprometidas / kpis.pessoasTotal) * 100)}% comprometidos. Crie missões para engajar.`,
+      link: "/missoes-ia",
+      cta: "Criar missão",
+    });
+  }
+
+  if (insights.length === 0) return null;
+
+  return (
+    <Card className="border-primary/20">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <CardTitle className="text-base">Próximas Ações Recomendadas</CardTitle>
+        </div>
+        <CardDescription>Insights baseados no estado atual da campanha</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {insights.map((ins, i) => {
+            const Icon = ins.icon;
+            return (
+              <li key={i} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors">
+                <div className="flex items-start gap-3 min-w-0">
+                  <Icon className={`w-5 h-5 ${ins.color} shrink-0 mt-0.5`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{ins.titulo}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{ins.desc}</p>
+                  </div>
+                </div>
+                {ins.link && ins.cta && (
+                  <Link to={ins.link} className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap">
+                    {ins.cta}
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
