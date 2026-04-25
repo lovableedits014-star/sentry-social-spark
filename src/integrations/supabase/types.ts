@@ -2944,6 +2944,7 @@ export type Database = {
           instance_name: string | null
           instance_token: string | null
           is_active: boolean
+          is_primary: boolean
           last_health_check_at: string | null
           last_send_at: string | null
           messages_sent_today: number
@@ -2968,6 +2969,7 @@ export type Database = {
           instance_name?: string | null
           instance_token?: string | null
           is_active?: boolean
+          is_primary?: boolean
           last_health_check_at?: string | null
           last_send_at?: string | null
           messages_sent_today?: number
@@ -2992,6 +2994,7 @@ export type Database = {
           instance_name?: string | null
           instance_token?: string | null
           is_active?: boolean
+          is_primary?: boolean
           last_health_check_at?: string | null
           last_send_at?: string | null
           messages_sent_today?: number
@@ -3008,7 +3011,7 @@ export type Database = {
           {
             foreignKeyName: "whatsapp_instances_client_id_fkey"
             columns: ["client_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
