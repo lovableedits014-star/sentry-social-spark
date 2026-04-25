@@ -296,7 +296,7 @@ const DashboardLayout = () => {
       )}
 
       {/* ── Main Content ── */}
-      <main className="lg:pl-64 pt-14 lg:pt-0">
+      <main className="lg:pl-64 pt-20 lg:pt-0">
         <div className="min-h-screen">
           <Outlet />
         </div>
