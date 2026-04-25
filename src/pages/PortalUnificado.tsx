@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, LogOut, Loader2, Eye, EyeOff, Briefcase, Users2, Heart, ArrowRight } from "lucide-react";
+import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface Roles {
@@ -64,16 +64,10 @@ export default function PortalUnificado() {
       };
       setRoles(r);
 
-      const total = [r.isFuncionario, r.isContratado, r.isApoiador].filter(Boolean).length;
-      if (total === 1) {
-        if (r.isFuncionario) navigate(`/portal-funcionario/${clientId}`, { replace: true });
-        else if (r.isContratado) navigate(`/portal-contratado/${clientId}`, { replace: true });
-        else navigate(`/portal-apoiador/${clientId}`, { replace: true });
-      } else if (total === 0) {
-        // No registration — treat as new supporter
-        navigate(`/portal-apoiador/${clientId}`, { replace: true });
-      }
-      // If total > 1, show selector
+      // Hierarquia: Funcionário > Líder > Apoiador. Cargo maior predomina.
+      if (r.isFuncionario) navigate(`/portal-funcionario/${clientId}`, { replace: true });
+      else if (r.isContratado) navigate(`/portal-contratado/${clientId}`, { replace: true });
+      else navigate(`/portal-apoiador/${clientId}`, { replace: true });
     } finally {
       setDetecting(false);
     }
@@ -102,12 +96,6 @@ export default function PortalUnificado() {
       toast.success("Conta criada!");
     } catch (err: any) { toast.error(err.message || "Erro ao criar conta"); }
     finally { setAuthLoading(false); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setRoles(null);
   };
 
   if (loading) {
@@ -170,90 +158,11 @@ export default function PortalUnificado() {
   }
 
   // ─── DETECTING ROLES ──────────────────────────────────────────────────
-  if (detecting || !roles) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  }
-
-  // ─── ROLE SELECTOR (multi-role users) ────────────────────────────────
-  const totalRoles = [roles.isFuncionario, roles.isContratado, roles.isApoiador].filter(Boolean).length;
-
+  // Always redirecting after detection — show loader
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center overflow-hidden">
-            {clientLogo ? <img src={clientLogo} alt="" className="w-full h-full object-cover" /> : <Shield className="w-5 h-5 text-primary-foreground" />}
-          </div>
-          <div>
-            <p className="font-semibold text-sm">Olá! 👋</p>
-            <p className="text-xs text-muted-foreground">{clientName}</p>
-          </div>
-        </div>
-        <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="w-4 h-4" /></Button>
-      </div>
-
-      <div className="p-4 max-w-lg mx-auto space-y-4">
-        <div className="text-center space-y-1 py-4">
-          <h2 className="text-xl font-bold">Você tem múltiplos acessos</h2>
-          <p className="text-sm text-muted-foreground">Escolha como deseja entrar agora</p>
-        </div>
-
-        {roles.isContratado && (
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/portal-contratado/${clientId}`)}>
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                <Briefcase className="w-6 h-6 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold">Portal do Líder</p>
-                <p className="text-xs text-muted-foreground">Check-in, indicados, quota e missões</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        )}
-
-        {roles.isFuncionario && (
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/portal-funcionario/${clientId}`)}>
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                <Users2 className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold">Portal do Funcionário</p>
-                <p className="text-xs text-muted-foreground">Check-in, missões, indicações e ações externas</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        )}
-
-        {roles.isApoiador && (
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/portal-apoiador/${clientId}`)}>
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center shrink-0">
-                <Heart className="w-6 h-6 text-pink-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold">Portal do Apoiador</p>
-                <p className="text-xs text-muted-foreground">Check-in, missões e indicações</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        )}
-
-        {totalRoles === 0 && (
-          <Card>
-            <CardContent className="p-5 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">Você ainda não possui cadastro nesta organização.</p>
-              <Button onClick={() => navigate(`/cadastro/${clientId}`)} className="w-full">
-                Fazer cadastro agora
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Abrindo seu portal...</p>
     </div>
   );
 }
