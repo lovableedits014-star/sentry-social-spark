@@ -97,14 +97,16 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json().catch(() => ({}));
-    console.log("[whatsapp-inbound-webhook]", clientId, JSON.stringify(payload).slice(0, 500));
+    console.log("[whatsapp-inbound-webhook] FULL PAYLOAD", clientId, JSON.stringify(payload));
 
     if (!isInboundMessage(payload)) {
-      return json({ ok: true, ignored: "not_inbound_message" });
+      console.log("[whatsapp-inbound-webhook] ignored not_inbound_message. event=", payload?.event, "type=", payload?.type);
+      return json({ ok: true, ignored: "not_inbound_message", event: payload?.event ?? payload?.type ?? null });
     }
 
     const senderPhone = extractSenderPhone(payload);
     if (!senderPhone) {
+      console.log("[whatsapp-inbound-webhook] ignored no_sender_phone. payload keys=", Object.keys(payload || {}));
       return json({ ok: true, ignored: "no_sender_phone" });
     }
 
