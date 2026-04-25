@@ -202,6 +202,9 @@ Deno.serve(async (req) => {
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
             const phoneClean = cleanPhoneForBridge(recipient.telefone);
+            console.log("[WhatsApp send-whatsapp-dispatch] phone recebido no body:", recipient.telefone);
+            console.log("[WhatsApp send-whatsapp-dispatch] phone após sanitize:", phoneClean);
+            console.log("[WhatsApp send-whatsapp-dispatch] phone enviado para whatsapp-bridge:", phoneClean);
 
             const sendRes = await fetch(bridgeUrl, {
               method: "POST",
