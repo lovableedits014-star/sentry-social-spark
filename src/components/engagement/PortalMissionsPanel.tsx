@@ -469,9 +469,9 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
           <div className="space-y-4">
             {/* Refresh button */}
             <div className="flex justify-end">
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => refetchPosts()} disabled={postsLoading}>
-                <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
-                {postsLoading ? "Carregando..." : `${postOptions.length} posts disponíveis`}
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={syncAndRefetch} disabled={postsLoading || isSyncing}>
+                <RefreshCw className={`w-3 h-3 ${(postsLoading || isSyncing) ? "animate-spin" : ""}`} />
+                {isSyncing ? "Sincronizando com a Meta..." : postsLoading ? "Carregando..." : `${postOptions.length} posts disponíveis · Sincronizar`}
               </Button>
             </div>
 
