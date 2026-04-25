@@ -21,7 +21,6 @@ const MENU_SECTIONS: MenuSection[] = [
     items: [
       { icon: MessageSquare, label: "Comentários", path: "/comments" },
       { icon: TrendingUp, label: "Engajamento", path: "/engagement" },
-      { icon: Bell, label: "Alertas", path: "/alertas" },
     ],
   },
   {
