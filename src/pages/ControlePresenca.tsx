@@ -251,7 +251,7 @@ export default function ControlePresenca() {
                     <AlertDialogTrigger asChild>
                       <Button
                         size="sm"
-                        variant={allObrigados ? "outline" : "default"}
+                        variant={allObrigados ? "default" : "outline"}
                         className="w-full h-8 text-xs px-2"
                         disabled={bulkToggle.isPending || allObrigados}
                       >
@@ -283,7 +283,7 @@ export default function ControlePresenca() {
                     <AlertDialogTrigger asChild>
                       <Button
                         size="sm"
-                        variant={groupObrigados > 0 ? "default" : "outline"}
+                        variant={groupObrigados === 0 ? "default" : "outline"}
                         className="w-full h-8 text-xs px-2"
                         disabled={bulkToggle.isPending || groupObrigados === 0}
                       >
