@@ -190,35 +190,17 @@ export default function WhatsAppGate({
           </div>
 
           <Button
-            asChild={Boolean(whatsAppHref)}
-            onClick={whatsAppHref ? undefined : handleOpenWhatsApp}
+            onClick={handleOpenWhatsApp}
             disabled={loading}
             size="lg"
             className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {whatsAppHref ? (
-              <a
-                href={whatsAppHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  setOpened(true);
-                  toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
-                }}
-              >
-                <MessageCircle className="w-5 h-5" />
-                {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
-              </a>
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <>
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <MessageCircle className="w-5 h-5" />
-                )}
-                {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
-              </>
+              <MessageCircle className="w-5 h-5" />
             )}
+            {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
           </Button>
 
           {opened && autoChecking && (
