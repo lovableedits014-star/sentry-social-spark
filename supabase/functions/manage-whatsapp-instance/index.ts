@@ -322,6 +322,10 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "reconnect" && isQrPendingResponse(bridgeData)) {
+      return awaitingQrResponse("Reconexão iniciada. Aguardando geração do QR Code.");
+    }
+
     if (action === "instance_status" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return jsonResponse({
         success: false,
