@@ -19,8 +19,10 @@ function randomDelay(minMs: number, maxMs: number) {
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
-function cleanPhoneDigits(raw: string): string {
-  return String(raw).replace(/\D/g, "");
+function cleanPhoneForBridge(raw: string): string {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
 Deno.serve(async (req) => {
@@ -199,7 +201,7 @@ Deno.serve(async (req) => {
 
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
-            const phoneClean = cleanPhoneDigits(recipient.telefone);
+            const phoneClean = cleanPhoneForBridge(recipient.telefone);
 
             const sendRes = await fetch(bridgeUrl, {
               method: "POST",
