@@ -83,34 +83,20 @@ function normalizeName(name: string): string {
 }
 
 /**
- * Gera variantes de telefone brasileiro para tentativa de envio.
- * Garante DDI 55 e tenta a versão COM o 9 do celular primeiro,
- * depois SEM (alguns números antigos no WhatsApp não têm o nono dígito).
+ * Normaliza telefone brasileiro para envio mantendo o 9º dígito do celular.
+ * Ex.: 6792248348 -> 5567992248348 / 556792248348 -> 5567992248348.
  */
-function brazilianPhoneVariants(raw: string): string[] {
+function normalizeBrazilianPhoneWithNinthDigit(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return [raw];
+  if (!digits) return raw;
 
-  // Garante DDI 55
-  let withCountry = digits.startsWith("55") ? digits : `55${digits}`;
+  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
 
   // Após o 55, esperamos DDD (2) + número (8 ou 9 dígitos)
   const ddd = withCountry.slice(2, 4);
   const rest = withCountry.slice(4);
-
-  const variants = new Set<string>();
-  // Sempre inclui a forma original normalizada primeiro
-  variants.add(withCountry);
-
-  if (rest.length === 9 && rest.startsWith("9")) {
-    // Tem 9 → também tenta sem o 9
-    variants.add(`55${ddd}${rest.slice(1)}`);
-  } else if (rest.length === 8) {
-    // Não tem 9 → também tenta com o 9
-    variants.add(`55${ddd}9${rest}`);
-  }
-
-  return Array.from(variants);
+  if (rest.length === 8) return `55${ddd}9${rest}`;
+  return withCountry;
 }
 
 function namesMatch(a: string, b: string): boolean {
