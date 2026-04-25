@@ -48,7 +48,7 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
       ] = await Promise.all([
         supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId),
         supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId).gte("created_at", sevenIso),
-        supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId).in("nivel_apoio", ["alto", "comprometido"]),
+        supabase.from("pessoas").select("id", { count: "exact", head: true }).eq("client_id", clientId).in("nivel_apoio", ["apoiador", "militante"]),
         supabase.from("contratados").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "ativo"),
         supabase.from("contratados").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_lider", true).eq("status", "ativo"),
         supabase.from("funcionarios").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "ativo"),
@@ -108,7 +108,7 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
   const { data: nivelApoio } = useQuery({
     queryKey: ["overview-nivel-apoio", clientId],
     queryFn: async () => {
-      const niveis = ["comprometido", "alto", "medio", "baixo", "indefinido"];
+      const niveis = ["militante", "apoiador", "simpatizante", "desconhecido", "opositor"] as const;
       const results = await Promise.all(
         niveis.map(n =>
           supabase
@@ -183,18 +183,18 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
 
   // Cores
   const NIVEL_COLORS: Record<string, string> = {
-    comprometido: "hsl(142, 71%, 45%)",
-    alto: "hsl(160, 60%, 50%)",
-    medio: "hsl(48, 95%, 55%)",
-    baixo: "hsl(25, 90%, 55%)",
-    indefinido: "hsl(var(--muted-foreground))",
+    militante: "hsl(142, 71%, 45%)",
+    apoiador: "hsl(160, 60%, 50%)",
+    simpatizante: "hsl(48, 95%, 55%)",
+    desconhecido: "hsl(var(--muted-foreground))",
+    opositor: "hsl(0, 84%, 60%)",
   };
   const NIVEL_LABEL: Record<string, string> = {
-    comprometido: "Comprometido",
-    alto: "Alto",
-    medio: "Médio",
-    baixo: "Baixo",
-    indefinido: "Indefinido",
+    militante: "Militante",
+    apoiador: "Apoiador",
+    simpatizante: "Simpatizante",
+    desconhecido: "Desconhecido",
+    opositor: "Opositor",
   };
 
   const totalObrigatorios = (kpis?.contratadosAtivos || 0) + (kpis?.funcionariosAtivos || 0);
