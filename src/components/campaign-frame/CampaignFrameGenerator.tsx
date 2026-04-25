@@ -143,11 +143,6 @@ export default function CampaignFrameGenerator({ clientId, triggerLabel = "Gerar
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
     const ratio = CANVAS_SIZE / rect.width;
     setOffset({
-      x: (e.clientX - dragStart.x) * 1, // dragStart already in canvas units? we keep ratio-aware below
-      y: (e.clientY - dragStart.y) * 1,
-    });
-    // Re-scale: convert client delta to canvas units
-    setOffset({
       x: (e.clientX - dragStart.x) * ratio,
       y: (e.clientY - dragStart.y) * ratio,
     });
