@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 
 type ParsedProfile = {
@@ -60,6 +60,8 @@ export default function SupporterRegister() {
   const [name, setName] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [showFbHelp, setShowFbHelp] = useState(false);
+  const [showIgHelp, setShowIgHelp] = useState(false);
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [email, setEmail] = useState("");
