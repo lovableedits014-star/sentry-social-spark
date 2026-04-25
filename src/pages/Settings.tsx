@@ -11,6 +11,7 @@ import PublicLinksCard from "@/components/settings/PublicLinksCard";
 import UsageEstimatePanel from "@/components/settings/UsageEstimatePanel";
 import CampaignFramesCard from "@/components/settings/CampaignFramesCard";
 import PresenceSettingsCard from "@/components/settings/PresenceSettingsCard";
+import CampaignIdentityCard from "@/components/settings/CampaignIdentityCard";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -48,6 +49,8 @@ const Settings = () => {
       </div>
 
       {/* Pool de Instâncias WhatsApp (anti-banimento) */}
+      {clientId && <CampaignIdentityCard clientId={clientId} />}
+
       {clientId && <WhatsAppPoolManager clientId={clientId} />}
 
       {/* Consumo & Custos — apenas Super Admin */}
