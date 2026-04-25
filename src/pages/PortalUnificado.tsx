@@ -68,10 +68,10 @@ export default function PortalUnificado() {
       if (total === 1) {
         if (r.isFuncionario) navigate(`/portal-funcionario/${clientId}`, { replace: true });
         else if (r.isContratado) navigate(`/portal-contratado/${clientId}`, { replace: true });
-        else navigate(`/portal/${clientId}`, { replace: true });
+        else navigate(`/portal-apoiador/${clientId}`, { replace: true });
       } else if (total === 0) {
         // No registration — treat as new supporter
-        navigate(`/portal/${clientId}`, { replace: true });
+        navigate(`/portal-apoiador/${clientId}`, { replace: true });
       }
       // If total > 1, show selector
     } finally {
@@ -229,10 +229,7 @@ export default function PortalUnificado() {
         )}
 
         {roles.isApoiador && (
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => {
-            // Redirect to /portal which is the supporter portal
-            window.location.href = `/portal/${clientId}`;
-          }}>
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/portal-apoiador/${clientId}`)}>
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center shrink-0">
                 <Heart className="w-6 h-6 text-pink-600" />
