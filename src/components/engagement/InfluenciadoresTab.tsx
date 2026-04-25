@@ -119,6 +119,50 @@ function buildProfileUrl(platform: string, username: string | null, platformUser
   return null;
 }
 
+// ===== Cache de fotos de perfil (localStorage) =====
+// Estrutura: { [supporterId:platform]: { url: string, ts: number } }
+const PIC_CACHE_KEY = "engagement.profilePics.v1";
+const PIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — revalida diariamente
+
+type PicCache = Record<string, { url: string; ts: number }>;
+
+function loadPicCache(): PicCache {
+  try {
+    const raw = localStorage.getItem(PIC_CACHE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as PicCache;
+  } catch {
+    return {};
+  }
+}
+
+function savePicCache(cache: PicCache) {
+  try {
+    localStorage.setItem(PIC_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // quota exceeded — limpa entradas antigas
+    try {
+      const now = Date.now();
+      const trimmed: PicCache = {};
+      for (const [k, v] of Object.entries(cache)) {
+        if (now - v.ts < PIC_CACHE_TTL_MS) trimmed[k] = v;
+      }
+      localStorage.setItem(PIC_CACHE_KEY, JSON.stringify(trimmed));
+    } catch { /* desiste silenciosamente */ }
+  }
+}
+
+function picCacheGet(cache: PicCache, supporterId: string, platform: string): string | null {
+  const entry = cache[`${supporterId}:${platform}`];
+  if (!entry) return null;
+  if (Date.now() - entry.ts > PIC_CACHE_TTL_MS) return null; // expirado → força revalidação
+  return entry.url;
+}
+
+function picCacheSet(cache: PicCache, supporterId: string, platform: string, url: string) {
+  cache[`${supporterId}:${platform}`] = { url, ts: Date.now() };
+}
+
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-amber-500", "text-muted-foreground", "text-orange-400"];
 
