@@ -360,9 +360,6 @@ const Dashboard = () => {
     try {
       // Buscar nome do cliente e IED mais recente
       let clientName: string | undefined;
-      let ied: Awaited<ReturnType<typeof exportDashboardPdf>> extends void
-        ? null
-        : null = null;
       let iedData: {
         score: number;
         sentiment: number;
