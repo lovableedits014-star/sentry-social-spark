@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, Settings, LogOut, Shield,
-  Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Sparkles, Trophy, Target, Bell, Briefcase, Send, CalendarCheck,
+  Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Sparkles, Trophy, Target, Briefcase, Send, CalendarCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
