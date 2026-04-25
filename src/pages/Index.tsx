@@ -255,9 +255,7 @@ const Index = () => {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrollY > 60 ? "bg-[hsl(217,33%,8%)]/95 backdrop-blur-md border-b border-white/10 shadow-xl" : ""}`}>
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/40">
-              <Shield className="w-4 h-4 text-white" />
-            </div>
+            <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-9 h-9 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.4)]" />
             <span className="text-lg font-bold tracking-tight">Sentinelle</span>
           </div>
           <div className="flex items-center gap-3">
@@ -561,7 +559,7 @@ const Index = () => {
       {/* ── FOOTER ── */}
       <footer className="border-t border-white/5 py-8 text-center text-white/20 text-sm">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <Shield className="w-4 h-4 text-blue-500" />
+          <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-6 h-6 object-contain opacity-70" />
           <span className="font-semibold text-white/40">Sentinelle</span>
         </div>
         <p>© {new Date().getFullYear()} Sentinelle. Todos os direitos reservados.</p>
