@@ -333,6 +333,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       if (!inf) {
         inf = {
           supporterId, registeredName: meta.name, origin: meta.origin,
+          category: meta.category,
           authorPicture: c.author_profile_picture,
           platforms: new Set<string>(),
           totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
