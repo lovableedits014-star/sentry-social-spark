@@ -18,6 +18,30 @@ const jsonResponse = (body: unknown, status = 200) =>
 const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null | undefined) =>
   status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
 
+const isQrPendingResponse = (data: any) => {
+  const error = String(data?.error || "").toLowerCase();
+  return Boolean(data?.requires_reconnect) || (error.includes("qr") && error.includes("preserved"));
+};
+
+const awaitingQrResponse = (message = "Instância criada. Aguardando geração do QR Code.") =>
+  jsonResponse({
+    success: true,
+    status: "awaiting_qr",
+    requires_reconnect: true,
+    qrcode: null,
+    message,
+  });
+
+const sanitizeBridgeData = (data: any) => {
+  if (!data || typeof data !== "object") return data;
+  const { api_key: _apiKey, ...safe } = data;
+  if (safe.details && typeof safe.details === "object") {
+    const { api_key: _detailsApiKey, ...safeDetails } = safe.details;
+    safe.details = safeDetails;
+  }
+  return safe;
+};
+
 function cleanPhoneForBridge(raw: string): string {
   const digits = String(raw).replace(/\D/g, "");
   if (!digits) return "";
@@ -139,9 +163,13 @@ async function createClientInstance(params: {
     }
   }
 
+  if ((!bridgeRes.ok || !bridgeData.success) && isQrPendingResponse(bridgeData)) {
+    return awaitingQrResponse();
+  }
+
   if (!bridgeRes.ok || !bridgeData.success) {
     return jsonResponse(
-      { error: bridgeData.error || "Erro ao criar instância", details: bridgeData },
+      { error: bridgeData.error || "Erro ao criar instância", details: sanitizeBridgeData(bridgeData) },
       200,
     );
   }
@@ -292,6 +320,10 @@ Deno.serve(async (req) => {
         clientName: clientConfig?.name,
         currentApiKey: clientApiKey,
       });
+    }
+
+    if (action === "reconnect" && isQrPendingResponse(bridgeData)) {
+      return awaitingQrResponse("Reconexão iniciada. Aguardando geração do QR Code.");
     }
 
     if (action === "instance_status" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
