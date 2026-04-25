@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Settings as SettingsIcon } from "lucide-react";
 import TeamUsersPanel from "@/components/team/TeamUsersPanel";
 import WhatsAppConfigCard from "@/components/settings/WhatsAppConfigCard";
-import WhatsAppInstanceCard from "@/components/settings/WhatsAppInstanceCard";
+import WhatsAppPoolManager from "@/components/settings/WhatsAppPoolManager";
 import TelemarketingSettingsCard from "@/components/settings/TelemarketingSettingsCard";
 import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 import PublicLinksCard from "@/components/settings/PublicLinksCard";
@@ -45,8 +45,8 @@ const Settings = () => {
         </p>
       </div>
 
-      {/* WhatsApp Instance (UAZAPI) */}
-      {clientId && <WhatsAppInstanceCard clientId={clientId} />}
+      {/* Pool de Instâncias WhatsApp (anti-banimento) */}
+      {clientId && <WhatsAppPoolManager clientId={clientId} />}
 
       {/* Consumo & Custos — apenas Super Admin */}
       {clientId && isSuperAdmin && <UsageEstimatePanel clientId={clientId} />}
