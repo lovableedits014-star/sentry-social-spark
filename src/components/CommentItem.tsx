@@ -286,9 +286,22 @@ export const CommentItem = memo(function CommentItem({
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium">
-                {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
-              </span>
+              {profileUrl ? (
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                  title="Abrir perfil em nova aba"
+                >
+                  {comment.author_name || "Desconhecido"}
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              ) : (
+                <span className="text-sm font-medium">
+                  {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
+                </span>
+              )}
               {getPlatformIcon(comment.platform || 'facebook')}
               {/* Registered supporter badge */}
               {registeredSupporter && !isPageOwner && (
