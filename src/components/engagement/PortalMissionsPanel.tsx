@@ -149,6 +149,28 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
     gcTime: 0,
   });
 
+  // Sync new posts from Meta (Facebook/Instagram) and then refetch the local list.
+  // Necessary so that posts published just now (still without any comments) appear in the picker.
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncAndRefetch = async () => {
+    if (!clientId || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke("fetch-meta-comments", {
+        body: { clientId },
+      });
+      if (error) throw error;
+      await refetchPosts();
+      toast.success("Publicações sincronizadas!");
+    } catch (err: any) {
+      // Even if sync fails, still refetch so user sees what's already in DB
+      await refetchPosts();
+      toast.error("Não foi possível sincronizar com a Meta agora. Mostrando publicações já carregadas.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const fbPosts = postOptions.filter(p => p.platform === "facebook");
   const igPosts = postOptions.filter(p => p.platform === "instagram");
 
@@ -447,9 +469,9 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
           <div className="space-y-4">
             {/* Refresh button */}
             <div className="flex justify-end">
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => refetchPosts()} disabled={postsLoading}>
-                <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
-                {postsLoading ? "Carregando..." : `${postOptions.length} posts disponíveis`}
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={syncAndRefetch} disabled={postsLoading || isSyncing}>
+                <RefreshCw className={`w-3 h-3 ${(postsLoading || isSyncing) ? "animate-spin" : ""}`} />
+                {isSyncing ? "Sincronizando com a Meta..." : postsLoading ? "Carregando..." : `${postOptions.length} posts disponíveis · Sincronizar`}
               </Button>
             </div>
 
@@ -564,8 +586,9 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
             <Tabs defaultValue={editMission?.platform ?? "facebook"}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trocar publicação</p>
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => refetchPosts()} disabled={postsLoading}>
-                  <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={syncAndRefetch} disabled={postsLoading || isSyncing}>
+                  <RefreshCw className={`w-3 h-3 ${(postsLoading || isSyncing) ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Sincronizando..." : "Sincronizar"}
                 </Button>
               </div>
               <TabsList className="mb-3">
