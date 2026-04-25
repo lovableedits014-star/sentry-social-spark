@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -113,6 +113,7 @@ const ComponentBar = ({ label, description, score, icon: Icon }: { label: string
 
 export const IEDPanel = ({ clientId }: IEDPanelProps) => {
   const [calculating, setCalculating] = useState(false);
+  const autoCalcTriedRef = useRef(false);
 
   const { data, isLoading, refetch } = useQuery<IEDData>({
     queryKey: ["ied-score", clientId],
@@ -163,6 +164,28 @@ export const IEDPanel = ({ clientId }: IEDPanelProps) => {
       setCalculating(false);
     }
   };
+
+  // Auto-recálculo: se não há score OU o último é antigo (>24h), calcular silenciosamente
+  useEffect(() => {
+    if (!clientId || isLoading || calculating || autoCalcTriedRef.current) return;
+    const history = data?.history || [];
+    const latest = history[history.length - 1];
+    const needsCalc =
+      !latest ||
+      (latest.week_start &&
+        Date.now() - new Date(latest.week_start as any).getTime() > 24 * 60 * 60 * 1000);
+    if (needsCalc) {
+      autoCalcTriedRef.current = true;
+      (async () => {
+        try {
+          await supabase.functions.invoke("calculate-ied", { body: { clientId } });
+          refetch();
+        } catch (e) {
+          console.warn("Auto IED calc failed:", e);
+        }
+      })();
+    }
+  }, [clientId, data, isLoading, calculating, refetch]);
 
   const current = data?.current;
   const history = data?.history || [];
