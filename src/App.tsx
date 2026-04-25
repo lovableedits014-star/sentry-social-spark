@@ -34,6 +34,18 @@ import PortalContratado from "./pages/PortalContratado";
 import RegistroFuncionario from "./pages/RegistroFuncionario";
 import PortalFuncionario from "./pages/PortalFuncionario";
 import Telemarketing from "./pages/Telemarketing";
+import CadastroUnificado from "./pages/CadastroUnificado";
+import CadastroLiderConvite from "./pages/CadastroLiderConvite";
+import { Navigate, useParams, useLocation } from "react-router-dom";
+
+// Wrappers de redirect para preservar links antigos
+const RedirectToCadastro = ({ extraQuery = "" }: { extraQuery?: string }) => {
+  const { clientId } = useParams();
+  const location = useLocation();
+  const sep = location.search ? "&" : "?";
+  const target = `/cadastro/${clientId}${location.search}${extraQuery ? sep + extraQuery : ""}`;
+  return <Navigate to={target} replace />;
+};
 
 const queryClient = new QueryClient();
 
@@ -49,13 +61,16 @@ const App = () => (
           <Route path="/signup/:token" element={<Signup />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/super-admin" element={<SuperAdmin />} />
-          <Route path="/cadastro/:clientId" element={<SupporterRegister />} />
-          <Route path="/registro/:clientId" element={<RegistroPessoa />} />
+          <Route path="/cadastro/:clientId" element={<CadastroUnificado />} />
+          <Route path="/cadastro-lider/:token" element={<CadastroLiderConvite />} />
+          {/* Redirects de rotas antigas de cadastro (mantém compatibilidade com links já compartilhados) */}
+          <Route path="/registro/:clientId" element={<RedirectToCadastro extraQuery="modo=detalhado" />} />
+          <Route path="/funcionario/:clientId" element={<RedirectToCadastro extraQuery="papel=funcionario" />} />
+          {/* Portais antigos seguem ativos até a Entrega 2 (Portal Unificado) */}
+          <Route path="/portal-funcionario/:clientId" element={<PortalFuncionario />} />
+          <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
-          <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
-          <Route path="/funcionario/:clientId" element={<RegistroFuncionario />} />
-          <Route path="/portal-funcionario/:clientId" element={<PortalFuncionario />} />
           <Route path="/telemarketing/:clientId" element={<Telemarketing />} />
           <Route path="/portal/:clientId" element={<SupporterPortal />} />
           <Route path="/pwa-start" element={<PwaStart />} />

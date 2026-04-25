@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Link2, Users, UserCheck, Briefcase, ClipboardList, QrCode, Printer, Download } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Copy, Check, Link2, UserPlus, LogIn, Phone, QrCode, Printer, Download, Star, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { QRCodeCanvas } from "qrcode.react";
+import { supabase } from "@/integrations/supabase/client-selfhosted";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface PublicLinksCardProps {
   clientId: string;
@@ -20,78 +24,111 @@ interface LinkEntry {
   color: string;
 }
 
+interface InviteToken {
+  id: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+  note: string | null;
+}
+
 export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [qrLink, setQrLink] = useState<LinkEntry | null>(null);
+  const [invites, setInvites] = useState<InviteToken[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState(true);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [inviteNote, setInviteNote] = useState("");
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
   const baseUrl = window.location.origin;
 
   const links: LinkEntry[] = [
     {
-      label: "Cadastro de Apoiador",
-      description: "Link público para novos apoiadores se cadastrarem",
-      detail: "Envie este link para qualquer pessoa que queira se tornar apoiador da campanha. Ao acessar, o visitante preenche nome, telefone e dados básicos. Após o cadastro, ele é redirecionado automaticamente para o Portal do Apoiador onde já pode começar a realizar missões de engajamento. Este link pode ser compartilhado em redes sociais, WhatsApp, materiais impressos, etc. Cada pessoa cadastrada entra na sua base política do CRM.",
+      label: "Cadastro Geral",
+      description: "Link único para Apoiadores e Funcionários se cadastrarem",
+      detail: "Link unificado de entrada na campanha. Ao acessar, o visitante escolhe se quer participar como Apoiador (engajamento + indicações) ou Funcionário (equipe oficial com check-in). Há ainda um modo opcional de Cadastro de Campo (cabos eleitorais — coleta endereço, zona/seção e intenção de voto). Este é o ÚNICO link de cadastro público que você precisa compartilhar — ele substitui os antigos links separados de Apoiador, Funcionário e Registro de Pessoa.",
       path: `/cadastro/${clientId}`,
-      icon: <Users className="w-4 h-4" />,
+      icon: <UserPlus className="w-4 h-4" />,
       color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
-      label: "Registro de Pessoa (CRM)",
-      description: "Formulário público de registro direto no CRM político",
-      detail: "Link alternativo de cadastro que registra a pessoa diretamente na base política (CRM de Pessoas) com campos mais completos: endereço, bairro, cidade, zona/seção eleitoral, intenção de voto e classificação política. Ideal para uso em ações de campo, eventos e porta-a-porta onde o cabo eleitoral coleta informações detalhadas. Diferente do cadastro de apoiador, este foco é na inteligência política e mapeamento territorial.",
-      path: `/registro/${clientId}`,
-      icon: <UserCheck className="w-4 h-4" />,
-      color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    },
-    {
-      label: "Portal do Apoiador",
-      description: "Painel de missões e engajamento para apoiadores cadastrados",
-      detail: "Este é o painel onde apoiadores já cadastrados acessam suas missões de engajamento: curtir, comentar e compartilhar publicações nas redes sociais do candidato. O apoiador faz login com o telefone cadastrado, visualiza as missões ativas, cumpre as tarefas e sobe no ranking de engajamento. Também permite gerar um link de indicação para convidar outros apoiadores (sistema de multiplicadores). Funciona como PWA — pode ser instalado no celular como um app.",
+      label: "Portal de Acesso",
+      description: "Login único — funciona para apoiadores, funcionários e líderes",
+      detail: "Painel de acesso onde pessoas já cadastradas fazem login para realizar missões de engajamento, check-in e gerenciar suas indicações. O sistema detecta automaticamente o papel da pessoa (apoiador, funcionário ou líder) e mostra as funcionalidades correspondentes. Funciona como PWA — pode ser instalado no celular como um app.",
       path: `/portal/${clientId}`,
-      icon: <ClipboardList className="w-4 h-4" />,
+      icon: <LogIn className="w-4 h-4" />,
       color: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    },
-    {
-      label: "Cadastro de Funcionário",
-      description: "Link para funcionários da campanha se registrarem no sistema",
-      detail: "Envie este link para os funcionários fixos da campanha (assessores, coordenadores, equipe de gabinete). Ao se cadastrar, o funcionário recebe um código de indicação exclusivo para recrutar apoiadores — cada pessoa que ele indicar é vinculada automaticamente ao seu perfil, alimentando o ranking de influenciadores. Funcionários têm obrigatoriedade de presença (check-in diário) e participação nas missões de engajamento.",
-      path: `/funcionario/${clientId}`,
-      icon: <Briefcase className="w-4 h-4" />,
-      color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    },
-    {
-      label: "Portal do Funcionário",
-      description: "Painel de gestão do funcionário com check-in e indicações",
-      detail: "Painel exclusivo do funcionário já cadastrado. Aqui ele realiza o check-in diário de presença, visualiza suas missões de engajamento ativas, acompanha quantas pessoas já indicou e compartilha seu link de indicação personalizado. O funcionário também pode ver seu desempenho no ranking de influenciadores. O acesso é feito com o telefone cadastrado — sem necessidade de senha.",
-      path: `/portal-funcionario/${clientId}`,
-      icon: <Briefcase className="w-4 h-4" />,
-      color: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-    },
-    {
-      label: "Cadastro de Contratado (Líder)",
-      description: "Link para líderes contratados se cadastrarem como multiplicadores",
-      detail: "Este link é destinado aos líderes contratados — pessoas remuneradas que têm a obrigação de indicar um número mínimo de contatos (quota de indicados). Ao se cadastrar, o líder recebe acesso ao Portal do Contratado onde pode adicionar seus indicados (nome, telefone, bairro). Cada líder tem uma meta de indicações e seus indicados entram automaticamente na fila do telemarketing para verificação de voto. Para cadastrar liderados (sub-contratados vinculados a um líder), use o formato: /contratado/{clientId}/{liderId}.",
-      path: `/contratado/${clientId}`,
-      icon: <UserCheck className="w-4 h-4" />,
-      color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
-    },
-    {
-      label: "Portal do Contratado",
-      description: "Painel do líder contratado para gerenciar indicados e check-in",
-      detail: "Painel onde o líder contratado gerencia seus indicados: adiciona novos contatos, acompanha o progresso da sua quota, realiza check-in diário e visualiza o status de verificação dos seus indicados pelo telemarketing. O líder também pode ver quais indicados já foram ligados, quais confirmaram voto e quais recusaram. Acesso via telefone cadastrado. É o hub central de produtividade do contratado.",
-      path: `/portal-contratado/${clientId}`,
-      icon: <ClipboardList className="w-4 h-4" />,
-      color: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
     },
     {
       label: "Central de Telemarketing",
       description: "Acesso dos operadores à fila unificada de ligações",
-      detail: "Link para os operadores de telemarketing acessarem a central de ligações. A fila exibe todos os contatos pendentes: líderes, liderados e indicados que ainda não receberam ligação. O operador registra o resultado de cada chamada (atendeu, não atendeu, recusou), a intenção de voto e observações. Contatos que já foram atendidos saem permanentemente da fila. O acesso é controlado pelos operadores cadastrados em Configurações > Central de Telemarketing.",
+      detail: "Link interno para os operadores de telemarketing acessarem a central de ligações. A fila exibe todos os contatos pendentes: líderes, liderados e indicados que ainda não receberam ligação. O operador registra o resultado de cada chamada, a intenção de voto e observações. O acesso é controlado pelos operadores cadastrados em Configurações > Central de Telemarketing.",
       path: `/telemarketing/${clientId}`,
-      icon: <Link2 className="w-4 h-4" />,
+      icon: <Phone className="w-4 h-4" />,
       color: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
     },
   ];
+
+  // ─── Convites de Líder ──────────────────────────────────────────────────
+  const loadInvites = async () => {
+    setLoadingInvites(true);
+    const { data, error } = await supabase
+      .from("lider_invite_tokens" as any)
+      .select("id, token, created_at, expires_at, used_at, note")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    if (!error && data) setInvites(data as any);
+    setLoadingInvites(false);
+  };
+
+  useEffect(() => {
+    loadInvites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  const handleCreateInvite = async () => {
+    setCreatingInvite(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) {
+      toast.error("Faça login para gerar convites");
+      setCreatingInvite(false);
+      return;
+    }
+    const { error } = await supabase.from("lider_invite_tokens" as any).insert({
+      client_id: clientId,
+      created_by: userData.user.id,
+      note: inviteNote.trim() || null,
+    });
+    if (error) {
+      toast.error("Erro ao gerar convite");
+      console.error(error);
+    } else {
+      toast.success("Convite criado!");
+      setInviteNote("");
+      await loadInvites();
+    }
+    setCreatingInvite(false);
+  };
+
+  const handleDeleteInvite = async (id: string) => {
+    const { error } = await supabase.from("lider_invite_tokens" as any).delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao remover convite");
+      return;
+    }
+    toast.success("Convite removido");
+    setInvites((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleCopyInvite = (token: string, id: string) => {
+    const url = `${baseUrl}/cadastro-lider/${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedInviteId(id);
+    toast.success("Link de convite copiado!");
+    setTimeout(() => setCopiedInviteId(null), 2000);
+  };
 
   const handleCopy = (url: string, index: number) => {
     navigator.clipboard.writeText(url);
@@ -142,6 +179,7 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
   };
 
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
@@ -151,7 +189,7 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
           <div>
             <CardTitle>Links de Acesso Público</CardTitle>
             <CardDescription>
-              Todos os links de cadastro e portais para compartilhar com sua equipe e apoiadores
+              Compartilhe esses 3 links com sua equipe e apoiadores. Líderes contratados são cadastrados apenas por convite (seção abaixo).
             </CardDescription>
           </div>
         </div>
@@ -243,5 +281,111 @@ export default function PublicLinksCard({ clientId }: PublicLinksCardProps) {
         </DialogContent>
       </Dialog>
     </Card>
+
+    {/* ───────── Convites de Líder Contratado ───────── */}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Star className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <CardTitle>Convites de Líder Contratado</CardTitle>
+            <CardDescription>
+              Gere links únicos para convidar líderes contratados. Cada link só pode ser usado uma vez e expira em 30 dias.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+          <Textarea
+            value={inviteNote}
+            onChange={(e) => setInviteNote(e.target.value)}
+            placeholder="Observação (opcional) — ex: nome do líder, região, etc."
+            rows={2}
+            className="bg-background text-sm"
+          />
+          <Button onClick={handleCreateInvite} disabled={creatingInvite} size="sm" className="w-full">
+            {creatingInvite ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando...</>
+            ) : (
+              <><Plus className="w-4 h-4 mr-2" /> Gerar novo convite</>
+            )}
+          </Button>
+        </div>
+
+        {loadingInvites ? (
+          <div className="text-center py-6 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Carregando convites...
+          </div>
+        ) : invites.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Nenhum convite gerado ainda.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {invites.map((invite) => {
+              const url = `${baseUrl}/cadastro-lider/${invite.token}`;
+              const isExpired = new Date(invite.expires_at) < new Date();
+              const isUsed = !!invite.used_at;
+              const isCopied = copiedInviteId === invite.id;
+              return (
+                <div
+                  key={invite.id}
+                  className={`rounded-lg border p-3 space-y-2 ${isUsed || isExpired ? "bg-muted/40 opacity-70" : "bg-background"}`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    {isUsed ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Usado em {format(new Date(invite.used_at!), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    ) : isExpired ? (
+                      <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                        Expirado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                        Válido até {format(new Date(invite.expires_at), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {invite.note && (
+                      <span className="text-muted-foreground truncate">— {invite.note}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={url}
+                      className="text-xs font-mono bg-muted/30 h-8 flex-1"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    {!isUsed && !isExpired && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0 shrink-0"
+                        onClick={() => handleCopyInvite(invite.token, invite.id)}
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteInvite(invite.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+    </div>
   );
 }
