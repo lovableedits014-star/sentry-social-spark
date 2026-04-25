@@ -18,18 +18,15 @@ const jsonResponse = (body: unknown, status = 200) =>
 const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null | undefined) =>
   status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
 
-/**
- * Normaliza telefone brasileiro para envio mantendo/adicionando o 9º dígito do celular.
- * Ex.: 6792248348 -> 5567992248348 / 556792248348 -> 5567992248348.
- */
-function normalizeBrazilianPhoneWithNinthDigit(raw: string): string {
+function brazilianPhoneVariants(raw: string): string[] {
   const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return raw;
+  if (!digits) return [raw];
   const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
   const ddd = withCountry.slice(2, 4);
   const rest = withCountry.slice(4);
-  if (rest.length === 8) return `55${ddd}9${rest}`;
-  return withCountry;
+  const withNinth = rest.length === 8 ? `55${ddd}9${rest}` : withCountry;
+  const withoutNinth = rest.length === 9 && rest.startsWith("9") ? `55${ddd}${rest.slice(1)}` : withCountry;
+  return Array.from(new Set([withNinth, withCountry, withoutNinth]));
 }
 
 async function deleteExistingInstance(params: {
@@ -239,19 +236,36 @@ Deno.serve(async (req) => {
 
     // Proxy all other actions to bridge with X-Api-Key
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = action === "send" ? normalizeBrazilianPhoneWithNinthDigit(phone) : phone;
+    if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
-    const bridgeRes = await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": clientApiKey,
-      },
-      body: JSON.stringify(proxyBody),
-    });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({}));
+    let bridgeRes: Response;
+    let bridgeData: any;
+    if (action === "send" && typeof phone === "string" && phone) {
+      let lastRes: Response | null = null;
+      let lastData: any = null;
+      for (const candidate of brazilianPhoneVariants(phone)) {
+        lastRes = await fetch(BRIDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+          body: JSON.stringify({ ...proxyBody, phone: candidate }),
+        });
+        lastData = await lastRes.json().catch(() => ({}));
+        if (lastRes.ok && lastData?.success !== false) break;
+      }
+      bridgeRes = lastRes!;
+      bridgeData = lastData;
+    } else {
+      bridgeRes = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": clientApiKey,
+        },
+        body: JSON.stringify(proxyBody),
+      });
+      bridgeData = await bridgeRes.json().catch(() => ({}));
+    }
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await createClientInstance({

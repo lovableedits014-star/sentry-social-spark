@@ -19,18 +19,15 @@ function randomDelay(minMs: number, maxMs: number) {
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
-/**
- * Normaliza telefone brasileiro para envio mantendo o 9º dígito do celular.
- * Ex.: 6792248348 -> 5567992248348 / 556792248348 -> 5567992248348.
- */
-function normalizeBrazilianPhoneWithNinthDigit(raw: string): string {
+function brazilianPhoneVariants(raw: string): string[] {
   const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return raw;
+  if (!digits) return [raw];
   const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
   const ddd = withCountry.slice(2, 4);
   const rest = withCountry.slice(4);
-  if (rest.length === 8) return `55${ddd}9${rest}`;
-  return withCountry;
+  const withNinth = rest.length === 8 ? `55${ddd}9${rest}` : withCountry;
+  const withoutNinth = rest.length === 9 && rest.startsWith("9") ? `55${ddd}${rest.slice(1)}` : withCountry;
+  return Array.from(new Set([withNinth, withCountry, withoutNinth]));
 }
 
 Deno.serve(async (req) => {
@@ -209,29 +206,36 @@ Deno.serve(async (req) => {
 
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
-            const phoneClean = normalizeBrazilianPhoneWithNinthDigit(recipient.telefone);
+            let sendRes: Response | null = null;
+            let sendData: any = null;
+            let errBody = "";
 
-            const sendRes = await fetch(bridgeUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Api-Key": bridgeApiKey,
-              },
-              body: JSON.stringify({
-                action: "send",
-                phone: phoneClean,
-                message: personalizedMsg,
-              }),
-            });
+            for (const candidate of brazilianPhoneVariants(recipient.telefone)) {
+              sendRes = await fetch(bridgeUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Api-Key": bridgeApiKey,
+                },
+                body: JSON.stringify({
+                  action: "send",
+                  phone: candidate,
+                  message: personalizedMsg,
+                }),
+              });
+              const text = await sendRes.text();
+              errBody = text;
+              sendData = (() => { try { return JSON.parse(text); } catch { return null; } })();
+              if (sendRes.ok && sendData?.success !== false) break;
+            }
 
-            if (sendRes.ok) {
+            if (sendRes?.ok && sendData?.success !== false) {
               sent++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "enviado", enviado_em: new Date().toISOString() })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
             } else {
-              const errBody = await sendRes.text();
               failed++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "falha", erro: errBody.slice(0, 200) })
