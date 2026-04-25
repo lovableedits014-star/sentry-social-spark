@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import InstallAppFab from "@/components/portal/InstallAppFab";
+import { rememberPortalClientId } from "@/lib/pwa-client";
 
 interface Roles {
   isFuncionario: boolean;
@@ -36,6 +37,7 @@ export default function PortalUnificado() {
 
   useEffect(() => {
     if (!clientId) return;
+    rememberPortalClientId(clientId);
     supabase.from("clients").select("name, logo_url").eq("id", clientId).maybeSingle()
       .then(({ data }) => { if (data) { setClientName(data.name); setClientLogo(data.logo_url); } });
   }, [clientId]);

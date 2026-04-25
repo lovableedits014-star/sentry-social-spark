@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
 import InstallAppFab from "@/components/portal/InstallAppFab";
+import { rememberPortalClientId } from "@/lib/pwa-client";
 
 interface Mission {
   id: string;
@@ -62,6 +63,12 @@ interface Liderado {
 
 export default function PortalContratado() {
   const { clientId } = useParams<{ clientId: string }>();
+
+  // Persiste o clientId para que o PWA instalado abra direto neste portal
+  // (especialmente no iOS, onde o standalone tem localStorage isolado).
+  useEffect(() => {
+    rememberPortalClientId(clientId);
+  }, [clientId]);
 
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
