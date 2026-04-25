@@ -728,7 +728,7 @@ export const CommentItem = memo(function CommentItem({
               </TooltipProvider>
 
               {/* Block user */}
-              {(comment.author_id || comment.platform_user_id) && comment.platform === 'facebook' && (
+              {(comment.author_id || comment.platform_user_id) && (
                 <AlertDialog>
                   <TooltipProvider>
                     <Tooltip>
