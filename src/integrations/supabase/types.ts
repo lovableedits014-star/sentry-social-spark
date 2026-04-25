@@ -414,6 +414,7 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          presence_absence_days_threshold: number
           updated_at: string | null
           user_id: string
           whatsapp_bridge_api_key: string | null
@@ -432,6 +433,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          presence_absence_days_threshold?: number
           updated_at?: string | null
           user_id: string
           whatsapp_bridge_api_key?: string | null
@@ -450,6 +452,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          presence_absence_days_threshold?: number
           updated_at?: string | null
           user_id?: string
           whatsapp_bridge_api_key?: string | null
@@ -872,6 +875,7 @@ export type Database = {
           nome: string
           notas: string | null
           operador_nome: string | null
+          presenca_obrigatoria: boolean
           quota_indicados: number
           redes_sociais: Json | null
           secao_eleitoral: string | null
@@ -901,6 +905,7 @@ export type Database = {
           nome: string
           notas?: string | null
           operador_nome?: string | null
+          presenca_obrigatoria?: boolean
           quota_indicados?: number
           redes_sociais?: Json | null
           secao_eleitoral?: string | null
@@ -930,6 +935,7 @@ export type Database = {
           nome?: string
           notas?: string | null
           operador_nome?: string | null
+          presenca_obrigatoria?: boolean
           quota_indicados?: number
           redes_sociais?: Json | null
           secao_eleitoral?: string | null
@@ -1307,6 +1313,7 @@ export type Database = {
           endereco: string | null
           id: string
           nome: string
+          presenca_obrigatoria: boolean
           redes_sociais: Json | null
           referral_code: string
           referral_count: number
@@ -1325,6 +1332,7 @@ export type Database = {
           endereco?: string | null
           id?: string
           nome: string
+          presenca_obrigatoria?: boolean
           redes_sociais?: Json | null
           referral_code?: string
           referral_count?: number
@@ -1343,6 +1351,7 @@ export type Database = {
           endereco?: string | null
           id?: string
           nome?: string
+          presenca_obrigatoria?: boolean
           redes_sociais?: Json | null
           referral_code?: string
           referral_count?: number
@@ -1939,6 +1948,53 @@ export type Database = {
           },
         ]
       }
+      presence_absence_notifications: {
+        Row: {
+          client_id: string
+          days_absent: number
+          id: string
+          person_id: string
+          person_name: string
+          person_type: string
+          sent_at: string
+          telefone: string | null
+          whatsapp_error: string | null
+          whatsapp_status: string
+        }
+        Insert: {
+          client_id: string
+          days_absent: number
+          id?: string
+          person_id: string
+          person_name: string
+          person_type: string
+          sent_at?: string
+          telefone?: string | null
+          whatsapp_error?: string | null
+          whatsapp_status?: string
+        }
+        Update: {
+          client_id?: string
+          days_absent?: number
+          id?: string
+          person_id?: string
+          person_name?: string
+          person_type?: string
+          sent_at?: string
+          telefone?: string | null
+          whatsapp_error?: string | null
+          whatsapp_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presence_absence_notifications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2323,6 +2379,7 @@ export type Database = {
           instagram_username: string | null
           name: string
           neighborhood: string | null
+          presenca_obrigatoria: boolean
           referred_by: string | null
           state: string | null
           supporter_id: string | null
@@ -2339,6 +2396,7 @@ export type Database = {
           instagram_username?: string | null
           name: string
           neighborhood?: string | null
+          presenca_obrigatoria?: boolean
           referred_by?: string | null
           state?: string | null
           supporter_id?: string | null
@@ -2355,6 +2413,7 @@ export type Database = {
           instagram_username?: string | null
           name?: string
           neighborhood?: string | null
+          presenca_obrigatoria?: boolean
           referred_by?: string | null
           state?: string | null
           supporter_id?: string | null
@@ -3131,6 +3190,20 @@ export type Database = {
       ensure_supporter_for_entity: {
         Args: { p_client_id: string; p_nome: string; p_redes: Json }
         Returns: string
+      }
+      get_presence_overview: {
+        Args: { p_client_id: string }
+        Returns: {
+          days_since_checkin: number
+          email: string
+          last_checkin_date: string
+          nome: string
+          notified_at: string
+          person_id: string
+          person_type: string
+          presenca_obrigatoria: boolean
+          telefone: string
+        }[]
       }
       has_role: {
         Args: {
