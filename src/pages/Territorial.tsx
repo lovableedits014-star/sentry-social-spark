@@ -3,12 +3,15 @@ import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip } from "recharts";
-import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search, UserPlus, CalendarDays, BarChart3, Clock, Loader2 } from "lucide-react";
+import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search, UserPlus, CalendarDays, BarChart3, Clock, Loader2, X, Globe2, Building2, Home } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format, subDays, startOfDay, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { BrazilMap } from "@/components/territorial/BrazilMap";
+import { resolveUF, ufName, ufRegion, UF_LIST } from "@/lib/brazil-geo";
 
 interface LocationGroup {
   key: string;
@@ -61,6 +64,8 @@ function DistributionRow({ label, count, total, color = "bg-primary" }: { label:
 
 export default function Territorial() {
   const [search, setSearch] = useState("");
+  const [selectedUF, setSelectedUF] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
 
   const { data: client } = useQuery({
     queryKey: ["client"],
@@ -156,27 +161,80 @@ export default function Territorial() {
   });
 
   // ═══════════════════════════════════════
-  // TERRITORIAL computed
+  // TERRITORIAL computed (unified entries: pessoas + supporters + indicados)
   // ═══════════════════════════════════════
+  type GeoEntry = { city: string | null; neighborhood: string | null; state: string | null; created_at: string };
+
+  const allGeoEntries = useMemo<GeoEntry[]>(() => {
+    const entries: GeoEntry[] = [];
+    (supporters || []).forEach(s => entries.push({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at }));
+    (confirmedIndicados || []).forEach(i => entries.push({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at }));
+    (allPessoas || []).forEach(p => entries.push({ city: p.cidade, neighborhood: p.bairro, state: null, created_at: p.created_at }));
+    return entries;
+  }, [supporters, confirmedIndicados, allPessoas]);
+
+  // Heuristic: infer UF from explicit state field, or "Cidade - UF" / "Cidade/UF" suffix in city.
+  const inferUF = (e: GeoEntry): string | null => {
+    const fromState = resolveUF(e.state);
+    if (fromState) return fromState;
+    if (e.city) {
+      const m = e.city.match(/[\s,/-]+([A-Za-z]{2})\s*$/);
+      if (m) {
+        const uf = resolveUF(m[1]);
+        if (uf) return uf;
+      }
+    }
+    return null;
+  };
+
+  // UF aggregation for the map
+  const ufCounts = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const e of allGeoEntries) {
+      const uf = inferUF(e);
+      if (uf) map[uf] = (map[uf] || 0) + 1;
+    }
+    return map;
+  }, [allGeoEntries]);
+
+  const totalWithUF = useMemo(() => Object.values(ufCounts).reduce((a, b) => a + b, 0), [ufCounts]);
+  const ufWithData = useMemo(() => Object.keys(ufCounts).length, [ufCounts]);
+
+  // City/neighborhood aggregation, optionally filtered by selected UF
   const { groups, totalWithLocation, totalWithout } = useMemo(() => {
-    if (!supporters) return { groups: [], totalWithLocation: 0, totalWithout: 0 };
-    const allEntries = [
-      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at })),
-      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at })),
-    ];
-    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
-    const withoutLoc = allEntries.filter(s => !s.city && !s.neighborhood);
+    const filtered = selectedUF
+      ? allGeoEntries.filter(e => inferUF(e) === selectedUF)
+      : allGeoEntries;
+    const withLoc = filtered.filter(s => s.city || s.neighborhood);
+    const withoutLoc = filtered.filter(s => !s.city && !s.neighborhood);
     const map: Record<string, LocationGroup> = {};
     for (const s of withLoc) {
-      const city = s.city?.trim() || "Sem cidade";
+      const cityRaw = s.city?.trim() || "Sem cidade";
+      // Strip "- UF" suffix for display when grouping
+      const city = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
       const neighborhood = s.neighborhood?.trim() || null;
-      const state = s.state?.trim() || null;
+      const state = inferUF(s);
       const key = `${city}||${neighborhood || ""}`;
       if (!map[key]) map[key] = { key, city, neighborhood, state, count: 0 };
       map[key].count++;
     }
     return { groups: Object.values(map).sort((a, b) => b.count - a.count), totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
-  }, [supporters, confirmedIndicados]);
+  }, [allGeoEntries, selectedUF]);
+
+  // City-only aggregation for selected UF (drill-down level 2)
+  const cityGroups = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const g of groups) {
+      map[g.city] = (map[g.city] || 0) + g.count;
+    }
+    return Object.entries(map).map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count);
+  }, [groups]);
+
+  // Neighborhoods of selected city (drill-down level 3)
+  const neighborhoodGroups = useMemo(() => {
+    if (!selectedCity) return [];
+    return groups.filter(g => g.city === selectedCity && g.neighborhood);
+  }, [groups, selectedCity]);
 
   const growthStats = useMemo(() => {
     if (!supporters) return null;
@@ -275,6 +333,23 @@ export default function Territorial() {
 
   const coldZones = groups.filter(g => g.count / maxCount < 0.4).length;
 
+  // Region aggregation (Norte / Nordeste / etc.)
+  const regionCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const [uf, count] of Object.entries(ufCounts)) {
+      const region = ufRegion(uf);
+      map[region] = (map[region] || 0) + count;
+    }
+    return Object.entries(map).map(([region, count]) => ({ region, count })).sort((a, b) => b.count - a.count);
+  }, [ufCounts]);
+
+  const topUFs = useMemo(() => {
+    return Object.entries(ufCounts)
+      .map(([uf, count]) => ({ uf, name: ufName(uf), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [ufCounts]);
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -284,8 +359,8 @@ export default function Territorial() {
           Base & Território
         </h1>
         <p className="text-sm text-muted-foreground max-w-2xl mt-1">
-          Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão</strong> (geografia). 
-          Consolida dados de Pessoas, Contratados, Líderes, Indicados e Apoiadores do Portal.
+          Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão no Brasil</strong> (geografia).
+          Mapa interativo por estado, drill-down em cidades e bairros — pronto para campanhas em qualquer região do país.
         </p>
       </div>
 
