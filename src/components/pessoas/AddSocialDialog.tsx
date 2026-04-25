@@ -12,6 +12,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   pessoaId: string;
   onSuccess: () => void;
+  /** When provided, the dialog edits an existing record instead of inserting */
+  editing?: {
+    id: string;
+    plataforma: string;
+    usuario: string | null;
+    url_perfil: string | null;
+  } | null;
 }
 
 const PLATFORM_OPTIONS = [
@@ -21,11 +28,25 @@ const PLATFORM_OPTIONS = [
   { value: "youtube", label: "YouTube" },
 ];
 
-export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSuccess }: Props) {
+export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSuccess, editing }: Props) {
   const [saving, setSaving] = useState(false);
   const [plataforma, setPlataforma] = useState("instagram");
   const [usuario, setUsuario] = useState("");
   const [urlPerfil, setUrlPerfil] = useState("");
+
+  // Sync form when opening for edit / reset on close
+  useEffect(() => {
+    if (open) {
+      if (editing) {
+        setPlataforma(editing.plataforma);
+        setUsuario(editing.usuario || "");
+        setUrlPerfil(editing.url_perfil || "");
+      } else {
+        reset();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing]);
 
   function reset() {
     setPlataforma("instagram");
@@ -40,19 +61,22 @@ export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSucces
     }
 
     setSaving(true);
-    const { error } = await supabase.from("pessoa_social").insert({
-      pessoa_id: pessoaId,
+    const payload = {
       plataforma,
       usuario: usuario.trim() || null,
       url_perfil: urlPerfil.trim() || null,
-    } as any);
+    };
+
+    const { error } = editing
+      ? await supabase.from("pessoa_social").update(payload).eq("id", editing.id)
+      : await supabase.from("pessoa_social").insert({ pessoa_id: pessoaId, ...payload } as any);
 
     setSaving(false);
     if (error) {
-      toast.error("Erro ao adicionar rede social");
+      toast.error(editing ? "Erro ao atualizar rede social" : "Erro ao adicionar rede social");
       console.error(error);
     } else {
-      toast.success("Rede social adicionada!");
+      toast.success(editing ? "Rede social atualizada!" : "Rede social adicionada!");
       reset();
       onOpenChange(false);
       onSuccess();
@@ -63,7 +87,7 @@ export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSucces
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Adicionar Rede Social</DialogTitle>
+          <DialogTitle>{editing ? "Editar Rede Social" : "Adicionar Rede Social"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
