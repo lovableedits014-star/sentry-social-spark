@@ -686,7 +686,7 @@ const Dashboard = () => {
       {clientId && <DashboardOverview clientId={clientId} />}
 
       {/* Charts */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div id="dashboard-charts-grid" className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Distribuição de Sentimentos</CardTitle>
