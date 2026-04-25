@@ -82,17 +82,8 @@ function normalizeName(name: string): string {
     .replace(/\s+/g, " ");
 }
 
-function brazilianPhoneVariants(raw: string): string[] {
-  const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return [raw];
-
-  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
-  const ddd = withCountry.slice(2, 4);
-  const rest = withCountry.slice(4);
-  const withNinth = rest.length === 8 ? `55${ddd}9${rest}` : withCountry;
-  const withoutNinth = rest.length === 9 && rest.startsWith("9") ? `55${ddd}${rest.slice(1)}` : withCountry;
-
-  return Array.from(new Set([withNinth, withCountry, withoutNinth]));
+function cleanPhoneDigits(raw: string): string {
+  return String(raw).replace(/\D/g, "");
 }
 
 function namesMatch(a: string, b: string): boolean {
@@ -1308,30 +1299,17 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
     if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
-    let bridgeRes: Response;
-    let bridgeData: any;
     if (action === "send" && typeof phone === "string" && phone) {
-      let lastRes: Response | null = null;
-      let lastData: any = null;
-      for (const candidate of brazilianPhoneVariants(phone)) {
-        lastRes = await fetch(WHATSAPP_BRIDGE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
-          body: JSON.stringify({ ...proxyBody, phone: candidate }),
-        });
-        lastData = await lastRes.json().catch(() => ({} as any));
-        if (lastRes.ok && lastData?.success !== false) break;
-      }
-      bridgeRes = lastRes!;
-      bridgeData = lastData;
-    } else {
-      bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
-        body: JSON.stringify(proxyBody),
-      });
-      bridgeData = await bridgeRes.json().catch(() => ({} as any));
+      proxyBody.phone = cleanPhoneDigits(phone);
     }
+
+    const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+      body: JSON.stringify(proxyBody),
+    });
+
+    const bridgeData = await bridgeRes.json().catch(() => ({} as any));
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await bridgeCreateInstance({
