@@ -860,6 +860,7 @@ export default function SupporterPortal() {
           </TabsContent>
         </Tabs>
       </main>
+      <InstallAppFab />
     </div>
   );
 }
