@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Loader2, Users, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Loader2, MessageCircle } from "lucide-react";
+import { readPortalClientId } from "@/lib/pwa-client";
 
 /**
  * Página de entrada do PWA instalado na tela inicial.
@@ -10,27 +10,21 @@ import { Button } from "@/components/ui/button";
  */
 export default function PwaStart() {
   const navigate = useNavigate();
-  const [showChoice, setShowChoice] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
-    // Try localStorage first
-    let clientId = localStorage.getItem("pwa_client_id");
-
-    // Fallback: read from cookie (shared between Safari and iOS PWA standalone)
-    if (!clientId) {
-      const match = document.cookie.match(/(?:^|;\s*)pwa_client_id=([^;]+)/);
-      if (match) clientId = match[1];
-    }
-
+    const clientId = readPortalClientId();
     if (clientId) {
       navigate(`/portal/${clientId}`, { replace: true });
     } else {
-      // Sem clientId: mostrar tela de escolha
-      setShowChoice(true);
+      // Sem clientId salvo: o usuário instalou o PWA antes de abrir um portal.
+      // NÃO mandamos para a landing page institucional — mostramos instrução
+      // clara para usar o link recebido do coordenador.
+      setShowHelp(true);
     }
   }, [navigate]);
 
-  if (!showChoice) {
+  if (!showHelp) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background">
         <div className="text-center space-y-4">
@@ -43,48 +37,26 @@ export default function PwaStart() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary/10 to-background p-6">
-      <div className="w-full max-w-sm space-y-6 text-center">
-        <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-24 h-24 object-contain mx-auto drop-shadow-xl" />
+      <div className="w-full max-w-sm space-y-5 text-center">
+        <img src="/sentinelle-logo.png" alt="" className="w-20 h-20 object-contain mx-auto drop-shadow-xl" />
         <div>
-          <h1 className="text-2xl font-bold">Sentinelle</h1>
-          <p className="text-muted-foreground text-sm mt-1">Como deseja acessar?</p>
+          <h1 className="text-2xl font-bold">Quase lá!</h1>
+          <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
+            Para acessar seu portal, abra o <strong>link específico</strong> que
+            você recebeu do seu coordenador no WhatsApp.
+          </p>
         </div>
-
-        <div className="space-y-3">
-          {/* Opção Apoiador */}
-          <Link to="/" className="block">
-            <div className="border-2 border-primary/20 rounded-xl p-5 text-left hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                  <Users className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Sou Apoiador</p>
-                  <p className="text-xs text-muted-foreground">Acesse o portal de engajamento com o link recebido do seu coordenador</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Opção Admin */}
-          <Link to="/auth" className="block">
-            <div className="border-2 border-muted rounded-xl p-5 text-left hover:border-muted-foreground/30 hover:bg-muted/30 transition-all cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center shrink-0">
-                  <Shield className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Sou Administrador</p>
-                  <p className="text-xs text-muted-foreground">Acesse o painel de gerenciamento do Sentinelle</p>
-                </div>
-              </div>
-            </div>
-          </Link>
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-left space-y-2">
+          <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+            <MessageCircle className="w-4 h-4" />
+            Como achar seu link
+          </div>
+          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+            <li>Abra a conversa com seu coordenador</li>
+            <li>Toque no link do portal que ele te enviou</li>
+            <li>Após abrir uma vez, este atalho passa a funcionar sozinho</li>
+          </ol>
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Apoiador: use o link específico do seu portal para instalar o app corretamente
-        </p>
       </div>
     </div>
   );
