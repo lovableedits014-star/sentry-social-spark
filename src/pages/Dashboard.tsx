@@ -17,6 +17,7 @@ import { IEDPanel } from "@/components/IEDPanel";
 import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
 import { AuditPanel } from "@/components/dashboard/AuditPanel";
+import { DataHealthAlerts } from "@/components/dashboard/DataHealthAlerts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EyeOff } from "lucide-react";
 
@@ -552,6 +553,9 @@ const Dashboard = () => {
 
       {/* IED Panel */}
       {clientId && <IEDPanel clientId={clientId} />}
+
+      {/* Data Health Alerts — quedas bruscas e ausência de dados */}
+      {clientId && <DataHealthAlerts clientId={clientId} />}
 
       {/* Audit Panel — transparência das métricas */}
       {clientId && <AuditPanel clientId={clientId} periodDays={periodDays} />}
