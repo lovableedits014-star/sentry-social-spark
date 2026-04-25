@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { CalendarCheck, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -12,13 +13,14 @@ import { Link } from "react-router-dom";
 export default function PresenceSettingsCard({ clientId }: { clientId: string }) {
   const queryClient = useQueryClient();
   const [days, setDays] = useState<number>(3);
+  const [template, setTemplate] = useState<string>("");
 
   const { data: client, isLoading } = useQuery({
     queryKey: ["client-presence-config", clientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, presence_absence_days_threshold")
+        .select("id, name, presence_absence_days_threshold, presence_absence_message_template")
         .eq("id", clientId)
         .maybeSingle();
       if (error) throw error;
@@ -31,14 +33,23 @@ export default function PresenceSettingsCard({ clientId }: { clientId: string })
     if (client?.presence_absence_days_threshold) {
       setDays(client.presence_absence_days_threshold);
     }
+    if (typeof (client as any)?.presence_absence_message_template === "string") {
+      setTemplate((client as any).presence_absence_message_template);
+    }
   }, [client]);
 
   const save = useMutation({
     mutationFn: async () => {
       const value = Math.max(1, Math.min(30, Math.round(days)));
+      const trimmed = template.trim();
+      if (!trimmed) throw new Error("A mensagem não pode ficar vazia");
+      if (trimmed.length > 1000) throw new Error("A mensagem deve ter no máximo 1000 caracteres");
       const { error } = await supabase
         .from("clients")
-        .update({ presence_absence_days_threshold: value })
+        .update({
+          presence_absence_days_threshold: value,
+          presence_absence_message_template: trimmed,
+        } as any)
         .eq("id", clientId);
       if (error) throw error;
     },
@@ -48,6 +59,11 @@ export default function PresenceSettingsCard({ clientId }: { clientId: string })
     },
     onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
   });
+
+  const preview = template
+    .replaceAll("{nome}", "Maria")
+    .replaceAll("{dias}", String(Math.max(1, Math.min(30, Math.round(days || 3)))))
+    .replaceAll("{campanha}", (client as any)?.name ?? "Sua Campanha");
 
   return (
     <Card>
@@ -73,11 +89,41 @@ export default function PresenceSettingsCard({ clientId }: { clientId: string })
               onChange={(e) => setDays(Number(e.target.value))}
               disabled={isLoading}
             />
-            <Button onClick={() => save.mutate()} disabled={save.isPending || isLoading}>
-              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            </Button>
           </div>
           <p className="text-xs text-muted-foreground">Mínimo 1, máximo 30 dias.</p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="presence-template">Mensagem enviada no WhatsApp</Label>
+          <Textarea
+            id="presence-template"
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+            disabled={isLoading}
+            rows={8}
+            className="font-mono text-xs"
+            placeholder="Olá, {nome}! Você não acessa o portal há {dias} dias..."
+          />
+          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+            <span>Variáveis disponíveis:</span>
+            <code className="px-1.5 py-0.5 rounded bg-muted">{"{nome}"}</code>
+            <code className="px-1.5 py-0.5 rounded bg-muted">{"{dias}"}</code>
+            <code className="px-1.5 py-0.5 rounded bg-muted">{"{campanha}"}</code>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-background p-3">
+          <p className="text-xs font-medium mb-2 text-muted-foreground">Pré-visualização</p>
+          <div className="rounded-md bg-[#dcf8c6] text-foreground/90 p-3 text-sm whitespace-pre-wrap leading-relaxed shadow-sm">
+            {preview || <span className="text-muted-foreground italic">Digite uma mensagem acima…</span>}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={() => save.mutate()} disabled={save.isPending || isLoading}>
+            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar configuração
+          </Button>
         </div>
 
         <div className="rounded-lg border bg-muted/30 p-3 text-sm">
