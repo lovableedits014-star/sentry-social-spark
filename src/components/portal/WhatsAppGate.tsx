@@ -37,7 +37,37 @@ export default function WhatsAppGate({
   const [loading, setLoading] = useState(false);
   const [opened, setOpened] = useState(false);
   const [autoChecking, setAutoChecking] = useState(false);
+  const [whatsAppHref, setWhatsAppHref] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+
+  const roleLabel =
+    role === "funcionario" ? "funcionário" : role === "contratado" ? "contratado" : "apoiador";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveLink = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("resolve-whatsapp-link", {
+          body: { client_id: clientId, role },
+        });
+        if (error) throw error;
+        const waUrl = data?.wa_url as string | undefined;
+        if (!waUrl || cancelled) return;
+        const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
+          clientName ? ` em ${clientName}` : ""
+        }.`;
+        setWhatsAppHref(`${waUrl}?text=${encodeURIComponent(msg)}`);
+      } catch (err) {
+        console.error("[WhatsAppGate] resolve link error:", err);
+      }
+    };
+
+    resolveLink();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, role, userName, roleLabel, clientName]);
 
   // Polling automático: depois que o usuário abre o WhatsApp, verificamos a cada 4s
   // se o webhook da bridge já confirmou a mensagem recebida.
@@ -69,13 +99,12 @@ export default function WhatsAppGate({
     };
   }, [opened, checkConfirmed, onConfirmed]);
 
-  const roleLabel =
-    role === "funcionario" ? "funcionário" : role === "contratado" ? "contratado" : "apoiador";
-
   const handleOpenWhatsApp = async () => {
-    // CRITICAL: abrir a janela SINCRONAMENTE no clique, antes de qualquer await.
-    // Senão o navegador (especialmente mobile) bloqueia o popup como não-iniciado pelo usuário.
-    const popup = window.open("about:blank", "_blank");
+    if (whatsAppHref) {
+      setOpened(true);
+      toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -85,7 +114,6 @@ export default function WhatsAppGate({
       if (error) throw error;
       const waUrl = data?.wa_url as string | undefined;
       if (!waUrl) {
-        if (popup) popup.close();
         toast.error("WhatsApp Oficial não configurado para esta campanha.");
         return;
       }
@@ -93,16 +121,11 @@ export default function WhatsAppGate({
         clientName ? ` em ${clientName}` : ""
       }.`;
       const finalUrl = `${waUrl}?text=${encodeURIComponent(msg)}`;
-      if (popup && !popup.closed) {
-        popup.location.href = finalUrl;
-      } else {
-        // Fallback: navegação no próprio tab se o popup foi bloqueado
-        window.location.href = finalUrl;
-      }
+      setWhatsAppHref(finalUrl);
+      window.location.href = finalUrl;
       setOpened(true);
       toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
     } catch (err: any) {
-      if (popup) popup.close();
       toast.error(err?.message || "Erro ao abrir WhatsApp");
     } finally {
       setLoading(false);
