@@ -340,16 +340,11 @@ Deno.serve(async (req) => {
       console.log("[WhatsApp manage-whatsapp-instance] phone enviado para whatsapp-bridge (sem alteração):", proxyBody.phone);
     }
 
-    const bridgeRes = await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": clientApiKey,
-      },
-      body: JSON.stringify(proxyBody),
+    const { bridgeRes, bridgeData } = await fetchBridgeAction({
+      action,
+      apiKey: clientApiKey,
+      body: proxyBody,
     });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({}));
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await createClientInstance({
