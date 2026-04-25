@@ -482,6 +482,17 @@ export default function SupporterPortal() {
   // ─── PORTAL SCREEN ────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
+      {/* WhatsApp anti-ban gate — required on first access */}
+      {account && clientId && !account.whatsapp_confirmado && (
+        <WhatsAppGate
+          clientId={clientId}
+          clientName={clientInfo?.name}
+          clientLogo={clientInfo?.logo_url ?? null}
+          role="apoiador"
+          userName={account.name}
+          onConfirmed={() => setAccount({ ...account, whatsapp_confirmado: true })}
+        />
+      )}
       {/* Top bar */}
       <header className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
