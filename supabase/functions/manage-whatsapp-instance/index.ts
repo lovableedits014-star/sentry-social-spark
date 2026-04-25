@@ -301,8 +301,9 @@ Deno.serve(async (req) => {
     if (action === "list_instances") {
       const { data, error } = await adminClient
         .from("whatsapp_instances")
-        .select("id, apelido, phone_number, status, is_active, last_send_at, messages_sent_today, messages_sent_today_date, total_sent, total_failed, consecutive_failures, connected_since, notes, bridge_url, created_at, updated_at")
+        .select("id, apelido, phone_number, status, is_active, is_primary, last_send_at, messages_sent_today, messages_sent_today_date, total_sent, total_failed, consecutive_failures, connected_since, notes, bridge_url, created_at, updated_at")
         .eq("client_id", resolvedClientId)
+        .order("is_primary", { ascending: false })
         .order("created_at", { ascending: true });
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
       const now = Date.now();
@@ -323,9 +324,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_instance_record") {
+      // Verifica se já existe alguma instância para esse cliente
+      const { count: existingCount } = await adminClient
+        .from("whatsapp_instances")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", resolvedClientId);
+      const isFirst = (existingCount || 0) === 0;
       const { data, error } = await adminClient
         .from("whatsapp_instances")
-        .insert({ client_id: resolvedClientId, apelido: apelido || "Nova Instância", status: "disconnected", is_active: true })
+        .insert({
+          client_id: resolvedClientId,
+          apelido: apelido || "Nova Instância",
+          status: "disconnected",
+          is_active: true,
+          is_primary: isFirst,
+        })
         .select()
         .single();
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
@@ -343,6 +356,17 @@ Deno.serve(async (req) => {
       const { error } = await adminClient
         .from("whatsapp_instances")
         .update(updates)
+        .eq("id", instance_id)
+        .eq("client_id", resolvedClientId);
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      return jsonResponse({ success: true });
+    }
+
+    if (action === "set_primary_instance") {
+      if (!instance_id) return jsonResponse({ success: false, error: "instance_id required" }, 400);
+      const { error } = await adminClient
+        .from("whatsapp_instances")
+        .update({ is_primary: true })
         .eq("id", instance_id)
         .eq("client_id", resolvedClientId);
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
