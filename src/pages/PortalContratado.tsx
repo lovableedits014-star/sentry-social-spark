@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
+import InstallAppFab from "@/components/portal/InstallAppFab";
 
 interface Mission {
   id: string;
