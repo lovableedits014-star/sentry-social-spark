@@ -11,7 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, QrCode, Send, Trash2, Wifi, WifiOff, Pencil, Check, X, RefreshCw, Power
+  Loader2, QrCode, Send, Trash2, Wifi, WifiOff, Pencil, Check, X, RefreshCw, Power, Star, Phone
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,6 +21,7 @@ export interface PoolInstance {
   phone_number: string | null;
   status: string;
   is_active: boolean;
+  is_primary: boolean;
   last_send_at: string | null;
   messages_sent_today: number;
   total_sent: number;
@@ -53,6 +54,19 @@ function healthLabel(score: number): { color: string; label: string; ring: strin
   if (score >= 70) return { color: "text-emerald-600", ring: "ring-emerald-500/30 bg-emerald-500/10", label: "Saudável" };
   if (score >= 40) return { color: "text-amber-600", ring: "ring-amber-500/30 bg-amber-500/10", label: "Atenção" };
   return { color: "text-red-600", ring: "ring-red-500/30 bg-red-500/10", label: "Em risco" };
+}
+
+function formatPhoneBR(raw: string | null): string {
+  if (!raw) return "";
+  const d = String(raw).replace(/\D/g, "");
+  // 55 + DDD(2) + número(8 ou 9)
+  if (d.length >= 12 && d.startsWith("55")) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    if (rest.length === 9) return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    if (rest.length === 8) return `+55 (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  }
+  return d;
 }
 
 const CONNECTED = new Set(["connected", "open"]);
@@ -144,6 +158,18 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
     onChange();
   };
 
+  const handleSetPrimary = async () => {
+    setBusy("primary");
+    const { data, error } = await invoke("set_primary_instance");
+    setBusy(null);
+    if (error || data?.error) {
+      toast.error("Erro: " + (error?.message || data?.error));
+    } else {
+      toast.success(`"${instance.apelido}" definido como instância principal.`);
+      onChange();
+    }
+  };
+
   const saveName = async () => {
     const trimmed = name.trim();
     if (!trimmed || trimmed === instance.apelido) { setEditingName(false); return; }
@@ -169,9 +195,10 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
   const health = healthLabel(instance.health_score);
   const isNew = instance.connected_since
     && (Date.now() - new Date(instance.connected_since).getTime()) < 7 * 86400000;
+  const formattedPhone = formatPhoneBR(instance.phone_number);
 
   return (
-    <div className="border rounded-lg p-4 space-y-3 bg-card">
+    <div className={`border rounded-lg p-4 space-y-3 bg-card ${instance.is_primary ? "ring-2 ring-amber-400/50 border-amber-400/40" : ""}`}>
       {/* Header: health + name + status */}
       <div className="flex items-start gap-3">
         <TooltipProvider>
@@ -206,11 +233,31 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setName(instance.apelido); setEditingName(false); }}><X className="w-3.5 h-3.5" /></Button>
             </div>
           ) : (
-            <button className="group flex items-center gap-1 max-w-full" onClick={() => setEditingName(true)}>
-              <span className="font-semibold text-sm truncate">{instance.apelido}</span>
-              <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-            </button>
+            <div className="flex items-center gap-1.5 max-w-full">
+              <button className="group flex items-center gap-1 min-w-0" onClick={() => setEditingName(true)}>
+                <span className="font-semibold text-sm truncate">{instance.apelido}</span>
+                <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+              {instance.is_primary && (
+                <Badge variant="outline" className="text-[9px] gap-0.5 border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0">
+                  <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Principal
+                </Badge>
+              )}
+            </div>
           )}
+
+          {/* Telefone conectado em destaque */}
+          {formattedPhone ? (
+            <div className="flex items-center gap-1 mt-1 text-[12px] font-mono font-semibold text-foreground">
+              <Phone className="w-3 h-3 text-emerald-600" />
+              {formattedPhone}
+            </div>
+          ) : isConnected ? (
+            <div className="flex items-center gap-1 mt-1 text-[11px] text-muted-foreground italic">
+              <Phone className="w-3 h-3" /> número não detectado — clique em Reconectar
+            </div>
+          ) : null}
+
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {isConnected ? (
               <Badge variant="outline" className="text-[10px] gap-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
@@ -225,9 +272,6 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
             )}
             {isNew && (
               <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-700 dark:text-blue-400">Chip novo</Badge>
-            )}
-            {instance.phone_number && (
-              <span className="text-[11px] text-muted-foreground font-mono">{instance.phone_number}</span>
             )}
           </div>
         </div>
@@ -275,6 +319,24 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
           onCheckedChange={togglePool}
         />
       </div>
+
+      {/* Botão Tornar Principal */}
+      {!instance.is_primary && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full text-xs gap-1 border-amber-400/40 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/20"
+          onClick={handleSetPrimary}
+          disabled={busy === "primary"}
+        >
+          {busy === "primary" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Star className="w-3.5 h-3.5" />
+          )}
+          Tornar instância principal
+        </Button>
+      )}
 
       {/* Ações */}
       <div className="flex flex-wrap gap-1.5">
