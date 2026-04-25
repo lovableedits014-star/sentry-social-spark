@@ -67,12 +67,12 @@ const App = () => (
           <Route path="/super-admin" element={<SuperAdmin />} />
           <Route path="/cadastro/:clientId" element={<CadastroUnificado />} />
           <Route path="/cadastro-lider/:token" element={<CadastroLiderConvite />} />
-          {/* Redirects de rotas antigas (mantém compatibilidade com links já compartilhados) */}
+          {/* Redirects de rotas antigas de cadastro (mantém compatibilidade com links já compartilhados) */}
           <Route path="/registro/:clientId" element={<RedirectToCadastro extraQuery="modo=detalhado" />} />
           <Route path="/funcionario/:clientId" element={<RedirectToCadastro extraQuery="papel=funcionario" />} />
-          <Route path="/portal-funcionario/:clientId" element={<RedirectToPortal />} />
-          <Route path="/portal-contratado/:clientId" element={<RedirectToPortal />} />
-          {/* Mantidas: contratado liderado (precisa do liderId) e telemarketing */}
+          {/* Portais antigos seguem ativos até a Entrega 2 (Portal Unificado) */}
+          <Route path="/portal-funcionario/:clientId" element={<PortalFuncionario />} />
+          <Route path="/portal-contratado/:clientId" element={<PortalContratado />} />
           <Route path="/contratado/:clientId" element={<RegistroContratado />} />
           <Route path="/contratado/:clientId/:liderId" element={<RegistroContratado />} />
           <Route path="/telemarketing/:clientId" element={<Telemarketing />} />
