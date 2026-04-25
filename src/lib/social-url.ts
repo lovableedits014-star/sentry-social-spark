@@ -40,3 +40,35 @@ export function getWhatsAppLink(telefone: string | null | undefined): string | n
   const number = digits.startsWith("55") ? digits : `55${digits}`;
   return `https://wa.me/${number}`;
 }
+
+/**
+ * Extrai o handle/username de uma URL de perfil social.
+ * Ex: "https://www.facebook.com/mayer.baclan?locale=pt_BR" → "mayer.baclan"
+ *     "https://instagram.com/usuario/" → "usuario"
+ * Retorna null para URLs irreconhecíveis ou genéricas (share, profile, etc).
+ */
+export function extractHandleFromUrl(platform: string, url: string): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    // Para facebook.com/profile.php?id=123
+    if (platform === "facebook" && u.pathname.includes("profile.php")) {
+      const id = u.searchParams.get("id");
+      return id && /^\d+$/.test(id) ? id : null;
+    }
+    // Pega o primeiro segmento do path
+    const segments = u.pathname.split("/").filter(Boolean);
+    if (!segments.length) return null;
+    const first = segments[0];
+    // Rejeita rotas genéricas que não são handles
+    const blocklist = new Set([
+      "share", "sharer", "share.php", "dialog", "events", "groups",
+      "pages", "permalink.php", "story.php", "watch", "reel", "reels",
+      "p", "stories", "explore", "tv", "accounts", "login", "signup",
+    ]);
+    if (blocklist.has(first.toLowerCase())) return null;
+    return first.replace(/^@/, "");
+  } catch {
+    return null;
+  }
+}

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { extractHandleFromUrl } from "@/lib/social-url";
 
 interface Props {
   open: boolean;
@@ -61,10 +62,18 @@ export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSucces
     }
 
     setSaving(true);
+
+    // Se foi colado uma URL, sempre tenta extrair o handle real dela
+    // (evita salvar "share", "profile.php" etc como usuário).
+    const rawUser = usuario.trim().replace(/^@/, "");
+    const rawUrl = urlPerfil.trim();
+    const extracted = rawUrl ? extractHandleFromUrl(plataforma, rawUrl) : null;
+    const finalUser = extracted || rawUser || null;
+
     const payload = {
       plataforma,
-      usuario: usuario.trim() || null,
-      url_perfil: urlPerfil.trim() || null,
+      usuario: finalUser,
+      url_perfil: rawUrl || null,
     };
 
     const { error } = editing
