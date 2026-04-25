@@ -207,30 +207,101 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
     const picCache = loadPicCache();
     let cacheDirty = false;
 
-    // 1) Carrega supporters vinculados a alguma entidade cadastrada
-    const [pessoasRes, funcionariosRes, contratadosRes, accountsRes] = await Promise.all([
-      supabase.from("pessoas").select("supporter_id, nome, tipo_pessoa").eq("client_id", clientId).not("supporter_id", "is", null),
-      supabase.from("funcionarios").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
-      supabase.from("contratados" as any).select("supporter_id, nome, is_lider").eq("client_id", clientId).not("supporter_id", "is", null),
-      supabase.from("supporter_accounts").select("supporter_id, name").eq("client_id", clientId).not("supporter_id", "is", null),
+    // 1) Carrega TODAS as entidades cadastradas (com ou sem supporter_id)
+    //    para cruzar por supporter_id direto, telefone e nome normalizado.
+    const [pessoasRes, funcionariosRes, contratadosRes, indicadosRes, accountsRes] = await Promise.all([
+      supabase.from("pessoas").select("supporter_id, nome, tipo_pessoa, telefone").eq("client_id", clientId),
+      supabase.from("funcionarios").select("supporter_id, nome, telefone, redes_sociais").eq("client_id", clientId),
+      supabase.from("contratados" as any).select("nome, telefone, is_lider, redes_sociais").eq("client_id", clientId),
+      supabase.from("contratado_indicados" as any).select("nome, telefone").eq("client_id", clientId),
+      supabase.from("supporter_accounts").select("supporter_id, name, instagram_username, facebook_username").eq("client_id", clientId).not("supporter_id", "is", null),
     ]);
 
-    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"]; category: string }>();
-    for (const r of (accountsRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador", category: "apoiador" });
+    // Helpers de normalização
+    const normName = (s: string | null | undefined) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    const normPhone = (s: string | null | undefined) => (s || "").replace(/\D/g, "").replace(/^55/, "");
+    const PRIORITY: Record<string, number> = {
+      funcionario: 100, lider: 90, liderado: 80, indicado: 70,
+      lideranca: 60, influenciador: 55, voluntario: 50, jornalista: 45,
+      apoiador: 40, eleitor: 30, cidadao: 20, adversario: 15, outro: 10,
+    };
+    const VALID_TIPOS = new Set(["lider", "liderado", "indicado", "lideranca", "apoiador", "influenciador", "voluntario", "jornalista", "eleitor", "cidadao", "adversario"]);
+
+    // Índices por nome e telefone → { category, name, origin }
+    type CategoryHit = { name: string; origin: Influencer["origin"]; category: string };
+    const byName = new Map<string, CategoryHit>();
+    const byPhone = new Map<string, CategoryHit>();
+    const upsertHit = (key: string, store: Map<string, CategoryHit>, hit: CategoryHit) => {
+      if (!key) return;
+      const existing = store.get(key);
+      if (!existing || (PRIORITY[hit.category] || 0) > (PRIORITY[existing.category] || 0)) {
+        store.set(key, hit);
+      }
+    };
+
+    // funcionários (alta prioridade)
+    for (const r of (funcionariosRes.data || []) as any[]) {
+      const hit: CategoryHit = { name: r.nome, origin: "funcionario", category: "funcionario" };
+      upsertHit(normName(r.nome), byName, hit);
+      upsertHit(normPhone(r.telefone), byPhone, hit);
     }
+    // contratados (líder ou liderado)
     for (const r of (contratadosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado", category: r.is_lider ? "lider" : "liderado" });
+      const cat = r.is_lider ? "lider" : "liderado";
+      const hit: CategoryHit = { name: r.nome, origin: "contratado", category: cat };
+      upsertHit(normName(r.nome), byName, hit);
+      upsertHit(normPhone(r.telefone), byPhone, hit);
+    }
+    // indicados (de líderes)
+    for (const r of (indicadosRes.data || []) as any[]) {
+      const hit: CategoryHit = { name: r.nome, origin: "contratado", category: "indicado" };
+      upsertHit(normName(r.nome), byName, hit);
+      upsertHit(normPhone(r.telefone), byPhone, hit);
+    }
+    // pessoas (CRM)
+    for (const r of (pessoasRes.data || []) as any[]) {
+      const tipo = (r.tipo_pessoa as string) || "cidadao";
+      const cat = VALID_TIPOS.has(tipo) ? tipo : "outro";
+      const hit: CategoryHit = { name: r.nome, origin: "pessoa", category: cat };
+      upsertHit(normName(r.nome), byName, hit);
+      upsertHit(normPhone(r.telefone), byPhone, hit);
+    }
+    // apoiadores do portal
+    for (const r of (accountsRes.data || []) as any[]) {
+      const hit: CategoryHit = { name: r.name, origin: "apoiador", category: "apoiador" };
+      upsertHit(normName(r.name), byName, hit);
+    }
+
+    // 2) Mapa supporter_id → meta (por supporter_id direto)
+    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"]; category: string }>();
+    const upsertSupporter = (supporterId: string | null | undefined, hit: CategoryHit) => {
+      if (!supporterId) return;
+      const existing = supporterMeta.get(supporterId);
+      if (!existing || (PRIORITY[hit.category] || 0) > (PRIORITY[existing.category] || 0)) {
+        supporterMeta.set(supporterId, hit);
+      }
+    };
+    // Aplica supporter_id direto onde existe
+    for (const r of (accountsRes.data || []) as any[]) {
+      upsertSupporter(r.supporter_id, { name: r.name, origin: "apoiador", category: "apoiador" });
     }
     for (const r of (funcionariosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario", category: "funcionario" });
+      if (r.supporter_id) upsertSupporter(r.supporter_id, { name: r.nome, origin: "funcionario", category: "funcionario" });
     }
     for (const r of (pessoasRes.data || []) as any[]) {
       if (r.supporter_id) {
         const tipo = (r.tipo_pessoa as string) || "cidadao";
-        // mapeia tipo_pessoa para categoria de filtro
-        const cat = ["lider", "liderado", "indicado", "lideranca", "apoiador", "influenciador", "voluntario", "jornalista", "eleitor", "cidadao", "adversario"].includes(tipo) ? tipo : "outro";
-        supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa", category: cat });
+        const cat = VALID_TIPOS.has(tipo) ? tipo : "outro";
+        upsertSupporter(r.supporter_id, { name: r.nome, origin: "pessoa", category: cat });
+      }
+    }
+
+    // 3) RECLASSIFICAÇÃO: para cada supporter já mapeado, tenta promover categoria
+    //    usando o índice por nome normalizado (ex.: supporter_account "Mayer" → funcionário)
+    for (const [sid, meta] of supporterMeta.entries()) {
+      const byNameHit = byName.get(normName(meta.name));
+      if (byNameHit && (PRIORITY[byNameHit.category] || 0) > (PRIORITY[meta.category] || 0)) {
+        supporterMeta.set(sid, byNameHit);
       }
     }
 
