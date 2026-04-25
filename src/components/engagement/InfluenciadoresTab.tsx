@@ -199,6 +199,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [influencers, setInfluencers] = useState<Influencer[]>([]);
   const [days, setDays] = useState(30);
+  const [categoryFilter, setCategoryFilter] = useState<string>("todos");
 
   const fetchData = async () => {
     setLoading(true);
@@ -428,8 +429,19 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
   useEffect(() => { fetchData(); }, [clientId, days]);
 
-  const topInfluencers = influencers.slice(0, 3);
-  const restInfluencers = influencers.slice(3);
+  // Categorias presentes nos dados (para mostrar só chips relevantes)
+  const availableCategories = Array.from(new Set(influencers.map((i) => i.category))).sort();
+  const categoryCounts = influencers.reduce<Record<string, number>>((acc, i) => {
+    acc[i.category] = (acc[i.category] || 0) + 1;
+    return acc;
+  }, {});
+
+  const filtered = categoryFilter === "todos"
+    ? influencers
+    : influencers.filter((i) => i.category === categoryFilter);
+
+  const topInfluencers = filtered.slice(0, 3);
+  const restInfluencers = filtered.slice(3);
 
   return (
     <div className="space-y-4">
@@ -452,6 +464,27 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           </Button>
         </div>
       </div>
+
+      {!loading && influencers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">Filtrar por:</span>
+          <button
+            onClick={() => setCategoryFilter("todos")}
+            className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${categoryFilter === "todos" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary/50"}`}
+          >
+            Todos <span className="opacity-70">({influencers.length})</span>
+          </button>
+          {availableCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${categoryFilter === cat ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary/50"}`}
+            >
+              {CATEGORY_LABEL[cat] || cat} <span className="opacity-70">({categoryCounts[cat]})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && (
         <div className="grid gap-4 md:grid-cols-3">
