@@ -232,14 +232,21 @@ export default function ControlePresenca() {
             Aplique a obrigatoriedade a um grupo inteiro com um clique. Útil quando você decide que todo um time deve marcar presença.
           </p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(["funcionario", "lider", "liderado", "apoiador"] as const).map((t) => (
-              <div key={t} className="flex flex-col gap-1.5 p-3 rounded-lg border bg-muted/20">
-                <span className="text-xs font-medium">{TYPE_LABEL[t]}s</span>
-                <div className="flex gap-1.5">
+            {(["funcionario", "lider", "liderado", "apoiador"] as const).map((t) => {
+              const pending = bulkToggle.isPending && bulkToggle.variables?.type === t;
+              return (
+              <div key={t} className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/20 min-w-0">
+                <span className="text-xs font-medium truncate">{TYPE_LABEL[t]}s</span>
+                <div className="flex flex-col gap-1.5">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="default" className="flex-1 h-8 text-xs" disabled={bulkToggle.isPending}>
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Obrigar todos
+                      <Button size="sm" variant="default" className="w-full h-8 text-xs px-2" disabled={bulkToggle.isPending}>
+                        {pending && bulkToggle.variables?.value === true ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" />
+                        )}
+                        <span className="truncate">Obrigar todos</span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -260,8 +267,13 @@ export default function ControlePresenca() {
                   </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" disabled={bulkToggle.isPending}>
-                        <XCircle className="w-3.5 h-3.5 mr-1" /> Desmarcar
+                      <Button size="sm" variant="outline" className="w-full h-8 text-xs px-2" disabled={bulkToggle.isPending}>
+                        {pending && bulkToggle.variables?.value === false ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin shrink-0" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 mr-1 shrink-0" />
+                        )}
+                        <span className="truncate">Desmarcar todos</span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -281,7 +293,8 @@ export default function ControlePresenca() {
                   </AlertDialog>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
