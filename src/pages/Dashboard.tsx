@@ -577,6 +577,20 @@ const Dashboard = () => {
               <SelectItem value="365">1 ano</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exportingPdf || loading}
+            title="Gerar relatório PDF do período selecionado"
+          >
+            {exportingPdf ? (
+              <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Gerando PDF...</>
+            ) : (
+              <><FileDown className="w-4 h-4 mr-1.5" />Exportar PDF</>
+            )}
+          </Button>
         </div>
       </div>
 
