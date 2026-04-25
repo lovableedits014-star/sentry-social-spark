@@ -32,13 +32,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { client_id } = await req.json();
+    const { client_id, role } = await req.json();
     if (!client_id) {
       return new Response(JSON.stringify({ error: "client_id é obrigatório" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // role: "contratado" (default), "funcionario" or "apoiador"
+    const targetRole: "contratado" | "funcionario" | "apoiador" =
+      role === "funcionario" || role === "apoiador" ? role : "contratado";
 
     const { data: clientData, error: clientError } = await adminClient
       .from("clients")
@@ -63,8 +67,14 @@ Deno.serve(async (req) => {
 
     const waNumber = number.startsWith("55") ? number : `55${number}`;
 
+    const tableByRole: Record<typeof targetRole, string> = {
+      contratado: "contratados",
+      funcionario: "funcionarios",
+      apoiador: "supporter_accounts",
+    };
+
     const { error: updateError } = await adminClient
-      .from("contratados")
+      .from(tableByRole[targetRole])
       .update({ whatsapp_confirmado: true })
       .eq("client_id", client_id)
       .eq("user_id", authData.user.id);
