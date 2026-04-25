@@ -109,10 +109,18 @@ export default function WhatsAppGate({
     };
   }, [opened, checkConfirmed, onConfirmed]);
 
+  const openResolvedWhatsApp = (link: WhatsAppLink) => {
+    setOpened(true);
+    toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+    window.location.href = link.appUrl;
+    window.setTimeout(() => {
+      window.location.href = link.webUrl;
+    }, 1200);
+  };
+
   const handleOpenWhatsApp = async () => {
-    if (whatsAppHref) {
-      setOpened(true);
-      toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+    if (whatsAppLink) {
+      openResolvedWhatsApp(whatsAppLink);
       return;
     }
 
@@ -130,11 +138,14 @@ export default function WhatsAppGate({
       const msg = `Olá! Sou ${userName}, confirmando meu cadastro como ${roleLabel}${
         clientName ? ` em ${clientName}` : ""
       }.`;
-      const finalUrl = `${waUrl}?text=${encodeURIComponent(msg)}`;
-      setWhatsAppHref(finalUrl);
-      window.location.href = finalUrl;
-      setOpened(true);
-      toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
+      const phone = waUrl.replace(/\D/g, "");
+      const text = encodeURIComponent(msg);
+      const link = {
+        appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
+        webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+      };
+      setWhatsAppLink(link);
+      openResolvedWhatsApp(link);
     } catch (err: any) {
       toast.error(err?.message || "Erro ao abrir WhatsApp");
     } finally {
