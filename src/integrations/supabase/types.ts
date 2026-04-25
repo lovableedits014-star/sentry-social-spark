@@ -1325,6 +1325,7 @@ export type Database = {
           telefone: string
           updated_at: string
           user_id: string | null
+          whatsapp_confirmado: boolean
         }
         Insert: {
           bairro?: string | null
@@ -1344,6 +1345,7 @@ export type Database = {
           telefone: string
           updated_at?: string
           user_id?: string | null
+          whatsapp_confirmado?: boolean
         }
         Update: {
           bairro?: string | null
@@ -1363,6 +1365,7 @@ export type Database = {
           telefone?: string
           updated_at?: string
           user_id?: string | null
+          whatsapp_confirmado?: boolean
         }
         Relationships: [
           {
@@ -2388,6 +2391,7 @@ export type Database = {
           supporter_id: string | null
           updated_at: string
           user_id: string
+          whatsapp_confirmado: boolean
         }
         Insert: {
           city?: string | null
@@ -2405,6 +2409,7 @@ export type Database = {
           supporter_id?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_confirmado?: boolean
         }
         Update: {
           city?: string | null
@@ -2422,6 +2427,7 @@ export type Database = {
           supporter_id?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_confirmado?: boolean
         }
         Relationships: [
           {
