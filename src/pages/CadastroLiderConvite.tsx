@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, MemoryRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, Star, CheckCircle2 } from "lucide-react";
@@ -155,8 +155,6 @@ function RegistroContratadoWrapper({
  * MemoryRouter para isolar o contexto de roteamento.
  */
 function RegistroContratadoEmbed({ clientId }: { clientId: string }) {
-  // Importação local para evitar ciclo
-  const { MemoryRouter, Routes, Route } = require("react-router-dom");
   return (
     <MemoryRouter initialEntries={[`/contratado/${clientId}`]}>
       <Routes>
