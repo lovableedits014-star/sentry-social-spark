@@ -76,7 +76,6 @@ const PlatformBadges = ({
           ) : (
             <Icon className="w-3 h-3" />
           )}
-          <Icon className="w-3 h-3" />
           {b?.comments || 0}
         </>
       );
@@ -273,10 +272,14 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
           byPlatform: {},
           profileUrls: supporterProfileUrls.get(supporterId) || {},
+          profilePictures: {},
         };
         map.set(supporterId, inf);
       }
       if (!inf.authorPicture && c.author_profile_picture) inf.authorPicture = c.author_profile_picture;
+      if (c.author_profile_picture && !inf.profilePictures[platform]) {
+        inf.profilePictures[platform] = c.author_profile_picture;
+      }
       inf.platforms.add(platform);
       if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
       const pb = inf.byPlatform[platform];
