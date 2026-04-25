@@ -232,18 +232,6 @@ export default function WhatsAppGate({
             </p>
           )}
 
-          {false && opened && (
-            <Button
-              onClick={handleConfirm}
-              variant="outline"
-              size="lg"
-              className="w-full gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              Já enviei — liberar portal
-            </Button>
-          )}
-
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             🔒 Essa etapa protege o número principal da campanha contra bloqueios e garante
             comunicação ativa com você.
