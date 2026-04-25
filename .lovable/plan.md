@@ -1,146 +1,259 @@
 
+# 🛡️ Sistema Anti-Banimento WhatsApp Multi-Instância
 
-# Plano: Migração para Supabase Self-Hosted (easychain.com.br)
+## Visão Geral
+Transformar o sistema atual (1 chip por cliente) em um **pool de instâncias** com rotação inteligente baseada em saúde, failover automático e respeito a janela de horário humano (08h-22h).
 
-## Destino confirmado
-- **URL:** `https://supabase.easychain.com.br`
-- **ANON_KEY:** fornecida ✅
-- **Falta coletar antes do deploy** (você pega no painel do seu Supabase self-hosted):
-  - `SERVICE_ROLE_KEY` (necessária para as Edge Functions e migração de Storage/Auth)
-  - `DB_URL` direto do Postgres (formato `postgres://postgres:<senha>@db.easychain.com.br:5432/postgres`) — necessário para `pg_dump`/`psql`
+---
 
-## Fase 1 — Refatoração do código (faço agora, no projeto)
+## 1. Banco de Dados — Nova Tabela `whatsapp_instances`
 
-**1.1 Tornar o LLM router agnóstico**
-- Editar `supabase/functions/_shared/llm-router.ts`:
-  - Adicionar leitura de env vars globais como fallback: `DEFAULT_LLM_PROVIDER`, `DEFAULT_LLM_API_KEY`, `DEFAULT_LLM_MODEL`.
-  - Manter o case `'lovable'` (continua funcionando se a key existir, mas deixa de ser obrigatório).
-  - Adicionar campo `usage?: number` em `LLMResponse` extraindo `total_tokens` quando disponível.
+Criar tabela para suportar **N chips por cliente** (substitui campos `whatsapp_bridge_url` / `whatsapp_bridge_api_key` da `clients` — esses ficam como fallback/legado).
 
-**1.2 Refatorar as 2 funções "rebeldes" que ainda chamam Lovable direto**
-- `supabase/functions/suggest-missions/index.ts` → trocar fetch direto por `callLLM()` + `getClientLLMConfig(clientId)`.
-- `supabase/functions/analyze-crisis/index.ts` → idem.
-- Ambas precisarão receber `clientId` no body (hoje não recebem) para buscar a config de IA do cliente.
+**Colunas principais:**
+- `id`, `client_id`, `created_at`, `updated_at`
+- `apelido` (text) — ex: "Chip Principal", "Chip Backup 1"
+- `bridge_url`, `bridge_api_key` (cada chip tem seu próprio par)
+- `phone_number` (text, nullable) — preenchido após conectar
+- `status` (text): `disconnected | connecting | connected | banned | paused`
+- `is_active` (boolean) — se entra ou não no pool de rotação
+- `last_health_check_at` (timestamptz)
+- `last_send_at` (timestamptz) — base para "tempo de descanso"
+- `messages_sent_today` (int, default 0) — reseta diariamente
+- `messages_sent_last_24h` (int) — janela móvel calculada
+- `success_rate_24h` (numeric) — % de entrega nas últimas 24h
+- `total_sent` / `total_failed` (bigint)
+- `health_score` (int 0-100) — calculado: 70%(rest score) + 30%(success rate)
+- `connected_since` (timestamptz) — para indicador "chip novo vs antigo"
+- `notes` (text) — anotações manuais
 
-**1.3 Gerar `.env.example` na raiz**
+**Tabela auxiliar `whatsapp_instance_send_log`** (rolling 24h):
+- `instance_id`, `sent_at`, `success` (bool), `dispatch_id` (nullable)
+- Limpeza diária via cron (mantém só últimos 7 dias)
+
+**RLS:** owner do client gerencia tudo; team_members só select.
+
+**Migração de dados:** se cliente já tem `clients.whatsapp_bridge_url`, criar 1 row em `whatsapp_instances` com apelido "Chip Principal" automaticamente (script de backfill).
+
+---
+
+## 2. Configurações Globais — Estender `clients` ou nova `whatsapp_settings`
+
+Adicionar à `clients` (ou tabela nova de preferências):
+- `whatsapp_window_start` (time, default `08:00`)
+- `whatsapp_window_end` (time, default `22:00`)
+- `whatsapp_window_enabled` (bool, default `true`)
+- `whatsapp_rotation_strategy` (text, default `health_random`) — futuro: round_robin, etc.
+- `whatsapp_inter_instance_delay_min` (int, default 1) e `_max` (int, default 3) — delay extra ao trocar de chip
+
+---
+
+## 3. UI — Painel de Gestão de Instâncias
+
+### Tela: **Configurações → WhatsApp → Instâncias**
+Substitui o card único atual por um **gerenciador de pool**:
+
+**Header da seção:**
+- Título: "Pool de Instâncias WhatsApp"
+- Texto explicativo (autoexplicativo, conforme diretriz): "Conecte vários números (chips) para distribuir disparos automaticamente e reduzir risco de banimento. O sistema escolhe o chip mais 'descansado' a cada envio."
+- Botão "+ Adicionar Instância"
+
+**Lista de cards (1 por chip):**
+Cada card mostra:
+- 🟢/🟡/🔴 Indicador de saúde (cor + score 0-100)
+- Apelido editável + número conectado
+- Status badge: Conectado | Desconectado | Em descanso | Banido
+- Métricas hoje: `87 enviados | 95% entrega`
+- Tempo desde último envio: "última msg há 12 min"
+- Sparkline de uso 24h (mini-gráfico)
+- Botões: **Conectar (QR)**, **Desconectar**, **Pausar/Ativar no pool**, **Configurar URL/Key**, **Excluir**
+- Toggle "Incluir no pool de rotação"
+
+**Painel resumo no topo:**
+- Total de chips ativos / Total
+- Mensagens enviadas hoje (soma de todas instâncias)
+- Saúde média do pool
+- Janela ativa/inativa agora (mostra "Em janela ativa" verde ou "Fora de janela 22h-08h" cinza)
+
+**Configurações da janela horária** (componente colapsável):
+- Toggle ativar/desativar
+- Time inputs início/fim
+- Aviso: "Disparos iniciados fora da janela ficam em pausa e retomam automaticamente."
+
+---
+
+## 4. Algoritmo de Rotação — "Aleatória por Saúde"
+
+A cada mensagem, função pura `pickHealthiestInstance(client_id)`:
+
+1. SELECT todas instâncias do cliente onde:
+   - `is_active = true`
+   - `status = 'connected'`
+   - NÃO bateu ban (status != 'banned')
+2. Calcula peso por instância:
+   - `rest_weight` = min(1, segundos_desde_last_send / 60) — favorece chips parados há mais tempo
+   - `success_weight` = success_rate_24h / 100 (default 1 se sem histórico)
+   - `peso_final` = rest_weight × 0.7 + success_weight × 0.3
+3. Sorteio ponderado (random weighted) entre as candidatas
+4. Retorna a instância escolhida + atualiza `last_send_at`
+
+Se **nenhuma** instância elegível → retorna `null` → dispatch entra em estado `aguardando_instancia` e tenta de novo em 60s.
+
+---
+
+## 5. Edge Function — `send-whatsapp-dispatch` (refatorada)
+
+Mudanças principais no loop de envio:
+
+```ts
+// Pseudo-fluxo
+for (cada destinatário) {
+  // 1. Checa janela horária
+  if (!dentroJanela()) {
+    marcar dispatch como 'pausado_janela';
+    sair (cron retoma depois);
+  }
+
+  // 2. Escolhe instância
+  const inst = await pickHealthiestInstance(client_id);
+  if (!inst) {
+    marcar item 'aguardando_instancia';
+    sleep(60s); continue;
+  }
+
+  // 3. Envia via aquele bridge específico
+  const result = await fetchBridgeSend({
+    bridgeUrl: inst.bridge_url,
+    bridgeApiKey: inst.bridge_api_key,
+    phone, message
+  });
+
+  // 4. Failover: se 401/connection error → marca instância como 'disconnected' e retry com OUTRA
+  if (result.connectionError) {
+    await markInstanceDisconnected(inst.id);
+    // re-tenta esse mesmo destinatário com outra instância
+    continue (mesmo recipient);
+  }
+
+  // 5. Registra log + atualiza contadores da instância
+  await logInstanceSend(inst.id, success, dispatch_id);
+
+  // 6. Delay normal entre envios
+  await sleep(randomDelay(min, max));
+
+  // 7. Delay EXTRA se próxima msg vai para chip diferente
+  // (calculado preditivamente checando qual seria o próximo)
+}
 ```
-# Supabase (self-hosted)
-VITE_SUPABASE_URL=https://supabase.easychain.com.br
-VITE_SUPABASE_PUBLISHABLE_KEY=<anon-key>
-VITE_SUPABASE_PROJECT_ID=<seu-ref>
 
-# Edge Functions
-SUPABASE_URL=https://supabase.easychain.com.br
-SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role>
-SUPABASE_DB_URL=postgres://...
+**Nova tabela `whatsapp_dispatches` ganha colunas:**
+- `paused_until` (timestamptz, nullable) — usado quando fora da janela
+- `status` ganha valor `pausado_janela`
 
-# IA — defaults globais opcionais (cada cliente sobrescreve no painel)
-DEFAULT_LLM_PROVIDER=groq
-DEFAULT_LLM_API_KEY=
-DEFAULT_LLM_MODEL=llama-3.1-8b-instant
+---
 
-# WhatsApp Bridge
-WHATSAPP_BRIDGE_TOKEN=
-WHATSAPP_BRIDGE_URL=
+## 6. Cron Job — Retomar Disparos Pausados
 
-# Meta (Facebook/Instagram)
-META_WEBHOOK_VERIFY_TOKEN=
+Edge function nova: **`resume-paused-dispatches`** (executa a cada 10 min via `pg_cron`):
+- Busca dispatches com `status = 'pausado_janela'`
+- Para cada um, checa se cliente está dentro da janela agora
+- Se sim → invoca `send-whatsapp-dispatch-resume` para continuar de onde parou
+- Failover de chips banidos: detecta padrões (5+ falhas seguidas) e marca `status='banned'`
 
-# Push Notifications
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
-VAPID_EMAIL=
+---
+
+## 7. Edge Function `manage-whatsapp-instance` — Atualizar
+
+Adicionar suporte a `instance_id` no body de TODAS as ações (`generate_qr`, `instance_status`, `disconnect`, `send`):
+- Se `instance_id` informado → usa bridge daquela instância
+- Se ausente → fallback para `clients.whatsapp_bridge_*` (compatibilidade)
+
+Novas ações:
+- `list_instances` — retorna todas com health
+- `create_instance` — cria nova row
+- `update_instance` — edita apelido/url/key
+- `delete_instance` — soft delete (marca inactive + remove)
+- `toggle_pool` — liga/desliga participação no pool
+
+---
+
+## 8. Frontend — Componente `WhatsAppPoolManager.tsx`
+
+Substitui parcialmente `WhatsAppInstanceCard.tsx`. Estrutura:
+
+```
+src/components/settings/
+  WhatsAppPoolManager.tsx          # Container principal
+  WhatsAppInstanceCard.tsx         # Card individual (refatorado)
+  WhatsAppPoolSummary.tsx          # Header com totais
+  WhatsAppWindowSettings.tsx       # Config janela horária
+  AddInstanceDialog.tsx            # Modal criar nova instância
 ```
 
-## Fase 2 — Toolkit de migração (faço agora)
+Hook novo: `useWhatsAppInstances(clientId)` — React Query com `staleTime: 30s` + polling do health a cada 30s quando aba ativa.
 
-Crio na raiz do projeto:
+---
 
-**2.1 `MIGRATION.md`** — guia passo a passo com:
-- Comandos `pg_dump` para exportar do Supabase atual (schema + dados + auth).
-- Comandos `psql` para importar no `supabase.easychain.com.br`.
-- Lista de extensões a habilitar no Postgres da VPS: `pg_cron`, `pg_net`, `pgcrypto`, `uuid-ossp`.
-- Comandos `supabase functions deploy` e `supabase secrets set`.
-- Checklist de webhooks Meta para reapontar.
-- Comandos `pg_cron` para recriar o job de aniversário (08:00 UTC-3).
-- SQL para habilitar Realtime nas tabelas necessárias.
+## 9. Atualizar Outros Pontos do Sistema
 
-**2.2 `scripts/migrate-storage.mjs`** — script Node que:
-- Lista todos os arquivos dos buckets `client-logos` e `birthday-images` no Supabase atual.
-- Baixa cada arquivo via Storage API.
-- Faz upload no Supabase de destino preservando paths.
-- Roda com: `node scripts/migrate-storage.mjs`.
+Funções que enviam WhatsApp também precisam usar o pool:
+- `send-birthday-messages/index.ts` — passa a usar `pickHealthiestInstance`
+- `main/index.ts` (dispatchNormalizePhone + envio de missões) — idem
+- `WhatsAppInstanceCard` (botão "Enviar Teste") — ganha dropdown "testar com qual chip?"
 
-**2.3 `scripts/post-migration-fixes.sql`** — SQL pós-importação:
-- Habilita Realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE comments, posts, supporters, ...`
-- Recria cron job de aniversário.
-- Atualiza URLs de storage no banco se necessário.
+A normalização do 9º dígito (já corrigida) permanece igual.
 
-## Fase 3 — Você executa na VPS (depois do código pronto)
+---
 
-**3.1 Provisionar** o Supabase self-hosted (já feito, está no ar).
+## 10. Indicadores Visuais & UX
 
-**3.2 Habilitar extensões** (rodar no SQL Editor do seu painel):
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-```
+- Tooltip em "Health Score": "Combina tempo de descanso (70%) e taxa de entrega 24h (30%). >70 = saudável, 40-70 = atenção, <40 = em risco."
+- Badge "Chip novo" se `connected_since < 7 dias` (sugere uso moderado, mas sem bloquear conforme sua escolha)
+- Aviso visual no painel de Disparos: "Apenas 1 chip ativo — considere adicionar mais para melhor distribuição"
+- Log de Disparo (modal existente) ganha coluna "Enviado por" mostrando qual chip enviou cada msg
 
-**3.3 Exportar do Lovable Cloud** (rodar localmente com o `SUPABASE_DB_URL` atual):
-```bash
-pg_dump "$SOURCE_DB_URL" --schema-only --schema=public --schema=auth > schema.sql
-pg_dump "$SOURCE_DB_URL" --data-only   --schema=public > data.sql
-pg_dump "$SOURCE_DB_URL" --data-only   --schema=auth -t auth.users -t auth.identities > auth.sql
-```
+---
 
-**3.4 Importar no easychain**:
-```bash
-psql "postgres://postgres:<senha>@db.easychain.com.br:5432/postgres" < schema.sql
-psql "..." < auth.sql        # preserva UUIDs e senhas hasheadas
-psql "..." < data.sql
-node scripts/migrate-storage.mjs
-psql "..." < scripts/post-migration-fixes.sql
-```
+## 11. Migração & Compatibilidade
 
-**3.5 Deploy das Edge Functions**:
-```bash
-supabase login
-supabase link --project-ref <seu-ref-easychain>
-supabase functions deploy
-supabase secrets set --env-file .env
-```
+Etapas de rollout sem quebrar nada:
+1. Migration cria tabela + backfill (cria 1 instance por cliente que já tem bridge configurada)
+2. Edge functions aceitam tanto modo legado (sem instance_id) quanto novo
+3. UI nova substitui antiga, mas mantém fluxo de "1 chip" funcional para quem só tem 1
+4. Após validação, podemos descontinuar campos `clients.whatsapp_bridge_*` em release futura
 
-**3.6 Frontend**:
-- Atualizar `.env` com as URLs do easychain.
-- `bun run build` → publicar `dist/` no servidor (Nginx/Caddy/EasyPanel).
+---
 
-**3.7 Reconfigurar webhooks externos**:
-- Meta: trocar URL para `https://supabase.easychain.com.br/functions/v1/...`
-- WhatsApp Bridge: idem.
-- Cada cliente preenche sua API key de IA na tela de Configurações > Integrações (já existe).
+## 📦 Entregáveis
 
-## Pontos de atenção
+**Backend:**
+1. Migration: tabela `whatsapp_instances` + `whatsapp_instance_send_log` + colunas em `clients` e `whatsapp_dispatches` + RLS + backfill
+2. Edge function `manage-whatsapp-instance` refatorada (multi-instance)
+3. Edge function `send-whatsapp-dispatch` refatorada (rotação + janela + failover)
+4. Edge function nova `resume-paused-dispatches` + cron a cada 10min
+5. Edge functions `send-birthday-messages` e `main` adaptadas
 
-| Risco | Mitigação |
-|---|---|
-| Cliente sem provider de IA configurado | `DEFAULT_LLM_*` no `.env` da VPS faz fallback |
-| RLS quebrar | Dump preserva UUIDs de `auth.users` — não quebra |
-| Realtime não funcionar | Script `post-migration-fixes.sql` habilita |
-| `LOVABLE_API_KEY` faltando | Após Fase 1, deixa de ser obrigatório |
-| Edge Runtime do self-hosted desatualizado | Validar versão ≥ 1.50 (suporta `npm:` imports) |
-| `pg_cron` não habilitado no Docker | Verificar `docker-compose.yml` do Supabase |
+**Frontend:**
+6. `WhatsAppPoolManager` + `WhatsAppInstanceCard` (novo) + `WhatsAppPoolSummary` + `WhatsAppWindowSettings` + `AddInstanceDialog`
+7. Hook `useWhatsAppInstances`
+8. Atualização do `DispatchLogDialog` mostrando chip de origem
+9. Aviso no painel `/disparos` quando há só 1 chip ativo
 
-## O que entrego ao aprovar este plano
+**Memória:**
+10. Salvar memória nova `tecnico/pool-whatsapp-multi-instancia` documentando arquitetura
 
-1. ✅ Refatoração de `suggest-missions` e `analyze-crisis` para usar `callLLM`.
-2. ✅ Ajuste do `_shared/llm-router.ts` com fallback via env vars + `usage` no response.
-3. ✅ Arquivo `.env.example` na raiz.
-4. ✅ Arquivo `MIGRATION.md` completo com todos os comandos.
-5. ✅ Script `scripts/migrate-storage.mjs` pronto para rodar.
-6. ✅ Script `scripts/post-migration-fixes.sql` para Realtime + cron.
+---
 
-Você executa as Fases 2 e 3 quando estiver pronto, no ritmo que preferir.
+## ⚠️ Pontos de Atenção
 
+- **Custo de chips**: cada instância adicional consome 1 número/chip real e ocupa slot na sua API UAZAPI. Confirmar que sua infra suporta múltiplas instâncias ativas.
+- **Sem limite diário** (sua escolha): o sistema vai monitorar e exibir alertas visuais quando um chip ultrapassar 300 msg/dia (limiar empírico de risco), mas **não bloqueará envios**.
+- **Janela horária 08h-22h** é por timezone do servidor (UTC). Vou converter para America/Sao_Paulo (UTC-3) na lógica.
+- O fluxo de **conectar QR** continuará igual (botão por chip), só multiplicado.
+
+---
+
+Após sua aprovação, eu implemento em 3 fases ordenadas:
+**Fase 1** (backend): migration + edge functions
+**Fase 2** (frontend): UI de gestão do pool
+**Fase 3** (integração): cron + ajustes nos demais envios + log com origem

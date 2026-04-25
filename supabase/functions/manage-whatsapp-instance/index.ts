@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, phone, message, client_id, name } = body;
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     // Resolve client_id
@@ -295,26 +295,171 @@ Deno.serve(async (req) => {
       .eq("id", resolvedClientId)
       .single();
 
-    const clientApiKey = clientConfig?.whatsapp_bridge_api_key;
+    // ========================================================
+    // POOL ACTIONS (CRUD de instâncias)
+    // ========================================================
+    if (action === "list_instances") {
+      const { data, error } = await adminClient
+        .from("whatsapp_instances")
+        .select("id, apelido, phone_number, status, is_active, last_send_at, messages_sent_today, messages_sent_today_date, total_sent, total_failed, consecutive_failures, connected_since, notes, bridge_url, created_at, updated_at")
+        .eq("client_id", resolvedClientId)
+        .order("created_at", { ascending: true });
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      const now = Date.now();
+      const instances = await Promise.all((data || []).map(async (inst: any) => {
+        const lastSendMs = inst.last_send_at ? new Date(inst.last_send_at).getTime() : null;
+        const restScore = lastSendMs ? Math.min(1, (now - lastSendMs) / 60000) : 1;
+        const { data: logs } = await adminClient
+          .from("whatsapp_instance_send_log")
+          .select("success")
+          .eq("instance_id", inst.id)
+          .gte("sent_at", new Date(now - 86400000).toISOString());
+        const total = (logs || []).length;
+        const ok = (logs || []).filter((l: any) => l.success).length;
+        const successRate = total === 0 ? 1 : ok / total;
+        return { ...inst, health_score: Math.round((restScore * 0.7 + successRate * 0.3) * 100), success_rate_24h: Math.round(successRate * 100), sent_24h: total };
+      }));
+      return jsonResponse({ success: true, instances });
+    }
+
+    if (action === "create_instance_record") {
+      const { data, error } = await adminClient
+        .from("whatsapp_instances")
+        .insert({ client_id: resolvedClientId, apelido: apelido || "Nova Instância", status: "disconnected", is_active: true })
+        .select()
+        .single();
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      return jsonResponse({ success: true, instance: data });
+    }
+
+    if (action === "update_instance_record") {
+      if (!instance_id) return jsonResponse({ success: false, error: "instance_id required" }, 400);
+      const updates: any = {};
+      if (apelido !== undefined) updates.apelido = apelido;
+      if (bridge_url !== undefined) updates.bridge_url = bridge_url;
+      if (bridge_api_key !== undefined) updates.bridge_api_key = bridge_api_key;
+      if (is_active !== undefined) updates.is_active = is_active;
+      if (newStatus !== undefined) updates.status = newStatus;
+      const { error } = await adminClient
+        .from("whatsapp_instances")
+        .update(updates)
+        .eq("id", instance_id)
+        .eq("client_id", resolvedClientId);
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      return jsonResponse({ success: true });
+    }
+
+    if (action === "delete_instance_record") {
+      if (!instance_id) return jsonResponse({ success: false, error: "instance_id required" }, 400);
+      const { data: inst } = await adminClient
+        .from("whatsapp_instances")
+        .select("bridge_api_key")
+        .eq("id", instance_id)
+        .eq("client_id", resolvedClientId)
+        .maybeSingle();
+      if (inst?.bridge_api_key) {
+        try {
+          await fetch(BRIDGE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Api-Key": inst.bridge_api_key },
+            body: JSON.stringify({ action: "delete_instance" }),
+          });
+        } catch (err) { console.error("delete bridge error:", err); }
+      }
+      const { error } = await adminClient
+        .from("whatsapp_instances")
+        .delete()
+        .eq("id", instance_id)
+        .eq("client_id", resolvedClientId);
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      return jsonResponse({ success: true });
+    }
+
+    // ========================================================
+    // Resolução da bridge: por instance_id (novo) ou legado
+    // ========================================================
+    let activeInstanceRow: any = null;
+    if (instance_id) {
+      const { data: inst } = await adminClient
+        .from("whatsapp_instances")
+        .select("id, apelido, bridge_api_key, bridge_url, status, connected_since")
+        .eq("id", instance_id)
+        .eq("client_id", resolvedClientId)
+        .maybeSingle();
+      activeInstanceRow = inst;
+    }
+
+    const clientApiKey: string | null | undefined = activeInstanceRow
+      ? activeInstanceRow.bridge_api_key
+      : clientConfig?.whatsapp_bridge_api_key;
 
     // === CREATE INSTANCE ===
     if (action === "create_instance") {
+      // Versão multi-instância
+      if (instance_id && activeInstanceRow) {
+        if (!bridgeToken) return jsonResponse({ error: "Bridge token não configurado" }, 500);
+        if (activeInstanceRow.bridge_api_key) {
+          try {
+            await fetch(BRIDGE_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Api-Key": activeInstanceRow.bridge_api_key },
+              body: JSON.stringify({ action: "delete_instance" }),
+            });
+          } catch (err) { console.error("erro delete antigo:", err); }
+        }
+        const instName = name || activeInstanceRow.apelido || clientConfig?.name || "WhatsApp Bot";
+        const bridgeRes = await fetch(BRIDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Bridge-Token": bridgeToken },
+          body: JSON.stringify({ action: "create_instance", name: instName }),
+        });
+        const bridgeData = await bridgeRes.json().catch(() => ({}));
+        if (bridgeData.api_key) {
+          await adminClient
+            .from("whatsapp_instances")
+            .update({ bridge_url: BRIDGE_URL, bridge_api_key: bridgeData.api_key, status: "connecting" })
+            .eq("id", instance_id);
+        }
+        if ((!bridgeRes.ok || !bridgeData.success) && isQrPendingResponse(bridgeData)) {
+          return awaitingQrResponse();
+        }
+        if (!bridgeRes.ok || !bridgeData.success) {
+          return jsonResponse({ success: false, error: bridgeData.error || "Erro ao criar instância", details: sanitizeBridgeData(bridgeData) });
+        }
+        return jsonResponse({ success: true, qrcode: bridgeData.qrcode, instance: bridgeData.instance, recreated: true });
+      }
       return await createClientInstance({
         adminClient,
         bridgeToken,
         clientId: resolvedClientId,
         clientName: clientConfig?.name,
         providedName: name,
-        currentApiKey: clientApiKey,
+        currentApiKey: clientApiKey ?? undefined,
       });
     }
 
     // === DISCONNECT ===
     if (action === "disconnect") {
+      if (instance_id && activeInstanceRow) {
+        if (activeInstanceRow.bridge_api_key) {
+          try {
+            await fetch(BRIDGE_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Api-Key": activeInstanceRow.bridge_api_key },
+              body: JSON.stringify({ action: "delete_instance" }),
+            });
+          } catch (err) { console.error("erro disconnect bridge:", err); }
+        }
+        await adminClient
+          .from("whatsapp_instances")
+          .update({ bridge_api_key: null, status: "disconnected", phone_number: null })
+          .eq("id", instance_id);
+        return jsonResponse({ success: true, message: "Instância desconectada" });
+      }
       await deleteExistingInstance({
         adminClient,
         clientId: resolvedClientId,
-        clientApiKey,
+        clientApiKey: clientApiKey ?? undefined,
       });
       return jsonResponse({ success: true, message: "Instância deletada com sucesso" });
     }
@@ -328,6 +473,29 @@ Deno.serve(async (req) => {
     // === ACTIONS THAT REQUIRE API KEY ===
     if (!clientApiKey) {
       if (action === "reconnect") {
+        if (instance_id && activeInstanceRow) {
+          if (!bridgeToken) return jsonResponse({ error: "Bridge token não configurado" }, 500);
+          const instName = activeInstanceRow.apelido || "WhatsApp Bot";
+          const bridgeRes = await fetch(BRIDGE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Bridge-Token": bridgeToken },
+            body: JSON.stringify({ action: "create_instance", name: instName }),
+          });
+          const bridgeData = await bridgeRes.json().catch(() => ({}));
+          if (bridgeData.api_key) {
+            await adminClient
+              .from("whatsapp_instances")
+              .update({ bridge_url: BRIDGE_URL, bridge_api_key: bridgeData.api_key, status: "connecting" })
+              .eq("id", instance_id);
+          }
+          if (isQrPendingResponse(bridgeData)) return awaitingQrResponse();
+          return jsonResponse({
+            success: bridgeRes.ok && bridgeData.success,
+            qrcode: bridgeData.qrcode,
+            instance: bridgeData.instance,
+            error: !bridgeRes.ok || !bridgeData.success ? (bridgeData.error || "Erro ao reconectar") : undefined,
+          });
+        }
         return await createClientInstance({
           adminClient,
           bridgeToken,
@@ -358,6 +526,21 @@ Deno.serve(async (req) => {
       apiKey: clientApiKey,
       body: proxyBody,
     });
+
+    // Sincroniza status/phone_number na tabela quando consultando uma instância específica
+    if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
+      const status = bridgeData?.status === "connected" ? "connected"
+        : bridgeData?.status === "connecting" ? "connecting"
+        : "disconnected";
+      const updates: any = { status, last_health_check_at: new Date().toISOString() };
+      if (status === "connected") {
+        if (!activeInstanceRow.connected_since) updates.connected_since = new Date().toISOString();
+        if (bridgeData?.phone_number || bridgeData?.phone) {
+          updates.phone_number = bridgeData.phone_number || bridgeData.phone;
+        }
+      }
+      await adminClient.from("whatsapp_instances").update(updates).eq("id", instance_id);
+    }
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await createClientInstance({

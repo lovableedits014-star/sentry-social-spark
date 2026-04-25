@@ -371,7 +371,13 @@ export type Database = {
           user_id: string
           whatsapp_bridge_api_key: string | null
           whatsapp_bridge_url: string | null
+          whatsapp_inter_instance_delay_max: number
+          whatsapp_inter_instance_delay_min: number
           whatsapp_oficial: string | null
+          whatsapp_rotation_strategy: string
+          whatsapp_window_enabled: boolean
+          whatsapp_window_end: string
+          whatsapp_window_start: string
         }
         Insert: {
           cargo?: string | null
@@ -383,7 +389,13 @@ export type Database = {
           user_id: string
           whatsapp_bridge_api_key?: string | null
           whatsapp_bridge_url?: string | null
+          whatsapp_inter_instance_delay_max?: number
+          whatsapp_inter_instance_delay_min?: number
           whatsapp_oficial?: string | null
+          whatsapp_rotation_strategy?: string
+          whatsapp_window_enabled?: boolean
+          whatsapp_window_end?: string
+          whatsapp_window_start?: string
         }
         Update: {
           cargo?: string | null
@@ -395,7 +407,13 @@ export type Database = {
           user_id?: string
           whatsapp_bridge_api_key?: string | null
           whatsapp_bridge_url?: string | null
+          whatsapp_inter_instance_delay_max?: number
+          whatsapp_inter_instance_delay_min?: number
           whatsapp_oficial?: string | null
+          whatsapp_rotation_strategy?: string
+          whatsapp_window_enabled?: boolean
+          whatsapp_window_end?: string
+          whatsapp_window_start?: string
         }
         Relationships: []
       }
@@ -2809,6 +2827,8 @@ export type Database = {
           falhas: number
           id: string
           mensagem_template: string
+          pause_reason: string | null
+          paused_until: string | null
           started_at: string | null
           status: string
           tag_filtro: string | null
@@ -2830,6 +2850,8 @@ export type Database = {
           falhas?: number
           id?: string
           mensagem_template: string
+          pause_reason?: string | null
+          paused_until?: string | null
           started_at?: string | null
           status?: string
           tag_filtro?: string | null
@@ -2851,6 +2873,8 @@ export type Database = {
           falhas?: number
           id?: string
           mensagem_template?: string
+          pause_reason?: string | null
+          paused_until?: string | null
           started_at?: string | null
           status?: string
           tag_filtro?: string | null
@@ -2869,38 +2893,115 @@ export type Database = {
           },
         ]
       }
-      whatsapp_instances: {
+      whatsapp_instance_send_log: {
         Row: {
           client_id: string
-          created_at: string
+          dispatch_id: string | null
+          error_message: string | null
           id: string
-          instance_name: string
-          instance_token: string | null
-          phone_number: string | null
-          qr_code: string | null
-          status: string
-          updated_at: string
+          instance_id: string
+          sent_at: string
+          success: boolean
         }
         Insert: {
           client_id: string
-          created_at?: string
+          dispatch_id?: string | null
+          error_message?: string | null
           id?: string
-          instance_name: string
-          instance_token?: string | null
-          phone_number?: string | null
-          qr_code?: string | null
-          status?: string
-          updated_at?: string
+          instance_id: string
+          sent_at?: string
+          success: boolean
         }
         Update: {
           client_id?: string
+          dispatch_id?: string | null
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          sent_at?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instance_send_log_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_instances: {
+        Row: {
+          apelido: string
+          bridge_api_key: string | null
+          bridge_url: string | null
+          client_id: string
+          connected_since: string | null
+          consecutive_failures: number
+          created_at: string
+          id: string
+          instance_name: string | null
+          instance_token: string | null
+          is_active: boolean
+          last_health_check_at: string | null
+          last_send_at: string | null
+          messages_sent_today: number
+          messages_sent_today_date: string
+          notes: string | null
+          phone_number: string | null
+          qr_code: string | null
+          status: string
+          total_failed: number
+          total_sent: number
+          updated_at: string
+        }
+        Insert: {
+          apelido?: string
+          bridge_api_key?: string | null
+          bridge_url?: string | null
+          client_id: string
+          connected_since?: string | null
+          consecutive_failures?: number
           created_at?: string
           id?: string
-          instance_name?: string
+          instance_name?: string | null
           instance_token?: string | null
+          is_active?: boolean
+          last_health_check_at?: string | null
+          last_send_at?: string | null
+          messages_sent_today?: number
+          messages_sent_today_date?: string
+          notes?: string | null
           phone_number?: string | null
           qr_code?: string | null
           status?: string
+          total_failed?: number
+          total_sent?: number
+          updated_at?: string
+        }
+        Update: {
+          apelido?: string
+          bridge_api_key?: string | null
+          bridge_url?: string | null
+          client_id?: string
+          connected_since?: string | null
+          consecutive_failures?: number
+          created_at?: string
+          id?: string
+          instance_name?: string | null
+          instance_token?: string | null
+          is_active?: boolean
+          last_health_check_at?: string | null
+          last_send_at?: string | null
+          messages_sent_today?: number
+          messages_sent_today_date?: string
+          notes?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          status?: string
+          total_failed?: number
+          total_sent?: number
           updated_at?: string
         }
         Relationships: [
@@ -2937,6 +3038,20 @@ export type Database = {
       link_orphan_engagement_actions: {
         Args: { p_client_id: string }
         Returns: number
+      }
+      log_whatsapp_send: {
+        Args: {
+          p_client_id: string
+          p_dispatch_id: string
+          p_error_message?: string
+          p_instance_id: string
+          p_success: boolean
+        }
+        Returns: undefined
+      }
+      pick_healthy_whatsapp_instance: {
+        Args: { p_client_id: string }
+        Returns: string
       }
       register_pessoa_public:
         | {
