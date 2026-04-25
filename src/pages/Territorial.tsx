@@ -447,19 +447,17 @@ export default function Territorial() {
             Mapa de Influência
           </h2>
           <p className="text-xs text-muted-foreground">
-            Onde seus apoiadores estão? Este mapa mostra a concentração geográfica com zonas de calor: 
-            <strong className="text-primary"> verde</strong> = alta densidade, 
-            <strong className="text-accent-foreground"> amarelo</strong> = média, 
-            <strong className="text-destructive"> vermelho</strong> = poucos apoiadores (oportunidade de crescer).
+            Cobertura nacional: o mapa do Brasil colore os estados conforme a concentração de pessoas cadastradas.
+            <strong> Clique em um estado</strong> para filtrar cidades e bairros abaixo.
           </p>
         </div>
 
-        {/* Territorial stats */}
+        {/* Stats nacionais */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Apoiadores</p><p className="text-2xl font-bold">{supporters?.length || 0}</p><p className="text-[10px] text-muted-foreground">Total do portal</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Com localização</p><p className="text-2xl font-bold text-primary">{totalWithLocation}</p><p className="text-[10px] text-muted-foreground">Informaram cidade/bairro</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Sem localização</p><p className="text-2xl font-bold text-muted-foreground">{totalWithout}</p><p className="text-[10px] text-muted-foreground">Não preencheram</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Regiões</p><p className="text-2xl font-bold">{groups.length}</p><p className="text-[10px] text-muted-foreground">Cidades/bairros distintos</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Estados ativos</p><p className="text-2xl font-bold text-primary">{ufWithData}<span className="text-sm text-muted-foreground font-normal">/27</span></p><p className="text-[10px] text-muted-foreground">Com pelo menos 1 cadastro</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Pessoas geolocalizadas</p><p className="text-2xl font-bold">{totalWithUF.toLocaleString("pt-BR")}</p><p className="text-[10px] text-muted-foreground">Com estado identificado</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Cidades distintas</p><p className="text-2xl font-bold">{cityGroups.length}</p><p className="text-[10px] text-muted-foreground">{selectedUF ? `Em ${selectedUF}` : "No total"}</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground">Sem localização</p><p className="text-2xl font-bold text-muted-foreground">{totalWithout.toLocaleString("pt-BR")}</p><p className="text-[10px] text-muted-foreground">Não preencheram</p></CardContent></Card>
           <Card className="col-span-2 sm:col-span-1">
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs text-muted-foreground">Crescimento 30d</p>
@@ -477,12 +475,156 @@ export default function Territorial() {
           </Card>
         </div>
 
-        {/* Geo chart */}
-        {geoChartData.length > 0 && (
+        {/* Mapa do Brasil + sidebar */}
+        <div className="grid lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2"><Globe2 className="w-4 h-4 text-primary" />Distribuição por Estado</CardTitle>
+              <CardDescription className="text-xs">Mapa interativo. Passe o mouse para detalhes, clique para filtrar cidades.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {totalWithUF === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Globe2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium text-sm">Nenhum estado identificado ainda</p>
+                  <p className="text-xs mt-1">Cadastre apoiadores no portal com o campo <strong>estado</strong> preenchido para ver o mapa colorido.</p>
+                </div>
+              ) : (
+                <BrazilMap data={ufCounts} selectedUF={selectedUF} onSelectUF={(uf) => { setSelectedUF(uf); setSelectedCity(null); }} />
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" />Por Região</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {regionCounts.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> : (
+                  <div className="space-y-2">
+                    {regionCounts.map((r) => <DistributionRow key={r.region} label={r.region} count={r.count} total={totalWithUF} />)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" />Top 10 Estados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topUFs.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> : (
+                  <div className="space-y-1">
+                    {topUFs.map((s, i) => (
+                      <button
+                        key={s.uf}
+                        onClick={() => { setSelectedUF(selectedUF === s.uf ? null : s.uf); setSelectedCity(null); }}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${selectedUF === s.uf ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"}`}
+                      >
+                        <span className="text-muted-foreground w-4 text-right">{i + 1}</span>
+                        <Badge variant="outline" className="h-5 text-[10px] font-mono">{s.uf}</Badge>
+                        <span className="flex-1 text-left truncate">{s.name}</span>
+                        <span className="font-bold">{s.count.toLocaleString("pt-BR")}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Drill-down breadcrumb */}
+        {(selectedUF || selectedCity) && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="py-3 px-4 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Filtrando:</span>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setSelectedUF(null); setSelectedCity(null); }}>
+                <Globe2 className="w-3 h-3 mr-1" /> Brasil
+              </Button>
+              {selectedUF && (
+                <>
+                  <span className="text-muted-foreground">/</span>
+                  <Button variant={selectedCity ? "ghost" : "secondary"} size="sm" className="h-7 text-xs" onClick={() => setSelectedCity(null)}>
+                    <Building2 className="w-3 h-3 mr-1" /> {ufName(selectedUF)} ({selectedUF})
+                  </Button>
+                </>
+              )}
+              {selectedCity && (
+                <>
+                  <span className="text-muted-foreground">/</span>
+                  <Badge variant="secondary" className="h-7 px-2 text-xs gap-1"><Home className="w-3 h-3" />{selectedCity}</Badge>
+                </>
+              )}
+              <Button variant="ghost" size="sm" className="h-7 ml-auto text-xs" onClick={() => { setSelectedUF(null); setSelectedCity(null); }}>
+                <X className="w-3 h-3 mr-1" /> Limpar
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cidades do estado selecionado */}
+        {selectedUF && !selectedCity && cityGroups.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" />Top Regiões</CardTitle>
-              <CardDescription className="text-xs">As {geoChartData.length} regiões com mais apoiadores. A cor indica a intensidade relativa à região mais forte.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" />Cidades em {ufName(selectedUF)}</CardTitle>
+              <CardDescription className="text-xs">Clique em uma cidade para ver os bairros.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {cityGroups.map((c) => {
+                  const ratio = c.count / (cityGroups[0]?.count || 1);
+                  return (
+                    <button key={c.city} onClick={() => setSelectedCity(c.city)} className="text-left p-3 rounded-lg border hover:border-primary hover:bg-primary/5 transition-colors group">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium truncate group-hover:text-primary">{c.city}</span>
+                        <span className="text-sm font-bold shrink-0 ml-2">{c.count}</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.max(ratio * 100, 3)}%` }} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Bairros da cidade selecionada */}
+        {selectedCity && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-primary" />Bairros em {selectedCity}</CardTitle>
+              <CardDescription className="text-xs">{neighborhoodGroups.length === 0 ? "Nenhum bairro detalhado para esta cidade." : `${neighborhoodGroups.length} bairros distintos.`}</CardDescription>
+            </CardHeader>
+            {neighborhoodGroups.length > 0 && (
+              <CardContent>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {neighborhoodGroups.map((g) => (
+                    <div key={g.key} className="p-3 rounded-lg border">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium truncate">{g.neighborhood}</span>
+                        <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0 ml-2">{g.count}</Badge>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        {/* Top regiões (gráfico — todas as regiões, sem filtro) */}
+        {!selectedUF && geoChartData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" />Top Cidades/Bairros — Brasil</CardTitle>
+              <CardDescription className="text-xs">As {geoChartData.length} localidades com mais cadastros em todo o país. A cor indica a intensidade relativa.</CardDescription>
             </CardHeader>
             <CardContent>
               <ChartContainer config={{ count: { label: "Apoiadores", color: "hsl(var(--primary))" } }} className="h-[300px]">
@@ -507,7 +649,7 @@ export default function Territorial() {
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cidade ou bairro..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          <Input placeholder={selectedUF ? `Buscar cidade/bairro em ${selectedUF}...` : "Buscar por cidade ou bairro em todo o Brasil..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
 
         {/* Cold zones alert */}
