@@ -354,6 +354,107 @@ const Dashboard = () => {
     });
   };
 
+  const handleExportPdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      // Buscar nome do cliente e IED mais recente
+      let clientName: string | undefined;
+      let ied: Awaited<ReturnType<typeof exportDashboardPdf>> extends void
+        ? null
+        : null = null;
+      let iedData: {
+        score: number;
+        sentiment: number;
+        growth: number;
+        engagement: number;
+        checkin: number;
+      } | null = null;
+
+      if (clientId) {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("name")
+          .eq("id", clientId)
+          .maybeSingle();
+        clientName = client?.name;
+
+        const { data: iedRow } = await supabase
+          .from("ied_scores")
+          .select("score, sentiment_score, growth_score, engagement_score, checkin_score")
+          .eq("client_id", clientId)
+          .order("week_start", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (iedRow) {
+          iedData = {
+            score: Number(iedRow.score) || 0,
+            sentiment: Number(iedRow.sentiment_score) || 0,
+            growth: Number(iedRow.growth_score) || 0,
+            engagement: Number(iedRow.engagement_score) || 0,
+            checkin: Number(iedRow.checkin_score) || 0,
+          };
+        }
+      }
+
+      // Construir insights a partir dos dados em tela
+      const highlights: string[] = [];
+      if (stats.total > 0) {
+        highlights.push(
+          `Volume: ${stats.total.toLocaleString("pt-BR")} comentários nos últimos ${periodDays} dias.`,
+        );
+        highlights.push(
+          `Sentimento: ${stats.posPercent}% positivos, ${stats.neuPercent}% neutros, ${stats.negPercent}% negativos.`,
+        );
+      } else {
+        highlights.push("Sem comentários no período selecionado.");
+      }
+      if (stats.unanalyzed > 0) {
+        highlights.push(
+          `${stats.unanalyzed} comentários ainda sem classificação de sentimento — rode "Analisar Sentimentos" para refinar o IED.`,
+        );
+      }
+      if (stats.pendingCount > 0) {
+        highlights.push(
+          `${stats.pendingCount} comentários pendentes de resposta (${stats.respondedCount} já respondidos).`,
+        );
+      }
+      if (negativeComments.length > 0) {
+        highlights.push(
+          `${negativeComments.length} comentários negativos pendentes em gestão de crise — priorize a resposta.`,
+        );
+      }
+      if (platformStats.facebook + platformStats.instagram > 0) {
+        highlights.push(
+          `Distribuição por plataforma: Facebook ${platformStats.facebook} · Instagram ${platformStats.instagram}.`,
+        );
+      }
+      if (iedData) {
+        highlights.push(
+          `IED atual: ${iedData.score}/100 (sentimento ${iedData.sentiment} · crescimento ${iedData.growth} · engajamento ${iedData.engagement} · check-ins ${iedData.checkin}).`,
+        );
+      }
+
+      await exportDashboardPdf({
+        clientName,
+        periodDays,
+        generatedAt: new Date(),
+        stats,
+        supportersCount,
+        platform: platformStats,
+        ied: iedData,
+        highlights,
+        captureSelectors: ["#dashboard-charts-grid"],
+      });
+      toast.success("Relatório PDF gerado");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Erro ao gerar PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // Filter comments by period
   const filteredComments = useMemo(() => {
     return allComments.filter(c => {
