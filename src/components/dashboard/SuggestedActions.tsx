@@ -243,7 +243,7 @@ export function SuggestedActions({ clientId }: SuggestedActionsProps) {
           description: "Baixa cobertura de check-ins nos últimos 3 dias — envie lembrete via WhatsApp.",
           metric: `${checkins3d}/${totalObrig * 3} esperados`,
           cta: "Ver presença",
-          to: "/controle-presenca",
+          to: "/presenca",
         });
       }
 
