@@ -16,6 +16,7 @@ type Influencer = {
   supporterId: string;
   registeredName: string;
   origin: "pessoa" | "funcionario" | "contratado" | "apoiador";
+  category: string; // chave de filtro: "apoiador" | "funcionario" | "lider" | "liderado" | "indicado" | "lideranca" | "influenciador" | "voluntario" | "jornalista" | "eleitor" | "cidadao" | "adversario" | "outro"
   authorPicture: string | null;
   platforms: Set<string>;
   totalComments: number;
@@ -47,6 +48,22 @@ const ORIGIN_LABEL: Record<Influencer["origin"], string> = {
   funcionario: "Funcionário",
   contratado: "Contratado",
   apoiador: "Apoiador",
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  apoiador: "Apoiador",
+  funcionario: "Funcionário",
+  lider: "Líder",
+  liderado: "Liderado",
+  indicado: "Indicado",
+  lideranca: "Liderança",
+  influenciador: "Influenciador",
+  voluntario: "Voluntário",
+  jornalista: "Jornalista",
+  eleitor: "Eleitor",
+  cidadao: "Cidadão",
+  adversario: "Adversário",
+  outro: "Outro",
 };
 
 const PlatformBadges = ({
