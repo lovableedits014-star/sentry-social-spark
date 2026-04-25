@@ -586,8 +586,9 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
             <Tabs defaultValue={editMission?.platform ?? "facebook"}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trocar publicação</p>
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => refetchPosts()} disabled={postsLoading}>
-                  <RefreshCw className={`w-3 h-3 ${postsLoading ? "animate-spin" : ""}`} />
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={syncAndRefetch} disabled={postsLoading || isSyncing}>
+                  <RefreshCw className={`w-3 h-3 ${(postsLoading || isSyncing) ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Sincronizando..." : "Sincronizar"}
                 </Button>
               </div>
               <TabsList className="mb-3">
