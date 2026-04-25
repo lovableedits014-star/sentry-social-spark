@@ -206,29 +206,36 @@ Deno.serve(async (req) => {
 
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
-            const phoneClean = normalizeBrazilianPhoneWithNinthDigit(recipient.telefone);
+            let sendRes: Response | null = null;
+            let sendData: any = null;
+            let errBody = "";
 
-            const sendRes = await fetch(bridgeUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Api-Key": bridgeApiKey,
-              },
-              body: JSON.stringify({
-                action: "send",
-                phone: phoneClean,
-                message: personalizedMsg,
-              }),
-            });
+            for (const candidate of brazilianPhoneVariants(recipient.telefone)) {
+              sendRes = await fetch(bridgeUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Api-Key": bridgeApiKey,
+                },
+                body: JSON.stringify({
+                  action: "send",
+                  phone: candidate,
+                  message: personalizedMsg,
+                }),
+              });
+              const text = await sendRes.text();
+              errBody = text;
+              sendData = (() => { try { return JSON.parse(text); } catch { return null; } })();
+              if (sendRes.ok && sendData?.success !== false) break;
+            }
 
-            if (sendRes.ok) {
+            if (sendRes?.ok && sendData?.success !== false) {
               sent++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "enviado", enviado_em: new Date().toISOString() })
                 .eq("dispatch_id", dispatch.id)
                 .eq("telefone", recipient.telefone);
             } else {
-              const errBody = await sendRes.text();
               failed++;
               await adminClient.from("whatsapp_dispatch_items")
                 .update({ status: "falha", erro: errBody.slice(0, 200) })
