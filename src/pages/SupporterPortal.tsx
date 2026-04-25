@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { ReferralPanel } from "@/components/referral/ReferralPanel";
 import { extractHandleFromUrl } from "@/lib/social-url";
+import InstallAppFab from "@/components/portal/InstallAppFab";
 interface Mission {
   id: string;
   platform: string;
@@ -859,6 +860,7 @@ export default function SupporterPortal() {
           </TabsContent>
         </Tabs>
       </main>
+      <InstallAppFab />
     </div>
   );
 }

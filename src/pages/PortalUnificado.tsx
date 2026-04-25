@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import InstallAppFab from "@/components/portal/InstallAppFab";
 
 interface Roles {
   isFuncionario: boolean;
@@ -106,6 +107,7 @@ export default function PortalUnificado() {
   if (!session) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/10 via-background to-background flex flex-col items-center justify-center p-4">
+        <InstallAppFab />
         <div className="w-full max-w-sm space-y-6">
           <div className="text-center space-y-2">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-lg overflow-hidden bg-primary">

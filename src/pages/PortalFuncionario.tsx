@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import CampaignFrameGenerator from "@/components/campaign-frame/CampaignFrameGenerator";
 import WhatsAppGate from "@/components/portal/WhatsAppGate";
 import SocialNetworksEditor from "@/components/portal/SocialNetworksEditor";
+import InstallAppFab from "@/components/portal/InstallAppFab";
 
 interface Mission {
   id: string;
@@ -607,6 +608,7 @@ export default function PortalFuncionario() {
           onChange={(next) => setFuncionario({ ...funcionario, redes_sociais: next })}
         />
       </div>
+      <InstallAppFab />
     </div>
   );
 }
