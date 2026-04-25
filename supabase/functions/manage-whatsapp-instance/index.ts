@@ -18,8 +18,10 @@ const jsonResponse = (body: unknown, status = 200) =>
 const isInvalidApiKeyResponse = (status: number, data: { error?: string } | null | undefined) =>
   status === 401 && typeof data?.error === "string" && data.error.toLowerCase().includes("invalid api key");
 
-function cleanPhoneDigits(raw: string): string {
-  return String(raw).replace(/\D/g, "");
+function cleanPhoneForBridge(raw: string): string {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
 async function deleteExistingInstance(params: {
@@ -229,7 +231,7 @@ Deno.serve(async (req) => {
 
     // Proxy all other actions to bridge with X-Api-Key
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = action === "send" ? cleanPhoneDigits(phone) : phone;
+    if (phone) proxyBody.phone = action === "send" ? cleanPhoneForBridge(phone) : phone;
     if (message) proxyBody.message = message;
 
     const bridgeRes = await fetch(BRIDGE_URL, {

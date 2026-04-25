@@ -82,8 +82,10 @@ function normalizeName(name: string): string {
     .replace(/\s+/g, " ");
 }
 
-function cleanPhoneDigits(raw: string): string {
-  return String(raw).replace(/\D/g, "");
+function cleanPhoneForBridge(raw: string): string {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
 function namesMatch(a: string, b: string): boolean {
@@ -1300,7 +1302,7 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
     if (message) proxyBody.message = message;
 
     if (action === "send" && typeof phone === "string" && phone) {
-      proxyBody.phone = cleanPhoneDigits(phone);
+      proxyBody.phone = cleanPhoneForBridge(phone);
     }
 
     const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {

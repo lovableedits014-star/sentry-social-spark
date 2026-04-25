@@ -49,7 +49,11 @@ const getQrCodeFromResponse = (data?: BridgeResponse | null) => {
   return normalizeQrCode(data.qrcode) ?? normalizeQrCode(data.instance?.qrcode);
 };
 
-const cleanPhoneDigits = (raw: string) => raw.replace(/\D/g, "");
+const cleanPhoneForBridge = (raw: string) => {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") ? digits : `55${digits}`;
+};
 
 export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardProps) {
   const [state, setState] = useState<ConnectionState>("loading");
@@ -302,7 +306,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   };
 
   const handleTestSend = async () => {
-    const phone = cleanPhoneDigits(testPhone);
+    const phone = cleanPhoneForBridge(testPhone);
     if (!phone || phone.length < 10) {
       toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");
       return;
