@@ -149,6 +149,28 @@ export function PortalMissionsPanel({ clientId }: PortalMissionsPanelProps) {
     gcTime: 0,
   });
 
+  // Sync new posts from Meta (Facebook/Instagram) and then refetch the local list.
+  // Necessary so that posts published just now (still without any comments) appear in the picker.
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncAndRefetch = async () => {
+    if (!clientId || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke("fetch-meta-comments", {
+        body: { clientId },
+      });
+      if (error) throw error;
+      await refetchPosts();
+      toast.success("Publicações sincronizadas!");
+    } catch (err: any) {
+      // Even if sync fails, still refetch so user sees what's already in DB
+      await refetchPosts();
+      toast.error("Não foi possível sincronizar com a Meta agora. Mostrando publicações já carregadas.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const fbPosts = postOptions.filter(p => p.platform === "facebook");
   const igPosts = postOptions.filter(p => p.platform === "instagram");
 
