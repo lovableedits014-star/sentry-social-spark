@@ -184,6 +184,21 @@ export const CommentItem = memo(function CommentItem({
     stats.negative >= stats.positive && stats.negative >= stats.neutral ? "negative" : "neutral"
   ) : null;
 
+  // Build profile URL for the author
+  const profileUrl = (() => {
+    if (comment.author_unavailable) return null;
+    const platform = comment.platform || 'facebook';
+    if (platform === 'instagram') {
+      const handle = comment.author_name?.replace(/^@/, '').trim();
+      if (handle) return `https://www.instagram.com/${handle}/`;
+      return null;
+    }
+    // Facebook
+    if (comment.author_id) return `https://www.facebook.com/${comment.author_id}`;
+    if (comment.platform_user_id) return `https://www.facebook.com/${comment.platform_user_id}`;
+    return null;
+  })();
+
   return (
     <div className={`p-4 transition-colors ${
       isHidden ? 'bg-muted/60 opacity-70 border-l-2 border-muted-foreground/30' :
@@ -271,9 +286,22 @@ export const CommentItem = memo(function CommentItem({
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium">
-                {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
-              </span>
+              {profileUrl ? (
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                  title="Abrir perfil em nova aba"
+                >
+                  {comment.author_name || "Desconhecido"}
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              ) : (
+                <span className="text-sm font-medium">
+                  {comment.author_name || (comment.author_unavailable ? "Não identificado" : "Desconhecido")}
+                </span>
+              )}
               {getPlatformIcon(comment.platform || 'facebook')}
               {/* Registered supporter badge */}
               {registeredSupporter && !isPageOwner && (
