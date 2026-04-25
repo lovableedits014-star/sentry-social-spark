@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ReferralPanel } from "@/components/referral/ReferralPanel";
+import { extractHandleFromUrl } from "@/lib/social-url";
 interface Mission {
   id: string;
   platform: string;
@@ -313,8 +314,31 @@ export default function SupporterPortal() {
     if (!account) return;
     setSavingProfile(true);
     try {
-      const newFb = editFacebook.replace("@", "").trim() || null;
-      const newIg = editInstagram.replace("@", "").trim() || null;
+      // Aceita tanto username solto ("joaosilva") quanto URL completa
+      // ("https://facebook.com/joaosilva?locale=pt_BR"). Se o campo parecer
+      // uma URL, extrai o handle limpo usando o mesmo parser do admin.
+      const parseField = (raw: string, platform: "facebook" | "instagram") => {
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        if (/^https?:\/\//i.test(trimmed) || trimmed.includes("/")) {
+          const extracted = extractHandleFromUrl(platform, trimmed);
+          return extracted || null;
+        }
+        return trimmed.replace(/^@/, "") || null;
+      };
+      const newFb = parseField(editFacebook, "facebook");
+      const newIg = parseField(editInstagram, "instagram");
+
+      if (editFacebook.trim() && !newFb) {
+        toast.error("Não consegui identificar o usuário do Facebook. Cole a URL do seu perfil.");
+        setSavingProfile(false);
+        return;
+      }
+      if (editInstagram.trim() && !newIg) {
+        toast.error("Não consegui identificar o usuário do Instagram. Cole a URL do seu perfil.");
+        setSavingProfile(false);
+        return;
+      }
 
       const { error } = await supabase
         .from("supporter_accounts")
@@ -791,15 +815,15 @@ export default function SupporterPortal() {
                       <Label className="text-xs flex items-center gap-1">
                         <Facebook className="w-3 h-3 text-blue-600" /> Facebook (username)
                       </Label>
-                      <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva (sem @)" />
-                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é facebook.com/joaosilva, coloque "joaosilva"</p>
+                      <Input value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="joaosilva ou cole a URL do perfil" />
+                      <p className="text-xs text-muted-foreground">Pode colar a URL completa (ex: facebook.com/joaosilva) que extraímos automaticamente.</p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs flex items-center gap-1">
                         <Instagram className="w-3 h-3 text-pink-500" /> Instagram (username)
                       </Label>
-                      <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva (sem @)" />
-                      <p className="text-xs text-muted-foreground">Ex: se seu perfil é instagram.com/joaosilva, coloque "joaosilva"</p>
+                      <Input value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="joaosilva ou cole a URL do perfil" />
+                      <p className="text-xs text-muted-foreground">Pode colar a URL completa (ex: instagram.com/joaosilva) que extraímos automaticamente.</p>
                     </div>
                     <div className="border-t pt-3 mt-2">
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
