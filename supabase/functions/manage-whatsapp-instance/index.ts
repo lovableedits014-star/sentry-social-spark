@@ -494,6 +494,41 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, configured });
     }
 
+    // === SET WEBHOOK (confirmação automática de WhatsApp) ===
+    // Registra o webhook da WhatsHub Bridge para apontar para nossa edge function
+    // `whatsapp-inbound-webhook`, que confirma o WhatsApp do contato automaticamente
+    // assim que ele envia uma mensagem para o número oficial.
+    if (action === "set_webhook") {
+      if (!instance_id || !activeInstanceRow) {
+        return jsonResponse({ success: false, error: "instance_id obrigatório" }, 400);
+      }
+      if (!activeInstanceRow.bridge_api_key) {
+        return jsonResponse({ success: false, error: "Instância sem API key — conecte primeiro" }, 400);
+      }
+      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-inbound-webhook?client_id=${resolvedClientId}`;
+      const bridgeRes = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": activeInstanceRow.bridge_api_key,
+        },
+        body: JSON.stringify({
+          action: "set_webhook",
+          instance_id: instance_id,
+          webhook_url: webhookUrl,
+        }),
+      });
+      const bridgeData = await bridgeRes.json().catch(() => ({}));
+      if (!bridgeRes.ok) {
+        return jsonResponse({
+          success: false,
+          error: bridgeData?.error || `Bridge respondeu ${bridgeRes.status}`,
+          details: sanitizeBridgeData(bridgeData),
+        });
+      }
+      return jsonResponse({ success: true, webhook_url: webhookUrl, bridge: bridgeData });
+    }
+
     // === ACTIONS THAT REQUIRE API KEY ===
     if (!clientApiKey) {
       if (action === "reconnect") {

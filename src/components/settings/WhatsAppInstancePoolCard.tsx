@@ -11,7 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, QrCode, Send, Trash2, Wifi, WifiOff, Pencil, Check, X, RefreshCw, Power, Star, Phone
+  Loader2, QrCode, Send, Trash2, Wifi, WifiOff, Pencil, Check, X, RefreshCw, Power, Star, Phone, Webhook
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -191,6 +191,17 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
     else toast.success("Mensagem de teste enviada!");
   };
 
+  const handleSetWebhook = async () => {
+    setBusy("webhook");
+    const { data, error } = await invoke("set_webhook");
+    setBusy(null);
+    if (error || data?.error) {
+      toast.error("Erro ao ativar webhook: " + (error?.message || data?.error));
+    } else {
+      toast.success("Confirmação automática ativada! Mensagens recebidas confirmarão o WhatsApp do contato automaticamente.");
+    }
+  };
+
   const isConnected = CONNECTED.has(instance.status);
   const health = healthLabel(instance.health_score);
   const isNew = instance.connected_since
@@ -356,6 +367,35 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
             <Button size="sm" variant="outline" onClick={handleDisconnect} disabled={busy === "disconnect"}>
               <Power className="w-3.5 h-3.5 mr-1" /> Desconectar
             </Button>
+            {instance.is_primary && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSetWebhook}
+                      disabled={busy === "webhook"}
+                      className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                    >
+                      {busy === "webhook" ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Webhook className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      Ativar confirmação automática
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs">
+                      Registra o webhook desta instância (número oficial) para confirmar
+                      automaticamente o WhatsApp dos contatos assim que eles enviam uma
+                      mensagem. Só precisa fazer isso 1 vez por instância.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </>
         )}
 
