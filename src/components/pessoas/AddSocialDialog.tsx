@@ -71,16 +71,75 @@ export default function AddSocialDialog({ open, onOpenChange, pessoaId, onSucces
       ? await supabase.from("pessoa_social").update(payload).eq("id", editing.id)
       : await supabase.from("pessoa_social").insert({ pessoa_id: pessoaId, ...payload } as any);
 
-    setSaving(false);
     if (error) {
+      setSaving(false);
       toast.error(editing ? "Erro ao atualizar rede social" : "Erro ao adicionar rede social");
       console.error(error);
-    } else {
-      toast.success(editing ? "Rede social atualizada!" : "Rede social adicionada!");
-      reset();
-      onOpenChange(false);
-      onSuccess();
+      return;
     }
+
+    // Sincroniza supporter_profiles para que o ranking de influenciadores
+    // reconheça interações já existentes desse usuário nessa rede.
+    try {
+      const { data: pessoa } = await supabase
+        .from("pessoas")
+        .select("supporter_id, client_id")
+        .eq("id", pessoaId)
+        .maybeSingle();
+
+      const supporterId = (pessoa as any)?.supporter_id as string | null;
+      const clientId = (pessoa as any)?.client_id as string | null;
+      const handle = (payload.usuario || "").replace("@", "").trim();
+
+      if (supporterId && handle) {
+        const avatarUrl =
+          plataforma === "facebook"
+            ? `https://graph.facebook.com/${handle}/picture?type=large&redirect=true`
+            : null;
+
+        const { data: existing } = await supabase
+          .from("supporter_profiles")
+          .select("id")
+          .eq("supporter_id", supporterId)
+          .eq("platform", plataforma)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("supporter_profiles")
+            .update({
+              platform_user_id: handle,
+              platform_username: handle,
+              ...(avatarUrl ? { profile_picture_url: avatarUrl } : {}),
+            } as any)
+            .eq("id", (existing as any).id);
+        } else {
+          await supabase.from("supporter_profiles").insert({
+            supporter_id: supporterId,
+            platform: plataforma,
+            platform_user_id: handle,
+            platform_username: handle,
+            profile_picture_url: avatarUrl,
+          } as any);
+        }
+
+        if (clientId) {
+          await supabase.rpc("link_orphan_engagement_actions", { p_client_id: clientId } as any);
+          await supabase.rpc("calculate_engagement_score", {
+            p_supporter_id: supporterId,
+            p_days: 30,
+          } as any);
+        }
+      }
+    } catch (e) {
+      console.warn("Falha ao sincronizar supporter_profiles:", e);
+    }
+
+    setSaving(false);
+    toast.success(editing ? "Rede social atualizada!" : "Rede social adicionada!");
+    reset();
+    onOpenChange(false);
+    onSuccess();
   }
 
   return (
