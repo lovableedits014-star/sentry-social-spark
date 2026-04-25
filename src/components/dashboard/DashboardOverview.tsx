@@ -212,76 +212,64 @@ export function DashboardOverview({ clientId }: DashboardOverviewProps) {
 
       {/* ── KPIs em 3 pilares ── */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-        <Link to="/pessoas">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <BookUser className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{kpis?.pessoasTotal ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Base Política</p>
-              {kpis && kpis.pessoasNovas7d > 0 && (
-                <p className="text-[10px] text-green-600 font-medium mt-0.5">
-                  +{kpis.pessoasNovas7d} em 7 dias
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link to="/pessoas?nivel=apoiador">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <ShieldCheck className="w-4 h-4 text-green-600 mb-1" />
-              <p className="text-2xl font-bold">{kpis?.pessoasComprometidas ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Apoio comprometido</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link to="/contratados">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <Users className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{kpis?.contratadosAtivos ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">
-                Contratados <span className="text-muted-foreground/70">({kpis?.lideresTotal ?? 0} líderes)</span>
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <BookUser className="w-4 h-4 text-primary mb-1" />
+            <p className="text-2xl font-bold">{kpis?.pessoasTotal ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">Base Política</p>
+            {kpis && kpis.pessoasNovas7d > 0 && (
+              <p className="text-[10px] text-green-600 font-medium mt-0.5">
+                +{kpis.pessoasNovas7d} em 7 dias
               </p>
-            </CardContent>
-          </Card>
-        </Link>
+            )}
+          </CardContent>
+        </Card>
 
-        <Link to="/funcionarios">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <Briefcase className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{kpis?.funcionariosAtivos ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">Funcionários ativos</p>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <ShieldCheck className="w-4 h-4 text-green-600 mb-1" />
+            <p className="text-2xl font-bold">{kpis?.pessoasComprometidas ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">Apoio comprometido</p>
+          </CardContent>
+        </Card>
 
-        <Link to="/controle-presenca">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <CalendarCheck className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{kpis?.checkinsHoje ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">
-                Check-ins hoje {totalObrigatorios > 0 && `· ${presencaPct}%`}
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <Users className="w-4 h-4 text-primary mb-1" />
+            <p className="text-2xl font-bold">{kpis?.contratadosAtivos ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">
+              Contratados <span className="text-muted-foreground/70">({kpis?.lideresTotal ?? 0} líderes)</span>
+            </p>
+          </CardContent>
+        </Card>
 
-        <Link to="/telemarketing">
-          <Card className="hover:shadow-md transition-shadow h-full cursor-pointer">
-            <CardContent className="pt-4 pb-3 px-4">
-              <PhoneCall className="w-4 h-4 text-primary mb-1" />
-              <p className="text-2xl font-bold">{kpis?.indicadosPendentes ?? 0}</p>
-              <p className="text-[10px] text-muted-foreground">
-                Indicados a ligar {kpis && kpis.indicadosTotal > 0 && `de ${kpis.indicadosTotal}`}
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <Briefcase className="w-4 h-4 text-primary mb-1" />
+            <p className="text-2xl font-bold">{kpis?.funcionariosAtivos ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">Funcionários ativos</p>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <CalendarCheck className="w-4 h-4 text-primary mb-1" />
+            <p className="text-2xl font-bold">{kpis?.checkinsHoje ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">
+              Check-ins hoje {totalObrigatorios > 0 && `· ${presencaPct}%`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full">
+          <CardContent className="pt-4 pb-3 px-4">
+            <PhoneCall className="w-4 h-4 text-primary mb-1" />
+            <p className="text-2xl font-bold">{kpis?.indicadosPendentes ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">
+              Indicados a ligar {kpis && kpis.indicadosTotal > 0 && `de ${kpis.indicadosTotal}`}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Gráficos ── */}
