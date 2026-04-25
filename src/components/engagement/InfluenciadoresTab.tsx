@@ -415,7 +415,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-1 border-t">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Por rede</span>
-                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
+                    <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                   </div>
                   <div className="space-y-1">
                     <SentimentBar pos={inf.positiveCount} neg={inf.negativeCount} neu={inf.neutralCount} />
@@ -476,7 +476,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} />
+                      <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
