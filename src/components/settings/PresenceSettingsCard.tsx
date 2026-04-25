@@ -61,9 +61,9 @@ export default function PresenceSettingsCard({ clientId }: { clientId: string })
   });
 
   const preview = template
-    .replaceAll("{nome}", "Maria")
-    .replaceAll("{dias}", String(Math.max(1, Math.min(30, Math.round(days || 3)))))
-    .replaceAll("{campanha}", (client as any)?.name ?? "Sua Campanha");
+    .replace(/\{nome\}/g, "Maria")
+    .replace(/\{dias\}/g, String(Math.max(1, Math.min(30, Math.round(days || 3)))))
+    .replace(/\{campanha\}/g, (client as any)?.name ?? "Sua Campanha");
 
   return (
     <Card>
