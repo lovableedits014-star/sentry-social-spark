@@ -23,7 +23,6 @@ import Pessoas from "./pages/Pessoas";
 import PessoaPerfil from "./pages/PessoaPerfil";
 import RegistroPessoa from "./pages/RegistroPessoa";
 
-import DetectorCrise from "./pages/DetectorCrise";
 import MissoesIA from "./pages/MissoesIA";
 import Funcionarios from "./pages/Funcionarios";
 import ControlePresenca from "./pages/ControlePresenca";
@@ -88,7 +87,6 @@ const App = () => (
             <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/pessoas/:id" element={<PessoaPerfil />} />
             <Route path="/recrutamento" element={<Territorial />} />
-            <Route path="/crise" element={<DetectorCrise />} />
             <Route path="/missoes-ia" element={<MissoesIA />} />
             <Route path="/funcionarios" element={<Funcionarios />} />
             <Route path="/presenca" element={<ControlePresenca />} />
