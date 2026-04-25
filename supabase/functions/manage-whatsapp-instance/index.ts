@@ -163,9 +163,13 @@ async function createClientInstance(params: {
     }
   }
 
+  if ((!bridgeRes.ok || !bridgeData.success) && isQrPendingResponse(bridgeData)) {
+    return awaitingQrResponse();
+  }
+
   if (!bridgeRes.ok || !bridgeData.success) {
     return jsonResponse(
-      { error: bridgeData.error || "Erro ao criar instância", details: bridgeData },
+      { error: bridgeData.error || "Erro ao criar instância", details: sanitizeBridgeData(bridgeData) },
       200,
     );
   }
