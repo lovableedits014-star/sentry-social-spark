@@ -317,10 +317,34 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
   };
 
   const handleTestSend = async () => {
-    const phone = cleanPhoneForBridge(testPhone);
-    console.log("[WhatsApp test] telefone digitado:", testPhone);
-    console.log("[WhatsApp test] telefone enviado para a function:", phone);
-    if (!phone || phone.length < 10) {
+    const phone = testPhone;
+    const digits = phone.replace(/\D/g, "");
+
+    let normalizedPhone = digits;
+
+    if (digits.length === 11 && digits.startsWith("67")) {
+      normalizedPhone = "55" + digits;
+    }
+
+    if (digits.length === 12 && digits.startsWith("55")) {
+      const ddd = digits.slice(2, 4);
+      const number = digits.slice(4);
+
+      if (number.length === 8) {
+        normalizedPhone = `55${ddd}9${number}`;
+      }
+    }
+
+    if (digits.length === 10) {
+      const ddd = digits.slice(0, 2);
+      const number = digits.slice(2);
+      normalizedPhone = `55${ddd}9${number}`;
+    }
+
+    console.log("[TESTE WHATSAPP] digitado:", phone);
+    console.log("[TESTE WHATSAPP] enviado:", normalizedPhone);
+
+    if (!normalizedPhone || normalizedPhone.length < 10) {
       toast.error("Digite um número válido com DDI + DDD (ex: 5511999999999)");
       return;
     }
@@ -330,7 +354,7 @@ export default function WhatsAppInstanceCard({ clientId }: WhatsAppInstanceCardP
         body: {
           action: "send",
           client_id: clientId,
-          phone,
+          phone: normalizedPhone,
           message: "✅ Teste de conexão WhatsApp — Sentinelle. Integração funcionando!",
         },
       });
