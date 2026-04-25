@@ -56,14 +56,26 @@ export default function RadarTemas() {
       const { data, error } = await supabase.functions.invoke("analyze-themes-ai", {
         body: { clientId: cId, knownThemes },
       });
-      if (error) throw error;
-      if (data?.error) {
-        setAiError(data.error);
+      // Try to extract a structured error message from the function response body
+      let payload: any = data;
+      if (error && (error as any).context?.json) {
+        try { payload = await (error as any).context.json(); } catch { /* ignore */ }
+      } else if (error && (error as any).context?.text) {
+        try {
+          const txt = await (error as any).context.text();
+          payload = JSON.parse(txt);
+        } catch { /* ignore */ }
+      }
+      if (payload?.error) {
+        setAiError(payload.error);
         setAiAnalysis(null);
         return;
       }
+      if (error) throw error;
       setAiAnalysis(data);
-      if (data.totalAnalyzed > 0) {
+      if (data?.partial && data?.partialReason) {
+        toast.warning(`Análise parcial: ${data.partialReason.slice(0, 120)}`);
+      } else if (data?.totalAnalyzed > 0) {
         toast.success(
           `IA analisou ${data.totalAnalyzed} mensagens · ${data.themes.length} temas conhecidos · ${data.emerging.length} emergentes`
         );
