@@ -236,19 +236,36 @@ Deno.serve(async (req) => {
 
     // Proxy all other actions to bridge with X-Api-Key
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = action === "send" ? normalizeBrazilianPhoneWithNinthDigit(phone) : phone;
+    if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
-    const bridgeRes = await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": clientApiKey,
-      },
-      body: JSON.stringify(proxyBody),
-    });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({}));
+    let bridgeRes: Response;
+    let bridgeData: any;
+    if (action === "send" && typeof phone === "string" && phone) {
+      let lastRes: Response | null = null;
+      let lastData: any = null;
+      for (const candidate of brazilianPhoneVariants(phone)) {
+        lastRes = await fetch(BRIDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+          body: JSON.stringify({ ...proxyBody, phone: candidate }),
+        });
+        lastData = await lastRes.json().catch(() => ({}));
+        if (lastRes.ok && lastData?.success !== false) break;
+      }
+      bridgeRes = lastRes!;
+      bridgeData = lastData;
+    } else {
+      bridgeRes = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": clientApiKey,
+        },
+        body: JSON.stringify(proxyBody),
+      });
+      bridgeData = await bridgeRes.json().catch(() => ({}));
+    }
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await createClientInstance({
