@@ -1295,13 +1295,38 @@ async function manageWhatsappInstanceHandler(req: Request): Promise<Response> {
     if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
-    const bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
-      body: JSON.stringify(proxyBody),
-    });
-
-    const bridgeData = await bridgeRes.json().catch(() => ({} as any));
+    // Para action "send", normaliza o telefone BR e tenta variantes (com/sem o 9 do celular)
+    let bridgeRes: Response;
+    let bridgeData: any;
+    if (action === "send" && typeof phone === "string" && phone) {
+      const variants = brazilianPhoneVariants(phone);
+      let lastRes: Response | null = null;
+      let lastData: any = null;
+      for (const candidate of variants) {
+        const attemptBody = { ...proxyBody, phone: candidate };
+        lastRes = await fetch(WHATSAPP_BRIDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+          body: JSON.stringify(attemptBody),
+        });
+        lastData = await lastRes.json().catch(() => ({} as any));
+        const looksLikeNotFound = !lastRes.ok ||
+          lastData?.success === false ||
+          /not.?(exist|found|registered)|no.?wa|not.?on.?whats|invalid.?(jid|number)/i.test(
+            String(lastData?.error ?? lastData?.message ?? "")
+          );
+        if (!looksLikeNotFound) break;
+      }
+      bridgeRes = lastRes!;
+      bridgeData = lastData;
+    } else {
+      bridgeRes = await fetch(WHATSAPP_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": clientApiKey },
+        body: JSON.stringify(proxyBody),
+      });
+      bridgeData = await bridgeRes.json().catch(() => ({} as any));
+    }
 
     if (action === "reconnect" && isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
       return await bridgeCreateInstance({
