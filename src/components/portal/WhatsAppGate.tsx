@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MessageCircle, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Loader2, MessageCircle, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface WhatsAppGateProps {
@@ -13,6 +13,11 @@ interface WhatsAppGateProps {
   userName: string;
   /** Called after the user confirms — parent should refetch / unlock the portal */
   onConfirmed: () => void;
+  /**
+   * Opcional: função que verifica no banco se o WhatsApp já foi confirmado
+   * (pelo webhook automático). Se retornar true, o portal é liberado sem clique.
+   */
+  checkConfirmed?: () => Promise<boolean>;
 }
 
 /**
@@ -27,9 +32,42 @@ export default function WhatsAppGate({
   role,
   userName,
   onConfirmed,
+  checkConfirmed,
 }: WhatsAppGateProps) {
   const [loading, setLoading] = useState(false);
   const [opened, setOpened] = useState(false);
+  const [autoChecking, setAutoChecking] = useState(false);
+  const intervalRef = useRef<number | null>(null);
+
+  // Polling automático: depois que o usuário abre o WhatsApp, verificamos a cada 4s
+  // se o webhook da bridge já confirmou a mensagem recebida.
+  useEffect(() => {
+    if (!opened || !checkConfirmed) return;
+
+    setAutoChecking(true);
+    let stopped = false;
+
+    const tick = async () => {
+      try {
+        const ok = await checkConfirmed();
+        if (ok && !stopped) {
+          stopped = true;
+          if (intervalRef.current) window.clearInterval(intervalRef.current);
+          toast.success("Mensagem recebida! Liberando portal automaticamente...");
+          onConfirmed();
+        }
+      } catch (err) {
+        console.error("[WhatsAppGate] auto-check error:", err);
+      }
+    };
+
+    intervalRef.current = window.setInterval(tick, 4000);
+    return () => {
+      stopped = true;
+      if (intervalRef.current) window.clearInterval(intervalRef.current);
+      setAutoChecking(false);
+    };
+  }, [opened, checkConfirmed, onConfirmed]);
 
   const roleLabel =
     role === "funcionario" ? "funcionário" : role === "contratado" ? "contratado" : "apoiador";
@@ -91,7 +129,7 @@ export default function WhatsAppGate({
             <ol className="text-sm text-emerald-900 dark:text-emerald-200 space-y-1 list-decimal list-inside">
               <li>Toque no botão verde abaixo</li>
               <li>Envie a mensagem que aparecerá automaticamente</li>
-              <li>Volte aqui e toque em "Já enviei"</li>
+              <li>{checkConfirmed ? "Volte aqui — liberamos automaticamente" : "Volte aqui e toque em \"Já enviei\""}</li>
             </ol>
           </div>
 
@@ -108,6 +146,13 @@ export default function WhatsAppGate({
             )}
             {opened ? "Reabrir WhatsApp" : "Abrir WhatsApp Oficial"}
           </Button>
+
+          {opened && autoChecking && (
+            <div className="flex items-center justify-center gap-2 text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              Aguardando sua mensagem chegar...
+            </div>
+          )}
 
           {opened && (
             <Button
