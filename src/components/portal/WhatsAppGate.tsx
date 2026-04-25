@@ -39,7 +39,10 @@ export default function WhatsAppGate({
   checkConfirmed,
 }: WhatsAppGateProps) {
   const [loading, setLoading] = useState(false);
-  const [opened, setOpened] = useState(false);
+  const openedKey = `whatsapp_gate_opened_${clientId}_${role}_${userName}`;
+  const [opened, setOpened] = useState(() => {
+    try { return localStorage.getItem(openedKey) === "true"; } catch { return false; }
+  });
   const [autoChecking, setAutoChecking] = useState(false);
   const [whatsAppLink, setWhatsAppLink] = useState<WhatsAppLink | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -109,6 +112,7 @@ export default function WhatsAppGate({
 
   const openResolvedWhatsApp = (link: WhatsAppLink) => {
     setOpened(true);
+    try { localStorage.setItem(openedKey, "true"); } catch {}
     toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
     // Abre em nova aba/app (não navega a página atual). Isso evita que, ao voltar,
     // o navegador dispare novamente o popup nativo "Abrir no WhatsApp?" e mantém
@@ -155,6 +159,7 @@ export default function WhatsAppGate({
   };
 
   const handleConfirm = () => {
+    try { localStorage.removeItem(openedKey); } catch {}
     toast.success("WhatsApp confirmado! Liberando portal...");
     onConfirmed();
   };
@@ -211,16 +216,20 @@ export default function WhatsAppGate({
             </div>
           )}
 
-          {opened && (
-            <Button
-              onClick={handleConfirm}
-              variant="outline"
-              size="lg"
-              className="w-full gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              Já enviei — liberar portal
-            </Button>
+          <Button
+            onClick={handleConfirm}
+            variant="outline"
+            size="lg"
+            className="w-full gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            Já enviei — liberar portal
+          </Button>
+
+          {!opened && (
+            <p className="text-xs text-muted-foreground -mt-2">
+              Se o WhatsApp já foi enviado em outro momento, toque acima para continuar.
+            </p>
           )}
 
           <p className="text-[11px] text-muted-foreground leading-relaxed">

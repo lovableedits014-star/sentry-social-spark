@@ -365,7 +365,13 @@ export default function PortalFuncionario() {
           clientLogo={clientLogo}
           role="funcionario"
           userName={funcionario.nome}
-          onConfirmed={() => setFuncionario({ ...funcionario, whatsapp_confirmado: true })}
+          onConfirmed={async () => {
+            await supabase
+              .from("funcionarios" as any)
+              .update({ whatsapp_confirmado: true })
+              .eq("id", funcionario.id);
+            setFuncionario({ ...funcionario, whatsapp_confirmado: true });
+          }}
           checkConfirmed={async () => {
             const { data } = await supabase
               .from("funcionarios" as any)

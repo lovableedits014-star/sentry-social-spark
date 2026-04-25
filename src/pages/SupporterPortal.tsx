@@ -587,7 +587,13 @@ export default function SupporterPortal() {
           clientLogo={clientInfo?.logo_url ?? null}
           role="apoiador"
           userName={account.name}
-          onConfirmed={() => setAccount({ ...account, whatsapp_confirmado: true })}
+          onConfirmed={async () => {
+            await supabase
+              .from("supporter_accounts")
+              .update({ whatsapp_confirmado: true })
+              .eq("id", account.id);
+            setAccount({ ...account, whatsapp_confirmado: true });
+          }}
           checkConfirmed={async () => {
             const { data } = await supabase
               .from("supporter_accounts")
