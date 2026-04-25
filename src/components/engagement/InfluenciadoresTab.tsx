@@ -16,6 +16,7 @@ type Influencer = {
   supporterId: string;
   registeredName: string;
   origin: "pessoa" | "funcionario" | "contratado" | "apoiador";
+  category: string; // chave de filtro: "apoiador" | "funcionario" | "lider" | "liderado" | "indicado" | "lideranca" | "influenciador" | "voluntario" | "jornalista" | "eleitor" | "cidadao" | "adversario" | "outro"
   authorPicture: string | null;
   platforms: Set<string>;
   totalComments: number;
@@ -47,6 +48,22 @@ const ORIGIN_LABEL: Record<Influencer["origin"], string> = {
   funcionario: "Funcionário",
   contratado: "Contratado",
   apoiador: "Apoiador",
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  apoiador: "Apoiador",
+  funcionario: "Funcionário",
+  lider: "Líder",
+  liderado: "Liderado",
+  indicado: "Indicado",
+  lideranca: "Liderança",
+  influenciador: "Influenciador",
+  voluntario: "Voluntário",
+  jornalista: "Jornalista",
+  eleitor: "Eleitor",
+  cidadao: "Cidadão",
+  adversario: "Adversário",
+  outro: "Outro",
 };
 
 const PlatformBadges = ({
@@ -182,6 +199,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [influencers, setInfluencers] = useState<Influencer[]>([]);
   const [days, setDays] = useState(30);
+  const [categoryFilter, setCategoryFilter] = useState<string>("todos");
 
   const fetchData = async () => {
     setLoading(true);
@@ -191,24 +209,29 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
     // 1) Carrega supporters vinculados a alguma entidade cadastrada
     const [pessoasRes, funcionariosRes, contratadosRes, accountsRes] = await Promise.all([
-      supabase.from("pessoas").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("pessoas").select("supporter_id, nome, tipo_pessoa").eq("client_id", clientId).not("supporter_id", "is", null),
       supabase.from("funcionarios").select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
-      supabase.from("contratados" as any).select("supporter_id, nome").eq("client_id", clientId).not("supporter_id", "is", null),
+      supabase.from("contratados" as any).select("supporter_id, nome, is_lider").eq("client_id", clientId).not("supporter_id", "is", null),
       supabase.from("supporter_accounts").select("supporter_id, name").eq("client_id", clientId).not("supporter_id", "is", null),
     ]);
 
-    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"] }>();
+    const supporterMeta = new Map<string, { name: string; origin: Influencer["origin"]; category: string }>();
     for (const r of (accountsRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.name, origin: "apoiador", category: "apoiador" });
     }
     for (const r of (contratadosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "contratado", category: r.is_lider ? "lider" : "liderado" });
     }
     for (const r of (funcionariosRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario" });
+      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "funcionario", category: "funcionario" });
     }
     for (const r of (pessoasRes.data || []) as any[]) {
-      if (r.supporter_id) supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa" });
+      if (r.supporter_id) {
+        const tipo = (r.tipo_pessoa as string) || "cidadao";
+        // mapeia tipo_pessoa para categoria de filtro
+        const cat = ["lider", "liderado", "indicado", "lideranca", "apoiador", "influenciador", "voluntario", "jornalista", "eleitor", "cidadao", "adversario"].includes(tipo) ? tipo : "outro";
+        supporterMeta.set(r.supporter_id, { name: r.nome, origin: "pessoa", category: cat });
+      }
     }
 
     const supporterIds = Array.from(supporterMeta.keys());
@@ -311,6 +334,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       if (!inf) {
         inf = {
           supporterId, registeredName: meta.name, origin: meta.origin,
+          category: meta.category,
           authorPicture: c.author_profile_picture,
           platforms: new Set<string>(),
           totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
@@ -405,8 +429,19 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
   useEffect(() => { fetchData(); }, [clientId, days]);
 
-  const topInfluencers = influencers.slice(0, 3);
-  const restInfluencers = influencers.slice(3);
+  // Categorias presentes nos dados (para mostrar só chips relevantes)
+  const availableCategories = Array.from(new Set(influencers.map((i) => i.category))).sort();
+  const categoryCounts = influencers.reduce<Record<string, number>>((acc, i) => {
+    acc[i.category] = (acc[i.category] || 0) + 1;
+    return acc;
+  }, {});
+
+  const filtered = categoryFilter === "todos"
+    ? influencers
+    : influencers.filter((i) => i.category === categoryFilter);
+
+  const topInfluencers = filtered.slice(0, 3);
+  const restInfluencers = filtered.slice(3);
 
   return (
     <div className="space-y-4">
@@ -429,6 +464,27 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           </Button>
         </div>
       </div>
+
+      {!loading && influencers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">Filtrar por:</span>
+          <button
+            onClick={() => setCategoryFilter("todos")}
+            className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${categoryFilter === "todos" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary/50"}`}
+          >
+            Todos <span className="opacity-70">({influencers.length})</span>
+          </button>
+          {availableCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${categoryFilter === cat ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary/50"}`}
+            >
+              {CATEGORY_LABEL[cat] || cat} <span className="opacity-70">({categoryCounts[cat]})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && (
         <div className="grid gap-4 md:grid-cols-3">
@@ -473,7 +529,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{inf.registeredName}</p>
-                      <p className="text-xs text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
+                      <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[inf.category] || ORIGIN_LABEL[inf.origin]}</p>
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
@@ -540,7 +596,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate max-w-[150px]">{inf.registeredName}</p>
-                          <p className="text-[10px] text-muted-foreground">{ORIGIN_LABEL[inf.origin]}</p>
+                          <p className="text-[10px] text-muted-foreground">{CATEGORY_LABEL[inf.category] || ORIGIN_LABEL[inf.origin]}</p>
                         </div>
                       </div>
                     </TableCell>
