@@ -557,11 +557,14 @@ Deno.serve(async (req) => {
         : bridgeData?.status === "connecting" ? "connecting"
         : "disconnected";
       const updates: any = { status, last_health_check_at: new Date().toISOString() };
-      if (status === "connected") {
-        if (!activeInstanceRow.connected_since) updates.connected_since = new Date().toISOString();
-        if (bridgeData?.phone_number || bridgeData?.phone) {
-          updates.phone_number = bridgeData.phone_number || bridgeData.phone;
-        }
+      if (status === "connected" && !activeInstanceRow.connected_since) {
+        updates.connected_since = new Date().toISOString();
+      }
+      // Sincroniza telefone sempre que a bridge informar (mesmo em connecting)
+      const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
+        || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
+      if (reportedPhone) {
+        updates.phone_number = String(reportedPhone).replace(/\D/g, "");
       }
       await adminClient.from("whatsapp_instances").update(updates).eq("id", instance_id);
     }
