@@ -19,12 +19,28 @@ export default function WhatsAppPoolManager({ clientId }: Props) {
   const [addOpen, setAddOpen] = useState(false);
 
   const fetchInstances = useCallback(async () => {
+    // Garante que há sessão ativa antes de chamar a edge function (evita 401 durante refresh)
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session) {
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
       body: { action: "list_instances", client_id: clientId },
     });
+
+    const msg = (error?.message || data?.error || "") as string;
+    const isAuthOrTransient =
+      msg.toLowerCase().includes("unauthorized") ||
+      msg.toLowerCase().includes("non-2xx");
+
     if (error || data?.error) {
-      toast.error("Erro ao carregar instâncias: " + (error?.message || data?.error));
-      setInstances([]);
+      if (!isAuthOrTransient) {
+        toast.error("Erro ao carregar instâncias: " + (msg || "desconhecido"));
+      } else {
+        console.warn("[WhatsAppPoolManager] erro transitório (mantendo lista atual):", msg);
+      }
     } else {
       setInstances((data?.instances || []) as PoolInstance[]);
     }
