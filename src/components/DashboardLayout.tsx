@@ -251,9 +251,7 @@ const DashboardLayout = () => {
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:flex lg:w-64 flex-col bg-sidebar text-sidebar-foreground shadow-xl">
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-              <Shield className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-9 h-9 object-contain shrink-0" />
             <span className="text-lg font-bold">Sentinelle</span>
           </div>
           <SidebarNav />
@@ -271,9 +269,7 @@ const DashboardLayout = () => {
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center shrink-0">
-            <Shield className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-8 h-8 object-contain shrink-0" />
           <span className="font-bold text-base">Sentinelle</span>
         </div>
       </header>
@@ -285,9 +281,7 @@ const DashboardLayout = () => {
           <aside className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar text-sidebar-foreground shadow-2xl flex flex-col">
             <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center shrink-0">
-                  <Shield className="w-4 h-4 text-primary-foreground" />
-                </div>
+                <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-8 h-8 object-contain shrink-0" />
                 <span className="font-bold text-base">Sentinelle</span>
               </div>
               <button

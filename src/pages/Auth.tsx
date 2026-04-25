@@ -65,9 +65,7 @@ const Auth = () => {
 
         <Card className="w-full shadow-2xl border-slate-700 bg-slate-800/80 backdrop-blur-sm text-slate-100">
           <CardHeader className="space-y-2 text-center">
-            <div className="mx-auto w-12 h-12 bg-amber-500 rounded-lg flex items-center justify-center mb-2">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
+            <img src="/sentinelle-logo.png" alt="Sentinelle" className="mx-auto w-20 h-20 object-contain mb-2 drop-shadow-[0_0_24px_rgba(59,130,246,0.4)]" />
             <CardTitle className="text-2xl text-white">Sentinelle Admin</CardTitle>
             <CardDescription className="text-slate-400">
               Painel de gerenciamento — acesso exclusivo para administradores

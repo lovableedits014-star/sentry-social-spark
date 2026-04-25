@@ -44,9 +44,7 @@ export default function PwaStart() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary/10 to-background p-6">
       <div className="w-full max-w-sm space-y-6 text-center">
-        <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-          <Shield className="w-8 h-8 text-primary-foreground" />
-        </div>
+        <img src="/sentinelle-logo.png" alt="Sentinelle" className="w-24 h-24 object-contain mx-auto drop-shadow-xl" />
         <div>
           <h1 className="text-2xl font-bold">Sentinelle</h1>
           <p className="text-muted-foreground text-sm mt-1">Como deseja acessar?</p>
