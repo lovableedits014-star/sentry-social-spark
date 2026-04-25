@@ -4,6 +4,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Download, Share, Plus, X, Smartphone } from "lucide-react";
+import { rememberPortalClientId } from "@/lib/pwa-client";
 
 /**
  * Floating action button that prompts the user to install the app
@@ -56,6 +57,11 @@ export default function InstallAppFab() {
   const [visible, setVisible] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
   const ios = isIOS();
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/\/(?:portal|portal-apoiador|portal-funcionario|portal-contratado)\/([^/?#]+)/);
+    if (match?.[1]) rememberPortalClientId(decodeURIComponent(match[1]));
+  }, []);
 
   useEffect(() => {
     if (isInIframe()) return; // never show inside the editor preview
@@ -141,7 +147,7 @@ export default function InstallAppFab() {
               Instalar no iPhone
             </DialogTitle>
             <DialogDescription>
-              No iPhone, a instalação é feita pelo Safari em 3 passos rápidos.
+              No iPhone, primeiro abra o link do portal no Safari. Depois instale em 3 passos rápidos.
             </DialogDescription>
           </DialogHeader>
           <ol className="space-y-3 text-sm">
