@@ -6,7 +6,6 @@ import { Loader2, MessageCircle, ShieldCheck, CheckCircle2, Sparkles } from "luc
 import { toast } from "sonner";
 
 type WhatsAppLink = {
-  appUrl: string;
   webUrl: string;
 };
 
@@ -65,8 +64,7 @@ export default function WhatsAppGate({
         const phone = waUrl.replace(/\D/g, "");
         const text = encodeURIComponent(msg);
         setWhatsAppLink({
-          appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
-          webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+          webUrl: `https://wa.me/${phone}?text=${text}`,
         });
       } catch (err) {
         console.error("[WhatsAppGate] resolve link error:", err);
@@ -112,10 +110,7 @@ export default function WhatsAppGate({
   const openResolvedWhatsApp = (link: WhatsAppLink) => {
     setOpened(true);
     toast.success("Envie a mensagem no WhatsApp e volte aqui para liberar o portal.");
-    window.location.href = link.appUrl;
-    window.setTimeout(() => {
-      window.location.href = link.webUrl;
-    }, 1200);
+    window.location.href = link.webUrl;
   };
 
   const handleOpenWhatsApp = async () => {
@@ -141,8 +136,7 @@ export default function WhatsAppGate({
       const phone = waUrl.replace(/\D/g, "");
       const text = encodeURIComponent(msg);
       const link = {
-        appUrl: `whatsapp://send?phone=${phone}&text=${text}`,
-        webUrl: `https://api.whatsapp.com/send?phone=${phone}&text=${text}`,
+        webUrl: `https://wa.me/${phone}?text=${text}`,
       };
       setWhatsAppLink(link);
       openResolvedWhatsApp(link);
