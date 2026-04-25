@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radar, RefreshCw, AlertTriangle } from "lucide-react";
+import { Radar, RefreshCw, AlertTriangle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { THEME_DEFINITIONS, STOPWORDS, normalizeText, matchesTheme } from "@/lib/theme-definitions";
 import { RadarThemeCard, type ThemeResult, type ThemeComment } from "@/components/radar/RadarThemeCard";
 import { CustomThemeDialog } from "@/components/radar/CustomThemeDialog";
+import { SentimentHeatmap } from "@/components/radar/SentimentHeatmap";
+import { EmergingThemes, type EmergingTheme } from "@/components/radar/EmergingThemes";
 
 type RawComment = {
   text: string;
@@ -19,6 +21,22 @@ type RawComment = {
 };
 
 type CustomTheme = { id: string; label: string; keywords: string[] };
+
+type AIAnalysis = {
+  themes: Array<{
+    theme: string;
+    description: string;
+    total: number;
+    sentimentCounts: { positive: number; neutral: number; negative: number };
+    sources: { comment: number; telemarketing: number; crm: number };
+    examples: string[];
+  }>;
+  emerging: EmergingTheme[];
+  totalAnalyzed: number;
+  totalAvailable: number;
+  provider: string;
+  model: string;
+};
 
 function analyzeThemes(
   comments: RawComment[],
@@ -111,6 +129,9 @@ export default function RadarTemas() {
   const [loading, setLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [extraSourceStats, setExtraSourceStats] = useState({ telemarketing: 0, crm: 0 });
 
   const fetchComments = useCallback(async () => {
     setLoading(true);
@@ -130,6 +151,25 @@ export default function RadarTemas() {
     // Fetch custom themes
     const { data: ct } = await supabase.from("custom_themes").select("id, label, keywords").eq("client_id", cId);
     setCustomThemes(ct || []);
+
+    // Fetch counts of extra sources (just for header info)
+    const sevenDaysAgoTs = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [telCountRes, crmCountRes] = await Promise.all([
+      supabase
+        .from("contratado_indicados")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", cId)
+        .gte("created_at", sevenDaysAgoTs),
+      supabase
+        .from("interacoes_pessoa")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", cId)
+        .gte("criado_em", sevenDaysAgoTs),
+    ]);
+    setExtraSourceStats({
+      telemarketing: telCountRes.count || 0,
+      crm: crmCountRes.count || 0,
+    });
 
     // Fetch comments (paginated)
     let all: RawComment[] = [];
@@ -186,6 +226,30 @@ export default function RadarTemas() {
     setCustomThemes(customThemes.filter((ct) => ct.id !== id));
   };
 
+  const handleAIAnalysis = async () => {
+    if (!clientId) return;
+    setAiLoading(true);
+    try {
+      const knownThemes = Object.entries(allThemes).map(([key, def]) => ({
+        key,
+        label: def.label,
+      }));
+      const { data, error } = await supabase.functions.invoke("analyze-themes-ai", {
+        body: { clientId, knownThemes },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiAnalysis(data);
+      toast.success(
+        `IA analisou ${data.totalAnalyzed} mensagens · ${data.emerging.length} temas emergentes detectados`
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Falha na análise por IA");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
@@ -197,21 +261,42 @@ export default function RadarTemas() {
           <div>
             <h1 className="text-2xl font-bold">Radar de Temas</h1>
             <p className="text-sm text-muted-foreground">
-              O Radar analisa automaticamente os comentários dos últimos 7 dias e identifica os assuntos mais comentados. Cada tema mostra a quantidade de menções, sentimento predominante e evolução diária — útil para entender o que o público está falando sobre você.
+              Identifica os assuntos mais comentados nos últimos 7 dias combinando comentários, notas de telemarketing e interações do CRM. A análise por palavras-chave é instantânea; ative a IA para classificação semântica e descoberta de temas emergentes.
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {totalComments.toLocaleString()} comentários · {themes.length} temas detectados
+              {totalComments.toLocaleString()} comentários · {extraSourceStats.telemarketing} ligações · {extraSourceStats.crm} interações CRM · {themes.length} temas detectados
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <CustomThemeDialog onSave={handleSaveCustomTheme} />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleAIAnalysis}
+            disabled={aiLoading || loading || totalComments + extraSourceStats.telemarketing + extraSourceStats.crm === 0}
+          >
+            <Sparkles className={`w-4 h-4 mr-2 ${aiLoading ? "animate-pulse" : ""}`} />
+            {aiLoading ? "Analisando..." : "Analisar com IA"}
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchComments} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
         </div>
       </div>
+
+      {/* Info banner about AI requirements */}
+      {!aiAnalysis && !loading && (
+        <Card className="border-dashed">
+          <CardContent className="py-3 flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
+            <span>
+              <strong>Análise com IA</strong> requer um provedor próprio configurado em <em>Configurações → Integrações</em> (OpenAI, Anthropic, Gemini, Groq, Mistral ou Cohere). A IA classifica semanticamente — entende sinônimos, ironia e descobre temas locais que palavras-chave não captam.
+            </span>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -238,6 +323,18 @@ export default function RadarTemas() {
           </CardContent>
         </Card>
       )}
+
+      {/* Emerging themes from AI */}
+      {aiAnalysis && aiAnalysis.emerging.length > 0 && (
+        <EmergingThemes
+          themes={aiAnalysis.emerging}
+          provider={aiAnalysis.provider}
+          totalAnalyzed={aiAnalysis.totalAnalyzed}
+        />
+      )}
+
+      {/* Heatmap */}
+      {!loading && themes.length > 0 && <SentimentHeatmap themes={themes} />}
 
       {/* Theme cards */}
       {!loading && themes.length > 0 && (
