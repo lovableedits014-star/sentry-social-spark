@@ -21,6 +21,7 @@ type Diag = {
 
 const RECENT_DAYS = 30;
 const ORPHANS_PAGE_SIZE = 20;
+const INVALID_PAGE_SIZE = 20;
 
 type OrphanAction = {
   id: string;
@@ -32,6 +33,15 @@ type OrphanAction = {
   comment_id: string | null;
   post_id: string | null;
   action_date: string;
+};
+
+type InvalidProfile = {
+  id: string;
+  supporter_id: string;
+  platform: string;
+  platform_user_id: string | null;
+  platform_username: string | null;
+  supporter_name: string | null;
 };
 
 function isValidPlatformUserId(platform: string | null, id: string | null): boolean {
