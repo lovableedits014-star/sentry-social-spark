@@ -11,8 +11,10 @@ import {
 import {
   Users, RefreshCw, Award, Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus, Facebook, Instagram,
 } from "lucide-react";
-import { Wand2 } from "lucide-react";
+import { Wand2, Activity } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EngagementDiagnostics from "./EngagementDiagnostics";
 
 type Influencer = {
   supporterId: string;
