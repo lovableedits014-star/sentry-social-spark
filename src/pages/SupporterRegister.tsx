@@ -270,7 +270,9 @@ export default function SupporterRegister() {
                       <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
                     )}
                     <span className="font-medium capitalize">{p.platform}:</span>
-                    <span className="text-muted-foreground">{p.username}</span>
+                    <span className="text-muted-foreground">
+                      {p.username || "vinculação pendente (link de compartilhamento)"}
+                    </span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto shrink-0" />
                   </div>
                 ))}
