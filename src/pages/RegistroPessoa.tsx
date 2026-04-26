@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle, Facebook, Instagram, ClipboardPaste, X, Check, ChevronDown, ChevronUp, Cake } from "lucide-react";
+import { formatCPF, formatPhone, isValidCPF, onlyDigits, translateRegistrationError } from "@/lib/cpf";
 
 const TIPO_OPTIONS = [
   { value: "eleitor", label: "Eleitor" },
@@ -353,6 +354,7 @@ export default function RegistroPessoa() {
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
