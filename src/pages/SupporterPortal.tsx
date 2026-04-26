@@ -870,6 +870,17 @@ export default function SupporterPortal() {
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                         <MapPin className="w-3 h-3" /> Localização
                       </p>
+                      <div className="space-y-1 mb-2">
+                        <Label className="text-xs">WhatsApp <span className="text-amber-600">*</span></Label>
+                        <Input
+                          type="tel"
+                          inputMode="tel"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="(11) 91234-5678"
+                        />
+                        <p className="text-xs text-muted-foreground">Usado para receber missões e mensagens da campanha.</p>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label className="text-xs">Cidade</Label>
