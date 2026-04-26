@@ -119,18 +119,6 @@ export default function SupporterRegister() {
       setError("Por favor, informe seu bairro.");
       return;
     }
-    if (!facebookUrl.trim() && !instagramUrl.trim()) {
-      setError("Por favor, informe pelo menos um perfil (Facebook ou Instagram).");
-      return;
-    }
-    if (facebookUrl.trim() && !fbParsed) {
-      setError("O link do Facebook não foi reconhecido. Cole o link completo do seu perfil.");
-      return;
-    }
-    if (instagramUrl.trim() && !igParsed) {
-      setError("O link do Instagram não foi reconhecido. Cole o link completo do seu perfil.");
-      return;
-    }
 
     setLoading(true);
     setError("");
