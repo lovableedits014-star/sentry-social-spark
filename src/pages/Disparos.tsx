@@ -135,7 +135,7 @@ export default function Disparos() {
     enabled: !!clientId,
     refetchInterval: (data: any) => {
       const hasActive = (data?.state?.data as DispatchRow[] | undefined)?.some(
-        (d) => d.status === "pendente" || d.status === "enviando"
+        (d) => ["pendente","enviando","pausado_timeout","pausado_janela"].includes(d.status)
       );
       return hasActive ? 3000 : false;
     },
@@ -277,7 +277,7 @@ export default function Disparos() {
   };
 
   const isConnected = !!bridgeConfigured;
-  const activeDispatch = dispatches.find((d) => d.status === "pendente" || d.status === "enviando");
+  const activeDispatch = dispatches.find((d) => ["pendente","enviando","pausado_timeout","pausado_janela"].includes(d.status));
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
