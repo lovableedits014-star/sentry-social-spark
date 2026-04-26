@@ -60,12 +60,10 @@ export function extractHandleFromUrl(platform: string, url: string): string | nu
     const segments = u.pathname.split("/").filter(Boolean);
     if (!segments.length) return null;
     const first = segments[0];
-    // Facebook share links: /share/<id>/ ou /share/p/<id>/ — usa o último segmento como id
+    // Facebook share links: /share/<id>/, /share/p/<id>/ — não dá pra extrair sem
+    // resolver o redirect. Devolvemos null para que o chamador acione a Edge Function
+    // `resolve-social-link`, que segue o redirect e descobre o handle real.
     if (platform === "facebook" && first.toLowerCase() === "share") {
-      const last = segments[segments.length - 1];
-      if (last && last.toLowerCase() !== "share") {
-        return `share_${last.replace(/^@/, "")}`;
-      }
       return null;
     }
     // Rejeita rotas genéricas que não são handles

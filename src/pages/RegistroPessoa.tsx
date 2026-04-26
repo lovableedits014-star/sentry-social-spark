@@ -80,23 +80,66 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
   const [captured, setCaptured] = useState<Record<string, SocialEntry>>({});
   const [parseError, setParseError] = useState(false);
   const [pasteSuccess, setPasteSuccess] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
-  function handleConfirm(platformId: string, value: string) {
+  async function handleConfirm(platformId: string, value: string) {
     const platform = SOCIAL_PLATFORMS.find(p => p.id === platformId);
     if (!platform) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    // 1) Tenta parser local (rápido, sem rede)
     const result = platform.parse(value);
-    if (result) {
-      const newCaptured = { ...captured, [platformId]: { plataforma: platformId, usuario: result.usuario, url_perfil: result.url } };
+    const isLikelyShareLink =
+      platformId === "facebook" && /facebook\.com\/share\//i.test(trimmed);
+
+    if (result && !isLikelyShareLink) {
+      const newCaptured = {
+        ...captured,
+        [platformId]: { plataforma: platformId, usuario: result.usuario, url_perfil: result.url },
+      };
       setCaptured(newCaptured);
       onSocialsChange(Object.values(newCaptured));
       setPasteValue("");
       setActivePlatform(null);
       setParseError(false);
       setPasteSuccess(false);
-    } else {
-      setParseError(true);
-      setPasteSuccess(false);
+      return;
     }
+
+    // 2) Fallback: pede ao servidor pra seguir o redirect (links de share, fb.me, etc)
+    if (/^https?:\/\//i.test(trimmed) || /\.(com|me)\//i.test(trimmed)) {
+      setResolving(true);
+      setParseError(false);
+      try {
+        const { data, error } = await supabase.functions.invoke("resolve-social-link", {
+          body: { url: trimmed, platform: platformId },
+        });
+        if (!error && data?.resolved && data?.usuario) {
+          const newCaptured = {
+            ...captured,
+            [platformId]: {
+              plataforma: platformId,
+              usuario: data.usuario as string,
+              url_perfil: (data.url as string) || trimmed,
+            },
+          };
+          setCaptured(newCaptured);
+          onSocialsChange(Object.values(newCaptured));
+          setPasteValue("");
+          setActivePlatform(null);
+          setPasteSuccess(false);
+          setResolving(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("resolve-social-link falhou", err);
+      }
+      setResolving(false);
+    }
+
+    setParseError(true);
+    setPasteSuccess(false);
   }
 
   function handleRemove(platformId: string) {
@@ -113,17 +156,11 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
         setPasteValue(text);
         setPasteSuccess(true);
         setParseError(false);
-        // Auto-confirm if parseable
-        const platform = SOCIAL_PLATFORMS.find(p => p.id === platformId);
-        if (platform) {
-          const result = platform.parse(text);
-          if (result) {
-            setTimeout(() => {
-              handleConfirm(platformId, text);
-            }, 600); // brief delay so user sees the paste
-            return;
-          }
-        }
+        // Sempre tenta confirmar — handleConfirm já lida com parse local + fallback de servidor
+        setTimeout(() => {
+          handleConfirm(platformId, text);
+        }, 400);
+        return;
       }
     } catch {
       // Clipboard API not available
@@ -265,10 +302,27 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
                   size="default"
                   className="w-full gap-2"
                   onClick={() => handleConfirm(activePlatform, pasteValue)}
+                  disabled={resolving}
                 >
-                  <Check className="w-4 h-4" />
-                  Confirmar
+                  {resolving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Identificando perfil...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Confirmar
+                    </>
+                  )}
                 </Button>
+              )}
+
+              {resolving && pasteSuccess && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Identificando o perfil pelo link… só um instante 🙌</span>
+                </div>
               )}
 
               {parseError && (
