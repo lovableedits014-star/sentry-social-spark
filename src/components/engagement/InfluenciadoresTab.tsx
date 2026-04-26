@@ -645,16 +645,28 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Top comentaristas e formadores de opinião detectados automaticamente
-        </p>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Top comentaristas e formadores de opinião detectados automaticamente
+          </p>
+          <p className="text-xs text-muted-foreground/80 mt-0.5">
+            <span className="font-medium text-foreground">Período:</span>{" "}
+            {days >= 3650 ? "todo o histórico" : `últimos ${days} dias`} · contabiliza comentários e reações/curtidas
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-muted rounded-lg p-0.5">
-            {[7, 30, 90].map((d) => (
-              <button key={d} onClick={() => setDays(d)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === d ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                {d}d
+            {[
+              { v: 7, label: "7d" },
+              { v: 30, label: "30d" },
+              { v: 90, label: "90d" },
+              { v: 365, label: "1 ano" },
+              { v: 3650, label: "Tudo" },
+            ].map(({ v, label }) => (
+              <button key={v} onClick={() => setDays(v)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {label}
               </button>
             ))}
           </div>
@@ -706,7 +718,9 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <Users className="w-10 h-10 text-muted-foreground/50" />
-            <p className="text-muted-foreground">Nenhuma interação de pessoas cadastradas nos últimos {days} dias.</p>
+            <p className="text-muted-foreground">
+              Nenhuma interação de pessoas cadastradas {days >= 3650 ? "no histórico" : `nos últimos ${days} dias`}.
+            </p>
             <p className="text-xs text-muted-foreground/70">Apenas pessoas, funcionários, contratados e apoiadores cadastrados — com rede social vinculada — geram pontuação.</p>
           </CardContent>
         </Card>
