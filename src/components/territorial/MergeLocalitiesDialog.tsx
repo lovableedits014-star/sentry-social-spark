@@ -201,8 +201,8 @@ export function MergeLocalitiesDialog({
           </RadioGroup>
 
           {finalName && totalAffected > 0 && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 flex gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 flex gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <p className="text-xs">
                 <strong>{totalAffected}</strong> registro{totalAffected === 1 ? "" : "s"} ser{totalAffected === 1 ? "á" : "ão"} renomeado{totalAffected === 1 ? "" : "s"} para <strong>"{finalName}"</strong>.
               </p>
