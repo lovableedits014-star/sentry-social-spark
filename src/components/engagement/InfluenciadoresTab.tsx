@@ -456,7 +456,8 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           category: meta.category,
           authorPicture: c.author_profile_picture,
           platforms: new Set<string>(),
-          totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          totalComments: 0, totalReactions: 0,
+          positiveCount: 0, negativeCount: 0, neutralCount: 0,
           repliesReceived: 0, uniquePosts: 0,
           firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
           byPlatform: {},
@@ -481,7 +482,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         if (cached) inf.profilePictures[platform] = cached;
       }
       inf.platforms.add(platform);
-      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
+      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, reactions: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
       const pb = inf.byPlatform[platform];
       pb.comments++;
       inf.totalComments++;
