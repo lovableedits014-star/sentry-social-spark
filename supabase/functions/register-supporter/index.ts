@@ -362,6 +362,9 @@ Deno.serve(async (req) => {
       supporter_id: supporterId,
       referrer_account_id: referrerAccountId,
       referrer_name: referrerName,
+      // Devolve handles efetivamente persistidos para o frontend usar em supporter_accounts
+      resolved_profiles: profiles,
+      pending_shares: pendingShares,
       // Pass location data back so frontend can save after auth
       location_data: { city: city?.trim() || null, neighborhood: neighborhood?.trim() || null, state: state?.trim() || null },
     }), {
