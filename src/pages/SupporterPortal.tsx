@@ -98,6 +98,7 @@ export default function SupporterPortal() {
   const [editName, setEditName] = useState("");
   const [editCity, setEditCity] = useState("");
   const [editNeighborhood, setEditNeighborhood] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
