@@ -15,6 +15,7 @@ import { Wand2, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EngagementDiagnostics from "./EngagementDiagnostics";
+import AutoresolveScheduler from "./AutoresolveScheduler";
 
 type Influencer = {
   supporterId: string;
@@ -854,7 +855,10 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       </TabsContent>
 
       <TabsContent value="diagnostico" className="mt-0">
-        <EngagementDiagnostics clientId={clientId} />
+        <div className="space-y-4">
+          <AutoresolveScheduler clientId={clientId} />
+          <EngagementDiagnostics clientId={clientId} />
+        </div>
       </TabsContent>
     </Tabs>
   );
