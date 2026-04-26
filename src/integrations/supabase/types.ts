@@ -3243,6 +3243,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      normalize_br_phone: { Args: { p_raw: string }; Returns: string }
       pick_healthy_whatsapp_instance: {
         Args: { p_client_id: string }
         Returns: string
@@ -3279,6 +3280,7 @@ export type Database = {
             }
             Returns: string
           }
+      resume_paused_whatsapp_dispatches: { Args: never; Returns: undefined }
       snapshot_monthly_scores: {
         Args: { p_client_id: string }
         Returns: number
