@@ -44,6 +44,7 @@ interface SupporterAccount {
   city: string | null;
   neighborhood: string | null;
   state: string | null;
+  phone?: string | null;
   client_id: string;
   whatsapp_confirmado?: boolean;
 }
@@ -98,6 +99,7 @@ export default function SupporterPortal() {
   const [editName, setEditName] = useState("");
   const [editCity, setEditCity] = useState("");
   const [editNeighborhood, setEditNeighborhood] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editState, setEditState] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -156,6 +158,7 @@ export default function SupporterPortal() {
       setEditCity(existingAccount.city || "");
       setEditNeighborhood(existingAccount.neighborhood || "");
       setEditState(existingAccount.state || "");
+      setEditPhone((existingAccount as any).phone || "");
       checkTodayCheckin(existingAccount.id);
       loadCheckinStats(existingAccount.id);
     } else {
@@ -350,6 +353,7 @@ export default function SupporterPortal() {
           city: editCity.trim() || null,
           neighborhood: editNeighborhood.trim() || null,
           state: editState.trim() || null,
+          phone: editPhone.trim() ? editPhone.replace(/\D/g, "") : null,
         } as any)
         .eq("id", account.id);
 
@@ -363,6 +367,7 @@ export default function SupporterPortal() {
         city: editCity.trim() || null,
         neighborhood: editNeighborhood.trim() || null,
         state: editState.trim() || null,
+        phone: editPhone.trim() ? editPhone.replace(/\D/g, "") : null,
       });
 
       // Update supporter name too if linked
@@ -627,6 +632,27 @@ export default function SupporterPortal() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
+        {/* Aviso de cadastro incompleto */}
+        {account && (!account.phone || !account.city || !account.neighborhood) && (
+          <Card className="border-amber-500/50 bg-amber-500/10">
+            <CardContent className="pt-4 pb-4 flex items-start gap-3">
+              <div className="text-2xl">⚠️</div>
+              <div className="flex-1 text-sm">
+                <p className="font-semibold text-amber-900 dark:text-amber-200">
+                  Complete seu cadastro
+                </p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-1">
+                  Faltam: {[
+                    !account.phone && "WhatsApp",
+                    !account.city && "Cidade",
+                    !account.neighborhood && "Bairro",
+                  ].filter(Boolean).join(", ")}.
+                  Preencha na aba <strong>Perfil</strong> para receber missões e mensagens da campanha.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Gerador de foto de campanha */}
         {clientId && <CampaignFrameGenerator clientId={clientId} variant="showcase" />}
         {/* Tabs: Presença / Convidar / Perfil */}
@@ -844,6 +870,17 @@ export default function SupporterPortal() {
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                         <MapPin className="w-3 h-3" /> Localização
                       </p>
+                      <div className="space-y-1 mb-2">
+                        <Label className="text-xs">WhatsApp <span className="text-amber-600">*</span></Label>
+                        <Input
+                          type="tel"
+                          inputMode="tel"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="(11) 91234-5678"
+                        />
+                        <p className="text-xs text-muted-foreground">Usado para receber missões e mensagens da campanha.</p>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label className="text-xs">Cidade</Label>
