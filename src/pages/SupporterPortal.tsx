@@ -632,6 +632,27 @@ export default function SupporterPortal() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
+        {/* Aviso de cadastro incompleto */}
+        {account && (!account.phone || !account.city || !account.neighborhood) && (
+          <Card className="border-amber-500/50 bg-amber-500/10">
+            <CardContent className="pt-4 pb-4 flex items-start gap-3">
+              <div className="text-2xl">⚠️</div>
+              <div className="flex-1 text-sm">
+                <p className="font-semibold text-amber-900 dark:text-amber-200">
+                  Complete seu cadastro
+                </p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-1">
+                  Faltam: {[
+                    !account.phone && "WhatsApp",
+                    !account.city && "Cidade",
+                    !account.neighborhood && "Bairro",
+                  ].filter(Boolean).join(", ")}.
+                  Preencha na aba <strong>Perfil</strong> para receber missões e mensagens da campanha.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Gerador de foto de campanha */}
         {clientId && <CampaignFrameGenerator clientId={clientId} variant="showcase" />}
         {/* Tabs: Presença / Convidar / Perfil */}
