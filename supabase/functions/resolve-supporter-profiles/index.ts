@@ -1,0 +1,233 @@
+// Edge function: resolve-supporter-profiles
+// Resolve supporter_profiles inválidos (share_xxx ou username não-numérico) 
+// para o ID numérico real do Facebook, e tenta o mesmo para Instagram.
+//
+// Estratégias por ordem:
+//  1) Match em comments existentes (platform_username -> author_id numérico)
+//  2) Para share_xxx: chama resolve-social-link p/ obter handle real, depois resolve via Graph API
+//  3) Para username não-numérico: chama Graph API direto p/ obter ID
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+interface ProfileRow {
+  id: string;
+  supporter_id: string;
+  platform: string;
+  platform_user_id: string;
+  platform_username: string | null;
+  client_id: string;
+  meta_access_token: string | null;
+  meta_page_id: string | null;
+}
+
+const isNumericId = (v: string | null) => !!v && /^\d+$/.test(v);
+const isShareToken = (v: string) => /^share_/i.test(v);
+
+async function resolveShareToken(shareId: string, platform: string): Promise<string | null> {
+  const url = platform === "instagram"
+    ? `https://www.instagram.com/share/${shareId}`
+    : `https://www.facebook.com/share/${shareId}`;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/resolve-social-link`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url, platform }),
+    });
+    const data = await res.json();
+    return data?.resolved && data?.usuario ? String(data.usuario) : null;
+  } catch (e) {
+    console.warn("resolveShareToken erro:", e);
+    return null;
+  }
+}
+
+async function fbHandleToNumericId(handle: string, accessToken: string): Promise<string | null> {
+  // Se já é numérico, devolve.
+  if (isNumericId(handle)) return handle;
+  try {
+    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(handle)}?fields=id,name&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data?.id && /^\d+$/.test(data.id)) return data.id;
+    console.warn("Graph API não devolveu id numérico:", data?.error?.message || JSON.stringify(data));
+    return null;
+  } catch (e) {
+    console.warn("fbHandleToNumericId erro:", e);
+    return null;
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const clientIdFilter: string | undefined = body.client_id;
+    const dryRun: boolean = body.dry_run === true;
+    const limit: number = Math.min(Number(body.limit ?? 100), 500);
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Buscar perfis problemáticos junto com o token Meta do cliente
+    let query = supabase
+      .from("supporter_profiles")
+      .select(`
+        id, supporter_id, platform, platform_user_id, platform_username,
+        supporters!inner(client_id, integrations:integrations(meta_access_token, meta_page_id))
+      `)
+      .limit(limit);
+
+    const { data: rawRows, error } = await query;
+    if (error) throw error;
+
+    // Normalizar
+    const rows: ProfileRow[] = (rawRows || [])
+      .map((r: any) => ({
+        id: r.id,
+        supporter_id: r.supporter_id,
+        platform: r.platform,
+        platform_user_id: r.platform_user_id || "",
+        platform_username: r.platform_username,
+        client_id: r.supporters?.client_id,
+        meta_access_token: r.supporters?.integrations?.[0]?.meta_access_token ?? null,
+        meta_page_id: r.supporters?.integrations?.[0]?.meta_page_id ?? null,
+      }))
+      .filter((r) => {
+        if (clientIdFilter && r.client_id !== clientIdFilter) return false;
+        if (!r.platform_user_id) return true;
+        return !isNumericId(r.platform_user_id);
+      });
+
+    console.log(`Processando ${rows.length} perfis problemáticos (dry_run=${dryRun})`);
+
+    const results = {
+      total: rows.length,
+      resolved_via_comments: 0,
+      resolved_via_graph: 0,
+      resolved_via_share: 0,
+      failed: 0,
+      details: [] as any[],
+    };
+
+    for (const row of rows) {
+      let newId: string | null = null;
+      let strategy = "";
+
+      // Estratégia 1: tentar matchar com comments.author_id existentes
+      // (autor já interagiu antes -> temos o ID numérico salvo em comments)
+      const candidateName = row.platform_username || row.platform_user_id;
+      if (candidateName && !isShareToken(candidateName)) {
+        const { data: c } = await supabase
+          .from("comments")
+          .select("author_id, author_name")
+          .eq("client_id", row.client_id)
+          .eq("platform", row.platform)
+          .not("author_id", "is", null)
+          .or(`author_name.ilike.%${candidateName.replace(/[%_,]/g, "")}%`)
+          .limit(1);
+        if (c && c[0]?.author_id && /^\d+$/.test(c[0].author_id)) {
+          newId = c[0].author_id;
+          strategy = "comments_match";
+          results.resolved_via_comments++;
+        }
+      }
+
+      // Estratégia 2: share_xxx -> resolver para handle, depois Graph API
+      if (!newId && isShareToken(row.platform_user_id)) {
+        const shareCode = row.platform_user_id.replace(/^share_/i, "");
+        const realHandle = await resolveShareToken(shareCode, row.platform);
+        if (realHandle) {
+          if (isNumericId(realHandle)) {
+            newId = realHandle;
+            strategy = "share_to_id";
+            results.resolved_via_share++;
+          } else if (row.platform === "facebook" && row.meta_access_token) {
+            newId = await fbHandleToNumericId(realHandle, row.meta_access_token);
+            if (newId) {
+              strategy = "share_to_handle_to_graph";
+              results.resolved_via_share++;
+            }
+          } else if (row.platform === "instagram") {
+            // IG: o handle resolvido já basta como identificador
+            newId = realHandle;
+            strategy = "share_to_handle_ig";
+            results.resolved_via_share++;
+          }
+        }
+      }
+
+      // Estratégia 3: username -> ID numérico via Graph API (Facebook)
+      if (!newId && row.platform === "facebook" && row.meta_access_token && !isShareToken(row.platform_user_id)) {
+        newId = await fbHandleToNumericId(row.platform_user_id, row.meta_access_token);
+        if (newId) {
+          strategy = "graph_handle_to_id";
+          results.resolved_via_graph++;
+        }
+      }
+
+      if (!newId) {
+        results.failed++;
+        results.details.push({
+          id: row.id,
+          old_user_id: row.platform_user_id,
+          status: "failed",
+        });
+        continue;
+      }
+
+      results.details.push({
+        id: row.id,
+        old_user_id: row.platform_user_id,
+        new_user_id: newId,
+        strategy,
+      });
+
+      if (!dryRun) {
+        // Atualizar perfil — tratar conflito (já existe esse ID numérico p/ outro supporter)
+        const { error: upErr } = await supabase
+          .from("supporter_profiles")
+          .update({
+            platform_user_id: newId,
+            // mantém platform_username p/ rastro
+          })
+          .eq("id", row.id);
+        if (upErr) {
+          console.warn(`Falha ao atualizar ${row.id}:`, upErr.message);
+        }
+      }
+    }
+
+    // Após atualizar, religar engagement_actions órfãs por client
+    const clients = [...new Set(rows.map((r) => r.client_id))];
+    if (!dryRun) {
+      for (const cid of clients) {
+        if (!cid) continue;
+        const { error: linkErr } = await supabase.rpc("link_orphan_engagement_actions", { p_client_id: cid });
+        if (linkErr) console.warn(`link_orphan_engagement_actions erro p/ ${cid}:`, linkErr.message);
+      }
+    }
+
+    return new Response(JSON.stringify(results), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e: any) {
+    console.error("resolve-supporter-profiles erro:", e);
+    return new Response(JSON.stringify({ error: e?.message || "Erro interno" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
