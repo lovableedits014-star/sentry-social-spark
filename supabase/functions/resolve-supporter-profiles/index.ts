@@ -32,6 +32,14 @@ interface ProfileRow {
 const isNumericId = (v: string | null) => !!v && /^\d+$/.test(v);
 const isShareToken = (v: string) => /^share_/i.test(v);
 
+function normalizeName(s: string): string {
+  return s
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function resolveShareToken(shareId: string, platform: string): Promise<string | null> {
   const url = platform === "instagram"
     ? `https://www.instagram.com/share/${shareId}`
