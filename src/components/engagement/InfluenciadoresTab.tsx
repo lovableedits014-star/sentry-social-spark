@@ -851,6 +851,11 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           </CardContent>
         </Card>
       )}
-    </div>
+      </TabsContent>
+
+      <TabsContent value="diagnostico" className="mt-0">
+        <EngagementDiagnostics clientId={clientId} />
+      </TabsContent>
+    </Tabs>
   );
 }
