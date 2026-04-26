@@ -668,23 +668,90 @@ export default function Territorial() {
         {selectedUF && !selectedCity && cityGroups.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" />Cidades em {ufName(selectedUF)}</CardTitle>
-              <CardDescription className="text-xs">Clique em uma cidade para ver os bairros.</CardDescription>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" />Cidades em {ufName(selectedUF)}</CardTitle>
+                  <CardDescription className="text-xs">Clique no nome para ver as pessoas. Marque 2+ para mesclar duplicados.</CardDescription>
+                </div>
+                {selectedCityNames.size >= 2 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const variants = cityGroups
+                        .filter((c) => selectedCityNames.has(c.city))
+                        .flatMap((c) => Object.entries(c.variants).map(([name, count]) => ({ name, count })));
+                      // Agrega variantes com mesmo nome literal
+                      const agg: Record<string, number> = {};
+                      for (const v of variants) agg[v.name] = (agg[v.name] || 0) + v.count;
+                      setMergeVariants(Object.entries(agg).map(([name, count]) => ({ name, count })));
+                      setMergeField("cidade");
+                      setMergeParentCity(null);
+                      setMergeOpen(true);
+                    }}
+                  >
+                    <Merge className="w-4 h-4 mr-1.5" /> Mesclar {selectedCityNames.size} cidades
+                  </Button>
+                )}
+                {selectedCityNames.size > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedCityNames(new Set())}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Limpar seleção
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {cityGroups.map((c) => {
                   const ratio = c.count / (cityGroups[0]?.count || 1);
+                  const isSelected = selectedCityNames.has(c.city);
+                  const variantCount = Object.keys(c.variants).length;
                   return (
-                    <button key={c.city} onClick={() => setSelectedCity(c.city)} className="text-left p-3 rounded-lg border hover:border-primary hover:bg-primary/5 transition-colors group">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium truncate group-hover:text-primary">{c.city}</span>
-                        <span className="text-sm font-bold shrink-0 ml-2">{c.count}</span>
+                    <div
+                      key={c.city}
+                      className={`p-3 rounded-lg border transition-colors ${isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}
+                    >
+                      <div className="flex items-start gap-2 mb-1.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(v) => {
+                            setSelectedCityNames((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(c.city); else next.delete(c.city);
+                              return next;
+                            });
+                          }}
+                          className="mt-0.5"
+                        />
+                        <button
+                          onClick={() => {
+                            setDetailLevel("city");
+                            setDetailCity(c.city);
+                            setDetailNeigh(null);
+                            setDetailOpen(true);
+                          }}
+                          className="flex-1 text-left min-w-0 group"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium truncate group-hover:text-primary">{c.city}</span>
+                            <span className="text-sm font-bold shrink-0">{c.count}</span>
+                          </div>
+                          {variantCount > 1 && (
+                            <p className="text-[10px] text-destructive mt-0.5">⚠ {variantCount} variantes</p>
+                          )}
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-[10px]"
+                          onClick={() => setSelectedCity(c.city)}
+                        >
+                          Bairros →
+                        </Button>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-primary rounded-full" style={{ width: `${Math.max(ratio * 100, 3)}%` }} />
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -696,23 +763,87 @@ export default function Territorial() {
         {selectedCity && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-primary" />Bairros em {selectedCity}</CardTitle>
-              <CardDescription className="text-xs">{neighborhoodGroups.length === 0 ? "Nenhum bairro detalhado para esta cidade." : `${neighborhoodGroups.length} bairros distintos.`}</CardDescription>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-primary" />Bairros em {selectedCity}</CardTitle>
+                  <CardDescription className="text-xs">
+                    {neighborhoodGroups.length === 0
+                      ? "Nenhum bairro detalhado para esta cidade."
+                      : `${neighborhoodGroups.length} bairros. Clique no nome para ver as pessoas. Marque 2+ para mesclar.`}
+                  </CardDescription>
+                </div>
+                {selectedNeighNames.size >= 2 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const variants = neighborhoodGroups
+                        .filter((g) => selectedNeighNames.has(g.neighborhood))
+                        .flatMap((g) => Object.entries(g.variants).map(([name, count]) => ({ name, count })));
+                      const agg: Record<string, number> = {};
+                      for (const v of variants) agg[v.name] = (agg[v.name] || 0) + v.count;
+                      setMergeVariants(Object.entries(agg).map(([name, count]) => ({ name, count })));
+                      setMergeField("bairro");
+                      setMergeParentCity(selectedCity);
+                      setMergeOpen(true);
+                    }}
+                  >
+                    <Merge className="w-4 h-4 mr-1.5" /> Mesclar {selectedNeighNames.size} bairros
+                  </Button>
+                )}
+                {selectedNeighNames.size > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedNeighNames(new Set())}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Limpar
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             {neighborhoodGroups.length > 0 && (
               <CardContent>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {neighborhoodGroups.map((g) => (
-                    <div key={g.key} className="p-3 rounded-lg border">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium truncate">{g.neighborhood}</span>
-                        <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0 ml-2">{g.count}</Badge>
+                  {neighborhoodGroups.map((g) => {
+                    const isSelected = selectedNeighNames.has(g.neighborhood);
+                    const variantCount = Object.keys(g.variants).length;
+                    return (
+                      <div
+                        key={g.key}
+                        className={`p-3 rounded-lg border transition-colors ${isSelected ? "border-primary bg-primary/5" : ""}`}
+                      >
+                        <div className="flex items-start gap-2 mb-1.5">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(v) => {
+                              setSelectedNeighNames((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(g.neighborhood); else next.delete(g.neighborhood);
+                                return next;
+                              });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <button
+                            onClick={() => {
+                              setDetailLevel("neighborhood");
+                              setDetailCity(selectedCity);
+                              setDetailNeigh(g.neighborhood);
+                              setDetailOpen(true);
+                            }}
+                            className="flex-1 text-left min-w-0 group"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium truncate group-hover:text-primary">{g.neighborhood}</span>
+                              <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0">{g.count}</Badge>
+                            </div>
+                            {variantCount > 1 && (
+                              <p className="text-[10px] text-destructive mt-0.5">⚠ {variantCount} variantes</p>
+                            )}
+                          </button>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             )}
