@@ -280,19 +280,60 @@ export default function Territorial() {
   }, [allGeoEntries, selectedUF]);
 
   // City-only aggregation for selected UF (drill-down level 2)
+  // Mantém variantes brutas (com casing/acento original) por chave canônica
+  // para permitir mesclagem manual de duplicatas escritas diferente.
   const cityGroups = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const g of groups) {
-      map[g.city] = (map[g.city] || 0) + g.count;
+    const canon = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const filtered = selectedUF
+      ? allGeoEntries.filter((e) => inferUF(e) === selectedUF)
+      : allGeoEntries;
+    type B = { city: string; count: number; variants: Record<string, number> };
+    const map: Record<string, B> = {};
+    for (const e of filtered) {
+      const cityRaw = (e.city?.trim()) || "";
+      if (!cityRaw) continue;
+      const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
+      const key = canon(cityClean);
+      if (!map[key]) map[key] = { city: cityClean, count: 0, variants: {} };
+      map[key].count++;
+      map[key].variants[cityClean] = (map[key].variants[cityClean] || 0) + 1;
     }
-    return Object.entries(map).map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count);
-  }, [groups]);
+    return Object.values(map)
+      .map((b) => {
+        const top = Object.entries(b.variants).sort((a, b2) => b2[1] - a[1])[0];
+        return { city: top ? top[0] : b.city, count: b.count, variants: b.variants };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [allGeoEntries, selectedUF]);
 
   // Neighborhoods of selected city (drill-down level 3)
   const neighborhoodGroups = useMemo(() => {
     if (!selectedCity) return [];
-    return groups.filter(g => g.city === selectedCity && g.neighborhood);
-  }, [groups, selectedCity]);
+    const canon = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const cityKey = canon(selectedCity);
+    const filtered = selectedUF
+      ? allGeoEntries.filter((e) => inferUF(e) === selectedUF)
+      : allGeoEntries;
+    type B = { key: string; neighborhood: string; count: number; variants: Record<string, number> };
+    const map: Record<string, B> = {};
+    for (const e of filtered) {
+      const cityRaw = (e.city?.trim()) || "";
+      const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
+      if (canon(cityClean) !== cityKey) continue;
+      const neighRaw = e.neighborhood?.trim();
+      if (!neighRaw) continue;
+      const nk = canon(neighRaw);
+      if (!map[nk]) map[nk] = { key: nk, neighborhood: neighRaw, count: 0, variants: {} };
+      map[nk].count++;
+      map[nk].variants[neighRaw] = (map[nk].variants[neighRaw] || 0) + 1;
+    }
+    return Object.values(map)
+      .map((b) => {
+        const top = Object.entries(b.variants).sort((a, b2) => b2[1] - a[1])[0];
+        return { key: b.key, neighborhood: top ? top[0] : b.neighborhood, count: b.count, variants: b.variants };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [allGeoEntries, selectedUF, selectedCity]);
 
   const growthStats = useMemo(() => {
     if (!supporters) return null;
