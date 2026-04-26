@@ -981,6 +981,33 @@ export default function Territorial() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialogs */}
+      <LocalityDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        clientId={client?.id || null}
+        level={detailLevel}
+        city={detailCity}
+        neighborhood={detailNeigh}
+      />
+      <MergeLocalitiesDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        clientId={client?.id || null}
+        field={mergeField}
+        variants={mergeVariants}
+        parentCity={mergeParentCity}
+        onSuccess={() => {
+          setSelectedCityNames(new Set());
+          setSelectedNeighNames(new Set());
+          queryClient.invalidateQueries({ queryKey: ["territorial-supporters", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["territorial-indicados", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-pessoas", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-contratados", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-indicados", client?.id] });
+        }}
+      />
     </div>
   );
 }
