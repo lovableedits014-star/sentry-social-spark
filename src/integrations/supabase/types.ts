@@ -1116,6 +1116,103 @@ export type Database = {
           },
         ]
       }
+      engagement_autoresolve_config: {
+        Row: {
+          client_id: string
+          created_at: string
+          enabled: boolean
+          frequency: string
+          hour_utc: number
+          id: string
+          last_run_at: string | null
+          last_run_message: string | null
+          last_run_status: string | null
+          relink_orphans: boolean
+          resolve_invalid_ids: boolean
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          hour_utc?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_message?: string | null
+          last_run_status?: string | null
+          relink_orphans?: boolean
+          resolve_invalid_ids?: boolean
+          updated_at?: string
+          weekday?: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          hour_utc?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_message?: string | null
+          last_run_status?: string | null
+          relink_orphans?: boolean
+          resolve_invalid_ids?: boolean
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_autoresolve_config_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_autoresolve_runs: {
+        Row: {
+          client_id: string
+          id: string
+          linked_count: number
+          message: string | null
+          ran_at: string
+          resolved_count: number
+          status: string
+          triggered_by: string
+        }
+        Insert: {
+          client_id: string
+          id?: string
+          linked_count?: number
+          message?: string | null
+          ran_at?: string
+          resolved_count?: number
+          status: string
+          triggered_by?: string
+        }
+        Update: {
+          client_id?: string
+          id?: string
+          linked_count?: number
+          message?: string | null
+          ran_at?: string
+          resolved_count?: number
+          status?: string
+          triggered_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_autoresolve_runs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engagement_config: {
         Row: {
           client_id: string
