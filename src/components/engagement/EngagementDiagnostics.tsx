@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Activity, AlertTriangle, CheckCircle2, Link2, RefreshCw, Users, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Diag = {
   totalSupporters: number;
@@ -19,6 +20,19 @@ type Diag = {
 };
 
 const RECENT_DAYS = 30;
+const ORPHANS_PAGE_SIZE = 20;
+
+type OrphanAction = {
+  id: string;
+  action_type: string;
+  platform: string;
+  platform_username: string | null;
+  platform_user_id: string | null;
+  reaction_type: string | null;
+  comment_id: string | null;
+  post_id: string | null;
+  action_date: string;
+};
 
 function isValidPlatformUserId(platform: string | null, id: string | null): boolean {
   if (!id) return false;
@@ -37,6 +51,11 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
   const [resolving, setResolving] = useState(false);
   const [linking, setLinking] = useState(false);
   const [data, setData] = useState<Diag | null>(null);
+  const [orphans, setOrphans] = useState<OrphanAction[]>([]);
+  const [orphansPage, setOrphansPage] = useState(0);
+  const [orphansLoading, setOrphansLoading] = useState(false);
+  const [orphanTexts, setOrphanTexts] = useState<Record<string, string>>({});
+  const [relinkingPage, setRelinkingPage] = useState(false);
 
   const fetchDiag = async () => {
     setLoading(true);
@@ -141,7 +160,45 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
     }
   };
 
+  const fetchOrphans = async (page: number) => {
+    setOrphansLoading(true);
+    try {
+      const fromIdx = page * ORPHANS_PAGE_SIZE;
+      const toIdx = fromIdx + ORPHANS_PAGE_SIZE - 1;
+      const { data: rows, error } = await supabase
+        .from("engagement_actions")
+        .select("id, action_type, platform, platform_username, platform_user_id, reaction_type, comment_id, post_id, action_date")
+        .eq("client_id", clientId)
+        .is("supporter_id", null)
+        .order("action_date", { ascending: false })
+        .range(fromIdx, toIdx);
+      if (error) throw error;
+      const list = (rows || []) as OrphanAction[];
+      setOrphans(list);
+
+      // Buscar textos dos comentários referenciados (quando houver)
+      const commentIds = list.map((r) => r.comment_id).filter((v): v is string => !!v);
+      if (commentIds.length > 0) {
+        const { data: comments } = await supabase
+          .from("comments")
+          .select("comment_id, text")
+          .eq("client_id", clientId)
+          .in("comment_id", commentIds);
+        const map: Record<string, string> = {};
+        for (const c of (comments || []) as any[]) map[c.comment_id] = c.text;
+        setOrphanTexts(map);
+      } else {
+        setOrphanTexts({});
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao carregar ações órfãs");
+    } finally {
+      setOrphansLoading(false);
+    }
+  };
+
   useEffect(() => { fetchDiag(); }, [clientId]);
+  useEffect(() => { fetchOrphans(orphansPage); }, [clientId, orphansPage]);
 
   const handleResolveProfiles = async () => {
     setResolving(true);
@@ -173,12 +230,52 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
       const linked = (r as any) ?? 0;
       toast.success(`${linked} ações vinculadas a apoiadores.`, { id: tid });
       await fetchDiag();
+      await fetchOrphans(orphansPage);
     } catch (e: any) {
       toast.error(e?.message || "Falha ao reprocessar vínculos", { id: tid });
     } finally {
       setLinking(false);
     }
   };
+
+  const handleRelinkVisible = async () => {
+    if (orphans.length === 0) return;
+    setRelinkingPage(true);
+    const tid = toast.loading(`Reprocessando ${orphans.length} ações desta página...`);
+    try {
+      const ids = orphans.map((o) => o.id);
+      const { data: r, error } = await supabase.rpc("link_orphan_engagement_actions" as any, {
+        p_client_id: clientId,
+        p_action_ids: ids,
+      });
+      if (error) {
+        // Fallback: se a RPC não aceitar p_action_ids, roda o reprocessamento global
+        const { data: r2, error: e2 } = await supabase.rpc("link_orphan_engagement_actions" as any, {
+          p_client_id: clientId,
+        });
+        if (e2) throw e2;
+        const linked = (r2 as any) ?? 0;
+        toast.success(`${linked} ações vinculadas (modo geral, RPC sem filtro por IDs).`, { id: tid });
+      } else {
+        const linked = (r as any) ?? 0;
+        toast.success(`${linked} ações desta página vinculadas.`, { id: tid });
+      }
+      await fetchDiag();
+      await fetchOrphans(orphansPage);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao reprocessar página", { id: tid });
+    } finally {
+      setRelinkingPage(false);
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    } catch { return iso; }
+  };
+
+  const totalOrphanPages = data ? Math.max(1, Math.ceil(data.orphanActions / ORPHANS_PAGE_SIZE)) : 1;
 
   const stats = data;
   const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
@@ -321,6 +418,120 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
               <CardContent className="p-4 flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                 <p className="text-sm">Tudo certo! Todos os perfis têm ID válido e nenhuma ação está órfã.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {stats.orphanActions > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Ações órfãs ({stats.orphanActions})
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Interações sem apoiador vinculado. Reprocesse para tentar casar por ID, username ou nome.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => fetchOrphans(orphansPage)} disabled={orphansLoading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${orphansLoading ? "animate-spin" : ""}`} />
+                      Atualizar lista
+                    </Button>
+                    <Button size="sm" onClick={handleRelinkVisible} disabled={relinkingPage || orphans.length === 0}>
+                      <Link2 className={`w-4 h-4 mr-2 ${relinkingPage ? "animate-pulse" : ""}`} />
+                      Reprocessar esta página
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[120px]">Tipo</TableHead>
+                        <TableHead>Autor</TableHead>
+                        <TableHead>Conteúdo / Referência</TableHead>
+                        <TableHead className="w-[160px]">Data</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orphansLoading && Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`sk-${i}`}>
+                          <TableCell colSpan={4}><Skeleton className="h-5 w-full" /></TableCell>
+                        </TableRow>
+                      ))}
+                      {!orphansLoading && orphans.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
+                            Nenhuma ação órfã nesta página.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!orphansLoading && orphans.map((o) => {
+                        const text = o.comment_id ? orphanTexts[o.comment_id] : null;
+                        const reference = text
+                          ? text
+                          : o.reaction_type
+                            ? `Reação: ${o.reaction_type}`
+                            : o.comment_id
+                              ? `Comentário ${o.comment_id}`
+                              : o.post_id
+                                ? `Post ${o.post_id}`
+                                : "—";
+                        return (
+                          <TableRow key={o.id}>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant="outline" className="w-fit capitalize">{o.action_type}</Badge>
+                                <span className="text-[10px] text-muted-foreground capitalize">{o.platform}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">
+                                  {o.platform_username || <span className="text-muted-foreground italic">sem nome</span>}
+                                </span>
+                                {o.platform_user_id && (
+                                  <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">
+                                    {o.platform_user_id}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm line-clamp-2 max-w-[420px]">{reference}</p>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatDate(o.action_date)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Página {orphansPage + 1} de {totalOrphanPages}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm"
+                      disabled={orphansPage === 0 || orphansLoading}
+                      onClick={() => setOrphansPage((p) => Math.max(0, p - 1))}>
+                      Anterior
+                    </Button>
+                    <Button variant="outline" size="sm"
+                      disabled={orphansPage + 1 >= totalOrphanPages || orphansLoading}
+                      onClick={() => setOrphansPage((p) => p + 1)}>
+                      Próxima
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
