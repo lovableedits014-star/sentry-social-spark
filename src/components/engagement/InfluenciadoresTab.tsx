@@ -22,6 +22,7 @@ type Influencer = {
   authorPicture: string | null;
   platforms: Set<string>;
   totalComments: number;
+  totalReactions: number;
   positiveCount: number;
   negativeCount: number;
   neutralCount: number;
@@ -30,7 +31,7 @@ type Influencer = {
   firstSeen: string;
   lastSeen: string;
   score: number;
-  byPlatform: Record<string, { comments: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
+  byPlatform: Record<string, { comments: number; reactions: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
   profileUrls: Record<string, string>;
   profilePictures: Record<string, string>;
 };
@@ -38,6 +39,7 @@ type Influencer = {
 function computeScore(inf: Influencer): number {
   return (
     inf.totalComments * 3 +
+    inf.totalReactions * 1 +
     inf.repliesReceived * 5 +
     inf.uniquePosts * 2 +
     inf.positiveCount * 1 +
@@ -437,6 +439,28 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       replyCountByParent.set(r.parent_comment_id, (replyCountByParent.get(r.parent_comment_id) || 0) + 1);
     }
 
+    // 2.5) Busca reactions/likes (engagement_actions) do período
+    //      action_type != 'comment' (que já contamos via comments).
+    let allReactions: any[] = [];
+    {
+      let rFrom = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("engagement_actions")
+          .select("supporter_id, platform, action_type, action_date, post_id")
+          .eq("client_id", clientId)
+          .in("supporter_id", supporterIds as any)
+          .neq("action_type", "comment")
+          .gte("action_date", since)
+          .range(rFrom, rFrom + pageSize - 1);
+        if (data && data.length > 0) {
+          allReactions = allReactions.concat(data);
+          rFrom += pageSize;
+          if (data.length < pageSize) break;
+        } else break;
+      }
+    }
+
     // Agrupa por supporterId (unifica Facebook + Instagram)
     const map = new Map<string, Influencer>();
     for (const c of allComments) {
@@ -454,7 +478,8 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           category: meta.category,
           authorPicture: c.author_profile_picture,
           platforms: new Set<string>(),
-          totalComments: 0, positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          totalComments: 0, totalReactions: 0,
+          positiveCount: 0, negativeCount: 0, neutralCount: 0,
           repliesReceived: 0, uniquePosts: 0,
           firstSeen: c.comment_created_time || "", lastSeen: c.comment_created_time || "", score: 0,
           byPlatform: {},
@@ -479,7 +504,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         if (cached) inf.profilePictures[platform] = cached;
       }
       inf.platforms.add(platform);
-      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
+      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, reactions: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
       const pb = inf.byPlatform[platform];
       pb.comments++;
       inf.totalComments++;
@@ -520,11 +545,48 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       for (const [p, set] of Object.entries(postsByPlat)) {
         if (inf.byPlatform[p]) inf.byPlatform[p].posts = set.size;
       }
+    }
+
+    // Agrega reactions/likes — inclui supporters que SÓ reagiram (sem comentar)
+    for (const r of allReactions) {
+      const supporterId = r.supporter_id as string;
+      if (!supporterId) continue;
+      const meta = supporterMeta.get(supporterId);
+      if (!meta) continue;
+      const platform = (r.platform as string) || "facebook";
+      let inf = map.get(supporterId);
+      if (!inf) {
+        inf = {
+          supporterId, registeredName: meta.name, origin: meta.origin,
+          category: meta.category,
+          authorPicture: null,
+          platforms: new Set<string>(),
+          totalComments: 0, totalReactions: 0,
+          positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          repliesReceived: 0, uniquePosts: 0,
+          firstSeen: r.action_date || "", lastSeen: r.action_date || "", score: 0,
+          byPlatform: {},
+          profileUrls: supporterProfileUrls.get(supporterId) || {},
+          profilePictures: {},
+        };
+        map.set(supporterId, inf);
+      }
+      inf.platforms.add(platform);
+      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, reactions: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
+      inf.byPlatform[platform].reactions++;
+      inf.totalReactions++;
+      const ts = r.action_date || "";
+      if (!inf.firstSeen || ts < inf.firstSeen) inf.firstSeen = ts;
+      if (ts > inf.lastSeen) inf.lastSeen = ts;
+    }
+
+    // Recalcula score após somar reactions
+    for (const inf of map.values()) {
       inf.score = computeScore(inf);
     }
 
     const sorted = Array.from(map.values())
-      .filter((i) => i.totalComments >= 1)
+      .filter((i) => i.totalComments + i.totalReactions >= 1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
 
@@ -583,16 +645,28 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Top comentaristas e formadores de opinião detectados automaticamente
-        </p>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Top comentaristas e formadores de opinião detectados automaticamente
+          </p>
+          <p className="text-xs text-muted-foreground/80 mt-0.5">
+            <span className="font-medium text-foreground">Período:</span>{" "}
+            {days >= 3650 ? "todo o histórico" : `últimos ${days} dias`} · contabiliza comentários e reações/curtidas
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-muted rounded-lg p-0.5">
-            {[7, 30, 90].map((d) => (
-              <button key={d} onClick={() => setDays(d)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === d ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                {d}d
+            {[
+              { v: 7, label: "7d" },
+              { v: 30, label: "30d" },
+              { v: 90, label: "90d" },
+              { v: 365, label: "1 ano" },
+              { v: 3650, label: "Tudo" },
+            ].map(({ v, label }) => (
+              <button key={v} onClick={() => setDays(v)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {label}
               </button>
             ))}
           </div>
@@ -644,7 +718,9 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <Users className="w-10 h-10 text-muted-foreground/50" />
-            <p className="text-muted-foreground">Nenhuma interação de pessoas cadastradas nos últimos {days} dias.</p>
+            <p className="text-muted-foreground">
+              Nenhuma interação de pessoas cadastradas {days >= 3650 ? "no histórico" : `nos últimos ${days} dias`}.
+            </p>
             <p className="text-xs text-muted-foreground/70">Apenas pessoas, funcionários, contratados e apoiadores cadastrados — com rede social vinculada — geram pontuação.</p>
           </CardContent>
         </Card>
@@ -675,8 +751,9 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">comentários</p></div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">coment.</p></div>
+                    <div><p className="text-lg font-bold">{inf.totalReactions}</p><p className="text-[10px] text-muted-foreground">reações</p></div>
                     <div><p className="text-lg font-bold">{inf.uniquePosts}</p><p className="text-[10px] text-muted-foreground">posts</p></div>
                     <div><p className="text-lg font-bold">{inf.repliesReceived}</p><p className="text-[10px] text-muted-foreground">respostas</p></div>
                   </div>
@@ -718,6 +795,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                   <TableHead>Nome</TableHead>
                   <TableHead className="hidden sm:table-cell">Redes</TableHead>
                   <TableHead className="text-center hidden sm:table-cell">Comentários</TableHead>
+                  <TableHead className="text-center hidden sm:table-cell">Reações</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Posts</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Respostas</TableHead>
                   <TableHead className="hidden lg:table-cell w-32">Sentimento</TableHead>
@@ -746,6 +824,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
+                    <TableCell className="text-center hidden sm:table-cell">{inf.totalReactions}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.repliesReceived}</TableCell>
                     <TableCell className="hidden lg:table-cell">
