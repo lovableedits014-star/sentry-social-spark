@@ -195,6 +195,15 @@ export default function Disparos() {
           .not("telefone", "is", null);
         return count || 0;
       }
+      if (tipoDisparo === "apoiadores") {
+        const { count } = await supabase
+          .from("pessoas")
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", clientId!)
+          .eq("tipo_pessoa", "apoiador")
+          .not("telefone", "is", null);
+        return count || 0;
+      }
       // Manual / pessoas
       if (tagFiltro && tagFiltro !== "_all") {
         // Count pessoas with this tag
@@ -352,6 +361,7 @@ export default function Disparos() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">📋 Pessoas (CRM)</SelectItem>
+                  <SelectItem value="apoiadores">🙋 Apoiadores</SelectItem>
                   <SelectItem value="funcionarios">👷 Funcionários</SelectItem>
                   <SelectItem value="contratados">📝 Contratados</SelectItem>
                 </SelectContent>

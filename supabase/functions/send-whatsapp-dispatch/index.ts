@@ -186,6 +186,15 @@ Deno.serve(async (req) => {
         .eq("status", "ativo")
         .not("telefone", "is", null);
       recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+    } else if (tipo === "apoiadores") {
+      const { data } = await adminClient
+        .from("pessoas")
+        .select("telefone, nome")
+        .eq("client_id", client_id)
+        .eq("tipo_pessoa", "apoiador")
+        .not("telefone", "is", null)
+        .limit(2000);
+      recipients = (data || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
     } else {
       if (tag_filtro) {
         const { data: tagData } = await adminClient
