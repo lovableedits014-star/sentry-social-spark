@@ -207,18 +207,58 @@ export default function Territorial() {
       : allGeoEntries;
     const withLoc = filtered.filter(s => s.city || s.neighborhood);
     const withoutLoc = filtered.filter(s => !s.city && !s.neighborhood);
-    const map: Record<string, LocationGroup> = {};
+    // Canonical key: lowercase + sem acento + espaços colapsados (defensivo p/ dados antigos)
+    const canon = (v: string | null | undefined) => {
+      if (!v) return "";
+      return v
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+    // Acumula contagem por chave canônica e mantém variantes de nome para escolher a mais frequente
+    type Bucket = LocationGroup & { cityVariants: Record<string, number>; neighVariants: Record<string, number> };
+    const map: Record<string, Bucket> = {};
     for (const s of withLoc) {
-      const cityRaw = s.city?.trim() || "Sem cidade";
-      // Strip "- UF" suffix for display when grouping
-      const city = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
-      const neighborhood = s.neighborhood?.trim() || null;
-      const state = inferUF(s);
-      const key = `${city}||${neighborhood || ""}`;
-      if (!map[key]) map[key] = { key, city, neighborhood, state, count: 0 };
+      const cityRaw = (s.city?.trim()) || "Sem cidade";
+      const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
+      const neighRaw = s.neighborhood?.trim() || null;
+      const cityKey = canon(cityClean);
+      const neighKey = canon(neighRaw);
+      const key = `${cityKey}||${neighKey}`;
+      if (!map[key]) {
+        map[key] = {
+          key,
+          city: cityClean,
+          neighborhood: neighRaw,
+          state: inferUF(s),
+          count: 0,
+          cityVariants: {},
+          neighVariants: {},
+        };
+      }
       map[key].count++;
+      map[key].cityVariants[cityClean] = (map[key].cityVariants[cityClean] || 0) + 1;
+      if (neighRaw) {
+        map[key].neighVariants[neighRaw] = (map[key].neighVariants[neighRaw] || 0) + 1;
+      }
     }
-    return { groups: Object.values(map).sort((a, b) => b.count - a.count), totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
+    // Escolhe a variante de display mais frequente (preserva acentos/capitalização "boa")
+    const pickBest = (variants: Record<string, number>) => {
+      const entries = Object.entries(variants);
+      if (entries.length === 0) return null;
+      entries.sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);
+      return entries[0][0];
+    };
+    const result: LocationGroup[] = Object.values(map).map(b => ({
+      key: b.key,
+      city: pickBest(b.cityVariants) || b.city,
+      neighborhood: pickBest(b.neighVariants),
+      state: b.state,
+      count: b.count,
+    }));
+    return { groups: result.sort((a, b) => b.count - a.count), totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
   }, [allGeoEntries, selectedUF]);
 
   // City-only aggregation for selected UF (drill-down level 2)
