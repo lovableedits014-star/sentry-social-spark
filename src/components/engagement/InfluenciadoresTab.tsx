@@ -600,6 +600,10 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
+          <Button variant="outline" size="sm" onClick={handleResolveProfiles} disabled={resolving} title="Converte usernames e links de share em IDs numéricos do Facebook para que o engajamento passe a contar">
+            <Wand2 className={`w-4 h-4 mr-2 ${resolving ? "animate-pulse" : ""}`} />
+            Resolver IDs
+          </Button>
         </div>
       </div>
 
