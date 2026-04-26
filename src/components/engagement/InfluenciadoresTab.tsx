@@ -22,6 +22,7 @@ type Influencer = {
   authorPicture: string | null;
   platforms: Set<string>;
   totalComments: number;
+  totalReactions: number;
   positiveCount: number;
   negativeCount: number;
   neutralCount: number;
@@ -30,7 +31,7 @@ type Influencer = {
   firstSeen: string;
   lastSeen: string;
   score: number;
-  byPlatform: Record<string, { comments: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
+  byPlatform: Record<string, { comments: number; reactions: number; replies: number; posts: number; pos: number; neg: number; neu: number }>;
   profileUrls: Record<string, string>;
   profilePictures: Record<string, string>;
 };
@@ -38,6 +39,7 @@ type Influencer = {
 function computeScore(inf: Influencer): number {
   return (
     inf.totalComments * 3 +
+    inf.totalReactions * 1 +
     inf.repliesReceived * 5 +
     inf.uniquePosts * 2 +
     inf.positiveCount * 1 +
