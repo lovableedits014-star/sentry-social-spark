@@ -80,35 +80,44 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Buscar perfis problemáticos junto com o token Meta do cliente
-    let query = supabase
+    // 1) Buscar perfis problemáticos (com client_id via join simples)
+    const { data: rawRows, error } = await supabase
       .from("supporter_profiles")
-      .select(`
-        id, supporter_id, platform, platform_user_id, platform_username,
-        supporters!inner(client_id, integrations:integrations(meta_access_token, meta_page_id))
-      `)
-      .limit(limit);
-
-    const { data: rawRows, error } = await query;
+      .select("id, supporter_id, platform, platform_user_id, platform_username, supporters!inner(client_id)")
+      .limit(limit * 3);
     if (error) throw error;
 
-    // Normalizar
+    // 2) Carregar integrations por client_id em uma query separada
+    const allClientIds = [...new Set((rawRows || []).map((r: any) => r.supporters?.client_id).filter(Boolean))] as string[];
+    const { data: integrationsRows } = await supabase
+      .from("integrations")
+      .select("client_id, meta_access_token, meta_page_id")
+      .in("client_id", allClientIds.length ? allClientIds : ["00000000-0000-0000-0000-000000000000"]);
+    const integrationsByClient = new Map<string, { meta_access_token: string | null; meta_page_id: string | null }>(
+      (integrationsRows || []).map((i: any) => [i.client_id, { meta_access_token: i.meta_access_token, meta_page_id: i.meta_page_id }]),
+    );
+
     const rows: ProfileRow[] = (rawRows || [])
-      .map((r: any) => ({
-        id: r.id,
-        supporter_id: r.supporter_id,
-        platform: r.platform,
-        platform_user_id: r.platform_user_id || "",
-        platform_username: r.platform_username,
-        client_id: r.supporters?.client_id,
-        meta_access_token: r.supporters?.integrations?.[0]?.meta_access_token ?? null,
-        meta_page_id: r.supporters?.integrations?.[0]?.meta_page_id ?? null,
-      }))
+      .map((r: any) => {
+        const cid = r.supporters?.client_id;
+        const integ = cid ? integrationsByClient.get(cid) : null;
+        return {
+          id: r.id,
+          supporter_id: r.supporter_id,
+          platform: r.platform,
+          platform_user_id: r.platform_user_id || "",
+          platform_username: r.platform_username,
+          client_id: cid,
+          meta_access_token: integ?.meta_access_token ?? null,
+          meta_page_id: integ?.meta_page_id ?? null,
+        };
+      })
       .filter((r) => {
         if (clientIdFilter && r.client_id !== clientIdFilter) return false;
         if (!r.platform_user_id) return true;
         return !isNumericId(r.platform_user_id);
-      });
+      })
+      .slice(0, limit);
 
     console.log(`Processando ${rows.length} perfis problemáticos (dry_run=${dryRun})`);
 
