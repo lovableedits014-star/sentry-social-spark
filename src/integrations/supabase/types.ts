@@ -2385,6 +2385,7 @@ export type Database = {
           instagram_username: string | null
           name: string
           neighborhood: string | null
+          phone: string | null
           presenca_obrigatoria: boolean
           referred_by: string | null
           state: string | null
@@ -2403,6 +2404,7 @@ export type Database = {
           instagram_username?: string | null
           name: string
           neighborhood?: string | null
+          phone?: string | null
           presenca_obrigatoria?: boolean
           referred_by?: string | null
           state?: string | null
@@ -2421,6 +2423,7 @@ export type Database = {
           instagram_username?: string | null
           name?: string
           neighborhood?: string | null
+          phone?: string | null
           presenca_obrigatoria?: boolean
           referred_by?: string | null
           state?: string | null
