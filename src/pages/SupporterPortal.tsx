@@ -157,6 +157,7 @@ export default function SupporterPortal() {
       setEditCity(existingAccount.city || "");
       setEditNeighborhood(existingAccount.neighborhood || "");
       setEditState(existingAccount.state || "");
+      setEditPhone((existingAccount as any).phone || "");
       checkTodayCheckin(existingAccount.id);
       loadCheckinStats(existingAccount.id);
     } else {
