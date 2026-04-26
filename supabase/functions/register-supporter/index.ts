@@ -208,6 +208,54 @@ Deno.serve(async (req) => {
     await supabase.rpc("link_orphan_engagement_actions", { p_client_id: client_id });
     await supabase.rpc("calculate_engagement_score", { p_supporter_id: supporterId, p_days: 30 });
 
+    // Create or update pessoa record in CRM (so apoiador appears in Base Política)
+    try {
+      const { data: existingPessoa } = await supabase
+        .from("pessoas")
+        .select("id")
+        .eq("client_id", client_id)
+        .eq("supporter_id", supporterId)
+        .maybeSingle();
+
+      if (!existingPessoa) {
+        const pessoaPayload: Record<string, unknown> = {
+          client_id,
+          nome: name.trim(),
+          telefone: phone?.trim() || null,
+          cidade: city?.trim() || null,
+          bairro: neighborhood?.trim() || null,
+          tipo_pessoa: "apoiador",
+          nivel_apoio: "apoiador",
+          origem_contato: "formulario",
+          supporter_id: supporterId,
+          notas_internas: notes?.trim() || null,
+        };
+        const { data: pessoaInserted, error: pessoaError } = await supabase
+          .from("pessoas")
+          .insert(pessoaPayload)
+          .select("id")
+          .single();
+
+        if (pessoaError) {
+          console.error("Pessoa insert error:", pessoaError);
+        } else if (pessoaInserted && profiles.length > 0) {
+          for (const p of profiles) {
+            await supabase.from("pessoa_social").insert({
+              pessoa_id: pessoaInserted.id,
+              plataforma: p.platform,
+              usuario: p.username,
+              url_perfil: p.platform === "facebook"
+                ? `https://facebook.com/${p.username}`
+                : `https://instagram.com/${p.username}`,
+            });
+          }
+        }
+      }
+    } catch (pessoaErr) {
+      console.error("Erro ao criar pessoa no CRM:", pessoaErr);
+    }
+
+
     // Return supporter_id and referrer info for the frontend to handle referral linking
     // after auth account is created
     const message = isExisting
