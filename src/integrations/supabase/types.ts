@@ -3244,6 +3244,7 @@ export type Database = {
         Returns: undefined
       }
       normalize_br_phone: { Args: { p_raw: string }; Returns: string }
+      normalize_person_name: { Args: { p_name: string }; Returns: string }
       pick_healthy_whatsapp_instance: {
         Args: { p_client_id: string }
         Returns: string
@@ -3294,6 +3295,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      unaccent: { Args: { "": string }; Returns: string }
       whatsapp_phone_variants: { Args: { p_phone: string }; Returns: string[] }
     }
     Enums: {
