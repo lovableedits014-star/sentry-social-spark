@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { formatCPF, formatPhone, isValidCPF, onlyDigits, translateRegistrationError } from "@/lib/cpf";
 
 interface Props {
   open: boolean;
@@ -74,6 +75,7 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -96,6 +98,7 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
 
   function resetForm() {
     setNome(""); setEmail(""); setTelefone("");
+    setCpf("");
     setCidade(""); setBairro(""); setEndereco("");
     setDataNascimento("");
     setTipoPessoa("cidadao"); setNivelApoio("desconhecido"); setOrigemContato("manual");
@@ -111,6 +114,12 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
       return;
     }
 
+    const cpfDigits = onlyDigits(cpf);
+    if (cpfDigits && !isValidCPF(cpfDigits)) {
+      toast.error("CPF inválido. Verifique os dígitos.");
+      return;
+    }
+
     setSaving(true);
     const tags = tagsStr.split(",").map(t => t.trim()).filter(Boolean);
 
@@ -118,7 +127,8 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
       client_id: clientId,
       nome: nome.trim(),
       email: email.trim() || null,
-      telefone: telefone.trim() || null,
+      telefone: onlyDigits(telefone) || null,
+      cpf: cpfDigits || null,
       cidade: cidade.trim() || null,
       bairro: bairro.trim() || null,
       endereco: endereco.trim() || null,
@@ -139,7 +149,8 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
     setSaving(false);
 
     if (error) {
-      toast.error("Erro ao salvar pessoa");
+      const friendly = translateRegistrationError(error);
+      toast.error(friendly || "Erro ao salvar pessoa");
       console.error(error);
     } else {
       toast.success("Pessoa cadastrada com sucesso!");
@@ -170,8 +181,26 @@ export default function NovaPessoaDialog({ open, onOpenChange, clientId, onSucce
             </div>
             <div>
               <Label>Telefone</Label>
-              <Input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="(00) 00000-0000" maxLength={20} />
+              <Input
+                value={formatPhone(telefone)}
+                onChange={e => setTelefone(onlyDigits(e.target.value))}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                maxLength={16}
+              />
             </div>
+          </div>
+
+          <div>
+            <Label>CPF</Label>
+            <Input
+              value={formatCPF(cpf)}
+              onChange={e => setCpf(onlyDigits(e.target.value))}
+              placeholder="000.000.000-00"
+              inputMode="numeric"
+              maxLength={14}
+            />
+            <p className="text-xs text-muted-foreground mt-1">Opcional. Usado para evitar cadastros duplicados.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
