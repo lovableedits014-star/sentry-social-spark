@@ -174,10 +174,19 @@ export default function SupporterRegister() {
       if (fnError) throw fnError;
 
       if (data?.success) {
-        const profiles: ParsedProfile[] = [];
-        if (fbParsed) profiles.push(fbParsed);
-        if (igParsed) profiles.push(igParsed);
+        // Usa os perfis efetivamente resolvidos pelo backend (share links já tratados)
+        const resolved: { platform: "facebook" | "instagram"; username: string }[] =
+          (data as any)?.resolved_profiles || [];
+        const pending: { platform: "facebook" | "instagram"; url: string }[] =
+          (data as any)?.pending_shares || [];
+        const profiles: ParsedProfile[] = [
+          ...resolved.map((p) => ({ platform: p.platform, username: p.username })),
+          ...pending.map((p) => ({ platform: p.platform, username: null, pendingShareUrl: p.url })),
+        ];
         setLinkedProfiles(profiles);
+
+        const fbResolved = resolved.find((p) => p.platform === "facebook")?.username || null;
+        const igResolved = resolved.find((p) => p.platform === "instagram")?.username || null;
 
         // Create auth account
         try {
@@ -197,8 +206,8 @@ export default function SupporterRegister() {
                 client_id: clientId!,
                 name: name.trim(),
                 email: email.trim(),
-                facebook_username: fbParsed?.username || null,
-                instagram_username: igParsed?.username || null,
+                facebook_username: fbResolved,
+                instagram_username: igResolved,
                 referred_by: data.referrer_account_id || null,
                 city: city.trim() || null,
                 neighborhood: neighborhood.trim() || null,
