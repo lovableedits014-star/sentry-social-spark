@@ -91,8 +91,8 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (s: SocialEnt
 
   return (
     <div className="space-y-3">
-      <Label className="text-sm font-medium">Redes Sociais (obrigatório pelo menos 1)</Label>
-      <p className="text-xs text-muted-foreground">Conecte suas redes para receber missões de interação 📱</p>
+      <Label className="text-sm font-medium">Redes Sociais (opcional)</Label>
+      <p className="text-xs text-muted-foreground">Conecte suas redes para receber missões de interação 😊</p>
       <div className="flex flex-wrap gap-2">
         {SOCIAL_PLATFORMS.map(p => {
           const Icon = p.icon; const done = !!captured[p.id];
@@ -200,7 +200,6 @@ export default function RegistroFuncionario() {
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
     if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
-    if (socials.length === 0) { setError("Cadastre pelo menos uma rede social."); return; }
 
     setLoading(true);
     setError("");
