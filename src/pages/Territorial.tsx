@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,10 @@ import { useState, useMemo } from "react";
 import { format, subDays, startOfDay, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BrazilMap } from "@/components/territorial/BrazilMap";
+import { LocalityDetailDialog } from "@/components/territorial/LocalityDetailDialog";
+import { MergeLocalitiesDialog } from "@/components/territorial/MergeLocalitiesDialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Merge } from "lucide-react";
 import { resolveUF, ufName, ufRegion, UF_LIST } from "@/lib/brazil-geo";
 
 interface LocationGroup {
@@ -63,9 +67,24 @@ function DistributionRow({ label, count, total, color = "bg-primary" }: { label:
 }
 
 export default function Territorial() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUF, setSelectedUF] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+
+  // Drill-down dialog state
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLevel, setDetailLevel] = useState<"city" | "neighborhood">("city");
+  const [detailCity, setDetailCity] = useState<string>("");
+  const [detailNeigh, setDetailNeigh] = useState<string | null>(null);
+
+  // Merge selection state
+  const [selectedCityNames, setSelectedCityNames] = useState<Set<string>>(new Set());
+  const [selectedNeighNames, setSelectedNeighNames] = useState<Set<string>>(new Set());
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeField, setMergeField] = useState<"cidade" | "bairro">("cidade");
+  const [mergeVariants, setMergeVariants] = useState<Array<{ name: string; count: number }>>([]);
+  const [mergeParentCity, setMergeParentCity] = useState<string | null>(null);
 
   const { data: client } = useQuery({
     queryKey: ["client"],
@@ -262,19 +281,60 @@ export default function Territorial() {
   }, [allGeoEntries, selectedUF]);
 
   // City-only aggregation for selected UF (drill-down level 2)
+  // Mantém variantes brutas (com casing/acento original) por chave canônica
+  // para permitir mesclagem manual de duplicatas escritas diferente.
   const cityGroups = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const g of groups) {
-      map[g.city] = (map[g.city] || 0) + g.count;
+    const canon = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const filtered = selectedUF
+      ? allGeoEntries.filter((e) => inferUF(e) === selectedUF)
+      : allGeoEntries;
+    type B = { city: string; count: number; variants: Record<string, number> };
+    const map: Record<string, B> = {};
+    for (const e of filtered) {
+      const cityRaw = (e.city?.trim()) || "";
+      if (!cityRaw) continue;
+      const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
+      const key = canon(cityClean);
+      if (!map[key]) map[key] = { city: cityClean, count: 0, variants: {} };
+      map[key].count++;
+      map[key].variants[cityClean] = (map[key].variants[cityClean] || 0) + 1;
     }
-    return Object.entries(map).map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count);
-  }, [groups]);
+    return Object.values(map)
+      .map((b) => {
+        const top = Object.entries(b.variants).sort((a, b2) => b2[1] - a[1])[0];
+        return { city: top ? top[0] : b.city, count: b.count, variants: b.variants };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [allGeoEntries, selectedUF]);
 
   // Neighborhoods of selected city (drill-down level 3)
   const neighborhoodGroups = useMemo(() => {
     if (!selectedCity) return [];
-    return groups.filter(g => g.city === selectedCity && g.neighborhood);
-  }, [groups, selectedCity]);
+    const canon = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const cityKey = canon(selectedCity);
+    const filtered = selectedUF
+      ? allGeoEntries.filter((e) => inferUF(e) === selectedUF)
+      : allGeoEntries;
+    type B = { key: string; neighborhood: string; count: number; variants: Record<string, number> };
+    const map: Record<string, B> = {};
+    for (const e of filtered) {
+      const cityRaw = (e.city?.trim()) || "";
+      const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
+      if (canon(cityClean) !== cityKey) continue;
+      const neighRaw = e.neighborhood?.trim();
+      if (!neighRaw) continue;
+      const nk = canon(neighRaw);
+      if (!map[nk]) map[nk] = { key: nk, neighborhood: neighRaw, count: 0, variants: {} };
+      map[nk].count++;
+      map[nk].variants[neighRaw] = (map[nk].variants[neighRaw] || 0) + 1;
+    }
+    return Object.values(map)
+      .map((b) => {
+        const top = Object.entries(b.variants).sort((a, b2) => b2[1] - a[1])[0];
+        return { key: b.key, neighborhood: top ? top[0] : b.neighborhood, count: b.count, variants: b.variants };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [allGeoEntries, selectedUF, selectedCity]);
 
   const growthStats = useMemo(() => {
     if (!supporters) return null;
@@ -608,23 +668,90 @@ export default function Territorial() {
         {selectedUF && !selectedCity && cityGroups.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" />Cidades em {ufName(selectedUF)}</CardTitle>
-              <CardDescription className="text-xs">Clique em uma cidade para ver os bairros.</CardDescription>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" />Cidades em {ufName(selectedUF)}</CardTitle>
+                  <CardDescription className="text-xs">Clique no nome para ver as pessoas. Marque 2+ para mesclar duplicados.</CardDescription>
+                </div>
+                {selectedCityNames.size >= 2 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const variants = cityGroups
+                        .filter((c) => selectedCityNames.has(c.city))
+                        .flatMap((c) => Object.entries(c.variants).map(([name, count]) => ({ name, count })));
+                      // Agrega variantes com mesmo nome literal
+                      const agg: Record<string, number> = {};
+                      for (const v of variants) agg[v.name] = (agg[v.name] || 0) + v.count;
+                      setMergeVariants(Object.entries(agg).map(([name, count]) => ({ name, count })));
+                      setMergeField("cidade");
+                      setMergeParentCity(null);
+                      setMergeOpen(true);
+                    }}
+                  >
+                    <Merge className="w-4 h-4 mr-1.5" /> Mesclar {selectedCityNames.size} cidades
+                  </Button>
+                )}
+                {selectedCityNames.size > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedCityNames(new Set())}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Limpar seleção
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {cityGroups.map((c) => {
                   const ratio = c.count / (cityGroups[0]?.count || 1);
+                  const isSelected = selectedCityNames.has(c.city);
+                  const variantCount = Object.keys(c.variants).length;
                   return (
-                    <button key={c.city} onClick={() => setSelectedCity(c.city)} className="text-left p-3 rounded-lg border hover:border-primary hover:bg-primary/5 transition-colors group">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium truncate group-hover:text-primary">{c.city}</span>
-                        <span className="text-sm font-bold shrink-0 ml-2">{c.count}</span>
+                    <div
+                      key={c.city}
+                      className={`p-3 rounded-lg border transition-colors ${isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}
+                    >
+                      <div className="flex items-start gap-2 mb-1.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(v) => {
+                            setSelectedCityNames((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(c.city); else next.delete(c.city);
+                              return next;
+                            });
+                          }}
+                          className="mt-0.5"
+                        />
+                        <button
+                          onClick={() => {
+                            setDetailLevel("city");
+                            setDetailCity(c.city);
+                            setDetailNeigh(null);
+                            setDetailOpen(true);
+                          }}
+                          className="flex-1 text-left min-w-0 group"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium truncate group-hover:text-primary">{c.city}</span>
+                            <span className="text-sm font-bold shrink-0">{c.count}</span>
+                          </div>
+                          {variantCount > 1 && (
+                            <p className="text-[10px] text-destructive mt-0.5">⚠ {variantCount} variantes</p>
+                          )}
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-[10px]"
+                          onClick={() => setSelectedCity(c.city)}
+                        >
+                          Bairros →
+                        </Button>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-primary rounded-full" style={{ width: `${Math.max(ratio * 100, 3)}%` }} />
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -636,23 +763,87 @@ export default function Territorial() {
         {selectedCity && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-primary" />Bairros em {selectedCity}</CardTitle>
-              <CardDescription className="text-xs">{neighborhoodGroups.length === 0 ? "Nenhum bairro detalhado para esta cidade." : `${neighborhoodGroups.length} bairros distintos.`}</CardDescription>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-primary" />Bairros em {selectedCity}</CardTitle>
+                  <CardDescription className="text-xs">
+                    {neighborhoodGroups.length === 0
+                      ? "Nenhum bairro detalhado para esta cidade."
+                      : `${neighborhoodGroups.length} bairros. Clique no nome para ver as pessoas. Marque 2+ para mesclar.`}
+                  </CardDescription>
+                </div>
+                {selectedNeighNames.size >= 2 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const variants = neighborhoodGroups
+                        .filter((g) => selectedNeighNames.has(g.neighborhood))
+                        .flatMap((g) => Object.entries(g.variants).map(([name, count]) => ({ name, count })));
+                      const agg: Record<string, number> = {};
+                      for (const v of variants) agg[v.name] = (agg[v.name] || 0) + v.count;
+                      setMergeVariants(Object.entries(agg).map(([name, count]) => ({ name, count })));
+                      setMergeField("bairro");
+                      setMergeParentCity(selectedCity);
+                      setMergeOpen(true);
+                    }}
+                  >
+                    <Merge className="w-4 h-4 mr-1.5" /> Mesclar {selectedNeighNames.size} bairros
+                  </Button>
+                )}
+                {selectedNeighNames.size > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedNeighNames(new Set())}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Limpar
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             {neighborhoodGroups.length > 0 && (
               <CardContent>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {neighborhoodGroups.map((g) => (
-                    <div key={g.key} className="p-3 rounded-lg border">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium truncate">{g.neighborhood}</span>
-                        <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0 ml-2">{g.count}</Badge>
+                  {neighborhoodGroups.map((g) => {
+                    const isSelected = selectedNeighNames.has(g.neighborhood);
+                    const variantCount = Object.keys(g.variants).length;
+                    return (
+                      <div
+                        key={g.key}
+                        className={`p-3 rounded-lg border transition-colors ${isSelected ? "border-primary bg-primary/5" : ""}`}
+                      >
+                        <div className="flex items-start gap-2 mb-1.5">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(v) => {
+                              setSelectedNeighNames((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(g.neighborhood); else next.delete(g.neighborhood);
+                                return next;
+                              });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <button
+                            onClick={() => {
+                              setDetailLevel("neighborhood");
+                              setDetailCity(selectedCity);
+                              setDetailNeigh(g.neighborhood);
+                              setDetailOpen(true);
+                            }}
+                            className="flex-1 text-left min-w-0 group"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium truncate group-hover:text-primary">{g.neighborhood}</span>
+                              <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0">{g.count}</Badge>
+                            </div>
+                            {variantCount > 1 && (
+                              <p className="text-[10px] text-destructive mt-0.5">⚠ {variantCount} variantes</p>
+                            )}
+                          </button>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             )}
@@ -790,6 +981,33 @@ export default function Territorial() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialogs */}
+      <LocalityDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        clientId={client?.id || null}
+        level={detailLevel}
+        city={detailCity}
+        neighborhood={detailNeigh}
+      />
+      <MergeLocalitiesDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        clientId={client?.id || null}
+        field={mergeField}
+        variants={mergeVariants}
+        parentCity={mergeParentCity}
+        onSuccess={() => {
+          setSelectedCityNames(new Set());
+          setSelectedNeighNames(new Set());
+          queryClient.invalidateQueries({ queryKey: ["territorial-supporters", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["territorial-indicados", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-pessoas", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-contratados", client?.id] });
+          queryClient.invalidateQueries({ queryKey: ["recruitment-indicados", client?.id] });
+        }}
+      />
     </div>
   );
 }
