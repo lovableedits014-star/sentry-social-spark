@@ -135,19 +135,36 @@ Deno.serve(async (req) => {
       });
     }
 
-    const profiles: { platform: "facebook" | "instagram"; username: string }[] = [];
+    const rawProfiles: ParsedProfile[] = [];
     if (facebook_url) {
       const parsed = parseProfileUrl(facebook_url);
-      if (parsed) profiles.push(parsed);
+      if (parsed) rawProfiles.push(parsed);
     }
     if (instagram_url) {
       const parsed = parseProfileUrl(instagram_url);
-      if (parsed) profiles.push(parsed);
+      if (parsed) rawProfiles.push(parsed);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Resolver share links ANTES de qualquer validação/inserção (evita placeholder share_xxx)
+    const profiles: { platform: "facebook" | "instagram"; username: string }[] = [];
+    const pendingShares: { platform: "facebook" | "instagram"; url: string }[] = [];
+    for (const p of rawProfiles) {
+      if (p.username) {
+        profiles.push({ platform: p.platform, username: p.username });
+      } else if (p.pendingShareUrl) {
+        const resolved = await resolveShareUrl(p.pendingShareUrl, p.platform, supabaseUrl, serviceRoleKey);
+        if (resolved) {
+          profiles.push({ platform: p.platform, username: resolved });
+        } else {
+          // Falhou — guardamos para registrar nas notas; NÃO criamos perfil inválido
+          pendingShares.push({ platform: p.platform, url: p.pendingShareUrl });
+        }
+      }
+    }
 
     // Verify client exists
     const { data: client } = await supabase
