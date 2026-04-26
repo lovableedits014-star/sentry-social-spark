@@ -88,10 +88,10 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 1) Buscar perfis problemáticos (com client_id via join simples)
+    // 1) Buscar perfis problemáticos (com client_id e nome do supporter via join)
     const { data: rawRows, error } = await supabase
       .from("supporter_profiles")
-      .select("id, supporter_id, platform, platform_user_id, platform_username, supporters!inner(client_id)")
+      .select("id, supporter_id, platform, platform_user_id, platform_username, supporters!inner(client_id, name)")
       .limit(limit * 3);
     if (error) throw error;
 
@@ -116,6 +116,7 @@ Deno.serve(async (req) => {
           platform_user_id: r.platform_user_id || "",
           platform_username: r.platform_username,
           client_id: cid,
+          supporter_name: r.supporters?.name || null,
           meta_access_token: integ?.meta_access_token ?? null,
           meta_page_id: integ?.meta_page_id ?? null,
         };
@@ -128,6 +129,27 @@ Deno.serve(async (req) => {
       .slice(0, limit);
 
     console.log(`Processando ${rows.length} perfis problemáticos (dry_run=${dryRun})`);
+
+    // Pré-carregar índice de comments por (client, platform) -> Map<normalized_name, author_id>
+    const targetClients = [...new Set(rows.map((r) => r.client_id).filter(Boolean))] as string[];
+    const nameIndex = new Map<string, Map<string, string>>(); // key: `${client}:${platform}`
+    if (targetClients.length) {
+      const { data: commentRows } = await supabase
+        .from("comments")
+        .select("client_id, platform, author_id, author_name")
+        .in("client_id", targetClients)
+        .not("author_id", "is", null)
+        .not("author_name", "is", null)
+        .limit(20000);
+      for (const c of commentRows || []) {
+        if (!c.author_id || !c.author_name) continue;
+        const key = `${c.client_id}:${c.platform || "facebook"}`;
+        let m = nameIndex.get(key);
+        if (!m) { m = new Map(); nameIndex.set(key, m); }
+        const norm = normalizeName(c.author_name);
+        if (norm && !m.has(norm)) m.set(norm, c.author_id);
+      }
+    }
 
     const results = {
       total: rows.length,
@@ -142,26 +164,21 @@ Deno.serve(async (req) => {
       let newId: string | null = null;
       let strategy = "";
 
-      // Estratégia 1: tentar matchar com comments.author_id existentes
-      // (autor já interagiu antes -> temos o ID numérico salvo em comments)
-      const candidateName = row.platform_username || row.platform_user_id;
-      if (candidateName && !isShareToken(candidateName)) {
-        const { data: c } = await supabase
-          .from("comments")
-          .select("author_id, author_name")
-          .eq("client_id", row.client_id)
-          .eq("platform", row.platform)
-          .not("author_id", "is", null)
-          .or(`author_name.ilike.%${candidateName.replace(/[%_,]/g, "")}%`)
-          .limit(1);
-        if (c && c[0]?.author_id && /^\d+$/.test(c[0].author_id)) {
-          newId = c[0].author_id;
-          strategy = "comments_match";
+      // Estratégia 1: matchar pelo NOME do supporter contra author_name dos comentários
+      // (autor já comentou antes -> temos o author_id numérico)
+      if (row.supporter_name) {
+        const key = `${row.client_id}:${row.platform}`;
+        const m = nameIndex.get(key);
+        const candidate = m?.get(normalizeName(row.supporter_name));
+        if (candidate && (row.platform !== "facebook" || /^\d+$/.test(candidate))) {
+          newId = candidate;
+          strategy = "name_match_in_comments";
           results.resolved_via_comments++;
         }
       }
 
-      // Estratégia 2: share_xxx -> resolver para handle, depois Graph API
+      // Estratégia 2: share_xxx -> seguir redirect e tentar achar o handle real
+      // depois tentar matchar handle contra index OU contra author_name
       if (!newId && isShareToken(row.platform_user_id)) {
         const shareCode = row.platform_user_id.replace(/^share_/i, "");
         const realHandle = await resolveShareToken(shareCode, row.platform);
@@ -170,27 +187,26 @@ Deno.serve(async (req) => {
             newId = realHandle;
             strategy = "share_to_id";
             results.resolved_via_share++;
-          } else if (row.platform === "facebook" && row.meta_access_token) {
-            newId = await fbHandleToNumericId(realHandle, row.meta_access_token);
-            if (newId) {
-              strategy = "share_to_handle_to_graph";
-              results.resolved_via_share++;
-            }
           } else if (row.platform === "instagram") {
-            // IG: o handle resolvido já basta como identificador
+            // IG: o handle resolvido já é o identificador estável
             newId = realHandle;
             strategy = "share_to_handle_ig";
             results.resolved_via_share++;
+          } else if (row.platform === "facebook") {
+            // FB: tentar achar id numérico via index de comments cruzando handle vs author_name
+            const m = nameIndex.get(`${row.client_id}:facebook`);
+            if (m) {
+              for (const [norm, authorId] of m.entries()) {
+                if (norm.replace(/\s+/g, ".") === realHandle.toLowerCase()
+                    || norm.replace(/\s+/g, "") === realHandle.toLowerCase()) {
+                  newId = authorId;
+                  strategy = "share_to_handle_to_name_match";
+                  results.resolved_via_share++;
+                  break;
+                }
+              }
+            }
           }
-        }
-      }
-
-      // Estratégia 3: username -> ID numérico via Graph API (Facebook)
-      if (!newId && row.platform === "facebook" && row.meta_access_token && !isShareToken(row.platform_user_id)) {
-        newId = await fbHandleToNumericId(row.platform_user_id, row.meta_access_token);
-        if (newId) {
-          strategy = "graph_handle_to_id";
-          results.resolved_via_graph++;
         }
       }
 
