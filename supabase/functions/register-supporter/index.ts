@@ -225,31 +225,52 @@ Deno.serve(async (req) => {
         .eq("supporter_id", supporterId)
         .maybeSingle();
 
-      if (!existingPessoa) {
-        const pessoaPayload: Record<string, unknown> = {
-          client_id,
-          nome: name.trim(),
-          telefone: phone?.trim() || null,
-          cidade: city?.trim() || null,
-          bairro: neighborhood?.trim() || null,
-          tipo_pessoa: "apoiador",
-          nivel_apoio: "apoiador",
-          origem_contato: "formulario",
-          supporter_id: supporterId,
-          notas_internas: notes?.trim() || null,
-        };
+      const pessoaPayload: Record<string, unknown> = {
+        nome: name.trim(),
+        telefone: phone?.trim() || null,
+        cidade: city?.trim() || null,
+        bairro: neighborhood?.trim() || null,
+        tipo_pessoa: "apoiador",
+        nivel_apoio: "apoiador",
+        origem_contato: "formulario",
+        supporter_id: supporterId,
+        notas_internas: notes?.trim() || null,
+      };
+
+      let pessoaId = existingPessoa?.id || null;
+      if (pessoaId) {
+        const { error: pessoaUpdateError } = await supabase
+          .from("pessoas")
+          .update(pessoaPayload)
+          .eq("id", pessoaId);
+        if (pessoaUpdateError) console.error("Pessoa update error:", pessoaUpdateError);
+      } else {
         const { data: pessoaInserted, error: pessoaError } = await supabase
           .from("pessoas")
-          .insert(pessoaPayload)
+          .insert({ client_id, ...pessoaPayload })
           .select("id")
           .single();
 
         if (pessoaError) {
           console.error("Pessoa insert error:", pessoaError);
-        } else if (pessoaInserted && profiles.length > 0) {
-          for (const p of profiles) {
+        } else {
+          pessoaId = pessoaInserted.id;
+        }
+      }
+
+      if (pessoaId && profiles.length > 0) {
+        for (const p of profiles) {
+          const { data: existingSocial } = await supabase
+            .from("pessoa_social")
+            .select("id")
+            .eq("pessoa_id", pessoaId)
+            .eq("plataforma", p.platform)
+            .eq("usuario", p.username)
+            .maybeSingle();
+
+          if (!existingSocial) {
             await supabase.from("pessoa_social").insert({
-              pessoa_id: pessoaInserted.id,
+              pessoa_id: pessoaId,
               plataforma: p.platform,
               usuario: p.username,
               url_perfil: p.platform === "facebook"
