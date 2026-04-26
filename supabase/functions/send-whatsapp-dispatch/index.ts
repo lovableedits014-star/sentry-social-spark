@@ -109,39 +109,85 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceKey);
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    const payload = await req.json();
+    const isResume = !!payload.resume_dispatch_id;
+
+    // ====== MODO RESUME (chamado pelo cron) ======
+    let client_id: string;
+    let titulo: string;
+    let mensagem: string;
+    let tipo: string;
+    let tag_filtro: string | null;
+    let batch_size: number | undefined;
+    let delay_min: number | undefined;
+    let delay_max: number | undefined;
+    let batch_pause: number | undefined;
+    let existingDispatchId: string | null = null;
+
+    if (isResume) {
+      const { data: d } = await adminClient
+        .from("whatsapp_dispatches")
+        .select("*")
+        .eq("id", payload.resume_dispatch_id)
+        .single();
+      if (!d) {
+        return new Response(JSON.stringify({ error: "Dispatch not found" }), { status: 404, headers: corsHeaders });
+      }
+      client_id = d.client_id;
+      titulo = d.titulo;
+      mensagem = d.mensagem_template;
+      tipo = d.tipo;
+      tag_filtro = d.tag_filtro;
+      batch_size = d.batch_size;
+      delay_min = d.delay_min_seconds;
+      delay_max = d.delay_max_seconds;
+      batch_pause = d.batch_pause_seconds;
+      existingDispatchId = d.id;
+    } else {
+      // ====== MODO NOVO DISPARO (chamado pelo usuário) ======
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      }
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: authErr } = await userClient.auth.getUser();
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      }
+      ({ client_id, titulo, mensagem, tipo, tag_filtro, batch_size, delay_min, delay_max, batch_pause } = payload);
+
+      // Verify ownership
+      const { data: ownerCheck } = await adminClient
+        .from("clients")
+        .select("id")
+        .eq("id", client_id)
+        .eq("user_id", user.id)
+        .single();
+      if (!ownerCheck) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
+      }
     }
 
-    const { client_id, titulo, mensagem, tipo, tag_filtro, batch_size, delay_min, delay_max, batch_pause } = await req.json();
     const BATCH_SIZE = batch_size || DEFAULT_BATCH_SIZE;
     const DELAY_MIN_MS = (delay_min || DEFAULT_DELAY_MIN) * 1000;
     const DELAY_MAX_MS = (delay_max || DEFAULT_DELAY_MAX) * 1000;
     const BATCH_PAUSE_MS = (batch_pause || DEFAULT_BATCH_PAUSE) * 1000;
-    const adminClient = createClient(supabaseUrl, serviceKey);
 
-    // Verify ownership and get bridge config + window settings
+    // Get bridge config + window settings
     const { data: clientData } = await adminClient
       .from("clients")
       .select("id, whatsapp_bridge_url, whatsapp_bridge_api_key, whatsapp_window_enabled, whatsapp_window_start, whatsapp_window_end, whatsapp_inter_instance_delay_min, whatsapp_inter_instance_delay_max")
       .eq("id", client_id)
-      .eq("user_id", user.id)
       .single();
     if (!clientData) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Client not found" }), { status: 404, headers: corsHeaders });
     }
 
     // Verifica se há pelo menos uma instância no pool ou bridge legada
@@ -167,10 +213,20 @@ Deno.serve(async (req) => {
     const interMin = (clientData.whatsapp_inter_instance_delay_min ?? 1) * 1000;
     const interMax = (clientData.whatsapp_inter_instance_delay_max ?? 3) * 1000;
 
-    // Build recipient list based on tipo
+    // Build recipient list — em modo resume usa items pendentes; senão, busca por tipo
     let recipients: { telefone: string; nome: string }[] = [];
+    let dispatch: any;
 
-    if (tipo === "funcionarios") {
+    if (isResume && existingDispatchId) {
+      const { data: pendingItems } = await adminClient
+        .from("whatsapp_dispatch_items")
+        .select("telefone, nome")
+        .eq("dispatch_id", existingDispatchId)
+        .eq("status", "pendente");
+      recipients = (pendingItems || []).map((r: any) => ({ telefone: r.telefone, nome: r.nome }));
+      dispatch = { id: existingDispatchId };
+      console.log(`[resume] dispatch=${existingDispatchId} pending=${recipients.length}`);
+    } else if (tipo === "funcionarios") {
       const { data } = await adminClient
         .from("funcionarios")
         .select("telefone, nome")
@@ -233,50 +289,75 @@ Deno.serve(async (req) => {
     }
 
     if (recipients.length === 0) {
+      if (isResume && existingDispatchId) {
+        // Sem mais pendentes — finaliza
+        const { data: stats } = await adminClient
+          .from("whatsapp_dispatch_items")
+          .select("status")
+          .eq("dispatch_id", existingDispatchId);
+        const sent = (stats || []).filter((s: any) => s.status === "enviado").length;
+        const failed = (stats || []).filter((s: any) => s.status === "falha").length;
+        await adminClient.from("whatsapp_dispatches").update({
+          enviados: sent,
+          falhas: failed,
+          status: "concluido",
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", existingDispatchId);
+        return new Response(JSON.stringify({ success: true, completed: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       return new Response(
         JSON.stringify({ error: "Nenhum destinatário encontrado" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create dispatch record
-    const { data: dispatch, error: dispatchErr } = await adminClient
-      .from("whatsapp_dispatches")
-      .insert({
-        client_id,
-        tipo,
-        titulo,
-        mensagem_template: mensagem,
-        total_destinatarios: recipients.length,
-        tag_filtro,
-        status: "enviando",
-        started_at: new Date().toISOString(),
-        batch_size: BATCH_SIZE,
-        delay_min_seconds: Math.round(DELAY_MIN_MS / 1000),
-        delay_max_seconds: Math.round(DELAY_MAX_MS / 1000),
-        batch_pause_seconds: Math.round(BATCH_PAUSE_MS / 1000),
-      })
-      .select()
-      .single();
+    if (!isResume) {
+      // Create dispatch record
+      const { data: newDispatch, error: dispatchErr } = await adminClient
+        .from("whatsapp_dispatches")
+        .insert({
+          client_id,
+          tipo,
+          titulo,
+          mensagem_template: mensagem,
+          total_destinatarios: recipients.length,
+          tag_filtro,
+          status: "enviando",
+          started_at: new Date().toISOString(),
+          batch_size: BATCH_SIZE,
+          delay_min_seconds: Math.round(DELAY_MIN_MS / 1000),
+          delay_max_seconds: Math.round(DELAY_MAX_MS / 1000),
+          batch_pause_seconds: Math.round(BATCH_PAUSE_MS / 1000),
+        })
+        .select()
+        .single();
 
-    if (dispatchErr || !dispatch) {
-      throw new Error("Failed to create dispatch: " + dispatchErr?.message);
-    }
+      if (dispatchErr || !newDispatch) {
+        throw new Error("Failed to create dispatch: " + dispatchErr?.message);
+      }
+      dispatch = newDispatch;
 
-    // Create dispatch items
-    const items = recipients.map((r) => ({
-      dispatch_id: dispatch.id,
-      telefone: r.telefone,
-      nome: r.nome,
-    }));
+      // Create dispatch items (status=pendente por padrão)
+      const items = recipients.map((r) => ({
+        dispatch_id: dispatch.id,
+        telefone: r.telefone,
+        nome: r.nome,
+      }));
 
-    for (let i = 0; i < items.length; i += 100) {
-      await adminClient.from("whatsapp_dispatch_items").insert(items.slice(i, i + 100));
+      for (let i = 0; i < items.length; i += 100) {
+        await adminClient.from("whatsapp_dispatch_items").insert(items.slice(i, i + 100));
+      }
     }
 
     const processDispatch = async () => {
-      let sent = 0;
-      let failed = 0;
+      // Em modo resume começamos contadores a partir do que já foi feito
+      const { data: prevStats } = await adminClient
+        .from("whatsapp_dispatch_items")
+        .select("status")
+        .eq("dispatch_id", dispatch.id);
+      let sent = (prevStats || []).filter((s: any) => s.status === "enviado").length;
+      let failed = (prevStats || []).filter((s: any) => s.status === "falha").length;
       let lastInstanceId: string | null = null;
 
       for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
@@ -284,9 +365,9 @@ Deno.serve(async (req) => {
           await adminClient.from("whatsapp_dispatches").update({
             enviados: sent,
             falhas: failed,
-            status: sent > 0 ? "concluido" : "falhou",
-            error_message: `Tempo limite atingido. ${sent} enviados de ${recipients.length}.`,
-            completed_at: new Date().toISOString(),
+            status: "pausado_timeout",
+            pause_reason: `Pausado por tempo limite. Retomando em segundos…`,
+            paused_until: new Date(Date.now() + 5000).toISOString(),
             updated_at: new Date().toISOString(),
           }).eq("id", dispatch.id);
           return;
@@ -296,7 +377,17 @@ Deno.serve(async (req) => {
         const batchItems = recipients.slice(batchStart, batchStart + BATCH_SIZE);
 
         for (const recipient of batchItems) {
-          if (Date.now() - startTime > MAX_RUNTIME_MS) break;
+          if (Date.now() - startTime > MAX_RUNTIME_MS) {
+            await adminClient.from("whatsapp_dispatches").update({
+              enviados: sent,
+              falhas: failed,
+              status: "pausado_timeout",
+              pause_reason: "Pausado por tempo limite. Retomando em segundos…",
+              paused_until: new Date(Date.now() + 5000).toISOString(),
+              updated_at: new Date().toISOString(),
+            }).eq("id", dispatch.id);
+            return;
+          }
 
           // ==== Janela horária ====
           if (windowEnabled && !isWithinWindow(windowStart, windowEnd)) {
