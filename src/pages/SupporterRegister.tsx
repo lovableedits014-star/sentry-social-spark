@@ -12,7 +12,9 @@ import { supabase } from "@/integrations/supabase/client-selfhosted";
 
 type ParsedProfile = {
   platform: "facebook" | "instagram";
-  username: string;
+  username: string | null;
+  /** URL original quando é um link de share que precisa ser resolvido no backend */
+  pendingShareUrl?: string;
 };
 
 function parseProfileUrl(url: string): ParsedProfile | null {
@@ -37,10 +39,11 @@ function parseProfileUrl(url: string): ParsedProfile | null {
   }
 
   // Facebook share link: /share/<id>/, /share/p/<id>/, /share/r/<id>/ etc.
-  // Gerado pelo QR Code / "Compartilhar perfil" → "Copiar link" do app
+  // NÃO geramos placeholder share_xxx (que polui o ranking de engajamento).
+  // Retornamos a URL original e deixamos o backend resolver via redirect.
   const fbShare = clean.match(/(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/share\/(?:[a-z]+\/)?([a-zA-Z0-9._-]+)/i);
   if (fbShare?.[1]) {
-    return { platform: "facebook", username: `share_${fbShare[1]}` };
+    return { platform: "facebook", username: null, pendingShareUrl: trimmed };
   }
 
   const fbPatterns = [
@@ -57,10 +60,10 @@ function parseProfileUrl(url: string): ParsedProfile | null {
     }
   }
 
-  // Instagram share link: /share/<id>/
+  // Instagram share link: /share/<id>/ — também deixa o backend resolver
   const igShare = clean.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/share\/([a-zA-Z0-9._-]+)/i);
   if (igShare?.[1]) {
-    return { platform: "instagram", username: `share_${igShare[1]}` };
+    return { platform: "instagram", username: null, pendingShareUrl: trimmed };
   }
 
   const igPatterns = [
@@ -171,10 +174,19 @@ export default function SupporterRegister() {
       if (fnError) throw fnError;
 
       if (data?.success) {
-        const profiles: ParsedProfile[] = [];
-        if (fbParsed) profiles.push(fbParsed);
-        if (igParsed) profiles.push(igParsed);
+        // Usa os perfis efetivamente resolvidos pelo backend (share links já tratados)
+        const resolved: { platform: "facebook" | "instagram"; username: string }[] =
+          (data as any)?.resolved_profiles || [];
+        const pending: { platform: "facebook" | "instagram"; url: string }[] =
+          (data as any)?.pending_shares || [];
+        const profiles: ParsedProfile[] = [
+          ...resolved.map((p) => ({ platform: p.platform, username: p.username })),
+          ...pending.map((p) => ({ platform: p.platform, username: null, pendingShareUrl: p.url })),
+        ];
         setLinkedProfiles(profiles);
+
+        const fbResolved = resolved.find((p) => p.platform === "facebook")?.username || null;
+        const igResolved = resolved.find((p) => p.platform === "instagram")?.username || null;
 
         // Create auth account
         try {
@@ -194,8 +206,8 @@ export default function SupporterRegister() {
                 client_id: clientId!,
                 name: name.trim(),
                 email: email.trim(),
-                facebook_username: fbParsed?.username || null,
-                instagram_username: igParsed?.username || null,
+                facebook_username: fbResolved,
+                instagram_username: igResolved,
                 referred_by: data.referrer_account_id || null,
                 city: city.trim() || null,
                 neighborhood: neighborhood.trim() || null,
@@ -267,7 +279,9 @@ export default function SupporterRegister() {
                       <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
                     )}
                     <span className="font-medium capitalize">{p.platform}:</span>
-                    <span className="text-muted-foreground">{p.username}</span>
+                    <span className="text-muted-foreground">
+                      {p.username || "vinculação pendente (link de compartilhamento)"}
+                    </span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto shrink-0" />
                   </div>
                 ))}
