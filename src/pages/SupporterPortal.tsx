@@ -352,6 +352,7 @@ export default function SupporterPortal() {
           city: editCity.trim() || null,
           neighborhood: editNeighborhood.trim() || null,
           state: editState.trim() || null,
+          phone: editPhone.trim() ? editPhone.replace(/\D/g, "") : null,
         } as any)
         .eq("id", account.id);
 
@@ -365,6 +366,7 @@ export default function SupporterPortal() {
         city: editCity.trim() || null,
         neighborhood: editNeighborhood.trim() || null,
         state: editState.trim() || null,
+        phone: editPhone.trim() ? editPhone.replace(/\D/g, "") : null,
       });
 
       // Update supporter name too if linked
