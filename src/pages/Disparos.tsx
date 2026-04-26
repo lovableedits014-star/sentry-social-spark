@@ -58,6 +58,8 @@ type TagOption = { nome: string; count: number };
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pendente: { label: "Aguardando", color: "bg-muted text-muted-foreground", icon: Clock },
   enviando: { label: "Enviando...", color: "bg-primary/10 text-primary", icon: Loader2 },
+  pausado_timeout: { label: "Retomando…", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400", icon: Loader2 },
+  pausado_janela: { label: "Aguardando janela", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400", icon: Clock },
   concluido: { label: "Concluído", color: "bg-emerald-500/15 text-emerald-600", icon: CheckCircle },
   falhou: { label: "Falhou", color: "bg-destructive/10 text-destructive", icon: XCircle },
   cancelado: { label: "Cancelado", color: "bg-muted text-muted-foreground", icon: XCircle },
