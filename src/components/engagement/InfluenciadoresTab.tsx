@@ -646,7 +646,17 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const restInfluencers = filtered.slice(3);
 
   return (
-    <div className="space-y-4">
+    <Tabs defaultValue="ranking" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="ranking" className="gap-1.5 text-xs sm:text-sm">
+          <Award className="w-4 h-4" /> Ranking
+        </TabsTrigger>
+        <TabsTrigger value="diagnostico" className="gap-1.5 text-xs sm:text-sm">
+          <Activity className="w-4 h-4" /> Diagnóstico
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="ranking" className="space-y-4 mt-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
