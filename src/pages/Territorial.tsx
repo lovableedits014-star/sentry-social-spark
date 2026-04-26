@@ -67,6 +67,7 @@ function DistributionRow({ label, count, total, color = "bg-primary" }: { label:
 }
 
 export default function Territorial() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUF, setSelectedUF] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
