@@ -630,6 +630,110 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
               </CardContent>
             </Card>
           )}
+
+          {(invalidProfiles.length > 0 || invalidLoading) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Perfis com ID inválido ({invalidProfiles.length})
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Usernames, links de share ou placeholders que não pontuam. Resolva individualmente ou em lote.
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchInvalidProfiles} disabled={invalidLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${invalidLoading ? "animate-spin" : ""}`} />
+                    Atualizar lista
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Apoiador</TableHead>
+                        <TableHead className="w-[110px]">Plataforma</TableHead>
+                        <TableHead>ID atual (inválido)</TableHead>
+                        <TableHead>Username</TableHead>
+                        <TableHead className="w-[140px] text-right">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {invalidLoading && Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`isk-${i}`}>
+                          <TableCell colSpan={5}><Skeleton className="h-5 w-full" /></TableCell>
+                        </TableRow>
+                      ))}
+                      {!invalidLoading && invalidPageRows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">
+                            Nenhum perfil inválido.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!invalidLoading && invalidPageRows.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell>
+                            <span className="text-sm font-medium">
+                              {p.supporter_name || <span className="text-muted-foreground italic">sem nome</span>}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">{p.platform}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs font-mono text-muted-foreground break-all">
+                              {p.platform_user_id || "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs">
+                              {p.platform_username || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleResolveSingle(p.id)}
+                              disabled={resolvingProfileId === p.id}
+                            >
+                              <Wand2 className={`w-3.5 h-3.5 mr-1.5 ${resolvingProfileId === p.id ? "animate-pulse" : ""}`} />
+                              Resolver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {invalidProfiles.length > INVALID_PAGE_SIZE && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Página {invalidPage + 1} de {totalInvalidPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm"
+                        disabled={invalidPage === 0}
+                        onClick={() => setInvalidPage((p) => Math.max(0, p - 1))}>
+                        Anterior
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        disabled={invalidPage + 1 >= totalInvalidPages}
+                        onClick={() => setInvalidPage((p) => p + 1)}>
+                        Próxima
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
