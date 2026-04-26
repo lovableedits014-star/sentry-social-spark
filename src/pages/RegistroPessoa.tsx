@@ -156,17 +156,11 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
         setPasteValue(text);
         setPasteSuccess(true);
         setParseError(false);
-        // Auto-confirm if parseable
-        const platform = SOCIAL_PLATFORMS.find(p => p.id === platformId);
-        if (platform) {
-          const result = platform.parse(text);
-          if (result) {
-            setTimeout(() => {
-              handleConfirm(platformId, text);
-            }, 600); // brief delay so user sees the paste
-            return;
-          }
-        }
+        // Sempre tenta confirmar — handleConfirm já lida com parse local + fallback de servidor
+        setTimeout(() => {
+          handleConfirm(platformId, text);
+        }, 400);
+        return;
       }
     } catch {
       // Clipboard API not available
@@ -308,10 +302,27 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
                   size="default"
                   className="w-full gap-2"
                   onClick={() => handleConfirm(activePlatform, pasteValue)}
+                  disabled={resolving}
                 >
-                  <Check className="w-4 h-4" />
-                  Confirmar
+                  {resolving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Identificando perfil...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Confirmar
+                    </>
+                  )}
                 </Button>
+              )}
+
+              {resolving && pasteSuccess && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Identificando o perfil pelo link… só um instante 🙌</span>
+                </div>
               )}
 
               {parseError && (
