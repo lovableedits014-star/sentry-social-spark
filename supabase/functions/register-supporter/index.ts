@@ -238,7 +238,11 @@ Deno.serve(async (req) => {
           client_id,
           name: name.trim(),
           classification: "apoiador_ativo",
-          notes: [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ") || null,
+          notes: [
+            notes?.trim(),
+            phone?.trim() ? `Tel: ${phone.trim()}` : null,
+            ...pendingShares.map(s => `Share não resolvido (${s.platform}): ${s.url}`),
+          ].filter(Boolean).join(" | ") || null,
         })
         .select()
         .single();
@@ -247,7 +251,11 @@ Deno.serve(async (req) => {
       supporterId = supporter.id;
     } else {
       const updateData: Record<string, unknown> = { classification: "apoiador_ativo" };
-      const extraNotes = [notes?.trim(), phone?.trim() ? `Tel: ${phone.trim()}` : null].filter(Boolean).join(" | ");
+      const extraNotes = [
+        notes?.trim(),
+        phone?.trim() ? `Tel: ${phone.trim()}` : null,
+        ...pendingShares.map(s => `Share não resolvido (${s.platform}): ${s.url}`),
+      ].filter(Boolean).join(" | ");
       if (extraNotes) updateData.notes = extraNotes;
       await supabase.from("supporters").update(updateData).eq("id", supporterId);
     }
