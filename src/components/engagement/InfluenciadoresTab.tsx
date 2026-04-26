@@ -439,6 +439,28 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       replyCountByParent.set(r.parent_comment_id, (replyCountByParent.get(r.parent_comment_id) || 0) + 1);
     }
 
+    // 2.5) Busca reactions/likes (engagement_actions) do período
+    //      action_type != 'comment' (que já contamos via comments).
+    let allReactions: any[] = [];
+    {
+      let rFrom = 0;
+      while (true) {
+        const { data } = await supabase
+          .from("engagement_actions")
+          .select("supporter_id, platform, action_type, action_date, post_id")
+          .eq("client_id", clientId)
+          .in("supporter_id", supporterIds as any)
+          .neq("action_type", "comment")
+          .gte("action_date", since)
+          .range(rFrom, rFrom + pageSize - 1);
+        if (data && data.length > 0) {
+          allReactions = allReactions.concat(data);
+          rFrom += pageSize;
+          if (data.length < pageSize) break;
+        } else break;
+      }
+    }
+
     // Agrupa por supporterId (unifica Facebook + Instagram)
     const map = new Map<string, Influencer>();
     for (const c of allComments) {
