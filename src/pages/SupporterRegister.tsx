@@ -19,14 +19,37 @@ function parseProfileUrl(url: string): ParsedProfile | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
 
+  // Normaliza: remove query string e fragmento para evitar tokens longos
+  // do tipo ?mibextid=...&rdid=... que o app do Facebook adiciona ao "Copiar link"
+  let clean = trimmed;
+  try {
+    const parsed = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    // preserva apenas profile.php?id=
+    if (parsed.pathname.toLowerCase().includes("profile.php")) {
+      const id = parsed.searchParams.get("id");
+      if (id && /^\d+$/.test(id)) {
+        return { platform: "facebook", username: id };
+      }
+    }
+    clean = `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "");
+  } catch {
+    // segue com o trimmed original
+  }
+
+  // Facebook share link: /share/<id>/, /share/p/<id>/, /share/r/<id>/ etc.
+  // Gerado pelo QR Code / "Compartilhar perfil" → "Copiar link" do app
+  const fbShare = clean.match(/(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/share\/(?:[a-z]+\/)?([a-zA-Z0-9._-]+)/i);
+  if (fbShare?.[1]) {
+    return { platform: "facebook", username: `share_${fbShare[1]}` };
+  }
+
   const fbPatterns = [
-    /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/(?:profile\.php\?id=(\d+))/i,
-    /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/([a-zA-Z0-9._-]+)\/?/i,
-    /(?:https?:\/\/)?(?:www\.)?(?:m\.)?fb\.com\/([a-zA-Z0-9._-]+)\/?/i,
+    /(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/([a-zA-Z0-9._-]+)/i,
+    /(?:https?:\/\/)?(?:www\.|m\.)?fb\.com\/([a-zA-Z0-9._-]+)/i,
   ];
-  const fbBlacklist = ["groups","pages","events","watch","marketplace","gaming","reel","stories","photo","permalink","sharer","share","login","home","notifications","messages"];
+  const fbBlacklist = ["groups","pages","events","watch","marketplace","gaming","reel","stories","photo","permalink","sharer","share","login","home","notifications","messages","profile.php"];
   for (const pattern of fbPatterns) {
-    const match = trimmed.match(pattern);
+    const match = clean.match(pattern);
     if (match?.[1]) {
       const u = match[1];
       if (fbBlacklist.includes(u.toLowerCase())) continue;
@@ -34,13 +57,19 @@ function parseProfileUrl(url: string): ParsedProfile | null {
     }
   }
 
+  // Instagram share link: /share/<id>/
+  const igShare = clean.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/share\/([a-zA-Z0-9._-]+)/i);
+  if (igShare?.[1]) {
+    return { platform: "instagram", username: `share_${igShare[1]}` };
+  }
+
   const igPatterns = [
-    /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)\/?/i,
-    /(?:https?:\/\/)?(?:www\.)?instagr\.am\/([a-zA-Z0-9._]+)\/?/i,
+    /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i,
+    /(?:https?:\/\/)?(?:www\.)?instagr\.am\/([a-zA-Z0-9._]+)/i,
   ];
-  const igBlacklist = ["p","reel","stories","explore","direct","accounts","about"];
+  const igBlacklist = ["p","reel","stories","explore","direct","accounts","about","share"];
   for (const pattern of igPatterns) {
-    const match = trimmed.match(pattern);
+    const match = clean.match(pattern);
     if (match?.[1]) {
       const u = match[1];
       if (igBlacklist.includes(u.toLowerCase())) continue;
