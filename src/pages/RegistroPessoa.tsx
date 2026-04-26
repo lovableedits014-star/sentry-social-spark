@@ -80,23 +80,66 @@ function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (socials: Soc
   const [captured, setCaptured] = useState<Record<string, SocialEntry>>({});
   const [parseError, setParseError] = useState(false);
   const [pasteSuccess, setPasteSuccess] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
-  function handleConfirm(platformId: string, value: string) {
+  async function handleConfirm(platformId: string, value: string) {
     const platform = SOCIAL_PLATFORMS.find(p => p.id === platformId);
     if (!platform) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    // 1) Tenta parser local (rápido, sem rede)
     const result = platform.parse(value);
-    if (result) {
-      const newCaptured = { ...captured, [platformId]: { plataforma: platformId, usuario: result.usuario, url_perfil: result.url } };
+    const isLikelyShareLink =
+      platformId === "facebook" && /facebook\.com\/share\//i.test(trimmed);
+
+    if (result && !isLikelyShareLink) {
+      const newCaptured = {
+        ...captured,
+        [platformId]: { plataforma: platformId, usuario: result.usuario, url_perfil: result.url },
+      };
       setCaptured(newCaptured);
       onSocialsChange(Object.values(newCaptured));
       setPasteValue("");
       setActivePlatform(null);
       setParseError(false);
       setPasteSuccess(false);
-    } else {
-      setParseError(true);
-      setPasteSuccess(false);
+      return;
     }
+
+    // 2) Fallback: pede ao servidor pra seguir o redirect (links de share, fb.me, etc)
+    if (/^https?:\/\//i.test(trimmed) || /\.(com|me)\//i.test(trimmed)) {
+      setResolving(true);
+      setParseError(false);
+      try {
+        const { data, error } = await supabase.functions.invoke("resolve-social-link", {
+          body: { url: trimmed, platform: platformId },
+        });
+        if (!error && data?.resolved && data?.usuario) {
+          const newCaptured = {
+            ...captured,
+            [platformId]: {
+              plataforma: platformId,
+              usuario: data.usuario as string,
+              url_perfil: (data.url as string) || trimmed,
+            },
+          };
+          setCaptured(newCaptured);
+          onSocialsChange(Object.values(newCaptured));
+          setPasteValue("");
+          setActivePlatform(null);
+          setPasteSuccess(false);
+          setResolving(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("resolve-social-link falhou", err);
+      }
+      setResolving(false);
+    }
+
+    setParseError(true);
+    setPasteSuccess(false);
   }
 
   function handleRemove(platformId: string) {
