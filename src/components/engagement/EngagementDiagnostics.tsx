@@ -213,6 +213,85 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
 
   useEffect(() => { fetchDiag(); }, [clientId]);
   useEffect(() => { fetchOrphans(orphansPage); }, [clientId, orphansPage]);
+  useEffect(() => { fetchInvalidProfiles(); }, [clientId]);
+
+  const fetchInvalidProfiles = async () => {
+    setInvalidLoading(true);
+    try {
+      const { data: supporters, error: e1 } = await supabase
+        .from("supporters")
+        .select("id, name")
+        .eq("client_id", clientId);
+      if (e1) throw e1;
+      const supportersList = (supporters || []) as { id: string; name: string }[];
+      const supportersMap = new Map(supportersList.map((s) => [s.id, s.name]));
+      const supporterIds = supportersList.map((s) => s.id);
+      if (supporterIds.length === 0) { setInvalidProfiles([]); return; }
+
+      const all: any[] = [];
+      const chunkSize = 200;
+      for (let i = 0; i < supporterIds.length; i += chunkSize) {
+        const chunk = supporterIds.slice(i, i + chunkSize);
+        const pageSize = 1000;
+        let from = 0;
+        while (true) {
+          const { data: page, error } = await supabase
+            .from("supporter_profiles")
+            .select("id, supporter_id, platform, platform_user_id, platform_username")
+            .in("supporter_id", chunk)
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          if (!page || page.length === 0) break;
+          all.push(...page);
+          if (page.length < pageSize) break;
+          from += pageSize;
+        }
+      }
+
+      const invalid: InvalidProfile[] = all
+        .filter((p: any) => !isValidPlatformUserId(p.platform, p.platform_user_id))
+        .map((p: any) => ({
+          id: p.id,
+          supporter_id: p.supporter_id,
+          platform: p.platform,
+          platform_user_id: p.platform_user_id,
+          platform_username: p.platform_username,
+          supporter_name: supportersMap.get(p.supporter_id) || null,
+        }))
+        .sort((a, b) => (a.supporter_name || "").localeCompare(b.supporter_name || ""));
+
+      setInvalidProfiles(invalid);
+      setInvalidPage(0);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao carregar perfis inválidos");
+    } finally {
+      setInvalidLoading(false);
+    }
+  };
+
+  const handleResolveSingle = async (profileId: string) => {
+    setResolvingProfileId(profileId);
+    const tid = toast.loading("Tentando resolver perfil...");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("resolve-supporter-profiles", {
+        body: { client_id: clientId, profile_id: profileId },
+      });
+      if (error) throw error;
+      const res = r as any;
+      const ok = (res?.resolved_via_comments || 0) + (res?.resolved_via_graph || 0) + (res?.resolved_via_share || 0);
+      const detail = Array.isArray(res?.details) ? res.details[0] : null;
+      if (ok > 0 && detail?.new_user_id) {
+        toast.success(`Resolvido para ${detail.new_user_id} (${detail.strategy || "match"})`, { id: tid });
+      } else {
+        toast.error("Não foi possível resolver automaticamente este perfil.", { id: tid });
+      }
+      await Promise.all([fetchDiag(), fetchInvalidProfiles()]);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao resolver perfil", { id: tid });
+    } finally {
+      setResolvingProfileId(null);
+    }
+  };
 
   const handleResolveProfiles = async () => {
     setResolving(true);
