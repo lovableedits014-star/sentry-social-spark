@@ -44,6 +44,7 @@ interface SupporterAccount {
   city: string | null;
   neighborhood: string | null;
   state: string | null;
+  phone?: string | null;
   client_id: string;
   whatsapp_confirmado?: boolean;
 }
