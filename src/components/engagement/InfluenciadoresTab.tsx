@@ -545,11 +545,48 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
       for (const [p, set] of Object.entries(postsByPlat)) {
         if (inf.byPlatform[p]) inf.byPlatform[p].posts = set.size;
       }
+    }
+
+    // Agrega reactions/likes — inclui supporters que SÓ reagiram (sem comentar)
+    for (const r of allReactions) {
+      const supporterId = r.supporter_id as string;
+      if (!supporterId) continue;
+      const meta = supporterMeta.get(supporterId);
+      if (!meta) continue;
+      const platform = (r.platform as string) || "facebook";
+      let inf = map.get(supporterId);
+      if (!inf) {
+        inf = {
+          supporterId, registeredName: meta.name, origin: meta.origin,
+          category: meta.category,
+          authorPicture: null,
+          platforms: new Set<string>(),
+          totalComments: 0, totalReactions: 0,
+          positiveCount: 0, negativeCount: 0, neutralCount: 0,
+          repliesReceived: 0, uniquePosts: 0,
+          firstSeen: r.action_date || "", lastSeen: r.action_date || "", score: 0,
+          byPlatform: {},
+          profileUrls: supporterProfileUrls.get(supporterId) || {},
+          profilePictures: {},
+        };
+        map.set(supporterId, inf);
+      }
+      inf.platforms.add(platform);
+      if (!inf.byPlatform[platform]) inf.byPlatform[platform] = { comments: 0, reactions: 0, replies: 0, posts: 0, pos: 0, neg: 0, neu: 0 };
+      inf.byPlatform[platform].reactions++;
+      inf.totalReactions++;
+      const ts = r.action_date || "";
+      if (!inf.firstSeen || ts < inf.firstSeen) inf.firstSeen = ts;
+      if (ts > inf.lastSeen) inf.lastSeen = ts;
+    }
+
+    // Recalcula score após somar reactions
+    for (const inf of map.values()) {
       inf.score = computeScore(inf);
     }
 
     const sorted = Array.from(map.values())
-      .filter((i) => i.totalComments >= 1)
+      .filter((i) => i.totalComments + i.totalReactions >= 1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
 
