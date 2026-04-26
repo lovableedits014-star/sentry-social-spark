@@ -66,6 +66,10 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
   const [orphansLoading, setOrphansLoading] = useState(false);
   const [orphanTexts, setOrphanTexts] = useState<Record<string, string>>({});
   const [relinkingPage, setRelinkingPage] = useState(false);
+  const [invalidProfiles, setInvalidProfiles] = useState<InvalidProfile[]>([]);
+  const [invalidPage, setInvalidPage] = useState(0);
+  const [invalidLoading, setInvalidLoading] = useState(false);
+  const [resolvingProfileId, setResolvingProfileId] = useState<string | null>(null);
 
   const fetchDiag = async () => {
     setLoading(true);
