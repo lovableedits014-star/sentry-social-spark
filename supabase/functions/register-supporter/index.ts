@@ -6,16 +6,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-function parseProfileUrl(url: string): { platform: "facebook" | "instagram"; username: string } | null {
+type ParsedProfile = {
+  platform: "facebook" | "instagram";
+  /** username/handle/ID já resolvido. Quando null, há `pendingShareUrl` para resolver via redirect. */
+  username: string | null;
+  pendingShareUrl?: string;
+};
+
+function parseProfileUrl(url: string): ParsedProfile | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
 
-  // Facebook share links: https://www.facebook.com/share/XXXXX/ or /share/p/XXXXX/ etc.
+  // Facebook share link → não geramos placeholder; deixamos para o resolver seguir o redirect
   const fbShareMatch = trimmed.match(
     /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/share(?:\/[a-z]+)?\/([a-zA-Z0-9._-]+)\/?/i
   );
   if (fbShareMatch?.[1]) {
-    return { platform: "facebook", username: `share_${fbShareMatch[1]}` };
+    return { platform: "facebook", username: null, pendingShareUrl: trimmed };
   }
 
   const fbPatterns = [
@@ -32,6 +39,14 @@ function parseProfileUrl(url: string): { platform: "facebook" | "instagram"; use
     }
   }
 
+  // Instagram share link → também resolve via redirect
+  const igShareMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?instagram\.com\/share\/([a-zA-Z0-9._-]+)\/?/i
+  );
+  if (igShareMatch?.[1]) {
+    return { platform: "instagram", username: null, pendingShareUrl: trimmed };
+  }
+
   const igPatterns = [
     /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)\/?/i,
     /(?:https?:\/\/)?(?:www\.)?instagr\.am\/([a-zA-Z0-9._]+)\/?/i,
@@ -46,6 +61,30 @@ function parseProfileUrl(url: string): { platform: "facebook" | "instagram"; use
   }
 
   return null;
+}
+
+/** Tenta resolver um link de share chamando a edge function resolve-social-link. */
+async function resolveShareUrl(
+  shareUrl: string,
+  platform: "facebook" | "instagram",
+  supabaseUrl: string,
+  serviceRoleKey: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/resolve-social-link`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: shareUrl, platform }),
+    });
+    const data = await res.json();
+    return data?.resolved && data?.usuario ? String(data.usuario) : null;
+  } catch (e) {
+    console.warn("resolveShareUrl falhou:", e);
+    return null;
+  }
 }
 
 function normalizeName(name: string): string {
