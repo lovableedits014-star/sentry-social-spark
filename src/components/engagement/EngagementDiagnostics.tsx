@@ -369,6 +369,8 @@ export default function EngagementDiagnostics({ clientId }: { clientId: string }
   };
 
   const totalOrphanPages = data ? Math.max(1, Math.ceil(data.orphanActions / ORPHANS_PAGE_SIZE)) : 1;
+  const totalInvalidPages = Math.max(1, Math.ceil(invalidProfiles.length / INVALID_PAGE_SIZE));
+  const invalidPageRows = invalidProfiles.slice(invalidPage * INVALID_PAGE_SIZE, (invalidPage + 1) * INVALID_PAGE_SIZE);
 
   const stats = data;
   const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
