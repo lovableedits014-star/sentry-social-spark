@@ -84,16 +84,22 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const clientIdFilter: string | undefined = body.client_id;
+    const profileIdFilter: string | undefined = body.profile_id;
     const dryRun: boolean = body.dry_run === true;
     const limit: number = Math.min(Number(body.limit ?? 100), 500);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // 1) Buscar perfis problemáticos (com client_id e nome do supporter via join)
-    const { data: rawRows, error } = await supabase
+    let baseQuery = supabase
       .from("supporter_profiles")
-      .select("id, supporter_id, platform, platform_user_id, platform_username, supporters!inner(client_id, name)")
-      .limit(limit * 3);
+      .select("id, supporter_id, platform, platform_user_id, platform_username, supporters!inner(client_id, name)");
+    if (profileIdFilter) {
+      baseQuery = baseQuery.eq("id", profileIdFilter);
+    } else {
+      baseQuery = baseQuery.limit(limit * 3);
+    }
+    const { data: rawRows, error } = await baseQuery;
     if (error) throw error;
 
     // 2) Carregar integrations por client_id em uma query separada
