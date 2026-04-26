@@ -751,8 +751,9 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                     </div>
                     <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">#{idx + 1}</Badge>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">comentários</p></div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div><p className="text-lg font-bold">{inf.totalComments}</p><p className="text-[10px] text-muted-foreground">coment.</p></div>
+                    <div><p className="text-lg font-bold">{inf.totalReactions}</p><p className="text-[10px] text-muted-foreground">reações</p></div>
                     <div><p className="text-lg font-bold">{inf.uniquePosts}</p><p className="text-[10px] text-muted-foreground">posts</p></div>
                     <div><p className="text-lg font-bold">{inf.repliesReceived}</p><p className="text-[10px] text-muted-foreground">respostas</p></div>
                   </div>
@@ -794,6 +795,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                   <TableHead>Nome</TableHead>
                   <TableHead className="hidden sm:table-cell">Redes</TableHead>
                   <TableHead className="text-center hidden sm:table-cell">Comentários</TableHead>
+                  <TableHead className="text-center hidden sm:table-cell">Reações</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Posts</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Respostas</TableHead>
                   <TableHead className="hidden lg:table-cell w-32">Sentimento</TableHead>
@@ -822,6 +824,7 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
                       <PlatformBadges platforms={platformList} breakdown={inf.byPlatform} urls={inf.profileUrls} pictures={inf.profilePictures} />
                     </TableCell>
                     <TableCell className="text-center hidden sm:table-cell">{inf.totalComments}</TableCell>
+                    <TableCell className="text-center hidden sm:table-cell">{inf.totalReactions}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.uniquePosts}</TableCell>
                     <TableCell className="text-center hidden md:table-cell">{inf.repliesReceived}</TableCell>
                     <TableCell className="hidden lg:table-cell">
