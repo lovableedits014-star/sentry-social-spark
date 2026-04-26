@@ -12,7 +12,9 @@ import { supabase } from "@/integrations/supabase/client-selfhosted";
 
 type ParsedProfile = {
   platform: "facebook" | "instagram";
-  username: string;
+  username: string | null;
+  /** URL original quando é um link de share que precisa ser resolvido no backend */
+  pendingShareUrl?: string;
 };
 
 function parseProfileUrl(url: string): ParsedProfile | null {
@@ -37,10 +39,11 @@ function parseProfileUrl(url: string): ParsedProfile | null {
   }
 
   // Facebook share link: /share/<id>/, /share/p/<id>/, /share/r/<id>/ etc.
-  // Gerado pelo QR Code / "Compartilhar perfil" → "Copiar link" do app
+  // NÃO geramos placeholder share_xxx (que polui o ranking de engajamento).
+  // Retornamos a URL original e deixamos o backend resolver via redirect.
   const fbShare = clean.match(/(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/share\/(?:[a-z]+\/)?([a-zA-Z0-9._-]+)/i);
   if (fbShare?.[1]) {
-    return { platform: "facebook", username: `share_${fbShare[1]}` };
+    return { platform: "facebook", username: null, pendingShareUrl: trimmed };
   }
 
   const fbPatterns = [
@@ -57,10 +60,10 @@ function parseProfileUrl(url: string): ParsedProfile | null {
     }
   }
 
-  // Instagram share link: /share/<id>/
+  // Instagram share link: /share/<id>/ — também deixa o backend resolver
   const igShare = clean.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/share\/([a-zA-Z0-9._-]+)/i);
   if (igShare?.[1]) {
-    return { platform: "instagram", username: `share_${igShare[1]}` };
+    return { platform: "instagram", username: null, pendingShareUrl: trimmed };
   }
 
   const igPatterns = [
