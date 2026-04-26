@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { formatCPF, formatPhone, isValidCPF, onlyDigits, translateRegistrationError } from "@/lib/cpf";
 
 interface Props {
   open: boolean;
@@ -63,6 +64,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -87,6 +89,7 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
       setNome(pessoa.nome || "");
       setEmail(pessoa.email || "");
       setTelefone(pessoa.telefone || "");
+      setCpf(pessoa.cpf || "");
       setCidade(pessoa.cidade || "");
       setBairro(pessoa.bairro || "");
       setEndereco(pessoa.endereco || "");
@@ -107,6 +110,11 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
 
   async function handleSave() {
     if (!nome.trim()) { toast.error("Nome é obrigatório"); return; }
+    const cpfDigits = onlyDigits(cpf);
+    if (cpfDigits && !isValidCPF(cpfDigits)) {
+      toast.error("CPF inválido. Verifique os dígitos.");
+      return;
+    }
     setSaving(true);
 
     const tags = tagsStr.split(",").map(t => t.trim()).filter(Boolean);
@@ -114,7 +122,8 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
     const { error } = await supabase.from("pessoas").update({
       nome: nome.trim(),
       email: email.trim() || null,
-      telefone: telefone.trim() || null,
+      telefone: onlyDigits(telefone) || null,
+      cpf: cpfDigits || null,
       cidade: cidade.trim() || null,
       bairro: bairro.trim() || null,
       endereco: endereco.trim() || null,
@@ -134,7 +143,8 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
 
     setSaving(false);
     if (error) {
-      toast.error("Erro ao salvar");
+      const friendly = translateRegistrationError(error);
+      toast.error(friendly || "Erro ao salvar");
       console.error(error);
     } else {
       toast.success("Pessoa atualizada!");
@@ -156,7 +166,12 @@ export default function EditarPessoaDialog({ open, onOpenChange, pessoa, onSucce
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Email</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={255} /></div>
-            <div><Label>Telefone</Label><Input value={telefone} onChange={e => setTelefone(e.target.value)} maxLength={20} /></div>
+            <div><Label>Telefone</Label><Input value={formatPhone(telefone)} onChange={e => setTelefone(onlyDigits(e.target.value))} placeholder="(00) 00000-0000" inputMode="tel" maxLength={16} /></div>
+          </div>
+          <div>
+            <Label>CPF</Label>
+            <Input value={formatCPF(cpf)} onChange={e => setCpf(onlyDigits(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} />
+            <p className="text-xs text-muted-foreground mt-1">Opcional. Usado para evitar cadastros duplicados.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Cidade</Label><Input value={cidade} onChange={e => setCidade(e.target.value)} maxLength={100} /></div>

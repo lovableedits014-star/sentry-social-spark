@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText, MessageCircle, Facebook, Instagram, ClipboardPaste, X, Check, ChevronDown, ChevronUp, Cake } from "lucide-react";
+import { formatCPF, formatPhone, isValidCPF, onlyDigits, translateRegistrationError } from "@/lib/cpf";
 
 const TIPO_OPTIONS = [
   { value: "eleitor", label: "Eleitor" },
@@ -353,6 +354,7 @@ export default function RegistroPessoa() {
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
@@ -386,13 +388,19 @@ export default function RegistroPessoa() {
     if (!bairro.trim()) { setError("Informe seu bairro."); return; }
     if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
 
+    const cpfDigits = onlyDigits(cpf);
+    if (cpfDigits && !isValidCPF(cpfDigits)) {
+      setError("CPF inválido. Verifique os dígitos informados.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     const { data, error: rpcError } = await supabase.rpc("register_pessoa_public", {
       p_client_id: clientId!,
       p_nome: nome.trim(),
-      p_telefone: telefone.trim(),
+      p_telefone: onlyDigits(telefone),
       p_email: email.trim() || null,
       p_cidade: cidade.trim(),
       p_bairro: bairro.trim(),
@@ -401,11 +409,13 @@ export default function RegistroPessoa() {
       p_notas: notas.trim() || null,
       p_socials: socials as unknown as any,
       p_data_nascimento: dataNascimento || null,
-    });
+      p_cpf: cpfDigits || null,
+    } as any);
 
     if (rpcError) {
       console.error("Registration error:", rpcError);
-      setError("Erro ao realizar cadastro. Tente novamente.");
+      const friendly = translateRegistrationError(rpcError);
+      setError(friendly || "Erro ao realizar cadastro. Tente novamente.");
     } else {
       setSuccess(true);
     }
@@ -500,7 +510,13 @@ export default function RegistroPessoa() {
                 <Phone className="w-4 h-4 text-muted-foreground" />
                 Telefone / WhatsApp *
               </Label>
-              <Input id="telefone" value={telefone} onChange={(e) => { setTelefone(e.target.value); setError(""); }} placeholder="(67) 99999-9999" required />
+              <Input id="telefone" value={formatPhone(telefone)} onChange={(e) => { setTelefone(onlyDigits(e.target.value)); setError(""); }} placeholder="(67) 99999-9999" inputMode="tel" maxLength={16} required />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF (opcional)</Label>
+              <Input id="cpf" value={formatCPF(cpf)} onChange={(e) => { setCpf(onlyDigits(e.target.value)); setError(""); }} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} />
+              <p className="text-xs text-muted-foreground">Informar o CPF ajuda a evitar cadastros duplicados.</p>
             </div>
 
             <div className="space-y-2">
