@@ -12,7 +12,7 @@ import WhatsAppGate from "@/components/portal/WhatsAppGate";
 import {
   Shield, LogOut, CheckCircle2, Loader2, ExternalLink, Facebook,
   Instagram, CalendarCheck, UserPlus, Eye, EyeOff, Edit2, Save, X,
-  Bell, Users, MapPin
+  Bell, Users, MapPin, Phone
 } from "lucide-react";
 import { toast } from "sonner";
 import { ReferralPanel } from "@/components/referral/ReferralPanel";
