@@ -10,6 +10,14 @@ function parseProfileUrl(url: string): { platform: "facebook" | "instagram"; use
   const trimmed = url.trim();
   if (!trimmed) return null;
 
+  // Facebook share links: https://www.facebook.com/share/XXXXX/ or /share/p/XXXXX/ etc.
+  const fbShareMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/share(?:\/[a-z]+)?\/([a-zA-Z0-9._-]+)\/?/i
+  );
+  if (fbShareMatch?.[1]) {
+    return { platform: "facebook", username: `share_${fbShareMatch[1]}` };
+  }
+
   const fbPatterns = [
     /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/(?:profile\.php\?id=(\d+))/i,
     /(?:https?:\/\/)?(?:www\.)?(?:m\.)?facebook\.com\/([a-zA-Z0-9._-]+)\/?/i,
