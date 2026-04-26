@@ -546,6 +546,27 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
 
   useEffect(() => { fetchData(); }, [clientId, days]);
 
+  const [resolving, setResolving] = useState(false);
+  const handleResolveProfiles = async () => {
+    if (!clientId) return;
+    setResolving(true);
+    const tid = toast.loading("Resolvendo IDs de perfis...");
+    try {
+      const { data, error } = await supabase.functions.invoke("resolve-supporter-profiles", {
+        body: { client_id: clientId, limit: 200 },
+      });
+      if (error) throw error;
+      const r = data as { total: number; resolved_via_comments: number; resolved_via_graph: number; resolved_via_share: number; failed: number };
+      const ok = (r?.resolved_via_comments || 0) + (r?.resolved_via_graph || 0) + (r?.resolved_via_share || 0);
+      toast.success(`${ok} de ${r?.total ?? 0} perfis corrigidos. ${r?.failed ?? 0} falharam.`, { id: tid });
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao resolver perfis", { id: tid });
+    } finally {
+      setResolving(false);
+    }
+  };
+
   // Categorias presentes nos dados (para mostrar só chips relevantes)
   const availableCategories = Array.from(new Set(influencers.map((i) => i.category))).sort();
   const categoryCounts = influencers.reduce<Record<string, number>>((acc, i) => {
