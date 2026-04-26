@@ -25,6 +25,7 @@ interface ProfileRow {
   platform_user_id: string;
   platform_username: string | null;
   client_id: string;
+  supporter_name: string | null;
   meta_access_token: string | null;
   meta_page_id: string | null;
 }
