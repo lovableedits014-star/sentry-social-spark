@@ -11,6 +11,10 @@ import { useState, useMemo } from "react";
 import { format, subDays, startOfDay, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BrazilMap } from "@/components/territorial/BrazilMap";
+import { LocalityDetailDialog } from "@/components/territorial/LocalityDetailDialog";
+import { MergeLocalitiesDialog } from "@/components/territorial/MergeLocalitiesDialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Merge } from "lucide-react";
 import { resolveUF, ufName, ufRegion, UF_LIST } from "@/lib/brazil-geo";
 
 interface LocationGroup {
@@ -66,6 +70,20 @@ export default function Territorial() {
   const [search, setSearch] = useState("");
   const [selectedUF, setSelectedUF] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+
+  // Drill-down dialog state
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLevel, setDetailLevel] = useState<"city" | "neighborhood">("city");
+  const [detailCity, setDetailCity] = useState<string>("");
+  const [detailNeigh, setDetailNeigh] = useState<string | null>(null);
+
+  // Merge selection state
+  const [selectedCityNames, setSelectedCityNames] = useState<Set<string>>(new Set());
+  const [selectedNeighNames, setSelectedNeighNames] = useState<Set<string>>(new Set());
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeField, setMergeField] = useState<"cidade" | "bairro">("cidade");
+  const [mergeVariants, setMergeVariants] = useState<Array<{ name: string; count: number }>>([]);
+  const [mergeParentCity, setMergeParentCity] = useState<string | null>(null);
 
   const { data: client } = useQuery({
     queryKey: ["client"],
