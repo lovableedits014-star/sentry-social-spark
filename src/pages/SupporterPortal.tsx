@@ -582,6 +582,48 @@ export default function SupporterPortal() {
   }
 
   // ─── PORTAL SCREEN ────────────────────────────────────────────────────────
+  // Onboarding obrigatório: telefone é exigido para acessar o portal
+  if (account && clientId && account.whatsapp_confirmado && !account.phone) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="w-5 h-5 text-primary" />
+              Complete seu cadastro
+            </CardTitle>
+            <CardDescription>
+              Para acessar o portal, precisamos do seu WhatsApp. É por ele que enviamos missões e mensagens importantes da campanha.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <Label>WhatsApp <span className="text-destructive">*</span></Label>
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="(11) 91234-5678"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Apenas números — DDD + número.
+              </p>
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleSaveProfile}
+              disabled={savingProfile || editPhone.replace(/\D/g, "").length < 10}
+            >
+              {savingProfile ? "Salvando..." : "Continuar"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
       {/* WhatsApp anti-ban gate — required on first access */}
