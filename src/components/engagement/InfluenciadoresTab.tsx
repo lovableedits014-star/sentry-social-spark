@@ -11,8 +11,10 @@ import {
 import {
   Users, RefreshCw, Award, Crown, Medal, Trophy, Star, ThumbsUp, ThumbsDown, Minus, Facebook, Instagram,
 } from "lucide-react";
-import { Wand2 } from "lucide-react";
+import { Wand2, Activity } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EngagementDiagnostics from "./EngagementDiagnostics";
 
 type Influencer = {
   supporterId: string;
@@ -644,7 +646,17 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
   const restInfluencers = filtered.slice(3);
 
   return (
-    <div className="space-y-4">
+    <Tabs defaultValue="ranking" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="ranking" className="gap-1.5 text-xs sm:text-sm">
+          <Award className="w-4 h-4" /> Ranking
+        </TabsTrigger>
+        <TabsTrigger value="diagnostico" className="gap-1.5 text-xs sm:text-sm">
+          <Activity className="w-4 h-4" /> Diagnóstico
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="ranking" className="space-y-4 mt-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -839,6 +851,11 @@ export default function InfluenciadoresTab({ clientId }: { clientId: string }) {
           </CardContent>
         </Card>
       )}
-    </div>
+      </TabsContent>
+
+      <TabsContent value="diagnostico" className="mt-0">
+        <EngagementDiagnostics clientId={clientId} />
+      </TabsContent>
+    </Tabs>
   );
 }
