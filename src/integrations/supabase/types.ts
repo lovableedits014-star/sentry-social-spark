@@ -867,6 +867,7 @@ export type Database = {
           client_id: string
           contrato_aceito: boolean
           contrato_aceito_em: string | null
+          cpf: string | null
           created_at: string
           email: string | null
           endereco: string | null
@@ -897,6 +898,7 @@ export type Database = {
           client_id: string
           contrato_aceito?: boolean
           contrato_aceito_em?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -927,6 +929,7 @@ export type Database = {
           client_id?: string
           contrato_aceito?: boolean
           contrato_aceito_em?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -1408,6 +1411,7 @@ export type Database = {
           bairro: string | null
           cidade: string | null
           client_id: string
+          cpf: string | null
           created_at: string
           email: string | null
           endereco: string | null
@@ -1428,6 +1432,7 @@ export type Database = {
           bairro?: string | null
           cidade?: string | null
           client_id: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -1448,6 +1453,7 @@ export type Database = {
           bairro?: string | null
           cidade?: string | null
           client_id?: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -1836,6 +1842,7 @@ export type Database = {
           classificacao_politica: string
           client_id: string
           contratado_id: string | null
+          cpf: string | null
           created_at: string
           data_nascimento: string | null
           email: string | null
@@ -1864,6 +1871,7 @@ export type Database = {
           classificacao_politica?: string
           client_id: string
           contratado_id?: string | null
+          cpf?: string | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
@@ -1892,6 +1900,7 @@ export type Database = {
           classificacao_politica?: string
           client_id?: string
           contratado_id?: string | null
+          cpf?: string | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
@@ -2475,6 +2484,7 @@ export type Database = {
         Row: {
           city: string | null
           client_id: string
+          cpf: string | null
           created_at: string
           email: string
           facebook_username: string | null
@@ -2494,6 +2504,7 @@ export type Database = {
         Insert: {
           city?: string | null
           client_id: string
+          cpf?: string | null
           created_at?: string
           email: string
           facebook_username?: string | null
@@ -2513,6 +2524,7 @@ export type Database = {
         Update: {
           city?: string | null
           client_id?: string
+          cpf?: string | null
           created_at?: string
           email?: string
           facebook_username?: string | null
@@ -3326,6 +3338,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      is_valid_cpf: { Args: { cpf: string }; Returns: boolean }
       link_orphan_engagement_actions: {
         Args: { p_client_id: string }
         Returns: number
@@ -3342,6 +3355,7 @@ export type Database = {
       }
       normalize_br_phone: { Args: { p_raw: string }; Returns: string }
       normalize_person_name: { Args: { p_name: string }; Returns: string }
+      only_digits: { Args: { input: string }; Returns: string }
       pick_healthy_whatsapp_instance: {
         Args: { p_client_id: string }
         Returns: string
