@@ -19,7 +19,11 @@ import {
 import { useContextoArte } from "@/hooks/useContextoArte";
 
 type CandidatePhoto = { id: string; photo_url: string; label: string | null };
-type CandidateIdentity = { logo_url: string | null };
+type CandidateContext = {
+  name: string | null;
+  cargo: string | null;
+  logo_url: string | null;
+};
 
 type Props =
   | {
@@ -77,14 +81,17 @@ export function PromptArteButton(props: Props) {
   }, []);
 
   const identityQuery = useQuery({
-    queryKey: ["candidate-identity", clientId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("candidate_identity")
-        .select("logo_url")
-        .eq("client_id", clientId!)
-        .maybeSingle();
-      return (data ?? null) as CandidateIdentity | null;
+    queryKey: ["arte-candidate-context", clientId],
+    queryFn: async (): Promise<CandidateContext> => {
+      const [{ data: client }, { data: identity }] = await Promise.all([
+        supabase.from("clients").select("name, cargo").eq("id", clientId!).maybeSingle(),
+        supabase.from("candidate_identity").select("logo_url").eq("client_id", clientId!).maybeSingle(),
+      ]);
+      return {
+        name: client?.name ?? null,
+        cargo: client?.cargo ?? null,
+        logo_url: identity?.logo_url ?? null,
+      };
     },
     enabled: !!clientId && open,
   });
@@ -103,10 +110,21 @@ export function PromptArteButton(props: Props) {
   });
 
   const photos = photosQuery.data ?? [];
-  const logoUrl = identityQuery.data?.logo_url ?? undefined;
+  const candidateCtx = identityQuery.data;
+  const logoUrl = candidateCtx?.logo_url ?? undefined;
   const selectedPhoto = photos.find((p) => p.id === photoId);
 
-  // Quando abre, sincroniza draft com o contexto atual
+  // Quando a Identidade da Campanha carrega, hidrata o draft com nome+cargo automaticamente
+  useEffect(() => {
+    if (!open || !candidateCtx) return;
+    setDraft((d) => ({
+      ...d,
+      nomeCandidato: candidateCtx.name ?? d.nomeCandidato,
+      cargo: candidateCtx.cargo ?? d.cargo,
+    }));
+  }, [open, candidateCtx]);
+
+  // Quando abre, sincroniza draft com o contexto persistido (localStorage)
   const handleOpen = (v: boolean) => {
     setOpen(v);
     if (v) setDraft(ctx);
