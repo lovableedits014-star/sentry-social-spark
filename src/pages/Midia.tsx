@@ -121,7 +121,8 @@ const MidiaPage = () => {
   const [municipio, setMunicipio] = useState<string>("");
   const [country, setCountry] = useState<string>("BR");
   const [timespan, setTimespan] = useState<string>("7d");
-  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
+  const [sources, setSources] = useState<{ gdelt: boolean; google_news: boolean }>({ gdelt: true, google_news: true });
+  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string; src: string } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
