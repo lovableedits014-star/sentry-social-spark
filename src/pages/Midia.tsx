@@ -959,6 +959,12 @@ const MidiaPage = () => {
                         {a.title || "(sem título)"}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] h-4 px-1 ${a.source === "google_news" ? "border-blue-500/40 text-blue-700 dark:text-blue-400" : "border-violet-500/40 text-violet-700 dark:text-violet-400"}`}
+                        >
+                          {sourceLabel(a.source)}
+                        </Badge>
                         <span className="font-mono">{a.domain}</span>
                         <span>·</span>
                         <span>{fmtDate(a.seendate)}</span>
