@@ -418,19 +418,15 @@ export default function Territorial() {
   }, [allGeoEntries, selectedUF, selectedCity]);
 
   const growthStats = useMemo(() => {
-    if (!supporters) return null;
+    if (!allGeoEntries) return null;
     const now = Date.now();
     const d30 = 30 * 24 * 60 * 60 * 1000;
-    const allEntries = [
-      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, created_at: s.created_at })),
-      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, created_at: i.created_at })),
-    ];
-    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
+    const withLoc = allGeoEntries.filter(s => s.city || s.neighborhood);
     const last30 = withLoc.filter(s => now - new Date(s.created_at).getTime() < d30).length;
     const prev30 = withLoc.filter(s => { const diff = now - new Date(s.created_at).getTime(); return diff >= d30 && diff < d30 * 2; }).length;
     const change = prev30 > 0 ? Math.round(((last30 - prev30) / prev30) * 100) : last30 > 0 ? 100 : 0;
     return { last30, prev30, change };
-  }, [supporters, confirmedIndicados]);
+  }, [allGeoEntries]);
 
   const maxCount = groups.length > 0 ? groups[0].count : 1;
 
@@ -480,16 +476,25 @@ export default function Territorial() {
   // RECRUITMENT computed
   // ═══════════════════════════════════════
   const mergedPessoas = useMemo(() => {
-    const seenNames = new Set<string>();
-    const dedup = (list: PessoaRow[]): PessoaRow[] => {
-      const result: PessoaRow[] = [];
-      for (const p of list) {
-        const key = p.nome.trim().toLowerCase();
-        if (!seenNames.has(key)) { seenNames.add(key); result.push(p); }
-      }
-      return result;
-    };
-    const merged = [...dedup(allPessoas || []), ...dedup(contratadoRows || []), ...dedup(indicadoRows || [])];
+    const source = [...(allPessoas || []), ...(contratadoRows || []), ...(indicadoRows || [])];
+    const merged = dedupeByPerson(source.map((p) => ({
+      ...p,
+      name: p.nome,
+      phone: p.telefone,
+      city: p.cidade,
+      neighborhood: p.bairro,
+    }))).map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      cidade: p.cidade,
+      bairro: p.bairro,
+      telefone: p.telefone,
+      cpf: p.cpf,
+      supporter_id: p.supporter_id,
+      tipo_pessoa: p.tipo_pessoa,
+      origem_contato: p.origem_contato,
+      created_at: p.created_at,
+    }));
     merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return merged;
   }, [allPessoas, contratadoRows, indicadoRows]);
