@@ -9,159 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2, CheckCircle2, AlertCircle, MapPin, Phone, FileText,
   MessageCircle, Briefcase, Eye, EyeOff, Mail, Lock, Cake,
-  Instagram, Facebook, ClipboardPaste, X, Check, ChevronDown, ChevronUp,
 } from "lucide-react";
-
-// ─── Social Link Capture (reused from RegistroPessoa pattern) ────────────────
-interface SocialEntry { plataforma: string; usuario: string; url_perfil: string; }
-
-const SOCIAL_PLATFORMS = [
-  {
-    id: "instagram", label: "Instagram", icon: Instagram, color: "text-pink-500",
-    bgColor: "bg-pink-50 dark:bg-pink-950/20 border-pink-200 dark:border-pink-800",
-    activeBg: "bg-pink-100 dark:bg-pink-950/40", emoji: "📸",
-    steps: [
-      { text: "Abra o Instagram no celular", emoji: "📱" },
-      { text: "Vá ao seu perfil (ícone no canto inferior direito)", emoji: "👤" },
-      { text: "Toque em \"Compartilhar Perfil\"", emoji: "⚙️" },
-      { text: 'Toque em "Copiar Link"', emoji: "🔗" },
-      { text: "Volte aqui e toque COLAR 👇", emoji: "✅" },
-    ],
-    helpImage: "/assets/help-instagram.png",
-    parse: (input: string) => {
-      const m = input.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
-      if (m) return { usuario: m[1], url: `https://instagram.com/${m[1]}` };
-      const c = input.trim().replace(/^@/, "").replace(/\/$/, "");
-      if (c && /^[a-zA-Z0-9._]+$/.test(c)) return { usuario: c, url: `https://instagram.com/${c}` };
-      return null;
-    },
-  },
-  {
-    id: "facebook", label: "Facebook", icon: Facebook, color: "text-blue-600",
-    bgColor: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800",
-    activeBg: "bg-blue-100 dark:bg-blue-950/40", emoji: "👍",
-    steps: [
-      { text: "Abra o Facebook no celular", emoji: "📱" },
-      { text: "Toque na sua foto de perfil", emoji: "👤" },
-      { text: "Toque em \"Compartilhar perfil\" → \"Copiar link\"", emoji: "🔗" },
-      { text: "Volte aqui e toque COLAR 👇", emoji: "✅" },
-    ],
-    helpImage: "/assets/help-facebook.png",
-    parse: (input: string) => {
-      const m = input.match(/(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/(?:profile\.php\?id=)?([a-zA-Z0-9.]+)/i);
-      if (m) return { usuario: m[1], url: input.trim() };
-      const c = input.trim().replace(/\/$/, "");
-      if (c && /^[a-zA-Z0-9.]+$/.test(c)) return { usuario: c, url: `https://facebook.com/${c}` };
-      return null;
-    },
-  },
-];
-
-function SocialLinkCapture({ onSocialsChange }: { onSocialsChange: (s: SocialEntry[]) => void }) {
-  const [activePlatform, setActivePlatform] = useState<string | null>(null);
-  const [pasteValue, setPasteValue] = useState("");
-  const [captured, setCaptured] = useState<Record<string, SocialEntry>>({});
-  const [parseError, setParseError] = useState(false);
-  const [pasteSuccess, setPasteSuccess] = useState(false);
-
-  function handleConfirm(pid: string, value: string) {
-    const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
-    if (!p) return;
-    const r = p.parse(value);
-    if (r) {
-      const n = { ...captured, [pid]: { plataforma: pid, usuario: r.usuario, url_perfil: r.url } };
-      setCaptured(n); onSocialsChange(Object.values(n));
-      setPasteValue(""); setActivePlatform(null); setParseError(false); setPasteSuccess(false);
-    } else { setParseError(true); setPasteSuccess(false); }
-  }
-
-  function handleRemove(pid: string) {
-    const n = { ...captured }; delete n[pid]; setCaptured(n); onSocialsChange(Object.values(n));
-  }
-
-  async function handlePaste(pid: string) {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setPasteValue(text); setPasteSuccess(true); setParseError(false);
-        const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
-        if (p?.parse(text)) setTimeout(() => handleConfirm(pid, text), 600);
-      }
-    } catch {}
-  }
-
-  return (
-    <div className="space-y-3">
-      <Label className="text-sm font-medium">Redes Sociais (opcional)</Label>
-      <p className="text-xs text-muted-foreground">Conecte suas redes para receber missões de interação 😊</p>
-      <div className="flex flex-wrap gap-2">
-        {SOCIAL_PLATFORMS.map(p => {
-          const Icon = p.icon; const done = !!captured[p.id];
-          return (
-            <button key={p.id} type="button"
-              onClick={() => { if (done) return; setActivePlatform(activePlatform === p.id ? null : p.id); setPasteValue(""); setParseError(false); setPasteSuccess(false); }}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${done ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 text-emerald-700" : activePlatform === p.id ? `${p.activeBg} border-2 ${p.color} shadow-sm` : `${p.bgColor} ${p.color} hover:opacity-80`}`}
-            >
-              <span className="text-base">{p.emoji}</span><Icon className="w-4 h-4" />{p.label}
-              {done && <Check className="w-3.5 h-3.5" />}
-              {!done && (activePlatform === p.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5 opacity-40" />)}
-            </button>
-          );
-        })}
-      </div>
-      {Object.entries(captured).map(([pid, entry]) => {
-        const p = SOCIAL_PLATFORMS.find(x => x.id === pid); if (!p) return null;
-        const Icon = p.icon;
-        return (
-          <div key={pid} className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200">
-            <span>✅</span><Icon className="w-4 h-4 text-emerald-600" />
-            <span className="text-sm text-emerald-700 flex-1 truncate font-medium">@{entry.usuario}</span>
-            <button type="button" onClick={() => handleRemove(pid)} className="text-muted-foreground hover:text-destructive p-1"><X className="w-3.5 h-3.5" /></button>
-          </div>
-        );
-      })}
-      {activePlatform && !captured[activePlatform] && (() => {
-        const p = SOCIAL_PLATFORMS.find(x => x.id === activePlatform); if (!p) return null;
-        const Icon = p.icon;
-        return (
-          <div className={`rounded-xl border-2 p-4 space-y-4 ${p.bgColor} animate-in slide-in-from-top-2`}>
-            <div className="flex items-center gap-2"><span className="text-lg">{p.emoji}</span><Icon className={`w-5 h-5 ${p.color}`} /><span className="font-semibold text-sm">Passo a passo — {p.label}</span></div>
-            <div className="space-y-2">
-              {p.steps.map((s, i) => (
-                <div key={i} className={`flex items-start gap-2.5 p-2 rounded-lg text-sm ${i === p.steps.length - 1 ? "bg-primary/10 border border-primary/20 font-semibold" : "text-muted-foreground"}`}>
-                  <span className="text-base shrink-0 mt-0.5">{s.emoji}</span>
-                  <span><span className="font-bold text-foreground mr-1.5">{i + 1}.</span>{s.text}</span>
-                </div>
-              ))}
-            </div>
-            {p.helpImage && (
-              <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
-                <img src={p.helpImage} alt={`Como copiar link do ${p.label}`} className="w-full h-auto" />
-              </div>
-            )}
-            <div className="space-y-2 pt-1">
-              <Button type="button" size="lg" variant="outline" className="w-full gap-2 text-base font-semibold border-2 border-dashed border-primary/40 hover:border-primary py-5" onClick={() => handlePaste(activePlatform)}>
-                <ClipboardPaste className="w-5 h-5" />📋 Tocar aqui para COLAR o link
-              </Button>
-              {pasteSuccess && pasteValue && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm"><span>✅</span><span className="text-emerald-700 truncate flex-1">{pasteValue}</span></div>
-              )}
-              <Input value={pasteValue} onChange={e => { setPasteValue(e.target.value); setParseError(false); setPasteSuccess(false); }} placeholder="Ou digite/cole o link aqui..." className="bg-background text-sm" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleConfirm(activePlatform, pasteValue))} />
-              {pasteValue && !pasteSuccess && (
-                <Button type="button" className="w-full gap-2" onClick={() => handleConfirm(activePlatform, pasteValue)}><Check className="w-4 h-4" />Confirmar</Button>
-              )}
-              {parseError && (
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-                  <span>❌</span><div><p className="font-medium">Não conseguimos identificar o perfil</p><p className="text-xs mt-0.5 opacity-80">Tente copiar o link novamente seguindo os passos acima.</p></div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
+import SocialConnectGroup, { type SocialEntry } from "@/components/pessoas/SocialConnectGroup";
 
 // ─── Main Registration Page ──────────────────────────────────────────────────
 export default function RegistroContratado() {
@@ -391,7 +240,7 @@ export default function RegistroContratado() {
               <Input id="data_nascimento" type="date" value={dataNascimento} onChange={e => { setDataNascimento(e.target.value); setError(""); }} required />
             </div>
 
-            <SocialLinkCapture onSocialsChange={setSocials} />
+            <SocialConnectGroup searchName={nome} onSocialsChange={setSocials} />
 
             <div className="space-y-2">
               <Label htmlFor="notas" className="flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Observação (opcional)</Label>
