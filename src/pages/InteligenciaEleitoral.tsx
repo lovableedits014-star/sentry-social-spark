@@ -284,7 +284,7 @@ const InteligenciaEleitoral = () => {
     aoa.push([]);
     aoa.push(["", "TOTAL", "", "", "", totalVotos, 1]);
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
 
     // larguras de coluna
     ws["!cols"] = [
@@ -436,9 +436,9 @@ const InteligenciaEleitoral = () => {
     ws["!freeze"] = { xSplit: 0, ySplit: dataStart } as any;
     (ws as any)["!views"] = [{ state: "frozen", ySplit: dataStart }];
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Por local");
-    XLSX.writeFile(wb, `votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`);
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, "Por local");
+    XLSXStyle.writeFile(wb, `votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`);
   };
 
   const exportarRankingLocal = () => {
