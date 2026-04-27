@@ -20,6 +20,7 @@ import { AlertasWidget } from "@/components/dashboard/AlertasWidget";
 import { AuditPanel } from "@/components/dashboard/AuditPanel";
 import { DataHealthAlerts } from "@/components/dashboard/DataHealthAlerts";
 import { SuggestedActions } from "@/components/dashboard/SuggestedActions";
+import { FeriadosWidget } from "@/components/dashboard/FeriadosWidget";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EyeOff } from "lucide-react";
 import { exportDashboardPdf } from "@/lib/dashboard-pdf-export";
@@ -681,6 +682,9 @@ const Dashboard = () => {
 
       {/* Alertas Widget */}
       {clientId && <AlertasWidget clientId={clientId} />}
+
+      {/* Feriados Nacionais — apoio à agenda da campanha */}
+      <FeriadosWidget />
 
       {/* Unified Overview */}
       {clientId && <DashboardOverview clientId={clientId} />}
