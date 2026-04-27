@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +14,8 @@ import EvolucaoPartidos from "@/components/inteligencia/EvolucaoPartidos";
 import MapaCalorMunicipios from "@/components/inteligencia/MapaCalorMunicipios";
 import SimuladorChapa from "@/components/inteligencia/SimuladorChapa";
 import CampoGrandeAnalise from "@/components/inteligencia/cg/CampoGrandeAnalise";
+import { EleitoralFiltersProvider, useEleitoralFilters } from "@/components/inteligencia/_shared/EleitoralFiltersContext";
+import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeBar";
 
 type CoverageRow = {
   ano: number;
@@ -24,15 +27,22 @@ type CoverageRow = {
 
 const fmt = (n: number) => n.toLocaleString("pt-BR");
 
-const InteligenciaEleitoral = () => {
+const InteligenciaEleitoralInner = () => {
+  const f = useEleitoralFilters();
+
   // KPIs contextuais — cobertura global do dataset TSE
   const { data: coverage } = useQuery<CoverageRow[]>({
-    queryKey: ["tse-coverage-global"],
+    queryKey: ["tse-coverage-global", f.uf, f.municipio, f.anoMode, f.cargo],
     staleTime: Infinity,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q: any = supabase
         .from("tse_votacao_zona" as any)
-        .select("ano,uf,cod_municipio,numero,partido,votos");
+        .select("ano,uf,cod_municipio,numero,partido,votos,cargo,municipio");
+      if (f.uf !== "__all__") q = q.eq("uf", f.uf);
+      if (f.municipio !== "__all__") q = q.eq("municipio", f.municipio);
+      if (f.cargo !== "__all__") q = q.eq("cargo", f.cargo);
+      if (f.anoMode !== "ambos") q = q.eq("ano", Number(f.anoMode));
+      const { data, error } = await q;
       if (error) throw error;
       const byAno = new Map<number, { ufs: Set<string>; munis: Set<number>; cands: Set<string>; votos: number }>();
       (data as any[] || []).forEach((r) => {
@@ -53,6 +63,15 @@ const InteligenciaEleitoral = () => {
   const totalMunicipios = Math.max(0, ...(coverage || []).map((r) => r.municipios));
   const totalCandidatos = (coverage || []).reduce((s, r) => s + r.candidatos, 0);
   const anosCobertos = (coverage || []).map((r) => r.ano);
+
+  const escopoLabel = useMemo(() => {
+    const partes: string[] = [];
+    partes.push(f.uf === "__all__" ? "Brasil" : f.uf);
+    if (f.municipio !== "__all__") partes.push(f.municipio);
+    partes.push(f.cargo === "__all__" ? "todos cargos" : f.cargo);
+    partes.push(f.anoMode === "ambos" ? "2022+2024" : f.anoMode);
+    return partes.join(" · ");
+  }, [f]);
 
   return (
     <div className="p-6 space-y-6">
@@ -81,11 +100,14 @@ const InteligenciaEleitoral = () => {
         </div>
       </div>
 
-      {/* KPIs contextuais */}
+      {/* Barra de escopo global (filtros + breadcrumb) */}
+      <EleitoralScopeBar />
+
+      {/* KPIs contextuais — reagem ao escopo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2"><Trophy className="w-4 h-4" /> Total de votos</CardDescription>
+            <CardDescription className="flex items-center gap-2"><Trophy className="w-4 h-4" /> Total de votos · {escopoLabel}</CardDescription>
             <CardTitle className="text-2xl">{fmt(totalVotos)}</CardTitle>
           </CardHeader>
         </Card>
@@ -211,5 +233,11 @@ const InteligenciaEleitoral = () => {
     </div>
   );
 };
+
+const InteligenciaEleitoral = () => (
+  <EleitoralFiltersProvider>
+    <InteligenciaEleitoralInner />
+  </EleitoralFiltersProvider>
+);
 
 export default InteligenciaEleitoral;
