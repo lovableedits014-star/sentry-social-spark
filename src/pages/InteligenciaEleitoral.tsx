@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import * as XLSXStyle from "xlsx-js-style";
 
 type Row = {
   id: number;
