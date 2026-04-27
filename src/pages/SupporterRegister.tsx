@@ -7,12 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, HelpCircle, ChevronDown, ChevronUp, IdCard, Cake } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, IdCard, Cake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
 import { useCpfCheck } from "@/hooks/use-cpf-check";
 import { CpfStatusIndicator } from "@/components/ui/cpf-status-indicator";
+import SocialConnectFlow, { type ConnectedSocial } from "@/components/pessoas/SocialConnectFlow";
 
 type ParsedProfile = {
   platform: "facebook" | "instagram";
@@ -95,10 +96,8 @@ export default function SupporterRegister() {
   const refCode = searchParams.get("ref") || "";
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
-  const [facebookUrl, setFacebookUrl] = useState("");
-  const [instagramUrl, setInstagramUrl] = useState("");
-  const [showFbHelp, setShowFbHelp] = useState(false);
-  const [showIgHelp, setShowIgHelp] = useState(false);
+  const [facebookConn, setFacebookConn] = useState<ConnectedSocial | null>(null);
+  const [instagramConn, setInstagramConn] = useState<ConnectedSocial | null>(null);
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [email, setEmail] = useState("");
@@ -133,10 +132,6 @@ export default function SupporterRegister() {
         }
       });
   }, [refCode, clientId]);
-
-  // Real-time parse preview
-  const fbParsed = parseProfileUrl(facebookUrl);
-  const igParsed = parseProfileUrl(instagramUrl);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,8 +185,8 @@ export default function SupporterRegister() {
           client_id: clientId,
           name: name.trim(),
           cpf: cpfDigits(cpf),
-          facebook_url: facebookUrl.trim() || null,
-          instagram_url: instagramUrl.trim() || null,
+          facebook_url: facebookConn?.url || null,
+          instagram_url: instagramConn?.url || null,
           phone: phone.trim(),
           birth_date: birthDate,
           endereco: rua.trim(),
