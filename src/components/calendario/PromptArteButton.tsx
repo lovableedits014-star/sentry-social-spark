@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Copy, Check, ExternalLink } from "lucide-react";
+import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client-selfhosted";
 import {
   buildPromptArteFeriado,
   buildPromptArteTemaMes,
@@ -48,12 +49,18 @@ export function PromptArteButton(props: Props) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState<ContextoArte>(ctx);
+  const [gerando, setGerando] = useState(false);
+  const [imagemUrl, setImagemUrl] = useState<string | null>(null);
+  const [qualidade, setQualidade] = useState<"fast" | "pro">("fast");
 
   // Quando abre, sincroniza draft com o contexto atual
   const handleOpen = (v: boolean) => {
     setOpen(v);
     if (v) setDraft(ctx);
-    if (!v) setCopied(false);
+    if (!v) {
+      setCopied(false);
+      setImagemUrl(null);
+    }
   };
 
   const prompt = buildPrompt(props, draft);
@@ -69,6 +76,54 @@ export function PromptArteButton(props: Props) {
     } catch {
       toast.error("Não foi possível copiar. Selecione o texto e copie manualmente.");
     }
+  };
+
+  const gerarArte = async () => {
+    setGerando(true);
+    setImagemUrl(null);
+    update(draft); // persiste contexto
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-arte-feriado", {
+        body: { prompt, qualidade },
+      });
+      if (error) throw error;
+      const payload = data as { imageUrl?: string; error?: string };
+      if (payload.error) throw new Error(payload.error);
+      if (!payload.imageUrl) throw new Error("Nenhuma imagem retornada");
+      setImagemUrl(payload.imageUrl);
+      toast.success("Arte gerada! Confira o preview abaixo.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      // Mensagens amigáveis para erros conhecidos
+      if (msg.toLowerCase().includes("saldo") || msg.includes("402")) {
+        toast.error(
+          "Saldo de IA esgotado. Adicione créditos em Cloud → AI balance.",
+          { duration: 6000 },
+        );
+      } else if (msg.toLowerCase().includes("limite") || msg.includes("429")) {
+        toast.error("Muitas requisições. Aguarde alguns segundos e tente novamente.");
+      } else {
+        toast.error(`Falha ao gerar arte: ${msg}`);
+      }
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const baixarArte = () => {
+    if (!imagemUrl) return;
+    const a = document.createElement("a");
+    a.href = imagemUrl;
+    const safeName = getTitulo(props)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .toLowerCase()
+      .slice(0, 60);
+    a.download = `arte-${safeName}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const size = props.size ?? "sm";
@@ -150,6 +205,80 @@ export function PromptArteButton(props: Props) {
               Dica: o ChatGPT precisa estar no modo de geração de imagem (DALL·E). No Midjourney, remova as seções
               em português que não interessam ao motor.
             </p>
+          </div>
+
+          {/* Geração interna com Lovable AI */}
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold">Gerar arte aqui mesmo</span>
+                <Badge variant="outline" className="text-[10px]">via Lovable AI</Badge>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="qualidade" className="text-[10px] text-muted-foreground">
+                  Qualidade:
+                </Label>
+                <select
+                  id="qualidade"
+                  value={qualidade}
+                  onChange={(e) => setQualidade(e.target.value as "fast" | "pro")}
+                  disabled={gerando}
+                  className="h-7 rounded border bg-background text-xs px-1.5"
+                >
+                  <option value="fast">Padrão (~25/$ 1)</option>
+                  <option value="pro">Pro (~16/$ 1)</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Gera diretamente sem sair da plataforma. Consome saldo de IA do Lovable Cloud
+              ($1 grátis/mês). <span className="font-medium">Não interfere</span> no provedor de IA configurado em Configurações.
+            </p>
+
+            {imagemUrl && (
+              <div className="rounded border bg-background overflow-hidden">
+                <img
+                  src={imagemUrl}
+                  alt={`Arte gerada para ${getTitulo(props)}`}
+                  className="w-full h-auto block max-h-[480px] object-contain bg-muted"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                onClick={gerarArte}
+                disabled={gerando}
+                className="gap-1.5"
+              >
+                {gerando ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Gerando... (até 30s)
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-3.5 w-3.5" />
+                    {imagemUrl ? "Gerar outra variação" : "Gerar arte agora"}
+                  </>
+                )}
+              </Button>
+              {imagemUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={baixarArte}
+                  className="gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Baixar PNG
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
