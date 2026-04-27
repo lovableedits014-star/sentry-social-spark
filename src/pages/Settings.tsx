@@ -12,6 +12,7 @@ import UsageEstimatePanel from "@/components/settings/UsageEstimatePanel";
 import CampaignFramesCard from "@/components/settings/CampaignFramesCard";
 import PresenceSettingsCard from "@/components/settings/PresenceSettingsCard";
 import CampaignIdentityCard from "@/components/settings/CampaignIdentityCard";
+import CandidateAssetsCard from "@/components/settings/CandidateAssetsCard";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -50,6 +51,9 @@ const Settings = () => {
 
       {/* Pool de Instâncias WhatsApp (anti-banimento) */}
       {clientId && <CampaignIdentityCard clientId={clientId} />}
+
+      {/* Logo + galeria de fotos para o gerador de artes IA */}
+      {clientId && <CandidateAssetsCard clientId={clientId} />}
 
       {clientId && <WhatsAppPoolManager clientId={clientId} />}
 
