@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +7,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2, ImageIcon } from "lucide-react";
+import { Sparkles, Copy, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import {
@@ -18,11 +17,9 @@ import {
 } from "@/lib/prompt-arte-feriado";
 import { useContextoArte } from "@/hooks/useContextoArte";
 
-type CandidatePhoto = { id: string; photo_url: string; label: string | null };
 type CandidateContext = {
   name: string | null;
   cargo: string | null;
-  logo_url: string | null;
 };
 
 type Props =
@@ -57,10 +54,6 @@ export function PromptArteButton(props: Props) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState<ContextoArte>(ctx);
-  const [gerando, setGerando] = useState(false);
-  const [imagemUrl, setImagemUrl] = useState<string | null>(null);
-  const [qualidade, setQualidade] = useState<"fast" | "pro">("fast");
-  const [photoId, setPhotoId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
 
   // Descobre clientId do usuário logado (1x)
@@ -83,36 +76,20 @@ export function PromptArteButton(props: Props) {
   const identityQuery = useQuery({
     queryKey: ["arte-candidate-context", clientId],
     queryFn: async (): Promise<CandidateContext> => {
-      const [{ data: client }, { data: identity }] = await Promise.all([
-        supabase.from("clients").select("name, cargo").eq("id", clientId!).maybeSingle(),
-        supabase.from("candidate_identity").select("logo_url").eq("client_id", clientId!).maybeSingle(),
-      ]);
+      const { data: client } = await supabase
+        .from("clients")
+        .select("name, cargo")
+        .eq("id", clientId!)
+        .maybeSingle();
       return {
         name: client?.name ?? null,
         cargo: client?.cargo ?? null,
-        logo_url: identity?.logo_url ?? null,
       };
     },
     enabled: !!clientId && open,
   });
 
-  const photosQuery = useQuery({
-    queryKey: ["candidate-photos", clientId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("candidate_photos")
-        .select("id, photo_url, label")
-        .eq("client_id", clientId!)
-        .order("display_order", { ascending: true });
-      return (data ?? []) as CandidatePhoto[];
-    },
-    enabled: !!clientId && open,
-  });
-
-  const photos = photosQuery.data ?? [];
   const candidateCtx = identityQuery.data;
-  const logoUrl = candidateCtx?.logo_url ?? undefined;
-  const selectedPhoto = photos.find((p) => p.id === photoId);
 
   // Quando a Identidade da Campanha carrega, hidrata o draft com nome+cargo automaticamente
   useEffect(() => {
@@ -124,82 +101,24 @@ export function PromptArteButton(props: Props) {
     }));
   }, [open, candidateCtx]);
 
-  // Quando abre, sincroniza draft com o contexto persistido (localStorage)
   const handleOpen = (v: boolean) => {
     setOpen(v);
     if (v) setDraft(ctx);
-    if (!v) {
-      setCopied(false);
-      setImagemUrl(null);
-    }
+    if (!v) setCopied(false);
   };
 
   const prompt = buildPrompt(props, draft);
 
   const copy = async () => {
     try {
-      // Salva o contexto atualizado
       update(draft);
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
-      toast.success("Prompt copiado! Cole no ChatGPT (modo imagem) ou outro gerador.");
+      toast.success("Prompt copiado! Cole no ChatGPT, Midjourney, Ideogram ou Canva Magic Media.");
       setTimeout(() => setCopied(false), 2500);
     } catch {
       toast.error("Não foi possível copiar. Selecione o texto e copie manualmente.");
     }
-  };
-
-  const gerarArte = async () => {
-    setGerando(true);
-    setImagemUrl(null);
-    update(draft); // persiste contexto
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-arte-feriado", {
-        body: {
-          prompt,
-          qualidade,
-          logoUrl,
-          photoUrl: selectedPhoto?.photo_url,
-        },
-      });
-      if (error) throw error;
-      const payload = data as { imageUrl?: string; error?: string };
-      if (payload.error) throw new Error(payload.error);
-      if (!payload.imageUrl) throw new Error("Nenhuma imagem retornada");
-      setImagemUrl(payload.imageUrl);
-      toast.success("Arte gerada! Confira o preview abaixo.");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erro desconhecido";
-      // Mensagens amigáveis para erros conhecidos
-      if (msg.toLowerCase().includes("saldo") || msg.includes("402")) {
-        toast.error(
-          "Saldo de IA esgotado. Adicione créditos em Cloud → AI balance.",
-          { duration: 6000 },
-        );
-      } else if (msg.toLowerCase().includes("limite") || msg.includes("429")) {
-        toast.error("Muitas requisições. Aguarde alguns segundos e tente novamente.");
-      } else {
-        toast.error(`Falha ao gerar arte: ${msg}`);
-      }
-    } finally {
-      setGerando(false);
-    }
-  };
-
-  const baixarArte = () => {
-    if (!imagemUrl) return;
-    const a = document.createElement("a");
-    a.href = imagemUrl;
-    const safeName = getTitulo(props)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .toLowerCase()
-      .slice(0, 60);
-    a.download = `arte-${safeName}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const size = props.size ?? "sm";
@@ -220,16 +139,15 @@ export function PromptArteButton(props: Props) {
             Prompt de arte — {getTitulo(props)}
           </DialogTitle>
           <DialogDescription>
-            Estilo institucional/candidato. Personalize o contexto abaixo, copie o prompt e cole no ChatGPT
-            (ferramenta de imagem) ou em qualquer outro gerador (DALL·E, Midjourney, Nano Banana).
+            Copie o prompt abaixo e cole em uma ferramenta especializada de geração de imagem
+            (ChatGPT/DALL·E, Midjourney, Ideogram) ou entregue ao seu designer.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-            ✨ A IA puxa automaticamente nome, cargo, cidade e identidade visual de{" "}
-            <strong>Configurações → Identidade da Campanha</strong> e{" "}
-            <strong>Materiais para o gerador de artes</strong>. Não precisa preencher nada aqui.
+            ✨ Nome e cargo são puxados automaticamente de{" "}
+            <strong>Configurações → Identidade da Campanha</strong>.
           </div>
 
           <div className="space-y-1.5">
@@ -241,160 +159,24 @@ export function PromptArteButton(props: Props) {
               id="prompt-out"
               value={prompt}
               readOnly
-              className="min-h-[260px] font-mono text-xs"
+              className="min-h-[300px] font-mono text-xs"
               onFocus={(e) => e.currentTarget.select()}
             />
             <p className="text-[11px] text-muted-foreground">
-              Dica: o ChatGPT precisa estar no modo de geração de imagem (DALL·E). No Midjourney, remova as seções
-              em português que não interessam ao motor.
+              Recomendado: <strong>Ideogram</strong> (acerta texto em português),{" "}
+              <strong>Midjourney v6</strong> (qualidade artística) ou <strong>Canva Magic Media</strong>{" "}
+              (mais simples). Para Story Instagram, peça formato 1080×1920 (9:16) na ferramenta.
             </p>
-          </div>
-
-          {/* Geração interna com Lovable AI */}
-          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Wand2 className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold">Gerar arte aqui mesmo</span>
-                <Badge variant="outline" className="text-[10px]">via Lovable AI</Badge>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="qualidade" className="text-[10px] text-muted-foreground">
-                  Qualidade:
-                </Label>
-                <select
-                  id="qualidade"
-                  value={qualidade}
-                  onChange={(e) => setQualidade(e.target.value as "fast" | "pro")}
-                  disabled={gerando}
-                  className="h-7 rounded border bg-background text-xs px-1.5"
-                >
-                  <option value="fast">Padrão (~25/$ 1)</option>
-                  <option value="pro">Pro (~16/$ 1)</option>
-                </select>
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Gera diretamente sem sair da plataforma. Consome saldo de IA do Lovable Cloud
-              ($1 grátis/mês). <span className="font-medium">Não interfere</span> no provedor de IA configurado em Configurações.
-            </p>
-
-            {/* Seletor de foto + logo do candidato */}
-            <div className="space-y-2 rounded border bg-background p-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <Label className="text-[11px] font-semibold flex items-center gap-1">
-                  <ImageIcon className="h-3 w-3" />
-                  Foto do candidato para usar nesta arte
-                </Label>
-                <div className="flex items-center gap-1.5">
-                  {logoUrl ? (
-                    <Badge variant="outline" className="text-[10px] gap-1">
-                      <img src={logoUrl} alt="" className="h-3 w-3 object-contain" />
-                      Logo será aplicada
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-[10px]">
-                      Sem logo cadastrada
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {photos.length === 0 ? (
-                <div className="text-[11px] text-muted-foreground py-2 text-center">
-                  Nenhuma foto cadastrada. Vá em <strong>Configurações → Materiais para o gerador
-                  de artes</strong> e envie pelo menos 1 foto. A arte será gerada sem foto do
-                  candidato.
-                </div>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <button
-                    type="button"
-                    onClick={() => setPhotoId(null)}
-                    className={`shrink-0 w-16 h-16 rounded border-2 flex items-center justify-center text-[10px] transition-colors ${
-                      photoId === null
-                        ? "border-primary bg-primary/10 text-primary font-semibold"
-                        : "border-muted bg-muted/40 text-muted-foreground hover:border-muted-foreground"
-                    }`}
-                  >
-                    Sem foto
-                  </button>
-                  {photos.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setPhotoId(p.id)}
-                      title={p.label || "Foto do candidato"}
-                      className={`shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-colors ${
-                        photoId === p.id
-                          ? "border-primary ring-2 ring-primary/40"
-                          : "border-transparent hover:border-muted-foreground"
-                      }`}
-                    >
-                      <img
-                        src={p.photo_url}
-                        alt={p.label || ""}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedPhoto && (
-                <p className="text-[10px] text-muted-foreground">
-                  ✓ A IA usará <strong>{selectedPhoto.label || "esta foto"}</strong> exatamente como
-                  está, sem recriar o rosto. Apenas o cenário e elementos serão gerados ao redor.
-                </p>
-              )}
-            </div>
-
-            {imagemUrl && (
-              <div className="rounded border bg-background overflow-hidden">
-                <img
-                  src={imagemUrl}
-                  alt={`Arte gerada para ${getTitulo(props)}`}
-                  className="w-full h-auto block max-h-[480px] object-contain bg-muted"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                type="button"
-                size="sm"
-                onClick={gerarArte}
-                disabled={gerando}
-                className="gap-1.5"
-              >
-                {gerando ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Gerando... (até 30s)
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-3.5 w-3.5" />
-                    {imagemUrl ? "Gerar outra variação" : "Gerar arte agora"}
-                  </>
-                )}
-              </Button>
-              {imagemUrl && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={baixarArte}
-                  className="gap-1.5"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Baixar PNG
-                </Button>
-              )}
-            </div>
           </div>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="outline" asChild>
+            <a href="https://ideogram.ai/" target="_blank" rel="noopener noreferrer" className="gap-1.5">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Abrir Ideogram
+            </a>
+          </Button>
           <Button variant="outline" asChild>
             <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" className="gap-1.5">
               <ExternalLink className="h-3.5 w-3.5" />
