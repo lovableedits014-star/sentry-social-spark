@@ -850,8 +850,27 @@ const MidiaPage = () => {
           {/* Lista de notícias */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Notícias ({data.articles.length})</CardTitle>
-              <CardDescription>Ordenadas pelas mais recentes. Clique para abrir a fonte original.</CardDescription>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="text-base">Notícias ({data.articles.length})</CardTitle>
+                  <CardDescription>Ordenadas pelas mais recentes. Clique para abrir a fonte original.</CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={data.articles.length === 0}>
+                      <Download className="w-3.5 h-3.5 mr-1.5" /> Exportar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={exportCSV}>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> CSV (Excel)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportPDF}>
+                      <FileText className="w-4 h-4 mr-2" /> PDF (relatório)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[600px] overflow-y-auto divide-y">
