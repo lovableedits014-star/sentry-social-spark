@@ -205,6 +205,13 @@ const InteligenciaEleitoral = () => {
     ).slice(0, 80);
   }, [locaisMeta, localSearch]);
 
+  // Lista efetivamente visível na sidebar (busca + filtro de bairro)
+  const locaisVisiveis = useMemo(() => {
+    return locaisFiltrados.filter(
+      (l: any) => bairroFilter === "__all__" || l.bairro === bairroFilter,
+    );
+  }, [locaisFiltrados, bairroFilter]);
+
   const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
   const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
 
@@ -282,6 +289,26 @@ const InteligenciaEleitoral = () => {
       { Métrica: "Turno", Valor: turno },
     ];
     exportXLSX(`auditoria-bairros-${cargo}-T${turno}.xlsx`, { "Locais": data, "Resumo": resumo });
+  };
+
+  // Exporta exatamente o que está visível na sidebar de "Buscar por local" (busca + filtro de bairro aplicados)
+  const exportarLocaisVisiveis = () => {
+    const data = locaisVisiveis.map((l: any) => ({
+      Zona: l.zona,
+      "Nº Local": l.nr_local,
+      "Local de votação": l.nome_local || "",
+      Endereço: l.endereco || "",
+      Bairro: l.bairro || "",
+      "Total votos": l.total,
+    }));
+    const filtrosAplicados = [
+      { Filtro: "Cargo", Valor: cargo },
+      { Filtro: "Turno", Valor: turno },
+      { Filtro: "Busca", Valor: localSearch || "(nenhuma)" },
+      { Filtro: "Bairro", Valor: bairroFilter === "__all__" ? "Todos" : bairroFilter },
+      { Filtro: "Resultados exibidos", Valor: data.length },
+    ];
+    exportXLSX(`locais-visiveis-${cargo}-T${turno}.xlsx`, { Locais: data, Filtros: filtrosAplicados });
   };
 
   return (
@@ -591,9 +618,21 @@ const InteligenciaEleitoral = () => {
                           </SelectContent>
                         </Select>
                       )}
-                      {locaisFiltrados.map((l) => {
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {locaisVisiveis.length} {locaisVisiveis.length === 1 ? "local" : "locais"} visíveis
+                        </span>
+                        <button
+                          onClick={exportarLocaisVisiveis}
+                          disabled={locaisVisiveis.length === 0}
+                          className="text-[11px] px-2 py-1 rounded border flex items-center gap-1 hover:bg-muted disabled:opacity-50"
+                          title="Exporta XLSX com os locais filtrados (busca + bairro) exatamente como aparecem nesta lista."
+                        >
+                          <Download className="w-3 h-3" /> Exportar visível
+                        </button>
+                      </div>
+                      {locaisVisiveis.map((l) => {
                         const k = `${l.zona}-${l.nr_local}`;
-                        if (bairroFilter !== "__all__" && (l as any).bairro !== bairroFilter) return null;
                         return (
                           <button
                             key={k}
