@@ -103,6 +103,31 @@ const MidiaPage = () => {
   const [country, setCountry] = useState<string>("BR");
   const [timespan, setTimespan] = useState<string>("7d");
   const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+
+  useMemo(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: clients } = await supabase.from("clients").select("id").eq("user_id", user.id).limit(1);
+      if (clients && clients.length > 0) setClientId(clients[0].id);
+    })();
+  }, []);
+
+  // Contador de alertas não lidos para o badge da aba
+  const { data: unreadAlerts = 0 } = useQuery<number>({
+    queryKey: ["media-alert-unread", clientId],
+    enabled: !!clientId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("media_alert_events")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId!)
+        .eq("is_read", false);
+      return count || 0;
+    },
+  });
 
   const addTerm = (t: string) => {
     const v = t.trim();
