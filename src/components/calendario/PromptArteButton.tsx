@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
@@ -7,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2 } from "lucide-react";
+import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import {
@@ -16,6 +18,9 @@ import {
   type ContextoArte,
 } from "@/lib/prompt-arte-feriado";
 import { useContextoArte } from "@/hooks/useContextoArte";
+
+type CandidatePhoto = { id: string; photo_url: string; label: string | null };
+type CandidateIdentity = { logo_url: string | null };
 
 type Props =
   | {
@@ -52,6 +57,55 @@ export function PromptArteButton(props: Props) {
   const [gerando, setGerando] = useState(false);
   const [imagemUrl, setImagemUrl] = useState<string | null>(null);
   const [qualidade, setQualidade] = useState<"fast" | "pro">("fast");
+  const [photoId, setPhotoId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+
+  // Descobre clientId do usuário logado (1x)
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (!cancel && data?.id) setClientId(data.id);
+    })();
+    return () => { cancel = true; };
+  }, []);
+
+  const identityQuery = useQuery({
+    queryKey: ["candidate-identity", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("candidate_identity")
+        .select("logo_url")
+        .eq("client_id", clientId!)
+        .maybeSingle();
+      return (data ?? null) as CandidateIdentity | null;
+    },
+    enabled: !!clientId && open,
+  });
+
+  const photosQuery = useQuery({
+    queryKey: ["candidate-photos", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("candidate_photos")
+        .select("id, photo_url, label")
+        .eq("client_id", clientId!)
+        .order("display_order", { ascending: true });
+      return (data ?? []) as CandidatePhoto[];
+    },
+    enabled: !!clientId && open,
+  });
+
+  const photos = photosQuery.data ?? [];
+  const logoUrl = identityQuery.data?.logo_url ?? undefined;
+  const selectedPhoto = photos.find((p) => p.id === photoId);
 
   // Quando abre, sincroniza draft com o contexto atual
   const handleOpen = (v: boolean) => {
@@ -84,7 +138,12 @@ export function PromptArteButton(props: Props) {
     update(draft); // persiste contexto
     try {
       const { data, error } = await supabase.functions.invoke("generate-arte-feriado", {
-        body: { prompt, qualidade },
+        body: {
+          prompt,
+          qualidade,
+          logoUrl,
+          photoUrl: selectedPhoto?.photo_url,
+        },
       });
       if (error) throw error;
       const payload = data as { imageUrl?: string; error?: string };
