@@ -204,6 +204,30 @@ export type Database = {
           },
         ]
       }
+      api_cache: {
+        Row: {
+          endpoint_key: string
+          expires_at: string
+          fetched_at: string
+          payload: Json
+          source: string
+        }
+        Insert: {
+          endpoint_key: string
+          expires_at: string
+          fetched_at?: string
+          payload: Json
+          source: string
+        }
+        Update: {
+          endpoint_key?: string
+          expires_at?: string
+          fetched_at?: string
+          payload?: Json
+          source?: string
+        }
+        Relationships: []
+      }
       campaign_frames: {
         Row: {
           client_id: string
