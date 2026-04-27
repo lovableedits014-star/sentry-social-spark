@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell } from "lucide-react";
+import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
 import MediaAlertsManager from "@/components/midia/MediaAlertsManager";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 /**
  * Página dedicada de Mídia (GDELT) — cobertura noticiosa em tempo quase real.
@@ -38,6 +41,17 @@ type GdeltData = {
   timeline: { date: string; volume: number; tone: number | null }[];
   articles: GdeltArticle[];
   generated_at: string;
+};
+
+type SavedSearch = {
+  id: string;
+  name: string;
+  terms: string[];
+  uf: string | null;
+  municipio: string | null;
+  timespan: string;
+  country: string;
+  created_at: string;
 };
 
 const UFS = [
@@ -104,11 +118,16 @@ const MidiaPage = () => {
   const [timespan, setTimespan] = useState<string>("7d");
   const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       const { data: clients } = await supabase.from("clients").select("id").eq("user_id", user.id).limit(1);
       if (clients && clients.length > 0) setClientId(clients[0].id);
     })();
@@ -128,6 +147,79 @@ const MidiaPage = () => {
       return count || 0;
     },
   });
+
+  // Buscas salvas do usuário/cliente
+  const { data: savedSearches = [] } = useQuery<SavedSearch[]>({
+    queryKey: ["media-saved-searches", clientId],
+    enabled: !!clientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("media_saved_searches")
+        .select("id, name, terms, uf, municipio, timespan, country, created_at")
+        .eq("client_id", clientId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map((r: any) => ({
+        ...r,
+        terms: Array.isArray(r.terms) ? r.terms : [],
+      })) as SavedSearch[];
+    },
+  });
+
+  const loadSearch = (s: SavedSearch) => {
+    setTerms(s.terms || []);
+    setUf(s.uf || "");
+    setMunicipio(s.municipio || "");
+    setTimespan(s.timespan || "7d");
+    setCountry(s.country || "BR");
+    const q = buildQuery(s.terms || [], (s.municipio || "").trim(), (s.uf || "").trim());
+    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country });
+    toast.success(`Busca "${s.name}" carregada`);
+  };
+
+  const saveCurrentSearch = async () => {
+    if (!clientId || !userId) {
+      toast.error("Cliente não identificado");
+      return;
+    }
+    const name = saveName.trim();
+    if (!name) {
+      toast.error("Dê um nome para a busca");
+      return;
+    }
+    if (terms.length === 0 && !municipio.trim() && !uf.trim()) {
+      toast.error("Configure ao menos um filtro antes de salvar");
+      return;
+    }
+    const { error } = await supabase.from("media_saved_searches").insert({
+      client_id: clientId,
+      user_id: userId,
+      name,
+      terms,
+      uf: uf || null,
+      municipio: municipio.trim() || null,
+      timespan,
+      country,
+    });
+    if (error) {
+      toast.error("Erro ao salvar: " + error.message);
+      return;
+    }
+    toast.success(`Busca "${name}" salva`);
+    setSaveName("");
+    setSaveDialogOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["media-saved-searches", clientId] });
+  };
+
+  const deleteSearch = async (id: string, name: string) => {
+    const { error } = await supabase.from("media_saved_searches").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir: " + error.message);
+      return;
+    }
+    toast.success(`"${name}" removida`);
+    queryClient.invalidateQueries({ queryKey: ["media-saved-searches", clientId] });
+  };
 
   const addTerm = (t: string) => {
     const v = t.trim();
