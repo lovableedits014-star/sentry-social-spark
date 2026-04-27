@@ -3544,6 +3544,32 @@ export type Database = {
           votos_2024: number
         }[]
       }
+      get_migracoes_partidarias: {
+        Args: { p_min_votos?: number; p_uf?: string }
+        Returns: {
+          cargo_2022: string
+          cargo_2024: string
+          nome_completo: string
+          partido_2022: string
+          partido_2024: string
+          votos_2022: number
+          votos_2024: number
+        }[]
+      }
+      get_partido_evolucao: {
+        Args: { p_cargo?: string; p_uf?: string }
+        Returns: {
+          candidatos_2022: number
+          candidatos_2024: number
+          municipios_2022: number
+          municipios_2024: number
+          partido: string
+          variacao_pct: number
+          variacao_votos: number
+          votos_2022: number
+          votos_2024: number
+        }[]
+      }
       get_presence_overview: {
         Args: { p_client_id: string }
         Returns: {
