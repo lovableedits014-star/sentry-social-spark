@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, ChevronDown, SlidersHorizontal, Ban, FileText } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
+import MediaAlertsManager from "@/components/midia/MediaAlertsManager";
 
 /**
  * Página dedicada de Mídia (GDELT) — cobertura noticiosa em tempo quase real.
@@ -30,14 +30,8 @@ type GdeltArticle = {
 
 type GdeltData = {
   query: string;
-  raw_query?: string | null;
   timespan: string;
   country: string;
-  language?: string | null;
-  domains?: string[];
-  excludes?: string[];
-  start?: string | null;
-  end?: string | null;
   total_articles: number;
   tone_summary: { avg: number | null; positives: number; neutrals: number; negatives: number; total: number };
   top_sources: { domain: string; count: number }[];
@@ -63,45 +57,6 @@ const PRESETS = [
   { label: "STF", terms: ["STF", "supremo"] },
 ];
 
-/** Idiomas suportados pelo GDELT (sourcelang) */
-const LANGUAGES = [
-  { code: "", label: "Qualquer idioma" },
-  { code: "por", label: "🇧🇷 Português" },
-  { code: "eng", label: "🇺🇸 Inglês" },
-  { code: "spa", label: "🇪🇸 Espanhol" },
-  { code: "fra", label: "🇫🇷 Francês" },
-  { code: "deu", label: "🇩🇪 Alemão" },
-  { code: "ita", label: "🇮🇹 Italiano" },
-];
-
-/** Presets de fontes (domínios brasileiros mais comuns) */
-const SOURCE_PRESETS = [
-  { label: "Grandes portais", domains: ["g1.globo.com", "uol.com.br", "folha.uol.com.br", "estadao.com.br"] },
-  { label: "Mídia tradicional", domains: ["folha.uol.com.br", "estadao.com.br", "oglobo.globo.com", "valor.globo.com"] },
-  { label: "Independentes", domains: ["theintercept.com", "agenciapublica.org", "brasildefato.com.br"] },
-  { label: "Regional MS", domains: ["midiamax.com.br", "campograndenews.com.br", "correiodoestado.com.br"] },
-];
-
-/** Sanitiza domínio (remove protocolo, www, paths) e valida shape básico */
-function cleanDomain(raw: string): string | null {
-  if (!raw) return null;
-  const v = raw
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .split("/")[0];
-  return /^[a-z0-9.\-]+\.[a-z]{2,}$/.test(v) ? v : null;
-}
-
-/** Converte Date → YYYYMMDDHHMMSS (UTC) para o GDELT. */
-function toGdeltDateTime(date: string, endOfDay: boolean): string {
-  // date no formato "YYYY-MM-DD"
-  const [y, m, d] = date.split("-");
-  if (!y || !m || !d) return "";
-  const time = endOfDay ? "235959" : "000000";
-  return `${y}${m}${d}${time}`;
-}
 function fmtDate(iso: string) {
   if (!iso) return "";
   if (/^\d{8}T/.test(iso)) {
@@ -141,36 +96,38 @@ function buildQuery(terms: string[], municipio: string, uf: string): string {
 }
 
 const MidiaPage = () => {
-  // Filtros básicos
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
   const [uf, setUf] = useState<string>("");
   const [municipio, setMunicipio] = useState<string>("");
   const [country, setCountry] = useState<string>("BR");
   const [timespan, setTimespan] = useState<string>("7d");
+  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
 
-  // Filtros avançados
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [language, setLanguage] = useState<string>("");
-  const [domains, setDomains] = useState<string[]>([]);
-  const [domainInput, setDomainInput] = useState("");
-  const [excludeTerms, setExcludeTerms] = useState<string[]>([]);
-  const [excludeInput, setExcludeInput] = useState("");
-  const [useCustomRange, setUseCustomRange] = useState(false);
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: clients } = await supabase.from("clients").select("id").eq("user_id", user.id).limit(1);
+      if (clients && clients.length > 0) setClientId(clients[0].id);
+    })();
+  }, []);
 
-  type Submitted = {
-    q: string;
-    ts: string;
-    c: string;
-    lang: string;
-    domains: string;
-    exclude: string;
-    start?: string;
-    end?: string;
-  };
-  const [submitted, setSubmitted] = useState<Submitted | null>(null);
+  // Contador de alertas não lidos para o badge da aba
+  const { data: unreadAlerts = 0 } = useQuery<number>({
+    queryKey: ["media-alert-unread", clientId],
+    enabled: !!clientId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("media_alert_events")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId!)
+        .eq("is_read", false);
+      return count || 0;
+    },
+  });
 
   const addTerm = (t: string) => {
     const v = t.trim();
@@ -190,57 +147,11 @@ const MidiaPage = () => {
     e?.preventDefault();
     const q = buildQuery(terms, municipio.trim(), uf.trim());
     if (q.length < 2) return;
-    let start: string | undefined;
-    let end: string | undefined;
-    if (useCustomRange && startDate && endDate) {
-      start = toGdeltDateTime(startDate, false);
-      end = toGdeltDateTime(endDate, true);
-      // Garante start <= end
-      if (start > end) [start, end] = [end, start];
-    }
-    setSubmitted({
-      q,
-      ts: timespan,
-      c: country,
-      lang: language,
-      domains: domains.join(","),
-      exclude: excludeTerms.join(","),
-      start,
-      end,
-    });
+    setSubmitted({ q, ts: timespan, c: country });
   };
-
-  const addDomain = (raw: string) => {
-    const v = cleanDomain(raw);
-    if (!v) return;
-    setDomains((prev) => (prev.includes(v) ? prev : [...prev, v].slice(0, 10)));
-  };
-  const removeDomain = (d: string) => setDomains((prev) => prev.filter((x) => x !== d));
-  const handleAddDomain = () => {
-    if (!domainInput.trim()) return;
-    addDomain(domainInput);
-    setDomainInput("");
-  };
-  const handleAddExclude = () => {
-    const v = excludeInput.trim();
-    if (v.length < 2) return;
-    setExcludeTerms((prev) => (prev.includes(v) ? prev : [...prev, v].slice(0, 10)));
-    setExcludeInput("");
-  };
-  const removeExclude = (t: string) => setExcludeTerms((prev) => prev.filter((x) => x !== t));
 
   const { data, isLoading, isFetching, refetch, error } = useQuery<GdeltData | null>({
-    queryKey: [
-      "midia-gdelt",
-      submitted?.q,
-      submitted?.ts,
-      submitted?.c,
-      submitted?.lang,
-      submitted?.domains,
-      submitted?.exclude,
-      submitted?.start,
-      submitted?.end,
-    ],
+    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c],
     enabled: !!submitted && (submitted.q?.length ?? 0) >= 2,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -251,13 +162,6 @@ const MidiaPage = () => {
         timespan: submitted.ts,
         maxrecords: "75",
       });
-      if (submitted.lang) params.set("language", submitted.lang);
-      if (submitted.domains) params.set("domains", submitted.domains);
-      if (submitted.exclude) params.set("exclude", submitted.exclude);
-      if (submitted.start && submitted.end) {
-        params.set("start", submitted.start);
-        params.set("end", submitted.end);
-      }
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gdelt-media-fetch?${params.toString()}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
@@ -305,6 +209,20 @@ const MidiaPage = () => {
         )}
       </div>
 
+      <Tabs defaultValue="monitor" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="monitor" className="gap-1.5">
+            <Search className="w-3.5 h-3.5" /> Monitoramento
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5">
+            <Bell className="w-3.5 h-3.5" /> Alertas
+            {unreadAlerts > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">{unreadAlerts}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="monitor" className="space-y-6 mt-0">
       {/* Filtros */}
       <Card>
         <CardHeader>
@@ -434,190 +352,13 @@ const MidiaPage = () => {
               </div>
             </div>
 
-            {/* Filtros avançados */}
-            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-              <CollapsibleTrigger asChild>
-                <Button type="button" variant="ghost" size="sm" className="gap-1.5 px-2 -ml-2">
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Filtros avançados
-                  {(domains.length > 0 || excludeTerms.length > 0 || language || useCustomRange) && (
-                    <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
-                      {[
-                        domains.length && `${domains.length} fonte${domains.length > 1 ? "s" : ""}`,
-                        excludeTerms.length && `${excludeTerms.length} excl.`,
-                        language && "idioma",
-                        useCustomRange && "data custom",
-                      ].filter(Boolean).join(" · ")}
-                    </Badge>
-                  )}
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-3 border-t mt-2">
-                {/* Fontes (domínios) */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
-                    <FileText className="w-3 h-3" /> Fontes (domínios) — apenas matérias destes sites
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="w-3 h-3 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          Limite a busca a domínios específicos (ex.: <code>g1.globo.com</code>).
-                          Múltiplos domínios são combinados com OR. Máx. 10.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={domainInput}
-                      onChange={(e) => setDomainInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddDomain();
-                        }
-                      }}
-                      placeholder="ex.: folha.uol.com.br"
-                      maxLength={100}
-                    />
-                    <Button type="button" variant="outline" onClick={handleAddDomain} disabled={!cleanDomain(domainInput)}>
-                      Adicionar
-                    </Button>
-                  </div>
-                  {domains.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {domains.map((d) => (
-                        <Badge key={d} variant="secondary" className="gap-1 font-mono text-xs">
-                          {d}
-                          <button type="button" onClick={() => removeDomain(d)} className="hover:text-destructive">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {SOURCE_PRESETS.map((p) => (
-                      <Button
-                        key={p.label}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-6 text-[11px]"
-                        onClick={() => p.domains.forEach(addDomain)}
-                      >
-                        + {p.label}
-                      </Button>
-                    ))}
-                    {domains.length > 0 && (
-                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => setDomains([])}>
-                        Limpar fontes
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Termos a excluir */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
-                    <Ban className="w-3 h-3" /> Excluir termos (NOT) — matérias com esses termos são removidas
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={excludeInput}
-                      onChange={(e) => setExcludeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddExclude();
-                        }
-                      }}
-                      placeholder="ex.: horóscopo, opinião"
-                      maxLength={50}
-                    />
-                    <Button type="button" variant="outline" onClick={handleAddExclude} disabled={excludeInput.trim().length < 2}>
-                      Adicionar
-                    </Button>
-                  </div>
-                  {excludeTerms.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {excludeTerms.map((t) => (
-                        <Badge key={t} variant="outline" className="gap-1 border-rose-500/30 text-rose-700 dark:text-rose-400">
-                          −{t}
-                          <button type="button" onClick={() => removeExclude(t)} className="hover:text-destructive">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Idioma + Janela personalizada */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Idioma da fonte</label>
-                    <Select value={language || "__any__"} onValueChange={(v) => setLanguage(v === "__any__" ? "" : v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {LANGUAGES.map((l) => (
-                          <SelectItem key={l.code || "__any__"} value={l.code || "__any__"}>{l.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Janela personalizada</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground">
-                          {useCustomRange ? "Datas específicas" : "Usar janela acima"}
-                        </span>
-                        <Switch checked={useCustomRange} onCheckedChange={setUseCustomRange} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        disabled={!useCustomRange}
-                        max={endDate || undefined}
-                        aria-label="Data inicial"
-                      />
-                      <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        disabled={!useCustomRange}
-                        min={startDate || undefined}
-                        aria-label="Data final"
-                      />
-                    </div>
-                    {useCustomRange && (!startDate || !endDate) && (
-                      <p className="text-[11px] text-amber-600 mt-1">Preencha as duas datas para usar janela personalizada.</p>
-                    )}
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs text-muted-foreground">
                 {terms.length === 0 && !municipio && !uf
                   ? "Adicione pelo menos uma palavra-chave ou município."
                   : <>Consulta gerada: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{buildQuery(terms, municipio.trim(), uf.trim()) || "(vazia)"}</code></>}
               </p>
-              <Button
-                type="submit"
-                disabled={
-                  (terms.length === 0 && !municipio.trim() && !uf.trim()) ||
-                  (useCustomRange && (!startDate || !endDate))
-                }
-              >
+              <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
                 <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
               </Button>
             </div>
@@ -821,6 +562,12 @@ const MidiaPage = () => {
           </p>
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="alerts" className="mt-0">
+          <MediaAlertsManager clientId={clientId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

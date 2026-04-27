@@ -1781,6 +1781,179 @@ export type Database = {
           },
         ]
       }
+      media_alert_events: {
+        Row: {
+          avg_tone: number | null
+          client_id: string
+          created_at: string
+          growth_pct: number | null
+          id: string
+          is_read: boolean
+          negative_ratio: number | null
+          negatives: number
+          neutrals: number
+          positives: number
+          previous_articles: number | null
+          query_snapshot: string | null
+          read_at: string | null
+          read_by: string | null
+          rule_id: string
+          rule_name: string
+          sample_articles: Json | null
+          severity: string
+          total_articles: number
+          trigger_kind: string
+          triggered_at: string
+        }
+        Insert: {
+          avg_tone?: number | null
+          client_id: string
+          created_at?: string
+          growth_pct?: number | null
+          id?: string
+          is_read?: boolean
+          negative_ratio?: number | null
+          negatives?: number
+          neutrals?: number
+          positives?: number
+          previous_articles?: number | null
+          query_snapshot?: string | null
+          read_at?: string | null
+          read_by?: string | null
+          rule_id: string
+          rule_name: string
+          sample_articles?: Json | null
+          severity?: string
+          total_articles?: number
+          trigger_kind: string
+          triggered_at?: string
+        }
+        Update: {
+          avg_tone?: number | null
+          client_id?: string
+          created_at?: string
+          growth_pct?: number | null
+          id?: string
+          is_read?: boolean
+          negative_ratio?: number | null
+          negatives?: number
+          neutrals?: number
+          positives?: number
+          previous_articles?: number | null
+          query_snapshot?: string | null
+          read_at?: string | null
+          read_by?: string | null
+          rule_id?: string
+          rule_name?: string
+          sample_articles?: Json | null
+          severity?: string
+          total_articles?: number
+          trigger_kind?: string
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_alert_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_alert_events_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "media_alert_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_alert_rules: {
+        Row: {
+          alert_type: string
+          client_id: string
+          cooldown_minutes: number
+          country: string
+          created_at: string
+          description: string | null
+          domains: string[] | null
+          exclude_terms: string[] | null
+          id: string
+          is_active: boolean
+          keywords: string[]
+          language: string | null
+          last_checked_at: string | null
+          last_triggered_at: string | null
+          min_volume: number
+          municipio: string | null
+          name: string
+          negative_ratio_threshold: number
+          negative_tone_threshold: number
+          timespan: string
+          uf: string | null
+          updated_at: string
+          volume_growth_pct: number
+        }
+        Insert: {
+          alert_type?: string
+          client_id: string
+          cooldown_minutes?: number
+          country?: string
+          created_at?: string
+          description?: string | null
+          domains?: string[] | null
+          exclude_terms?: string[] | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          language?: string | null
+          last_checked_at?: string | null
+          last_triggered_at?: string | null
+          min_volume?: number
+          municipio?: string | null
+          name: string
+          negative_ratio_threshold?: number
+          negative_tone_threshold?: number
+          timespan?: string
+          uf?: string | null
+          updated_at?: string
+          volume_growth_pct?: number
+        }
+        Update: {
+          alert_type?: string
+          client_id?: string
+          cooldown_minutes?: number
+          country?: string
+          created_at?: string
+          description?: string | null
+          domains?: string[] | null
+          exclude_terms?: string[] | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          language?: string | null
+          last_checked_at?: string | null
+          last_triggered_at?: string | null
+          min_volume?: number
+          municipio?: string | null
+          name?: string
+          negative_ratio_threshold?: number
+          negative_tone_threshold?: number
+          timespan?: string
+          uf?: string | null
+          updated_at?: string
+          volume_growth_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_alert_rules_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_dispatches: {
         Row: {
           batch_delay_seconds: number
