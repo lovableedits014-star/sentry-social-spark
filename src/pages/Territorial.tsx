@@ -398,6 +398,31 @@ export default function Territorial() {
     ? groups.filter(g => g.city.toLowerCase().includes(search.toLowerCase()) || (g.neighborhood?.toLowerCase().includes(search.toLowerCase())))
     : groups;
 
+  const selectedLocations = useMemo(
+    () => groups.filter((g) => selectedLocationKeys.has(g.key)),
+    [groups, selectedLocationKeys],
+  );
+
+  const openLocationDetail = (g: LocationGroup) => {
+    setDetailLevel(g.neighborhood ? "neighborhood" : "city");
+    setDetailCity(g.city);
+    setDetailNeigh(g.neighborhood);
+    setDetailOpen(true);
+  };
+
+  const openSelectedLocationsMerge = () => {
+    const allAreNeighborhoods = selectedLocations.length > 0 && selectedLocations.every((g) => !!g.neighborhood);
+    const parentCity = allAreNeighborhoods ? selectedLocations[0]?.city || null : null;
+    const variants = selectedLocations.map((g) => ({
+      name: allAreNeighborhoods ? g.neighborhood! : g.city,
+      count: g.count,
+    }));
+    setMergeVariants(variants);
+    setMergeField(allAreNeighborhoods ? "bairro" : "cidade");
+    setMergeParentCity(parentCity);
+    setMergeOpen(true);
+  };
+
   const getHeatColor = (count: number) => { const r = count / maxCount; return r >= 0.7 ? "bg-primary" : r >= 0.4 ? "bg-accent-foreground/50" : "bg-destructive"; };
   const getHeatLabel = (count: number) => { const r = count / maxCount; return r >= 0.7 ? "Zona Quente" : r >= 0.4 ? "Zona Morna" : "Zona Fria"; };
   const getHeatBadge = (count: number): "default" | "secondary" | "destructive" => { const r = count / maxCount; return r >= 0.7 ? "default" : r >= 0.4 ? "secondary" : "destructive"; };
