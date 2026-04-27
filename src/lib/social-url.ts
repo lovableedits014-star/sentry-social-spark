@@ -78,3 +78,15 @@ export function extractHandleFromUrl(platform: string, url: string): string | nu
     return null;
   }
 }
+
+/**
+ * Monta a URL de busca de pessoas pré-preenchida no Facebook/Instagram
+ * para abrir num popup já com o nome do apoiador digitado.
+ */
+export function buildSearchUrl(platform: "facebook" | "instagram", name: string): string {
+  const q = encodeURIComponent(name.trim());
+  if (platform === "facebook") {
+    return `https://www.facebook.com/search/people/?q=${q}`;
+  }
+  return `https://www.instagram.com/explore/search/keyword/?q=${q}`;
+}
