@@ -492,107 +492,22 @@ export default function SupporterRegister() {
             {/* Redes Sociais — Instagram primeiro */}
             <div className="pt-2">
               <p className="text-sm font-medium text-foreground">Redes Sociais</p>
-              <p className="text-xs text-muted-foreground">Cole os links dos seus perfis para receber missões e ter seu engajamento contabilizado.</p>
+              <p className="text-xs text-muted-foreground">Conecte seus perfis pra receber missões e ter seu engajamento contabilizado. Vamos te guiar passo a passo.</p>
             </div>
 
-            {/* Instagram */}
             <div className="space-y-2">
-              <Label htmlFor="instagram" className="flex items-center gap-2">
-                <Instagram className="w-4 h-4 text-pink-500" />
-                Link do Instagram
-              </Label>
-              <button
-                type="button"
-                onClick={() => setShowIgHelp(!showIgHelp)}
-                className="flex items-center gap-1.5 text-xs text-pink-600 hover:underline"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-                Como pegar o link do meu Instagram?
-                {showIgHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showIgHelp && (
-                <div className="rounded-lg border border-pink-200 dark:border-pink-800 bg-pink-50/50 dark:bg-pink-950/20 p-3 space-y-3">
-                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
-                    <li>📱 Abra o app do Instagram no seu celular</li>
-                    <li>👤 Toque no ícone da sua foto (canto inferior direito) para ir ao seu perfil</li>
-                    <li>⚙️ Toque em "Compartilhar Perfil"</li>
-                    <li>🔗 Toque em "Copiar Link"</li>
-                    <li>✅ Volte aqui e cole no campo abaixo</li>
-                  </ol>
-                  <img src="/assets/help-instagram.png" alt="Como copiar link do Instagram" className="w-full h-auto rounded-md border border-border" />
-                </div>
-              )}
-              <Input
-                id="instagram"
-                value={instagramUrl}
-                onChange={(e) => { setInstagramUrl(e.target.value); setError(""); }}
-                placeholder="https://instagram.com/seu.perfil"
+              <SocialConnectFlow
+                platform="instagram"
+                searchName={name}
+                value={instagramConn}
+                onChange={setInstagramConn}
               />
-              {instagramUrl.trim() && (
-                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md ${igParsed ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>
-                  {igParsed ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Identificado: <strong>@{igParsed.username}</strong></span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Link não reconhecido. Use o link completo (ex: instagram.com/joao.silva)</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Facebook */}
-            <div className="space-y-2">
-              <Label htmlFor="facebook" className="flex items-center gap-2">
-                <Facebook className="w-4 h-4 text-blue-600" />
-                Link do Facebook
-              </Label>
-              <button
-                type="button"
-                onClick={() => setShowFbHelp(!showFbHelp)}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-                Como pegar o link do meu Facebook?
-                {showFbHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showFbHelp && (
-                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-3">
-                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
-                    <li>📱 Abra o app do Facebook no seu celular</li>
-                    <li>👤 Toque na sua foto de perfil (canto superior direito)</li>
-                    <li>🔗 Toque em "Compartilhar perfil" e depois em "Copiar link"</li>
-                    <li>✅ Volte aqui e cole no campo abaixo</li>
-                  </ol>
-                  <img src="/assets/help-facebook.png" alt="Como copiar link do Facebook" className="w-full h-auto rounded-md border border-border" />
-                </div>
-              )}
-              <Input
-                id="facebook"
-                value={facebookUrl}
-                onChange={(e) => { setFacebookUrl(e.target.value); setError(""); }}
-                placeholder="https://facebook.com/seu.perfil"
+              <SocialConnectFlow
+                platform="facebook"
+                searchName={name}
+                value={facebookConn}
+                onChange={setFacebookConn}
               />
-              {/* Preview */}
-              {facebookUrl.trim() && (
-                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md ${fbParsed ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>
-                  {fbParsed ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Identificado: <strong>{fbParsed.username}</strong></span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Link não reconhecido. Use o link completo do perfil (ex: facebook.com/joao.silva)</span>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -608,27 +523,6 @@ export default function SupporterRegister() {
                 maxLength={300}
               />
             </div>
-
-            {/* Summary before submit */}
-            {(fbParsed || igParsed) && (
-              <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resumo do cadastro</p>
-                {fbParsed && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Facebook className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span className="text-muted-foreground">Facebook:</span>
-                    <Badge variant="secondary" className="text-xs">{fbParsed.username}</Badge>
-                  </div>
-                )}
-                {igParsed && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Instagram className="w-3.5 h-3.5 text-pink-500 shrink-0" />
-                    <span className="text-muted-foreground">Instagram:</span>
-                    <Badge variant="secondary" className="text-xs">@{igParsed.username}</Badge>
-                  </div>
-                )}
-              </div>
-            )}
 
             {error && (
               <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
