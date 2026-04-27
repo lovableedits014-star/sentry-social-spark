@@ -193,24 +193,25 @@ const InteligenciaEleitoral = () => {
     ).slice(0, 200);
   }, [ranking, candidatoSearch]);
 
-  const locaisFiltrados = useMemo(() => {
+  // Lista visível: combina filtro de bairro + busca textual.
+  // Aplica AMBOS antes de cortar, e dá folga maior quando há filtro ativo
+  // para garantir que toda a vizinhança do bairro selecionado caiba.
+  const locaisVisiveis = useMemo(() => {
     const s = localSearch.toLowerCase().trim();
-    if (!s) return locaisMeta.slice(0, 50);
-    return locaisMeta.filter(
-      (l) =>
+    const filtered = locaisMeta.filter((l: any) => {
+      if (bairroFilter !== "__all__" && l.bairro !== bairroFilter) return false;
+      if (!s) return true;
+      return (
         (l.nome_local || "").toLowerCase().includes(s) ||
         (l.endereco || "").toLowerCase().includes(s) ||
-        ((l as any).bairro || "").toLowerCase().includes(s) ||
-        String(l.zona).includes(s),
-    ).slice(0, 80);
-  }, [locaisMeta, localSearch]);
-
-  // Lista efetivamente visível na sidebar (busca + filtro de bairro)
-  const locaisVisiveis = useMemo(() => {
-    return locaisFiltrados.filter(
-      (l: any) => bairroFilter === "__all__" || l.bairro === bairroFilter,
-    );
-  }, [locaisFiltrados, bairroFilter]);
+        (l.bairro || "").toLowerCase().includes(s) ||
+        String(l.zona).includes(s)
+      );
+    });
+    const limit = bairroFilter !== "__all__" || s ? 500 : 50;
+    return filtered.slice(0, limit);
+  }, [locaisMeta, localSearch, bairroFilter]);
+  const locaisFiltrados = locaisVisiveis; // compat
 
   const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
   const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
@@ -599,7 +600,7 @@ const InteligenciaEleitoral = () => {
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar escola, endereço, bairro ou zona…"
+                          placeholder={bairroFilter !== "__all__" ? `Buscar dentro de ${bairroFilter}…` : "Buscar escola, endereço, bairro ou zona…"}
                           value={localSearch}
                           onChange={(e) => setLocalSearch(e.target.value)}
                           className="pl-9 h-8 text-sm"
