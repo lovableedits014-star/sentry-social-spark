@@ -295,6 +295,75 @@ export function PromptArteButton(props: Props) {
               ($1 grátis/mês). <span className="font-medium">Não interfere</span> no provedor de IA configurado em Configurações.
             </p>
 
+            {/* Seletor de foto + logo do candidato */}
+            <div className="space-y-2 rounded border bg-background p-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <Label className="text-[11px] font-semibold flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  Foto do candidato para usar nesta arte
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  {logoUrl ? (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <img src={logoUrl} alt="" className="h-3 w-3 object-contain" />
+                      Logo será aplicada
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px]">
+                      Sem logo cadastrada
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {photos.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground py-2 text-center">
+                  Nenhuma foto cadastrada. Vá em <strong>Configurações → Materiais para o gerador
+                  de artes</strong> e envie pelo menos 1 foto. A arte será gerada sem foto do
+                  candidato.
+                </div>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoId(null)}
+                    className={`shrink-0 w-16 h-16 rounded border-2 flex items-center justify-center text-[10px] transition-colors ${
+                      photoId === null
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-muted bg-muted/40 text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    Sem foto
+                  </button>
+                  {photos.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPhotoId(p.id)}
+                      title={p.label || "Foto do candidato"}
+                      className={`shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-colors ${
+                        photoId === p.id
+                          ? "border-primary ring-2 ring-primary/40"
+                          : "border-transparent hover:border-muted-foreground"
+                      }`}
+                    >
+                      <img
+                        src={p.photo_url}
+                        alt={p.label || ""}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedPhoto && (
+                <p className="text-[10px] text-muted-foreground">
+                  ✓ A IA usará <strong>{selectedPhoto.label || "esta foto"}</strong> exatamente como
+                  está, sem recriar o rosto. Apenas o cenário e elementos serão gerados ao redor.
+                </p>
+              )}
+            </div>
+
             {imagemUrl && (
               <div className="rounded border bg-background overflow-hidden">
                 <img
