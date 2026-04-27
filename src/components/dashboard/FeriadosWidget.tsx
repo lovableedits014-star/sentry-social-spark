@@ -95,8 +95,14 @@ export function FeriadosWidget() {
   const proximos = useMemo(() => {
     const list = data?.holidays ?? [];
     return list
+      // 1) só nacionais (global=true; tolera ausência do flag)
+      .filter((h) => h.global !== false)
+      // 2) remove datas passadas (mantém o de hoje)
       .filter((h) => diasAte(h.date) >= 0)
-      .filter((h) => h.global !== false) // só feriados nacionais (nem todos têm 'global', então default = aceitar)
+      // 3) ordena explicitamente por proximidade — defesa em profundidade
+      //    (a edge function já ordena, mas garante no client)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      // 4) só agora corta nos 5 mais próximos
       .slice(0, 5);
   }, [data]);
 
