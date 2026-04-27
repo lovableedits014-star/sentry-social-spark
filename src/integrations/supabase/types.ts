@@ -466,50 +466,6 @@ export type Database = {
           },
         ]
       }
-      candidate_photos: {
-        Row: {
-          client_id: string
-          created_at: string
-          description: string | null
-          display_order: number
-          id: string
-          label: string | null
-          photo_path: string
-          photo_url: string
-          updated_at: string
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          description?: string | null
-          display_order?: number
-          id?: string
-          label?: string | null
-          photo_path: string
-          photo_url: string
-          updated_at?: string
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          description?: string | null
-          display_order?: number
-          id?: string
-          label?: string | null
-          photo_path?: string
-          photo_url?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "candidate_photos_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       clients: {
         Row: {
           cargo: string | null
