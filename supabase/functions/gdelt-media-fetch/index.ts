@@ -89,8 +89,11 @@ async function fetchTimeline(query: string, timespan: string, country: string): 
   }));
 }
 
-function summarize(articles: Article[]) {
-  const tones = articles.map((a) => a.tone).filter((t): t is number => typeof t === "number" && !Number.isNaN(t));
+function summarize(articles: Article[], timeline: Timeline[]) {
+  // GDELT ArtList raramente devolve tom por artigo; usar timeline como fallback
+  const articleTones = articles.map((a) => a.tone).filter((t): t is number => typeof t === "number" && !Number.isNaN(t));
+  const timelineTones = timeline.map((p) => p.tone).filter((t): t is number => typeof t === "number" && !Number.isNaN(t));
+  const tones = articleTones.length > 0 ? articleTones : timelineTones;
   const avg = tones.length ? tones.reduce((s, v) => s + v, 0) / tones.length : null;
   let pos = 0, neg = 0, neu = 0;
   for (const t of tones) {
@@ -186,7 +189,7 @@ Deno.serve(async (req) => {
       throw err;
     }
 
-    const { tone_summary, top_sources } = summarize(articles);
+    const { tone_summary, top_sources } = summarize(articles, timeline);
     const data = {
       query,
       timespan,
