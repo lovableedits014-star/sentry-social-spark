@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download, Info } from "lucide-react";
 import * as XLSX from "xlsx";
 import * as XLSXStyle from "xlsx-js-style";
+import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
 
 type Row = {
   id: number;
@@ -298,6 +299,9 @@ const CampoGrandeAnalise = () => {
           </span>
         </div>
       </div>
+
+      {/* Contexto IBGE — Campo Grande/MS (código fixo 5002704) */}
+      <MunicipioContextoIBGE codigo={5002704} />
 
       <div className="flex flex-wrap gap-3">
         <div>
