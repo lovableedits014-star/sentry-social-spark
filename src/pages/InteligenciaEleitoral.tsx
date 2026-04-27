@@ -15,6 +15,7 @@ import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
 import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
 import EvolucaoPartidos from "@/components/inteligencia/EvolucaoPartidos";
 import MapaCalorMunicipios from "@/components/inteligencia/MapaCalorMunicipios";
+import SimuladorChapa from "@/components/inteligencia/SimuladorChapa";
 
 type Row = {
   id: number;
@@ -575,6 +576,7 @@ const InteligenciaEleitoral = () => {
           <TabsTrigger value="comparar-candidatos">Comparar candidatos</TabsTrigger>
           <TabsTrigger value="evolucao-partidos">Partidos & Migrações</TabsTrigger>
           <TabsTrigger value="mapa-calor">Mapa de calor</TabsTrigger>
+          <TabsTrigger value="simulador-chapa">Simulador de chapa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ranking" className="mt-4">
@@ -1037,6 +1039,10 @@ const InteligenciaEleitoral = () => {
 
         <TabsContent value="mapa-calor" className="mt-4">
           <MapaCalorMunicipios />
+        </TabsContent>
+
+        <TabsContent value="simulador-chapa" className="mt-4">
+          <SimuladorChapa />
         </TabsContent>
       </Tabs>
 
