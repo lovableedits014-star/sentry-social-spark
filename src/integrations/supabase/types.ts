@@ -3504,6 +3504,24 @@ export type Database = {
         Args: { p_client_id: string; p_nome: string; p_redes: Json }
         Returns: string
       }
+      get_candidate_breakdown: {
+        Args: {
+          p_anos?: number[]
+          p_cargo?: string
+          p_nome: string
+          p_partido?: string
+          p_uf?: string
+        }
+        Returns: {
+          ano: number
+          cargo: string
+          municipio: string
+          nome_urna: string
+          partido: string
+          uf: string
+          votos: number
+        }[]
+      }
       get_chapa_candidates: {
         Args: {
           p_anos?: number[]

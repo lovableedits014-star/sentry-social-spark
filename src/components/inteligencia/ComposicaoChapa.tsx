@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
+import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw, MapPin } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -52,6 +53,10 @@ export default function ComposicaoChapa() {
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [importing, setImporting] = useState(false);
+
+  // Modal de detalhamento por município
+  const [selecionado, setSelecionado] = useState<ChapaRow | null>(null);
+  const [anoDetalhe, setAnoDetalhe] = useState<"ambos" | "2022" | "2024">("ambos");
 
   // Trigger de refetch após importação
   const [refreshTick, setRefreshTick] = useState(0);
@@ -412,7 +417,15 @@ export default function ComposicaoChapa() {
                 ordenados.slice(0, 1000).map((r, idx) => (
                   <TableRow key={`${r.nome_completo}-${r.partido}-${idx}`}>
                     <TableCell>
-                      <div className="font-medium">{r.nome_completo}</div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelecionado(r); setAnoDetalhe(anoMode); }}
+                        className="font-medium text-left hover:text-primary hover:underline inline-flex items-center gap-1"
+                        title="Ver força por município"
+                      >
+                        <MapPin className="w-3.5 h-3.5 opacity-60" />
+                        {r.nome_completo}
+                      </button>
                       {r.nome_urna && r.nome_urna !== r.nome_completo && (
                         <div className="text-xs text-muted-foreground">{r.nome_urna}</div>
                       )}
@@ -435,6 +448,177 @@ export default function ComposicaoChapa() {
           )}
         </CardContent>
       </Card>
+
+      <CandidateBreakdownDialog
+        candidato={selecionado}
+        anoMode={anoDetalhe}
+        onAnoModeChange={setAnoDetalhe}
+        onClose={() => setSelecionado(null)}
+      />
     </div>
+  );
+}
+
+// ============== Modal: Força por Município ==============
+type BreakdownRow = {
+  uf: string;
+  municipio: string;
+  cargo: string;
+  ano: number;
+  partido: string | null;
+  nome_urna: string | null;
+  votos: number;
+};
+
+function CandidateBreakdownDialog({
+  candidato,
+  anoMode,
+  onAnoModeChange,
+  onClose,
+}: {
+  candidato: ChapaRow | null;
+  anoMode: "ambos" | "2022" | "2024";
+  onAnoModeChange: (v: "ambos" | "2022" | "2024") => void;
+  onClose: () => void;
+}) {
+  const open = !!candidato;
+  const anos = anoMode === "ambos" ? [2022, 2024] : anoMode === "2022" ? [2022] : [2024];
+
+  const { data: rows = [], isLoading } = useQuery({
+    enabled: open,
+    queryKey: ["candidate-breakdown", candidato?.nome_completo, candidato?.partido, anoMode],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_candidate_breakdown" as any, {
+        p_nome: candidato!.nome_completo,
+        p_partido: candidato!.partido || null,
+        p_anos: anos,
+        p_uf: null,
+        p_cargo: null,
+      });
+      if (error) throw error;
+      return (data || []) as BreakdownRow[];
+    },
+  });
+
+  const fmt = (n: number) => (n || 0).toLocaleString("pt-BR");
+
+  // Agrega por município (somando cargos/anos selecionados)
+  const porMunicipio = useMemo(() => {
+    const map = new Map<string, { uf: string; municipio: string; v2022: number; v2024: number; total: number; cargos: Set<string> }>();
+    for (const r of rows) {
+      const key = `${r.uf}|${r.municipio}`;
+      const cur = map.get(key) || { uf: r.uf, municipio: r.municipio, v2022: 0, v2024: 0, total: 0, cargos: new Set<string>() };
+      if (r.ano === 2022) cur.v2022 += r.votos;
+      if (r.ano === 2024) cur.v2024 += r.votos;
+      cur.total += r.votos;
+      if (r.cargo) cur.cargos.add(r.cargo);
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [rows]);
+
+  const totalVotos = porMunicipio.reduce((s, r) => s + r.total, 0);
+  const maior = porMunicipio[0]?.total || 0;
+
+  const exportar = () => {
+    if (porMunicipio.length === 0) return;
+    const sheet = porMunicipio.map((r) => ({
+      UF: r.uf,
+      Município: r.municipio,
+      Cargos: Array.from(r.cargos).join(", "),
+      "Votos 2022": r.v2022,
+      "Votos 2024": r.v2024,
+      Total: r.total,
+      "% do total": totalVotos > 0 ? ((r.total / totalVotos) * 100).toFixed(2) + "%" : "0%",
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(sheet);
+    const nomeSafe = (candidato?.nome_completo || "candidato").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    XLSX.utils.book_append_sheet(wb, ws, "Por Município");
+    XLSX.writeFile(wb, `forca_${nomeSafe}.xlsx`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-primary" />
+            {candidato?.nome_completo}
+            {candidato?.partido && <Badge variant="outline" className="ml-1">{candidato.partido}</Badge>}
+          </DialogTitle>
+          <DialogDescription>
+            Distribuição dos votos por município. Use para identificar redutos e regiões de fraqueza.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">Período:</Label>
+            <Select value={anoMode} onValueChange={(v: any) => onAnoModeChange(v)}>
+              <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ambos">2022 + 2024</SelectItem>
+                <SelectItem value="2022">Somente 2022</SelectItem>
+                <SelectItem value="2024">Somente 2024</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <strong>{porMunicipio.length}</strong> município(s) — Total: <strong>{fmt(totalVotos)}</strong> votos
+          </div>
+          <Button onClick={exportar} disabled={porMunicipio.length === 0} variant="outline" size="sm">
+            <Download className="w-4 h-4 mr-2" /> Excel
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">Carregando detalhamento...</div>
+          ) : porMunicipio.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">Nenhum dado encontrado para este candidato no período.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>Município</TableHead>
+                  <TableHead className="w-16">UF</TableHead>
+                  <TableHead className="text-right">Votos 2022</TableHead>
+                  <TableHead className="text-right">Votos 2024</TableHead>
+                  <TableHead className="text-right font-semibold">Total</TableHead>
+                  <TableHead className="w-[180px]">Força</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {porMunicipio.map((r, i) => {
+                  const pct = maior > 0 ? (r.total / maior) * 100 : 0;
+                  const pctTotal = totalVotos > 0 ? (r.total / totalVotos) * 100 : 0;
+                  return (
+                    <TableRow key={`${r.uf}-${r.municipio}`}>
+                      <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="font-medium">{r.municipio}</TableCell>
+                      <TableCell className="text-xs">{r.uf}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.v2022 ? fmt(r.v2022) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.v2024 ? fmt(r.v2024) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{fmt(r.total)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pctTotal.toFixed(1)}%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
