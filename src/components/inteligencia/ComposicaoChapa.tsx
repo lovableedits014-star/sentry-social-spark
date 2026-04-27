@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 const CARGOS_DISPONIVEIS = [
@@ -35,8 +34,12 @@ type SortKey = "total" | "votos_2024" | "votos_2022" | "nome_completo" | "partid
 type SortDir = "asc" | "desc";
 
 export default function ComposicaoChapa() {
-  const { user } = useAuth();
-  const isSuperAdmin = (user?.email || "").toLowerCase() === SUPER_ADMIN_EMAIL;
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsSuperAdmin((user?.email || "").toLowerCase() === SUPER_ADMIN_EMAIL);
+    });
+  }, []);
 
   // Filtros
   const [minVotos, setMinVotos] = useState<string>("0");
