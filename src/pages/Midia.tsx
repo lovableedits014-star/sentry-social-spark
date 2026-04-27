@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell, Bookmark, BookmarkPlus, Trash2, Download, FileText, FileSpreadsheet } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Cell, Line, LineChart } from "recharts";
 import MediaAlertsManager from "@/components/midia/MediaAlertsManager";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -127,6 +127,46 @@ function sourceLabel(src?: string): string {
   if (src === "google_news") return "Google News";
   if (src === "gdelt") return "GDELT";
   return "—";
+}
+
+/** URL do favicon do veículo (Google S2). */
+function faviconFor(domain: string): string {
+  const d = (domain || "").trim().toLowerCase();
+  if (!d || d === "—") return "";
+  // Domínios com espaço (nomes em vez de host) — não tem favicon
+  if (/\s/.test(d)) return "";
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=32`;
+}
+
+/** Converte seendate (GDELT YYYYMMDDTHHMMSSZ ou ISO) em Date. */
+function parseSeenDate(s: string): Date | null {
+  if (!s) return null;
+  if (/^\d{8}T\d{6}Z$/.test(s)) {
+    const y = s.slice(0, 4), mo = s.slice(4, 6), d = s.slice(6, 8);
+    const h = s.slice(9, 11), mi = s.slice(11, 13), se = s.slice(13, 15);
+    const dt = new Date(`${y}-${mo}-${d}T${h}:${mi}:${se}Z`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/** Rótulo de grupo: "Hoje" / "Ontem" / "Há N dias" / data longa. */
+function groupLabelForDate(d: Date | null): string {
+  if (!d) return "Sem data";
+  const today = new Date();
+  const day0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((day0 - dDay) / 86400000);
+  if (diffDays <= 0) return "Hoje";
+  if (diffDays === 1) return "Ontem";
+  if (diffDays <= 6) return `Há ${diffDays} dias`;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function fmtTime(d: Date | null): string {
+  if (!d) return "";
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 const MidiaPage = () => {
@@ -443,8 +483,48 @@ const MidiaPage = () => {
     ];
   }, [data]);
 
+  /** Top veículos com volume + tom médio (calculado client-side a partir dos artigos). */
+  const topVehiclesWithTone = useMemo(() => {
+    if (!data?.articles) return [];
+    const map = new Map<string, { count: number; toneSum: number; toneN: number }>();
+    for (const a of data.articles) {
+      const d = (a.domain || "").trim();
+      if (!d) continue;
+      const cur = map.get(d) ?? { count: 0, toneSum: 0, toneN: 0 };
+      cur.count++;
+      if (typeof a.tone === "number" && !Number.isNaN(a.tone)) {
+        cur.toneSum += a.tone;
+        cur.toneN++;
+      }
+      map.set(d, cur);
+    }
+    return [...map.entries()]
+      .map(([domain, v]) => ({ domain, count: v.count, avgTone: v.toneN > 0 ? v.toneSum / v.toneN : null }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [data]);
+
+  /** Notícias agrupadas por rótulo de data ("Hoje", "Ontem", ...). */
+  const groupedArticles = useMemo(() => {
+    if (!data?.articles) return [] as Array<{ label: string; items: GdeltArticle[] }>;
+    const groups: Array<{ label: string; items: GdeltArticle[] }> = [];
+    const indexByLabel = new Map<string, number>();
+    for (const a of data.articles) {
+      const dt = parseSeenDate(a.seendate);
+      const label = groupLabelForDate(dt);
+      let idx = indexByLabel.get(label);
+      if (idx === undefined) {
+        idx = groups.length;
+        indexByLabel.set(label, idx);
+        groups.push({ label, items: [] });
+      }
+      groups[idx].items.push(a);
+    }
+    return groups;
+  }, [data]);
+
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-6">
+    <div className="container mx-auto p-4 md:p-6 max-w-[1400px] space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
@@ -480,7 +560,11 @@ const MidiaPage = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="monitor" className="space-y-6 mt-0">
+        <TabsContent value="monitor" className="mt-0">
+          {/* Layout 2 colunas: filtros sticky à esquerda + análise à direita */}
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4">
+          {/* === Coluna ESQUERDA (sticky) === */}
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
       {/* Filtros */}
       <Card>
         <CardHeader>
@@ -765,6 +849,51 @@ const MidiaPage = () => {
         </CardContent>
       </Card>
 
+      {/* Mini-KPIs (apenas quando há dados) — coluna esquerda */}
+      {data && !isLoading && (
+        <div className="grid grid-cols-2 gap-2">
+          <Card className="bg-gradient-to-br from-primary/5 to-transparent">
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1"><Newspaper className="w-3 h-3" /> Matérias</CardDescription>
+              <CardTitle className="text-2xl">{data.total_articles.toLocaleString("pt-BR")}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1">
+                {data.tone_summary.avg != null && data.tone_summary.avg >= 1.5 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> :
+                  data.tone_summary.avg != null && data.tone_summary.avg <= -1.5 ? <TrendingDown className="w-3 h-3 text-rose-500" /> :
+                  <Minus className="w-3 h-3" />}
+                Tom médio
+              </CardDescription>
+              <CardTitle className={`text-2xl ${data.tone_summary.avg != null && data.tone_summary.avg >= 1.5 ? "text-emerald-600 dark:text-emerald-400" : data.tone_summary.avg != null && data.tone_summary.avg <= -1.5 ? "text-rose-600 dark:text-rose-400" : ""}`}>
+                {data.tone_summary.avg != null ? data.tone_summary.avg.toFixed(2) : "—"}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px]">Negativas / Positivas</CardDescription>
+              <CardTitle className="text-xl">
+                <span className="text-rose-500">{data.tone_summary.negatives}</span>
+                <span className="text-muted-foreground mx-1 text-base">/</span>
+                <span className="text-emerald-500">{data.tone_summary.positives}</span>
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1"><Globe2 className="w-3 h-3" /> Veículos</CardDescription>
+              <CardTitle className="text-2xl">{data.top_sources.length}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
+          </aside>
+
+          {/* === Coluna DIREITA === */}
+          <section className="space-y-4 min-w-0">
+
       {/* Estados */}
       {!submitted && !isLoading && (
         <Card>
@@ -791,83 +920,102 @@ const MidiaPage = () => {
 
       {data && !isLoading && (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1.5"><Newspaper className="w-3.5 h-3.5" /> Matérias encontradas</CardDescription>
-                <CardTitle className="text-3xl">{data.total_articles.toLocaleString("pt-BR")}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1.5">
-                  {data.tone_summary.avg != null && data.tone_summary.avg >= 1.5 ? <TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> :
-                    data.tone_summary.avg != null && data.tone_summary.avg <= -1.5 ? <TrendingDown className="w-3.5 h-3.5 text-rose-500" /> :
-                    <Minus className="w-3.5 h-3.5" />}
-                  Tom médio
-                </CardDescription>
-                <CardTitle className="text-3xl">{data.tone_summary.avg != null ? data.tone_summary.avg.toFixed(2) : "—"}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Negativas / Positivas</CardDescription>
-                <CardTitle className="text-3xl">
-                  <span className="text-rose-500">{data.tone_summary.negatives}</span>
-                  <span className="text-muted-foreground mx-1.5 text-xl">/</span>
-                  <span className="text-emerald-500">{data.tone_summary.positives}</span>
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Fontes únicas</CardDescription>
-                <CardTitle className="text-3xl">{data.top_sources.length}</CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
+          {/* Tendência de cobertura */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4" /> Tendência de cobertura
+              </CardTitle>
+              <CardDescription>Volume de matérias ao longo do tempo</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="vol2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="date" fontSize={11} />
+                  <YAxis fontSize={11} />
+                  <RTooltip />
+                  <Area type="monotone" dataKey="volume" stroke="hsl(var(--primary))" fill="url(#vol2)" name="Volume" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-          {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Tendência de cobertura</CardTitle>
-                <CardDescription>Volume de matérias ao longo do tempo</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="vol2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="date" fontSize={11} />
-                    <YAxis fontSize={11} />
-                    <RTooltip />
-                    <Area type="monotone" dataKey="volume" stroke="hsl(var(--primary))" fill="url(#vol2)" name="Volume" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          {/* Linha 2: Distribuição de tom + Top veículos com tom */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Distribuição de tom</CardTitle>
                 <CardDescription>Polarização das matérias</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={sentimentBars}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis dataKey="label" fontSize={11} />
                     <YAxis fontSize={11} />
                     <RTooltip />
-                    <Bar dataKey="value" fill="hsl(var(--primary))" />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {sentimentBars.map((b, i) => (
+                        <Cell
+                          key={i}
+                          fill={b.label === "Positivo" ? "hsl(160 84% 39%)" : b.label === "Negativo" ? "hsl(346 77% 50%)" : "hsl(38 92% 50%)"}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Top veículos com tom médio */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-1.5">
+                  <Globe2 className="w-4 h-4" /> Top veículos
+                </CardTitle>
+                <CardDescription>Volume e tom médio por fonte</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[200px] overflow-y-auto">
+                  {topVehiclesWithTone.length === 0 ? (
+                    <div className="p-4 text-xs text-muted-foreground text-center">Nenhum veículo identificado.</div>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-muted/60 backdrop-blur">
+                        <tr className="text-muted-foreground">
+                          <th className="text-left px-3 py-1.5 font-medium">Veículo</th>
+                          <th className="text-right px-2 py-1.5 font-medium">Matérias</th>
+                          <th className="text-right px-3 py-1.5 font-medium">Tom</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topVehiclesWithTone.map((v) => (
+                          <tr key={v.domain} className="border-t hover:bg-muted/30">
+                            <td className="px-3 py-1.5 truncate max-w-[160px]">
+                              <span className="inline-flex items-center gap-1.5">
+                                {faviconFor(v.domain) && (
+                                  <img src={faviconFor(v.domain)} alt="" className="w-3.5 h-3.5 rounded-sm" loading="lazy" />
+                                )}
+                                <span className="truncate" title={v.domain}>{v.domain}</span>
+                              </span>
+                            </td>
+                            <td className="text-right px-2 py-1.5 tabular-nums">{v.count}</td>
+                            <td className={`text-right px-3 py-1.5 tabular-nums font-medium ${v.avgTone == null ? "text-muted-foreground" : v.avgTone >= 1.5 ? "text-emerald-600 dark:text-emerald-400" : v.avgTone <= -1.5 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`}>
+                              {v.avgTone == null ? "—" : v.avgTone.toFixed(1)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -877,16 +1025,15 @@ const MidiaPage = () => {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Evolução do tom médio</CardTitle>
-                <CardDescription>Polarização da cobertura ao longo do tempo (-10 muito negativo, +10 muito positivo)</CardDescription>
+                <CardDescription>-10 (muito negativo) → +10 (muito positivo)</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis dataKey="date" fontSize={11} />
                     <YAxis fontSize={11} domain={[-10, 10]} />
                     <RTooltip />
-                    <Legend />
                     <Line type="monotone" dataKey="tone" stroke="hsl(346 77% 50%)" name="Tom médio" dot={false} strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -894,32 +1041,16 @@ const MidiaPage = () => {
             </Card>
           )}
 
-          {/* Top fontes */}
-          {data.top_sources.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-1.5"><Globe2 className="w-4 h-4" /> Principais fontes</CardTitle>
-                <CardDescription>Veículos com mais matérias no período</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {data.top_sources.map((s) => (
-                    <Badge key={s.domain} variant="secondary" className="font-mono text-xs">
-                      {s.domain} · {s.count}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Lista de notícias */}
+          {/* Feed de notícias estilo card, agrupado por data */}
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <CardTitle className="text-base">Notícias ({data.articles.length})</CardTitle>
-                  <CardDescription>Ordenadas pelas mais recentes. Clique para abrir a fonte original.</CardDescription>
+                  <CardTitle className="text-base flex items-center gap-1.5">
+                    <Newspaper className="w-4 h-4" /> Feed de notícias
+                    <Badge variant="secondary" className="ml-1">{data.articles.length}</Badge>
+                  </CardTitle>
+                  <CardDescription>Mais recentes primeiro · Clique para abrir a fonte</CardDescription>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -939,44 +1070,88 @@ const MidiaPage = () => {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="max-h-[600px] overflow-y-auto divide-y">
-                {data.articles.length === 0 && (
-                  <div className="p-8 text-sm text-muted-foreground text-center">Nenhum artigo encontrado para esta combinação de filtros.</div>
-                )}
-                {data.articles.map((a, i) => (
-                  <a
-                    key={`${a.url}-${i}`}
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 hover:bg-muted/50 transition-colors group"
-                  >
-                    <Badge variant="outline" className={`shrink-0 text-[10px] ${toneColor(a.tone)}`}>
-                      {toneLabel(a.tone)}
-                      {a.tone != null && <span className="ml-1 opacity-70">{a.tone.toFixed(1)}</span>}
-                    </Badge>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium leading-snug group-hover:text-primary line-clamp-2">
-                        {a.title || "(sem título)"}
+              {data.articles.length === 0 ? (
+                <div className="p-8 text-sm text-muted-foreground text-center">
+                  Nenhum artigo encontrado para esta combinação de filtros.
+                </div>
+              ) : (
+                <div className="max-h-[720px] overflow-y-auto px-3 pb-3 space-y-4">
+                  {groupedArticles.map((group) => (
+                    <div key={group.label}>
+                      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur py-1.5 mb-1 -mx-3 px-3 border-b">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          {group.label}
+                          <Badge variant="outline" className="h-4 px-1 text-[10px]">{group.items.length}</Badge>
+                        </p>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-                        <Badge
-                          variant="outline"
-                          className={`text-[9px] h-4 px-1 ${a.source === "google_news" ? "border-blue-500/40 text-blue-700 dark:text-blue-400" : "border-violet-500/40 text-violet-700 dark:text-violet-400"}`}
-                        >
-                          {sourceLabel(a.source)}
-                        </Badge>
-                        <span className="font-mono">{a.domain}</span>
-                        <span>·</span>
-                        <span>{fmtDate(a.seendate)}</span>
-                        {a.sourcecountry && <><span>·</span><span>{a.sourcecountry}</span></>}
-                        {a.language && <><span>·</span><span className="uppercase">{a.language}</span></>}
+                      <div className="space-y-2">
+                        {group.items.map((a, i) => {
+                          const tone = a.tone;
+                          const borderClass =
+                            tone == null ? "border-l-muted" :
+                            tone >= 1.5 ? "border-l-emerald-500" :
+                            tone <= -1.5 ? "border-l-rose-500" :
+                            "border-l-amber-500";
+                          const dt = parseSeenDate(a.seendate);
+                          const fav = faviconFor(a.domain);
+                          return (
+                            <a
+                              key={`${a.url}-${i}`}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`block rounded-md border border-l-4 ${borderClass} bg-card p-3 hover:shadow-md hover:border-primary/30 hover:-translate-y-px transition-all group`}
+                            >
+                              <div className="flex items-start gap-3">
+                                {fav ? (
+                                  <img
+                                    src={fav}
+                                    alt=""
+                                    className="w-6 h-6 rounded shrink-0 mt-0.5 bg-muted"
+                                    loading="lazy"
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                  />
+                                ) : (
+                                  <div className="w-6 h-6 rounded shrink-0 mt-0.5 bg-muted flex items-center justify-center">
+                                    <Newspaper className="w-3 h-3 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium leading-snug group-hover:text-primary line-clamp-2">
+                                    {a.title || "(sem título)"}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium text-foreground/70 truncate max-w-[180px]" title={a.domain}>
+                                      {a.domain}
+                                    </span>
+                                    {dt && (
+                                      <>
+                                        <span>·</span>
+                                        <span>{fmtTime(dt)}</span>
+                                      </>
+                                    )}
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[9px] h-4 px-1 ml-auto ${a.source === "google_news" ? "border-blue-500/40 text-blue-700 dark:text-blue-400" : "border-violet-500/40 text-violet-700 dark:text-violet-400"}`}
+                                    >
+                                      {sourceLabel(a.source)}
+                                    </Badge>
+                                    <Badge variant="outline" className={`text-[9px] h-4 px-1 ${toneColor(a.tone)}`}>
+                                      {toneLabel(a.tone)}
+                                      {a.tone != null && <span className="ml-1 opacity-70">{a.tone.toFixed(1)}</span>}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
-                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -986,10 +1161,12 @@ const MidiaPage = () => {
               <> · {data.source_breakdown.gdelt} GDELT + {data.source_breakdown.google_news} Google News (após dedup: {data.source_breakdown.merged})</>
             )}
             {" "}· Atualizado {new Date(data.generated_at).toLocaleString("pt-BR")} ·
-            Dados meramente informativos. Não use como base para disparos automatizados.
+            Dados meramente informativos.
           </p>
         </>
       )}
+          </section>
+          </div>
         </TabsContent>
 
         <TabsContent value="alerts" className="mt-0">
