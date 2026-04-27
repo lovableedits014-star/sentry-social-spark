@@ -969,29 +969,68 @@ export default function Territorial() {
         {filtered.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground"><MapPin className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">Nenhum dado territorial disponível</p><p className="text-xs mt-1">Os apoiadores precisam informar cidade/bairro no cadastro do portal</p></CardContent></Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((g) => (
-              <Card key={g.key} className="overflow-hidden">
-                <CardContent className="pt-4 pb-3 px-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-sm">{g.neighborhood || g.city}</p>
-                      {g.neighborhood && <p className="text-xs text-muted-foreground">{g.city}{g.state ? ` - ${g.state}` : ""}</p>}
-                      {!g.neighborhood && g.state && <p className="text-xs text-muted-foreground">{g.state}</p>}
-                    </div>
-                    <Badge variant={getHeatBadge(g.count)} className="text-xs shrink-0">{getHeatLabel(g.count)}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-sm font-bold">{g.count}</span>
-                    <span className="text-xs text-muted-foreground">apoiadores</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-3">
+            {selectedLocationKeys.size > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+                <span className="text-xs text-muted-foreground">
+                  {selectedLocationKeys.size} localidade{selectedLocationKeys.size === 1 ? "" : "s"} selecionada{selectedLocationKeys.size === 1 ? "" : "s"}
+                </span>
+                <div className="flex items-center gap-2">
+                  {selectedLocationKeys.size >= 2 && (
+                    <Button size="sm" onClick={openSelectedLocationsMerge}>
+                      <Merge className="w-4 h-4 mr-1.5" /> Mesclar selecionados
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedLocationKeys(new Set())}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Limpar
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((g) => {
+                const isSelected = selectedLocationKeys.has(g.key);
+                const variantCount = g.neighborhood
+                  ? Object.keys(g.neighVariants || {}).length
+                  : Object.keys(g.cityVariants || {}).length;
+                return (
+                  <Card key={g.key} className={`overflow-hidden transition-colors ${isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}>
+                    <CardContent className="pt-4 pb-3 px-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(v) => {
+                              setSelectedLocationKeys((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(g.key); else next.delete(g.key);
+                                return next;
+                              });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <button type="button" onClick={() => openLocationDetail(g)} className="text-left min-w-0 group">
+                            <p className="font-semibold text-sm truncate group-hover:text-primary">{g.neighborhood || g.city}</p>
+                            {g.neighborhood && <p className="text-xs text-muted-foreground truncate">{g.city}{g.state ? ` - ${g.state}` : ""}</p>}
+                            {!g.neighborhood && g.state && <p className="text-xs text-muted-foreground truncate">{g.state}</p>}
+                            {variantCount > 1 && <p className="text-[10px] text-destructive mt-0.5">⚠ {variantCount} variantes</p>}
+                          </button>
+                        </div>
+                        <Badge variant={getHeatBadge(g.count)} className="text-xs shrink-0">{getHeatLabel(g.count)}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-sm font-bold">{g.count}</span>
+                        <span className="text-xs text-muted-foreground">apoiadores</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-500 ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
