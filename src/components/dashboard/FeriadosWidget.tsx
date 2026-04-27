@@ -20,6 +20,7 @@ import {
 import { getSugestaoFeriado } from "@/lib/sugestoes-tema";
 import { useEstilosTema } from "@/hooks/useEstilosTema";
 import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
+import { diasAteCampanha, diasLabelCampanha } from "@/lib/calendario-datas";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -30,14 +31,7 @@ type Holiday = {
   year?: number;
 };
 
-function diasAte(dateStr: string): number {
-  // dateStr é YYYY-MM-DD (data local sem fuso) — comparar em UTC pra evitar drift
-  const today = new Date();
-  const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const targetUTC = Date.UTC(y, m - 1, d);
-  return Math.round((targetUTC - todayUTC) / (1000 * 60 * 60 * 24));
-}
+const diasAte = diasAteCampanha;
 
 function formatarData(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -49,13 +43,7 @@ function formatarData(dateStr: string): string {
   });
 }
 
-function diasLabel(dias: number): { label: string; tone: "soon" | "near" | "future" } {
-  if (dias === 0) return { label: "Hoje", tone: "soon" };
-  if (dias === 1) return { label: "Amanhã", tone: "soon" };
-  if (dias <= 7) return { label: `Em ${dias} dias`, tone: "soon" };
-  if (dias <= 30) return { label: `Em ${dias} dias`, tone: "near" };
-  return { label: `Em ${dias} dias`, tone: "future" };
-}
+const diasLabel = diasLabelCampanha;
 
 export function FeriadosWidget() {
   const currentYear = new Date().getFullYear();

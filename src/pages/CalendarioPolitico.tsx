@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
 import { useEstilosTema } from "@/hooks/useEstilosTema";
 import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
+import { diasAteCampanha, todayCampaignYMD } from "@/lib/calendario-datas";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -26,12 +27,7 @@ type Holiday = {
   year?: number;
 };
 
-function diasAte(dateStr: string): number {
-  const today = new Date();
-  const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return Math.round((Date.UTC(y, m - 1, d) - todayUTC) / 86400000);
-}
+const diasAte = diasAteCampanha;
 
 function ymd(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -44,8 +40,11 @@ const NOMES_MES = [
 const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export default function CalendarioPolitico() {
-  const today = new Date();
-  const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  // "hoje" sempre no fuso da campanha (America/Sao_Paulo) para evitar drift entre fusos
+  const todayYMD = todayCampaignYMD();
+  const [tY, tM, tD] = todayYMD.split("-").map(Number);
+  const todayParts = { year: tY, month: tM - 1, day: tD };
+  const [cursor, setCursor] = useState({ year: todayParts.year, month: todayParts.month });
   const { ativos: estilosAtivos } = useEstilosTema();
 
   // Buscamos 3 anos para que navegação prev/next nos limites não quebre
@@ -102,7 +101,7 @@ export default function CalendarioPolitico() {
     const daysInPrev = new Date(cursor.year, cursor.month, 0).getDate();
 
     const cells: { date: string; day: number; inMonth: boolean; isToday: boolean }[] = [];
-    const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayStr = todayYMD;
 
     // Dias do mês anterior pra preencher
     for (let i = startWeekday - 1; i >= 0; i--) {
@@ -127,13 +126,13 @@ export default function CalendarioPolitico() {
       next++;
     }
     return cells;
-  }, [cursor, today]);
+  }, [cursor, todayYMD]);
 
   const goPrev = () =>
     setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }));
   const goNext = () =>
     setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }));
-  const goToday = () => setCursor({ year: today.getFullYear(), month: today.getMonth() });
+  const goToday = () => setCursor({ year: todayParts.year, month: todayParts.month });
 
   return (
     <TooltipProvider>
