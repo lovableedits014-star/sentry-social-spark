@@ -159,7 +159,7 @@ export function FeriadosWidget() {
           )}
           {proximos.length > 0 && (
             <ul className="space-y-2">
-              {proximos.map((h) => {
+              {visiveis.map((h) => {
                 const dias = diasAte(h.date);
                 const tag = diasLabel(dias);
                 const sug = getSugestaoFeriado(h, estilosAtivos);
@@ -204,6 +204,24 @@ export function FeriadosWidget() {
               })}
             </ul>
           )}
+          {proximos.length > LIMITE_PADRAO && (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                Mostrando {visiveis.length} de {proximos.length} feriado(s) {yearFilter === "proximos" ? "à frente" : `em ${yearFilter}`}.
+              </p>
+              <button
+                type="button"
+                onClick={() => setExpandido((v) => !v)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {expandido ? "Ver menos" : `Ver todos (+${restantes})`}
+              </button>
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-3 leading-snug">
+            Fonte: feriados <span className="font-medium">nacionais brasileiros</span>. Feriados municipais e estaduais
+            não estão incluídos — confira o calendário oficial da sua cidade/estado para datas locais.
+          </p>
         </CardContent>
       </Card>
     </TooltipProvider>
