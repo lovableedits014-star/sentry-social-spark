@@ -434,6 +434,177 @@ const MidiaPage = () => {
               </div>
             </div>
 
+            {/* Filtros avançados */}
+            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="gap-1.5 px-2 -ml-2">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Filtros avançados
+                  {(domains.length > 0 || excludeTerms.length > 0 || language || useCustomRange) && (
+                    <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
+                      {[
+                        domains.length && `${domains.length} fonte${domains.length > 1 ? "s" : ""}`,
+                        excludeTerms.length && `${excludeTerms.length} excl.`,
+                        language && "idioma",
+                        useCustomRange && "data custom",
+                      ].filter(Boolean).join(" · ")}
+                    </Badge>
+                  )}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-3 border-t mt-2">
+                {/* Fontes (domínios) */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Fontes (domínios) — apenas matérias destes sites
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3 h-3 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          Limite a busca a domínios específicos (ex.: <code>g1.globo.com</code>).
+                          Múltiplos domínios são combinados com OR. Máx. 10.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={domainInput}
+                      onChange={(e) => setDomainInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddDomain();
+                        }
+                      }}
+                      placeholder="ex.: folha.uol.com.br"
+                      maxLength={100}
+                    />
+                    <Button type="button" variant="outline" onClick={handleAddDomain} disabled={!cleanDomain(domainInput)}>
+                      Adicionar
+                    </Button>
+                  </div>
+                  {domains.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {domains.map((d) => (
+                        <Badge key={d} variant="secondary" className="gap-1 font-mono text-xs">
+                          {d}
+                          <button type="button" onClick={() => removeDomain(d)} className="hover:text-destructive">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {SOURCE_PRESETS.map((p) => (
+                      <Button
+                        key={p.label}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px]"
+                        onClick={() => p.domains.forEach(addDomain)}
+                      >
+                        + {p.label}
+                      </Button>
+                    ))}
+                    {domains.length > 0 && (
+                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => setDomains([])}>
+                        Limpar fontes
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Termos a excluir */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+                    <Ban className="w-3 h-3" /> Excluir termos (NOT) — matérias com esses termos são removidas
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={excludeInput}
+                      onChange={(e) => setExcludeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddExclude();
+                        }
+                      }}
+                      placeholder="ex.: horóscopo, opinião"
+                      maxLength={50}
+                    />
+                    <Button type="button" variant="outline" onClick={handleAddExclude} disabled={excludeInput.trim().length < 2}>
+                      Adicionar
+                    </Button>
+                  </div>
+                  {excludeTerms.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {excludeTerms.map((t) => (
+                        <Badge key={t} variant="outline" className="gap-1 border-rose-500/30 text-rose-700 dark:text-rose-400">
+                          −{t}
+                          <button type="button" onClick={() => removeExclude(t)} className="hover:text-destructive">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Idioma + Janela personalizada */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Idioma da fonte</label>
+                    <Select value={language || "__any__"} onValueChange={(v) => setLanguage(v === "__any__" ? "" : v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((l) => (
+                          <SelectItem key={l.code || "__any__"} value={l.code || "__any__"}>{l.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Janela personalizada</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">
+                          {useCustomRange ? "Datas específicas" : "Usar janela acima"}
+                        </span>
+                        <Switch checked={useCustomRange} onCheckedChange={setUseCustomRange} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        disabled={!useCustomRange}
+                        max={endDate || undefined}
+                        aria-label="Data inicial"
+                      />
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        disabled={!useCustomRange}
+                        min={startDate || undefined}
+                        aria-label="Data final"
+                      />
+                    </div>
+                    {useCustomRange && (!startDate || !endDate) && (
+                      <p className="text-[11px] text-amber-600 mt-1">Preencha as duas datas para usar janela personalizada.</p>
+                    )}
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs text-muted-foreground">
                 {terms.length === 0 && !municipio && !uf
