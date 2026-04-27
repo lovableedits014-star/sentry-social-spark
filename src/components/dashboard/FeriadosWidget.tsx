@@ -96,6 +96,7 @@ export function FeriadosWidget() {
     const list = data?.holidays ?? [];
     return list
       .filter((h) => diasAte(h.date) >= 0)
+      .filter((h) => h.global !== false) // só feriados nacionais (nem todos têm 'global', então default = aceitar)
       .slice(0, 5);
   }, [data]);
 
