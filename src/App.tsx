@@ -37,6 +37,7 @@ import Telemarketing from "./pages/Telemarketing";
 import CadastroUnificado from "./pages/CadastroUnificado";
 import CadastroLiderConvite from "./pages/CadastroLiderConvite";
 import PortalUnificado from "./pages/PortalUnificado";
+import InteligenciaEleitoral from "./pages/InteligenciaEleitoral";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 
 // Wrappers de redirect para preservar links antigos
@@ -92,6 +93,7 @@ const App = () => (
             <Route path="/contratados" element={<Contratados />} />
             <Route path="/contratados/disparos" element={<ContratadosDisparos />} />
             <Route path="/contratados/relatorios" element={<ContratadosRelatorios />} />
+            <Route path="/inteligencia-eleitoral" element={<InteligenciaEleitoral />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
