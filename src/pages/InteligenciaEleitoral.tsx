@@ -526,6 +526,14 @@ const InteligenciaEleitoral = () => {
                 >
                   <Building2 className="w-3.5 h-3.5" /> Buscar por local
                 </button>
+                <button
+                  onClick={exportarAuditoriaBairros}
+                  disabled={locaisMeta.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 hover:bg-muted ml-auto disabled:opacity-50"
+                  title="Baixa planilha com todos os locais e seus bairros (incluindo vazios) para conferir a geocodificação."
+                >
+                  <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
+                </button>
               </div>
             </CardHeader>
             <CardContent>
