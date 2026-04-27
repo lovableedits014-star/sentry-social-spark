@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell } from "lucide-react";
+import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
 import MediaAlertsManager from "@/components/midia/MediaAlertsManager";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 /**
  * Página dedicada de Mídia (GDELT) — cobertura noticiosa em tempo quase real.
@@ -38,6 +41,17 @@ type GdeltData = {
   timeline: { date: string; volume: number; tone: number | null }[];
   articles: GdeltArticle[];
   generated_at: string;
+};
+
+type SavedSearch = {
+  id: string;
+  name: string;
+  terms: string[];
+  uf: string | null;
+  municipio: string | null;
+  timespan: string;
+  country: string;
+  created_at: string;
 };
 
 const UFS = [
@@ -104,11 +118,16 @@ const MidiaPage = () => {
   const [timespan, setTimespan] = useState<string>("7d");
   const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       const { data: clients } = await supabase.from("clients").select("id").eq("user_id", user.id).limit(1);
       if (clients && clients.length > 0) setClientId(clients[0].id);
     })();
@@ -128,6 +147,79 @@ const MidiaPage = () => {
       return count || 0;
     },
   });
+
+  // Buscas salvas do usuário/cliente
+  const { data: savedSearches = [] } = useQuery<SavedSearch[]>({
+    queryKey: ["media-saved-searches", clientId],
+    enabled: !!clientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("media_saved_searches")
+        .select("id, name, terms, uf, municipio, timespan, country, created_at")
+        .eq("client_id", clientId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map((r: any) => ({
+        ...r,
+        terms: Array.isArray(r.terms) ? r.terms : [],
+      })) as SavedSearch[];
+    },
+  });
+
+  const loadSearch = (s: SavedSearch) => {
+    setTerms(s.terms || []);
+    setUf(s.uf || "");
+    setMunicipio(s.municipio || "");
+    setTimespan(s.timespan || "7d");
+    setCountry(s.country || "BR");
+    const q = buildQuery(s.terms || [], (s.municipio || "").trim(), (s.uf || "").trim());
+    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country });
+    toast.success(`Busca "${s.name}" carregada`);
+  };
+
+  const saveCurrentSearch = async () => {
+    if (!clientId || !userId) {
+      toast.error("Cliente não identificado");
+      return;
+    }
+    const name = saveName.trim();
+    if (!name) {
+      toast.error("Dê um nome para a busca");
+      return;
+    }
+    if (terms.length === 0 && !municipio.trim() && !uf.trim()) {
+      toast.error("Configure ao menos um filtro antes de salvar");
+      return;
+    }
+    const { error } = await supabase.from("media_saved_searches").insert({
+      client_id: clientId,
+      user_id: userId,
+      name,
+      terms,
+      uf: uf || null,
+      municipio: municipio.trim() || null,
+      timespan,
+      country,
+    });
+    if (error) {
+      toast.error("Erro ao salvar: " + error.message);
+      return;
+    }
+    toast.success(`Busca "${name}" salva`);
+    setSaveName("");
+    setSaveDialogOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["media-saved-searches", clientId] });
+  };
+
+  const deleteSearch = async (id: string, name: string) => {
+    const { error } = await supabase.from("media_saved_searches").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir: " + error.message);
+      return;
+    }
+    toast.success(`"${name}" removida`);
+    queryClient.invalidateQueries({ queryKey: ["media-saved-searches", clientId] });
+  };
 
   const addTerm = (t: string) => {
     const v = t.trim();
@@ -358,9 +450,109 @@ const MidiaPage = () => {
                   ? "Adicione pelo menos uma palavra-chave ou município."
                   : <>Consulta gerada: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{buildQuery(terms, municipio.trim(), uf.trim()) || "(vazia)"}</code></>}
               </p>
-              <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
-                <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Buscas salvas */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm">
+                      <Bookmark className="w-3.5 h-3.5 mr-1.5" />
+                      Buscas salvas
+                      {savedSearches.length > 0 && (
+                        <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px]">{savedSearches.length}</Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="end">
+                    <div className="px-3 py-2 border-b">
+                      <p className="text-sm font-semibold">Minhas buscas salvas</p>
+                      <p className="text-[11px] text-muted-foreground">Clique para carregar e executar</p>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {savedSearches.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-4 text-center">
+                          Nenhuma busca salva ainda. Configure filtros e clique em <strong>Salvar</strong>.
+                        </p>
+                      ) : (
+                        savedSearches.map((s) => (
+                          <div key={s.id} className="flex items-start gap-2 px-3 py-2 hover:bg-muted/50 border-b last:border-0">
+                            <button
+                              type="button"
+                              onClick={() => loadSearch(s)}
+                              className="flex-1 text-left min-w-0"
+                            >
+                              <p className="text-sm font-medium truncate">{s.name}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {[
+                                  s.terms?.length ? `${s.terms.length} termo(s)` : null,
+                                  s.uf || null,
+                                  s.municipio || null,
+                                  s.timespan,
+                                  s.country,
+                                ].filter(Boolean).join(" · ")}
+                              </p>
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => deleteSearch(s.id, s.name)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Salvar busca atual */}
+                <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}
+                    >
+                      <BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />
+                      Salvar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Salvar busca</DialogTitle>
+                      <DialogDescription>
+                        Dê um nome para reutilizar esta combinação de filtros depois.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder='Ex.: "Lula em MS — última semana"'
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveCurrentSearch(); } }}
+                        autoFocus
+                      />
+                      <div className="rounded-md border bg-muted/40 p-2 text-[11px] space-y-0.5">
+                        <p><strong>Termos:</strong> {terms.length > 0 ? terms.join(", ") : "—"}</p>
+                        <p><strong>UF:</strong> {uf || "Todas"} · <strong>Município:</strong> {municipio || "—"}</p>
+                        <p><strong>Janela:</strong> {timespan} · <strong>País:</strong> {country}</p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancelar</Button>
+                      <Button type="button" onClick={saveCurrentSearch}>Salvar</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
+                  <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
