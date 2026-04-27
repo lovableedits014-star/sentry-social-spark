@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import * as XLSXStyle from "xlsx-js-style";
 
 type Row = {
   id: number;
@@ -249,15 +250,195 @@ const InteligenciaEleitoral = () => {
   const exportarVotosCandidato = () => {
     const cand = ranking.find((c) => c.numero === selectedCandidato);
     if (!cand) return;
-    const data = votosPorLocalCand.map((r, i) => ({
-      Posição: i + 1,
-      "Local de votação": r.nome_local,
-      Endereço: r.endereco,
-      Bairro: (r as any).bairro || "",
-      Zona: r.zona,
-      Votos: r.votos,
-    }));
-    exportXLSX(`votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { "Por local": data });
+
+    const totalVotos = votosPorLocalCand.reduce((s, r) => s + (r.votos || 0), 0);
+    const totalLocais = votosPorLocalCand.length;
+    const fmt = (n: number) => n.toLocaleString("pt-BR");
+    const cargoLabel = cargo === "vereador" ? "Vereador" : cargo === "prefeito" ? "Prefeito" : String(cargo);
+
+    // Monta AOA (array of arrays) para controle total de layout/estilo
+    const aoa: any[][] = [
+      ["RELATÓRIO DE VOTAÇÃO POR LOCAL"],
+      [],
+      ["Candidato", cand.nome],
+      ["Número", cand.numero],
+      ["Cargo", cargoLabel],
+      ["Turno", `${turno}º turno`],
+      ["Resumo", `${fmt(totalVotos)} votos em ${fmt(totalLocais)} locais`],
+      ["Gerado em", new Date().toLocaleString("pt-BR")],
+      [],
+      ["Posição", "Local de votação", "Endereço", "Bairro", "Zona", "Votos", "% do total"],
+    ];
+    votosPorLocalCand.forEach((r, i) => {
+      aoa.push([
+        i + 1,
+        r.nome_local || "",
+        r.endereco || "",
+        (r as any).bairro || "",
+        r.zona,
+        r.votos,
+        totalVotos > 0 ? r.votos / totalVotos : 0,
+      ]);
+    });
+    // linha de totais
+    aoa.push([]);
+    aoa.push(["", "TOTAL", "", "", "", totalVotos, 1]);
+
+    const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
+
+    // larguras de coluna
+    ws["!cols"] = [
+      { wch: 9 },   // Posição
+      { wch: 42 },  // Local
+      { wch: 50 },  // Endereço
+      { wch: 26 },  // Bairro
+      { wch: 7 },   // Zona
+      { wch: 10 },  // Votos
+      { wch: 12 },  // % do total
+    ];
+
+    // merges do cabeçalho (título e rótulos)
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // título
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 6 } },
+      { s: { r: 3, c: 1 }, e: { r: 3, c: 6 } },
+      { s: { r: 4, c: 1 }, e: { r: 4, c: 6 } },
+      { s: { r: 5, c: 1 }, e: { r: 5, c: 6 } },
+      { s: { r: 6, c: 1 }, e: { r: 6, c: 6 } },
+      { s: { r: 7, c: 1 }, e: { r: 7, c: 6 } },
+    ];
+
+    // estilos (xlsx-js-style suporta `s` em cada cell; xlsx puro ignora silenciosamente)
+    const titleStyle: any = {
+      font: { name: "Calibri", sz: 16, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "1F4E78" } },
+      alignment: { horizontal: "center", vertical: "center" },
+    };
+    const labelStyle: any = {
+      font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "1F4E78" } },
+      fill: { patternType: "solid", fgColor: { rgb: "DDEBF7" } },
+      alignment: { horizontal: "left", vertical: "center" },
+    };
+    const valueStyle: any = {
+      font: { name: "Calibri", sz: 11 },
+      fill: { patternType: "solid", fgColor: { rgb: "F2F7FB" } },
+      alignment: { horizontal: "left", vertical: "center" },
+    };
+    const candidateValueStyle: any = {
+      font: { name: "Calibri", sz: 13, bold: true, color: { rgb: "1F4E78" } },
+      fill: { patternType: "solid", fgColor: { rgb: "F2F7FB" } },
+      alignment: { horizontal: "left", vertical: "center" },
+    };
+    const headerStyle: any = {
+      font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "2E75B6" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { rgb: "FFFFFF" } },
+        bottom: { style: "thin", color: { rgb: "FFFFFF" } },
+        left: { style: "thin", color: { rgb: "FFFFFF" } },
+        right: { style: "thin", color: { rgb: "FFFFFF" } },
+      },
+    };
+    const cellBorder = {
+      top: { style: "thin", color: { rgb: "D9D9D9" } },
+      bottom: { style: "thin", color: { rgb: "D9D9D9" } },
+      left: { style: "thin", color: { rgb: "D9D9D9" } },
+      right: { style: "thin", color: { rgb: "D9D9D9" } },
+    };
+    const totalStyle: any = {
+      font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "1F4E78" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: cellBorder,
+    };
+
+    const setStyle = (addr: string, style: any) => {
+      if (!ws[addr]) return;
+      ws[addr].s = style;
+    };
+
+    // título
+    setStyle("A1", titleStyle);
+    // bloco de labels (linhas 3..8 = índices 2..7)
+    for (let r = 2; r <= 7; r++) {
+      const labelAddr = XLSX.utils.encode_cell({ r, c: 0 });
+      const valAddr = XLSX.utils.encode_cell({ r, c: 1 });
+      setStyle(labelAddr, labelStyle);
+      setStyle(valAddr, r === 2 ? candidateValueStyle : valueStyle);
+    }
+
+    // linha de cabeçalho da tabela = índice 9
+    const headerRowIdx = 9;
+    for (let c = 0; c < 7; c++) {
+      setStyle(XLSX.utils.encode_cell({ r: headerRowIdx, c }), headerStyle);
+    }
+    // altura do cabeçalho da tabela
+    ws["!rows"] = [];
+    ws["!rows"][0] = { hpt: 28 };
+    ws["!rows"][headerRowIdx] = { hpt: 22 };
+
+    // linhas de dados começam em headerRowIdx+1
+    const dataStart = headerRowIdx + 1;
+    const dataEnd = dataStart + votosPorLocalCand.length - 1;
+    for (let r = dataStart; r <= dataEnd; r++) {
+      const isOdd = (r - dataStart) % 2 === 1;
+      const baseFill = isOdd ? "F7FAFC" : "FFFFFF";
+      const baseStyle: any = {
+        font: { name: "Calibri", sz: 10 },
+        fill: { patternType: "solid", fgColor: { rgb: baseFill } },
+        alignment: { vertical: "center" },
+        border: cellBorder,
+      };
+      // Posição (centro)
+      setStyle(XLSX.utils.encode_cell({ r, c: 0 }), {
+        ...baseStyle,
+        alignment: { horizontal: "center", vertical: "center" },
+      });
+      // Local, Endereço, Bairro
+      setStyle(XLSX.utils.encode_cell({ r, c: 1 }), { ...baseStyle, alignment: { horizontal: "left", vertical: "center" } });
+      setStyle(XLSX.utils.encode_cell({ r, c: 2 }), { ...baseStyle, alignment: { horizontal: "left", vertical: "center" } });
+      setStyle(XLSX.utils.encode_cell({ r, c: 3 }), { ...baseStyle, alignment: { horizontal: "left", vertical: "center" } });
+      // Zona (centro)
+      setStyle(XLSX.utils.encode_cell({ r, c: 4 }), {
+        ...baseStyle,
+        alignment: { horizontal: "center", vertical: "center" },
+      });
+      // Votos (formatado com milhar)
+      const votosCell = XLSX.utils.encode_cell({ r, c: 5 });
+      if (ws[votosCell]) {
+        ws[votosCell].z = "#,##0";
+        ws[votosCell].s = {
+          ...baseStyle,
+          font: { name: "Calibri", sz: 10, bold: true },
+          alignment: { horizontal: "right", vertical: "center" },
+        };
+      }
+      // % (formato percentual)
+      const pctCell = XLSX.utils.encode_cell({ r, c: 6 });
+      if (ws[pctCell]) {
+        ws[pctCell].z = "0.00%";
+        ws[pctCell].s = { ...baseStyle, alignment: { horizontal: "right", vertical: "center" } };
+      }
+    }
+
+    // linha de TOTAL (última linha)
+    const totalRowIdx = dataEnd + 2;
+    for (let c = 0; c < 7; c++) {
+      setStyle(XLSX.utils.encode_cell({ r: totalRowIdx, c }), totalStyle);
+    }
+    const totalVotosCell = XLSX.utils.encode_cell({ r: totalRowIdx, c: 5 });
+    if (ws[totalVotosCell]) ws[totalVotosCell].z = "#,##0";
+    const totalPctCell = XLSX.utils.encode_cell({ r: totalRowIdx, c: 6 });
+    if (ws[totalPctCell]) ws[totalPctCell].z = "0.00%";
+
+    // freeze pane abaixo do cabeçalho da tabela
+    ws["!freeze"] = { xSplit: 0, ySplit: dataStart } as any;
+    (ws as any)["!views"] = [{ state: "frozen", ySplit: dataStart }];
+
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, "Por local");
+    XLSXStyle.writeFile(wb, `votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`);
   };
 
   const exportarRankingLocal = () => {
