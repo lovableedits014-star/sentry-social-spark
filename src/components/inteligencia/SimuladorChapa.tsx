@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -60,7 +59,6 @@ export default function SimuladorChapa() {
     },
   });
 
-  // Universo de municípios da UF selecionada (para cobertura)
   const { data: universoMunicipios = [] } = useQuery({
     queryKey: ["sim-universo", uf],
     staleTime: Infinity,
@@ -69,7 +67,7 @@ export default function SimuladorChapa() {
       if (error) throw error;
       return ((data || []) as any[])
         .filter((r) => uf === "__all__" || r.uf === uf)
-        .map((r) => r.municipio as string);
+        .map((r) => ({ uf: r.uf as string, municipio: r.municipio as string }));
     },
   });
 
@@ -94,21 +92,15 @@ export default function SimuladorChapa() {
   const isLoading = queries.some((q) => q.isLoading);
 
   const adicionar = (c: CandidatoSel) => {
-    if (chapa.length >= 12) {
-      toast.error("Limite de 12 candidatos na chapa");
-      return;
-    }
+    if (chapa.length >= 12) { toast.error("Limite de 12 candidatos na chapa"); return; }
     if (chapa.find((x) => x.nome === c.nome && x.partido === c.partido)) {
-      toast.info("Candidato já está na chapa");
-      return;
+      toast.info("Candidato já está na chapa"); return;
     }
     setChapa([...chapa, c]);
   };
   const remover = (i: number) => setChapa(chapa.filter((_, idx) => idx !== i));
   const limpar = () => setChapa([]);
 
-  // --- Agregações ---
-  // Por candidato: total, municípios alcançados
   const porCandidato = useMemo(() => {
     return chapa.map((c, i) => {
       const rows = queries[i]?.data || [];
@@ -120,30 +112,61 @@ export default function SimuladorChapa() {
     });
   }, [chapa, queries]);
 
-  // Por município: votos por candidato + total + nº de candidatos com presença
   const porMunicipio = useMemo(() => {
-    const map = new Map<string, { uf: string; municipio: string; total: number; presentes: number; porCand: Record<string, number> }>();
+    const map = new Map<string, { uf: string; municipio: string; total: number; v2022: number; v2024: number; presentes: number; porCand: Record<string, number> }>();
     chapa.forEach((c, i) => {
       const rows = queries[i]?.data || [];
       const key = `${c.nome}__${c.partido || ""}`;
-      const porMun = new Map<string, { uf: string; votos: number }>();
+      const porMun = new Map<string, { uf: string; v2022: number; v2024: number; total: number }>();
       rows.forEach((r) => {
-        const cur = porMun.get(r.municipio) || { uf: r.uf, votos: 0 };
-        cur.votos += r.votos;
+        const cur = porMun.get(r.municipio) || { uf: r.uf, v2022: 0, v2024: 0, total: 0 };
+        cur.total += r.votos;
+        if (r.ano === 2022) cur.v2022 += r.votos;
+        if (r.ano === 2024) cur.v2024 += r.votos;
         porMun.set(r.municipio, cur);
       });
       porMun.forEach((v, municipio) => {
-        const cur = map.get(municipio) || { uf: v.uf, municipio, total: 0, presentes: 0, porCand: {} };
-        cur.porCand[key] = v.votos;
-        cur.total += v.votos;
-        if (v.votos > 0) cur.presentes += 1;
+        const cur = map.get(municipio) || { uf: v.uf, municipio, total: 0, v2022: 0, v2024: 0, presentes: 0, porCand: {} };
+        cur.porCand[key] = v.total;
+        cur.total += v.total;
+        cur.v2022 += v.v2022;
+        cur.v2024 += v.v2024;
+        if (v.total > 0) cur.presentes += 1;
         map.set(municipio, cur);
       });
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [chapa, queries]);
 
-  // KPIs consolidados
+  const porUF = useMemo(() => {
+    const map = new Map<string, {
+      uf: string;
+      total: number; v2022: number; v2024: number;
+      municipiosCobertos: Set<string>;
+      porCand: Record<string, { votos: number; municipios: Set<string> }>;
+    }>();
+    chapa.forEach((c, i) => {
+      const rows = queries[i]?.data || [];
+      const key = `${c.nome}__${c.partido || ""}`;
+      rows.forEach((r) => {
+        const cur = map.get(r.uf) || {
+          uf: r.uf, total: 0, v2022: 0, v2024: 0,
+          municipiosCobertos: new Set<string>(), porCand: {},
+        };
+        cur.total += r.votos;
+        if (r.ano === 2022) cur.v2022 += r.votos;
+        if (r.ano === 2024) cur.v2024 += r.votos;
+        cur.municipiosCobertos.add(r.municipio);
+        const pc = cur.porCand[key] || { votos: 0, municipios: new Set<string>() };
+        pc.votos += r.votos;
+        pc.municipios.add(r.municipio);
+        cur.porCand[key] = pc;
+        map.set(r.uf, cur);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [chapa, queries]);
+
   const totalChapa = porCandidato.reduce((s, c) => s + c.total, 0);
   const total2022 = porCandidato.reduce((s, c) => s + c.v2022, 0);
   const total2024 = porCandidato.reduce((s, c) => s + c.v2024, 0);
@@ -154,15 +177,23 @@ export default function SimuladorChapa() {
   const exclusivos = porMunicipio.filter((m) => m.presentes === 1).length;
   const gaps = useMemo(() => {
     const cobertos = new Set(porMunicipio.map((m) => m.municipio));
-    return universoMunicipios.filter((m) => !cobertos.has(m));
+    return universoMunicipios.filter((m) => !cobertos.has(m.municipio));
   }, [porMunicipio, universoMunicipios]);
 
   const fmt = (n: number) => Number(n || 0).toLocaleString("pt-BR");
+
+  // Universo de municípios por UF (para % cobertura por UF na aba "Por UF")
+  const universoPorUF = useMemo(() => {
+    const m = new Map<string, number>();
+    universoMunicipios.forEach((u) => m.set(u.uf, (m.get(u.uf) || 0) + 1));
+    return m;
+  }, [universoMunicipios]);
 
   const exportar = () => {
     if (porMunicipio.length === 0) return;
     const wb = XLSX.utils.book_new();
 
+    // 1. Resumo
     const resumoSheet = [
       { Métrica: "Candidatos na chapa", Valor: chapa.length },
       { Métrica: "Votos totais (soma da chapa)", Valor: totalChapa },
@@ -177,6 +208,7 @@ export default function SimuladorChapa() {
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoSheet), "Resumo");
 
+    // 2. Por candidato
     const candSheet = porCandidato.map((c) => ({
       Candidato: c.nome,
       Partido: c.partido || "—",
@@ -184,24 +216,75 @@ export default function SimuladorChapa() {
       "Votos 2024": c.v2024,
       "Total votos": c.total,
       "Municípios alcançados": c.municipios,
+      "% da chapa": totalChapa > 0 ? Number(((c.total / totalChapa) * 100).toFixed(2)) : 0,
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(candSheet), "Por candidato");
 
+    // 3. Por município
     const munSheet = porMunicipio.map((m) => {
-      const linha: any = { UF: m.uf, Município: m.municipio, "Candidatos presentes": m.presentes };
+      const linha: any = {
+        UF: m.uf, Município: m.municipio,
+        "Candidatos presentes": m.presentes,
+        "Votos 2022": m.v2022, "Votos 2024": m.v2024,
+      };
       chapa.forEach((c) => {
         const k = `${c.nome}__${c.partido || ""}`;
         linha[`${c.nome} (${c.partido || "—"})`] = m.porCand[k] || 0;
       });
       linha["Total chapa"] = m.total;
+      linha["% do total chapa"] = totalChapa > 0 ? Number(((m.total / totalChapa) * 100).toFixed(2)) : 0;
       return linha;
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(munSheet), "Por município");
 
+    // 4. Por UF (NOVO)
+    const ufSheet = porUF.map((u) => {
+      const universoUF = universoPorUF.get(u.uf) || 0;
+      const linha: any = {
+        UF: u.uf,
+        "Votos 2022": u.v2022,
+        "Votos 2024": u.v2024,
+        "Total votos": u.total,
+        "% do total chapa": totalChapa > 0 ? Number(((u.total / totalChapa) * 100).toFixed(2)) : 0,
+        "Municípios cobertos": u.municipiosCobertos.size,
+        "Universo municípios UF": universoUF,
+        "% cobertura UF": universoUF > 0 ? Number(((u.municipiosCobertos.size / universoUF) * 100).toFixed(2)) : 0,
+      };
+      chapa.forEach((c) => {
+        const k = `${c.nome}__${c.partido || ""}`;
+        const pc = u.porCand[k];
+        linha[`${c.nome} (${c.partido || "—"}) — votos`] = pc?.votos || 0;
+        linha[`${c.nome} (${c.partido || "—"}) — municípios`] = pc?.municipios.size || 0;
+      });
+      return linha;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ufSheet), "Por UF");
+
+    // 5. Matriz município x candidato (NOVO)
+    // Layout: linhas = município, colunas = cada candidato + Total + Presentes; última linha = TOTAL por candidato
+    const candKeys = chapa.map((c) => ({ key: `${c.nome}__${c.partido || ""}`, label: `${c.nome} (${c.partido || "—"})` }));
+    const matrizRows: any[] = porMunicipio.map((m) => {
+      const linha: any = { UF: m.uf, Município: m.municipio };
+      candKeys.forEach((c) => { linha[c.label] = m.porCand[c.key] || 0; });
+      linha["Total município"] = m.total;
+      linha["Presentes"] = m.presentes;
+      return linha;
+    });
+    // Linha totalizadora
+    const totalRow: any = { UF: "—", Município: "TOTAL" };
+    candKeys.forEach((c) => {
+      totalRow[c.label] = porMunicipio.reduce((s, m) => s + (m.porCand[c.key] || 0), 0);
+    });
+    totalRow["Total município"] = totalChapa;
+    totalRow["Presentes"] = "—";
+    matrizRows.push(totalRow);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(matrizRows), "Matriz município x cand");
+
+    // 6. Gaps
     if (gaps.length > 0) {
       XLSX.utils.book_append_sheet(
         wb,
-        XLSX.utils.json_to_sheet(gaps.map((m) => ({ Município: m, Status: "Sem cobertura" }))),
+        XLSX.utils.json_to_sheet(gaps.map((m) => ({ UF: m.uf, Município: m.municipio, Status: "Sem cobertura" }))),
         "Gaps"
       );
     }
@@ -220,11 +303,11 @@ export default function SimuladorChapa() {
             Monte uma chapa hipotética adicionando candidatos e veja a soma total de votos consolidada,
             a cobertura territorial (quantos municípios a chapa atinge), sobreposição entre candidatos
             e os gaps — municípios da UF onde nenhum candidato selecionado tem voto.
+            O Excel exportado inclui abas: Resumo, Por candidato, Por município, Por UF, Matriz município×candidato e Gaps.
           </CardDescription>
         </CardHeader>
       </Card>
 
-      {/* Filtros + Picker */}
       <Card>
         <CardContent className="pt-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -280,7 +363,6 @@ export default function SimuladorChapa() {
         </CardContent>
       </Card>
 
-      {/* KPIs */}
       {chapa.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
@@ -301,7 +383,7 @@ export default function SimuladorChapa() {
             <CardContent className="p-4">
               <div className="text-xs text-muted-foreground flex items-center gap-1"><Layers className="w-3 h-3" /> Sobreposição</div>
               <div className="text-2xl font-bold tabular-nums">{fmt(sobreposicao)}</div>
-              <div className="text-[11px] text-muted-foreground mt-1">cidades disputadas por &gt;1 candidato · {fmt(exclusivos)} exclusivas</div>
+              <div className="text-[11px] text-muted-foreground mt-1">cidades com &gt;1 candidato · {fmt(exclusivos)} exclusivas</div>
             </CardContent>
           </Card>
           <Card>
@@ -314,7 +396,6 @@ export default function SimuladorChapa() {
         </div>
       )}
 
-      {/* Por candidato */}
       {chapa.length > 0 && (
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -323,7 +404,7 @@ export default function SimuladorChapa() {
               <CardDescription className="text-xs">Quanto cada um soma de votos e quantos municípios alcança individualmente.</CardDescription>
             </div>
             <Button onClick={exportar} variant="outline" size="sm" disabled={porMunicipio.length === 0}>
-              <Download className="w-4 h-4 mr-2" /> Excel completo
+              <Download className="w-4 h-4 mr-2" /> Excel completo (6 abas)
             </Button>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
@@ -364,13 +445,61 @@ export default function SimuladorChapa() {
         </Card>
       )}
 
-      {/* Por município */}
+      {chapa.length > 0 && porUF.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Agregado por UF</CardTitle>
+            <CardDescription className="text-xs">
+              Distribuição da força da chapa entre estados. Útil quando a busca inclui múltiplas UFs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>UF</TableHead>
+                  <TableHead className="text-right">Votos 2022</TableHead>
+                  <TableHead className="text-right">Votos 2024</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">% da chapa</TableHead>
+                  <TableHead className="text-right">Municípios cobertos</TableHead>
+                  <TableHead className="text-right">% cobertura UF</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {porUF.map((u) => {
+                  const universoUF = universoPorUF.get(u.uf) || 0;
+                  const pctUF = universoUF > 0 ? (u.municipiosCobertos.size / universoUF) * 100 : 0;
+                  return (
+                    <TableRow key={u.uf}>
+                      <TableCell><Badge variant="outline">{u.uf}</Badge></TableCell>
+                      <TableCell className="text-right tabular-nums">{fmt(u.v2022)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmt(u.v2024)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{fmt(u.total)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {totalChapa > 0 ? `${((u.total / totalChapa) * 100).toFixed(1)}%` : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {fmt(u.municipiosCobertos.size)}{universoUF ? ` / ${fmt(universoUF)}` : ""}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {universoUF ? `${pctUF.toFixed(1)}%` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {chapa.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Cobertura por município</CardTitle>
             <CardDescription className="text-xs">
-              Soma de votos da chapa por cidade. "Presentes" indica quantos candidatos têm voto ali — útil para detectar concentração ou complementaridade.
+              Soma de votos da chapa por cidade. "Presentes" indica quantos candidatos têm voto ali.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
@@ -430,7 +559,6 @@ export default function SimuladorChapa() {
         </Card>
       )}
 
-      {/* Gaps */}
       {chapa.length > 0 && gaps.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -438,13 +566,15 @@ export default function SimuladorChapa() {
               <Target className="w-4 h-4 text-destructive" /> Municípios sem cobertura ({fmt(gaps.length)})
             </CardTitle>
             <CardDescription className="text-xs">
-              Cidades da UF onde nenhum candidato da chapa registrou votos no período. Oportunidade para reforçar a chapa.
+              Cidades onde nenhum candidato da chapa registrou votos no período. Oportunidade para reforçar a chapa.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-1.5 max-h-60 overflow-y-auto">
               {gaps.map((m) => (
-                <Badge key={m} variant="outline" className="text-xs font-normal">{m}</Badge>
+                <Badge key={`${m.uf}-${m.municipio}`} variant="outline" className="text-xs font-normal">
+                  {m.municipio}{uf === "__all__" ? `/${m.uf}` : ""}
+                </Badge>
               ))}
             </div>
           </CardContent>
@@ -454,7 +584,6 @@ export default function SimuladorChapa() {
   );
 }
 
-// =============== Picker (mesma RPC do comparador) ===============
 function CandidatoPicker({ onSelect, disabled }: { onSelect: (c: CandidatoSel) => void; disabled: boolean }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -464,13 +593,8 @@ function CandidatoPicker({ onSelect, disabled }: { onSelect: (c: CandidatoSel) =
     queryKey: ["sim-picker", search],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_chapa_candidates" as any, {
-        p_uf: null,
-        p_municipio: null,
-        p_anos: [2022, 2024],
-        p_cargos: null,
-        p_partido: null,
-        p_min_votos: 0,
-        p_search: search.trim(),
+        p_uf: null, p_municipio: null, p_anos: [2022, 2024],
+        p_cargos: null, p_partido: null, p_min_votos: 0, p_search: search.trim(),
       });
       if (error) throw error;
       return ((data || []) as ChapaSearchRow[]).slice(0, 50);
@@ -499,11 +623,7 @@ function CandidatoPicker({ onSelect, disabled }: { onSelect: (c: CandidatoSel) =
                 {candidatos.map((c, i) => (
                   <CommandItem
                     key={`${c.nome_completo}-${c.partido}-${i}`}
-                    onSelect={() => {
-                      onSelect({ nome: c.nome_completo, partido: c.partido });
-                      setOpen(false);
-                      setSearch("");
-                    }}
+                    onSelect={() => { onSelect({ nome: c.nome_completo, partido: c.partido }); setOpen(false); setSearch(""); }}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{c.nome_completo}</div>
