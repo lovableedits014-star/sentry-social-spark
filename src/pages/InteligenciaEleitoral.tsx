@@ -6,7 +6,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Vote, TrendingUp, MapPin, Trophy } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search } from "lucide-react";
 
 type Row = {
   id: number;
@@ -28,6 +30,8 @@ type Row = {
 const InteligenciaEleitoral = () => {
   const [cargo, setCargo] = useState<string>("Prefeito");
   const [turno, setTurno] = useState<string>("1");
+  const [openZonas, setOpenZonas] = useState<Record<number, boolean>>({});
+  const [zonaSearch, setZonaSearch] = useState<Record<number, string>>({});
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["tse-votacao", cargo, turno],
@@ -74,8 +78,8 @@ const InteligenciaEleitoral = () => {
     return Array.from(set).sort((a, b) => a - b);
   }, [rows]);
 
-  // Top 3 candidatos por zona
-  const top3PorZona = useMemo(() => {
+  // Ranking completo por zona
+  const rankingPorZona = useMemo(() => {
     const byZona: Record<number, Row[]> = {};
     for (const r of rows) {
       if (!r.numero) continue;
@@ -84,11 +88,15 @@ const InteligenciaEleitoral = () => {
     return Object.entries(byZona)
       .map(([zona, arr]) => ({
         zona: Number(zona),
-        top: arr.sort((a, b) => b.votos - a.votos).slice(0, 3),
+        ranking: arr.sort((a, b) => b.votos - a.votos),
         totalZona: arr.reduce((s, r) => s + r.votos, 0),
       }))
       .sort((a, b) => a.zona - b.zona);
   }, [rows]);
+
+  const toggleZona = (z: number) => setOpenZonas((prev) => ({ ...prev, [z]: !prev[z] }));
+  const expandAll = () => setOpenZonas(Object.fromEntries(rankingPorZona.map((z) => [z.zona, true])));
+  const collapseAll = () => setOpenZonas({});
 
   return (
     <div className="p-6 space-y-6">
@@ -200,46 +208,111 @@ const InteligenciaEleitoral = () => {
         <TabsContent value="por-zona" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Top 3 por zona eleitoral</CardTitle>
-              <CardDescription>Onde cada candidato foi mais forte. Útil para mapear bases de apoio territorial.</CardDescription>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle>Ranking completo por zona eleitoral</CardTitle>
+                  <CardDescription>
+                    Veja o pódio de cada zona e expanda para conferir a colocação de todos os candidatos. Ideal para mapear redutos e descobrir onde cada vereador foi mais forte.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={expandAll} className="text-xs px-3 py-1 rounded border hover:bg-muted">Expandir todas</button>
+                  <button onClick={collapseAll} className="text-xs px-3 py-1 rounded border hover:bg-muted">Recolher todas</button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <p className="text-muted-foreground">Carregando…</p>
               ) : (
-                <div className="space-y-4">
-                  {top3PorZona.map(({ zona, top, totalZona }) => (
-                    <div key={zona} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-bold flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-primary" />
-                          Zona {zona}
-                        </h3>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {totalZona.toLocaleString("pt-BR")} votos
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {top.map((c, i) => (
-                          <div key={`${c.numero}-${i}`} className="bg-muted/40 rounded p-3">
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-lg font-bold text-primary">{i + 1}º</span>
-                              <span className="font-medium truncate">{c.nome_urna}</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {c.partido} · {c.numero}
-                            </div>
-                            <div className="text-sm font-semibold mt-1 tabular-nums">
-                              {c.votos.toLocaleString("pt-BR")} votos
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({totalZona > 0 ? ((c.votos / totalZona) * 100).toFixed(1) : "0"}%)
+                <div className="space-y-3">
+                  {rankingPorZona.map(({ zona, ranking: rk, totalZona }) => {
+                    const isOpen = !!openZonas[zona];
+                    const top3 = rk.slice(0, 3);
+                    const search = (zonaSearch[zona] || "").toLowerCase().trim();
+                    const filtered = search
+                      ? rk.filter(
+                          (c) =>
+                            (c.nome_urna || "").toLowerCase().includes(search) ||
+                            (c.partido || "").toLowerCase().includes(search) ||
+                            String(c.numero || "").includes(search),
+                        )
+                      : rk;
+                    return (
+                      <Collapsible key={zona} open={isOpen} onOpenChange={() => toggleZona(zona)}>
+                        <div className="border rounded-lg overflow-hidden">
+                          <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition">
+                            <div className="flex items-center gap-3">
+                              {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                              <MapPin className="w-4 h-4 text-primary" />
+                              <h3 className="font-bold text-left">Zona {zona}</h3>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                · {rk.length} candidatos · {totalZona.toLocaleString("pt-BR")} votos
                               </span>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                            <div className="hidden md:flex items-center gap-2 text-xs">
+                              {top3.map((c, i) => (
+                                <span key={`${c.numero}-${i}`} className="px-2 py-1 rounded bg-muted/50">
+                                  <strong className="text-primary">{i + 1}º</strong> {c.nome_urna} <span className="text-muted-foreground">({c.votos.toLocaleString("pt-BR")})</span>
+                                </span>
+                              ))}
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border-t p-4 space-y-3">
+                              <div className="relative">
+                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  placeholder="Buscar candidato, partido ou número…"
+                                  value={zonaSearch[zona] || ""}
+                                  onChange={(e) => setZonaSearch((p) => ({ ...p, [zona]: e.target.value }))}
+                                  className="pl-9 h-8 text-sm"
+                                />
+                              </div>
+                              <div className="max-h-[480px] overflow-y-auto rounded border">
+                                <Table>
+                                  <TableHeader className="sticky top-0 bg-background z-10">
+                                    <TableRow>
+                                      <TableHead className="w-14">Pos.</TableHead>
+                                      <TableHead>Candidato</TableHead>
+                                      <TableHead>Partido</TableHead>
+                                      <TableHead>Nº</TableHead>
+                                      <TableHead className="text-right">Votos</TableHead>
+                                      <TableHead className="text-right">% zona</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {filtered.map((c) => {
+                                      const pos = rk.findIndex((x) => x.numero === c.numero) + 1;
+                                      return (
+                                        <TableRow key={`${zona}-${c.numero}`}>
+                                          <TableCell className={`font-bold tabular-nums ${pos <= 3 ? "text-primary" : ""}`}>{pos}º</TableCell>
+                                          <TableCell className="font-medium">{c.nome_urna}</TableCell>
+                                          <TableCell><Badge variant="outline">{c.partido}</Badge></TableCell>
+                                          <TableCell className="tabular-nums">{c.numero}</TableCell>
+                                          <TableCell className="text-right tabular-nums">{c.votos.toLocaleString("pt-BR")}</TableCell>
+                                          <TableCell className="text-right tabular-nums">
+                                            {totalZona > 0 ? ((c.votos / totalZona) * 100).toFixed(2) : "0.00"}%
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                    {filtered.length === 0 && (
+                                      <TableRow>
+                                        <TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-6">
+                                          Nenhum candidato encontrado.
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
