@@ -2482,11 +2482,13 @@ export type Database = {
       }
       supporter_accounts: {
         Row: {
+          birth_date: string | null
           city: string | null
           client_id: string
           cpf: string | null
           created_at: string
           email: string
+          endereco: string | null
           facebook_username: string | null
           id: string
           instagram_username: string | null
@@ -2502,11 +2504,13 @@ export type Database = {
           whatsapp_confirmado: boolean
         }
         Insert: {
+          birth_date?: string | null
           city?: string | null
           client_id: string
           cpf?: string | null
           created_at?: string
           email: string
+          endereco?: string | null
           facebook_username?: string | null
           id?: string
           instagram_username?: string | null
@@ -2522,11 +2526,13 @@ export type Database = {
           whatsapp_confirmado?: boolean
         }
         Update: {
+          birth_date?: string | null
           city?: string | null
           client_id?: string
           cpf?: string | null
           created_at?: string
           email?: string
+          endereco?: string | null
           facebook_username?: string | null
           id?: string
           instagram_username?: string | null
@@ -2644,11 +2650,16 @@ export type Database = {
       }
       supporters: {
         Row: {
+          bairro: string | null
+          birth_date: string | null
+          cidade: string | null
           classification:
             | Database["public"]["Enums"]["supporter_classification"]
             | null
           client_id: string
+          cpf: string | null
           created_at: string | null
+          endereco: string | null
           engagement_score: number | null
           first_contact_date: string | null
           id: string
@@ -2656,14 +2667,20 @@ export type Database = {
           name: string
           notes: string | null
           referral_count: number
+          telefone: string | null
           updated_at: string | null
         }
         Insert: {
+          bairro?: string | null
+          birth_date?: string | null
+          cidade?: string | null
           classification?:
             | Database["public"]["Enums"]["supporter_classification"]
             | null
           client_id: string
+          cpf?: string | null
           created_at?: string | null
+          endereco?: string | null
           engagement_score?: number | null
           first_contact_date?: string | null
           id?: string
@@ -2671,14 +2688,20 @@ export type Database = {
           name: string
           notes?: string | null
           referral_count?: number
+          telefone?: string | null
           updated_at?: string | null
         }
         Update: {
+          bairro?: string | null
+          birth_date?: string | null
+          cidade?: string | null
           classification?:
             | Database["public"]["Enums"]["supporter_classification"]
             | null
           client_id?: string
+          cpf?: string | null
           created_at?: string | null
+          endereco?: string | null
           engagement_score?: number | null
           first_contact_date?: string | null
           id?: string
@@ -2686,6 +2709,7 @@ export type Database = {
           name?: string
           notes?: string | null
           referral_count?: number
+          telefone?: string | null
           updated_at?: string | null
         }
         Relationships: [
