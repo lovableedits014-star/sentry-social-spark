@@ -439,9 +439,23 @@ export default function Territorial() {
     }));
   }, [groups, maxCount]);
 
-  const filtered = search
-    ? groups.filter(g => g.city.toLowerCase().includes(search.toLowerCase()) || (g.neighborhood?.toLowerCase().includes(search.toLowerCase())))
-    : groups;
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const base = term
+      ? groups.filter(g => g.city.toLowerCase().includes(term) || (g.neighborhood?.toLowerCase().includes(term)))
+      : groups;
+
+    // Evita exibir a cidade como se fosse um bairro quando a mesma cidade já tem bairros listados.
+    // Ex.: em Campo Grande, mostra Santa Emília, Aero Rancho etc., mas não um card "Campo Grande" no meio.
+    const citiesWithNeighborhoods = new Set(
+      base.filter((g) => !!g.neighborhood).map((g) => canonPerson(cleanCity(g.city)))
+    );
+
+    return base.filter((g) => {
+      if (g.neighborhood) return true;
+      return !citiesWithNeighborhoods.has(canonPerson(cleanCity(g.city)));
+    });
+  }, [groups, search]);
 
   const selectedLocations = useMemo(
     () => groups.filter((g) => selectedLocationKeys.has(g.key)),
