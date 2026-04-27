@@ -483,6 +483,46 @@ const MidiaPage = () => {
     ];
   }, [data]);
 
+  /** Top veículos com volume + tom médio (calculado client-side a partir dos artigos). */
+  const topVehiclesWithTone = useMemo(() => {
+    if (!data?.articles) return [];
+    const map = new Map<string, { count: number; toneSum: number; toneN: number }>();
+    for (const a of data.articles) {
+      const d = (a.domain || "").trim();
+      if (!d) continue;
+      const cur = map.get(d) ?? { count: 0, toneSum: 0, toneN: 0 };
+      cur.count++;
+      if (typeof a.tone === "number" && !Number.isNaN(a.tone)) {
+        cur.toneSum += a.tone;
+        cur.toneN++;
+      }
+      map.set(d, cur);
+    }
+    return [...map.entries()]
+      .map(([domain, v]) => ({ domain, count: v.count, avgTone: v.toneN > 0 ? v.toneSum / v.toneN : null }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [data]);
+
+  /** Notícias agrupadas por rótulo de data ("Hoje", "Ontem", ...). */
+  const groupedArticles = useMemo(() => {
+    if (!data?.articles) return [] as Array<{ label: string; items: GdeltArticle[] }>;
+    const groups: Array<{ label: string; items: GdeltArticle[] }> = [];
+    const indexByLabel = new Map<string, number>();
+    for (const a of data.articles) {
+      const dt = parseSeenDate(a.seendate);
+      const label = groupLabelForDate(dt);
+      let idx = indexByLabel.get(label);
+      if (idx === undefined) {
+        idx = groups.length;
+        indexByLabel.set(label, idx);
+        groups.push({ label, items: [] });
+      }
+      groups[idx].items.push(a);
+    }
+    return groups;
+  }, [data]);
+
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-[1400px] space-y-6">
       {/* Header */}
