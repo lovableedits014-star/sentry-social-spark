@@ -18,6 +18,7 @@ import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
 import { useEstilosTema } from "@/hooks/useEstilosTema";
 import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
 import { diasAteCampanha, todayCampaignYMD } from "@/lib/calendario-datas";
+import { PromptArteButton } from "@/components/calendario/PromptArteButton";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -300,6 +301,15 @@ export default function CalendarioPolitico() {
                     <p className="text-2xl mb-1">{tm.emoji}</p>
                     <p className="font-semibold text-sm">{tm.titulo}</p>
                     <p className="text-xs text-muted-foreground mt-1">{tm.descricao}</p>
+                    <div className="mt-2">
+                      <PromptArteButton
+                        tipo="tema-mes"
+                        tema={{ titulo: tm.titulo, descricao: tm.descricao, emoji: tm.emoji }}
+                        size="sm"
+                        variant="outline"
+                        label="Prompt de arte"
+                      />
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -346,6 +356,15 @@ export default function CalendarioPolitico() {
                               <span>{sug.tema}</span>
                             </p>
                           )}
+                          <div className="mt-2">
+                            <PromptArteButton
+                              tipo="feriado"
+                              feriado={{ localName: h.localName, name: h.name, date: h.date }}
+                              size="sm"
+                              variant="outline"
+                              label="Prompt de arte"
+                            />
+                          </div>
                         </li>
                       );
                     })}
