@@ -1016,6 +1016,10 @@ const InteligenciaEleitoral = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="composicao-chapa" className="mt-4">
+          <ComposicaoChapa />
+        </TabsContent>
       </Tabs>
 
       <p className="text-xs text-muted-foreground text-center">
