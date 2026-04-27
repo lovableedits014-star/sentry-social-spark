@@ -28,7 +28,12 @@ export interface MergeLocalitiesDialogProps {
 const canon = (v: string | null | undefined) =>
   (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
-const TABLES = ["pessoas", "contratados", "contratado_indicados", "funcionarios"] as const;
+const TABLES = ["pessoas", "contratados", "contratado_indicados", "funcionarios", "supporter_accounts"] as const;
+
+const dbFieldFor = (table: (typeof TABLES)[number], field: "cidade" | "bairro") => {
+  if (table === "supporter_accounts") return field === "cidade" ? "city" : "neighborhood";
+  return field;
+};
 
 export function MergeLocalitiesDialog({
   open,
@@ -77,6 +82,7 @@ export function MergeLocalitiesDialog({
       let totalUpdated = 0;
 
       for (const table of TABLES) {
+        const dbField = dbFieldFor(table, field);
         // Carrega ids candidatos
         const PAGE = 1000;
         let from = 0;
@@ -84,9 +90,9 @@ export function MergeLocalitiesDialog({
         while (true) {
           let q = supabase
             .from(table as any)
-            .select("id, cidade, bairro")
+            .select(table === "supporter_accounts" ? "id, city, neighborhood" : "id, cidade, bairro")
             .eq("client_id", clientId)
-            .in(field, oldNames)
+            .in(dbField, oldNames)
             .range(from, from + PAGE - 1);
           const { data, error } = await q;
           if (error) throw error;
@@ -94,7 +100,7 @@ export function MergeLocalitiesDialog({
           for (const row of data as any[]) {
             // Para bairro: filtra os que pertencem à cidade pai (comparação canônica defensiva)
             if (field === "bairro" && parentCity) {
-              const cityRaw = (row.cidade?.trim() || "");
+              const cityRaw = ((row.cidade ?? row.city)?.trim() || "");
               const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
               if (canon(cityClean) !== parentCanon) continue;
             }
@@ -110,7 +116,7 @@ export function MergeLocalitiesDialog({
           const slice = ids.slice(i, i + CHUNK);
           const { error } = await supabase
             .from(table as any)
-            .update({ [field]: finalName })
+            .update({ [dbField]: finalName })
             .in("id", slice);
           if (error) throw error;
           totalUpdated += slice.length;
