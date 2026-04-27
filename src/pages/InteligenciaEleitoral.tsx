@@ -252,6 +252,38 @@ const InteligenciaEleitoral = () => {
     exportXLSX(`ranking-${(l.nome_local || "local").replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { Ranking: data });
   };
 
+  // Auditoria: exporta TODOS os locais distintos com bairro (vazios incluídos) para conferência da geocodificação
+  const exportarAuditoriaBairros = () => {
+    const data = locaisMeta
+      .slice()
+      .sort((a, b) => a.zona - b.zona || a.nr_local - b.nr_local)
+      .map((l: any) => {
+        const bairro = l.bairro ?? "";
+        const status = bairro === "" ? "PENDENTE (não geocodificado)" : bairro === "" ? "FALHOU" : "OK";
+        return {
+          Zona: l.zona,
+          "Nº Local": l.nr_local,
+          "Local de votação": l.nome_local || "",
+          Endereço: l.endereco || "",
+          Bairro: bairro,
+          Status: bairro ? "OK" : "PENDENTE/FALHOU",
+          "Total votos": l.total,
+        };
+      });
+    const total = data.length;
+    const comBairro = data.filter((d) => d.Bairro).length;
+    const semBairro = total - comBairro;
+    const resumo = [
+      { Métrica: "Total de locais", Valor: total },
+      { Métrica: "Com bairro identificado", Valor: comBairro },
+      { Métrica: "Sem bairro (pendente ou falha)", Valor: semBairro },
+      { Métrica: "% cobertura", Valor: total > 0 ? `${((comBairro / total) * 100).toFixed(1)}%` : "0%" },
+      { Métrica: "Cargo", Valor: cargo },
+      { Métrica: "Turno", Valor: turno },
+    ];
+    exportXLSX(`auditoria-bairros-${cargo}-T${turno}.xlsx`, { "Locais": data, "Resumo": resumo });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
