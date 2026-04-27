@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   Loader2,
   Megaphone,
   X,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
@@ -71,7 +72,19 @@ export default function CalendarioPolitico() {
     refetchOnWindowFocus: false,
   });
 
-  const allHolidays = useMemo(() => (data?.holidays ?? []).filter((h) => h.global !== false), [data]);
+  // Filtra globais e deduplica por data+name (evita duplicações entre anos cacheados)
+  const allHolidays = useMemo(() => {
+    const raw = (data?.holidays ?? []).filter((h) => h.global !== false);
+    const seen = new Set<string>();
+    const dedup: Holiday[] = [];
+    for (const h of raw) {
+      const k = `${h.date}|${h.name}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      dedup.push(h);
+    }
+    return dedup;
+  }, [data]);
 
   // Map data->feriado(s) para lookup O(1) na grade
   const holidaysByDate = useMemo(() => {
@@ -145,6 +158,28 @@ export default function CalendarioPolitico() {
     setSelectedDate(null);
     setCursor({ year: todayParts.year, month: todayParts.month });
   };
+
+  // Atalhos de teclado: ← → para navegar entre meses, T para hoje, Esc fecha o painel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target && (e.target as HTMLElement).tagName?.match(/INPUT|TEXTAREA|SELECT/)) return;
+      if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+      else if (e.key === "t" || e.key === "T") goToday();
+      else if (e.key === "Escape") setSelectedDate(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Próximos feriados (a partir de hoje, próximos 6)
+  const proximosFeriados = useMemo(() => {
+    return allHolidays
+      .filter((h) => h.date >= todayYMD)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 6);
+  }, [allHolidays, todayYMD]);
 
   const selectedHolidays = selectedDate ? holidaysByDate.get(selectedDate) ?? [] : [];
   const selectedSug = selectedHolidays.length > 0 ? getSugestaoFeriado(selectedHolidays[0], estilosAtivos) : null;
