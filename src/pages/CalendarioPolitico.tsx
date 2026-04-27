@@ -14,6 +14,9 @@ import {
   Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
+import { useEstilosTema } from "@/hooks/useEstilosTema";
+import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -22,47 +25,6 @@ type Holiday = {
   global?: boolean;
   year?: number;
 };
-
-/** Sugestões temáticas por feriado (mesmo dicionário do widget) */
-const SUGESTOES: { match: RegExp; tema: string; emoji: string }[] = [
-  { match: /confraterniza/i, tema: "Mensagem de virada de ano e balanço", emoji: "🎆" },
-  { match: /carnaval/i, tema: "Comunicado de pausa de campanha + segurança", emoji: "🎭" },
-  { match: /sexta.*santa|paix[ãa]o/i, tema: "Tom respeitoso, foco em fé e família", emoji: "✝️" },
-  { match: /p[áa]scoa/i, tema: "Mensagem de esperança e renovação", emoji: "🐣" },
-  { match: /tiradentes/i, tema: "Patriotismo, história e justiça", emoji: "⚖️" },
-  { match: /trabalhador|trabalho/i, tema: "Atos com sindicatos e categorias profissionais", emoji: "🛠️" },
-  { match: /corpus christi/i, tema: "Tom religioso, evitar disparos massivos", emoji: "🕊️" },
-  { match: /independ[êe]ncia/i, tema: "Patriotismo, atos cívicos, desfile", emoji: "🇧🇷" },
-  { match: /aparecida|padroeira|crian[çc]a/i, tema: "Família, infância e fé — duplo apelo", emoji: "👶" },
-  { match: /finados/i, tema: "Tom respeitoso, evitar tom comemorativo", emoji: "🕯️" },
-  { match: /proclama[çc][ãa]o.*rep[úu]blica/i, tema: "Patriotismo e democracia", emoji: "🏛️" },
-  { match: /consci[êe]ncia negra/i, tema: "Pauta racial, lideranças negras, Zumbi", emoji: "✊🏿" },
-  { match: /natal/i, tema: "Mensagem de paz, família e gratidão", emoji: "🎄" },
-];
-
-function getSugestao(h: Pick<Holiday, "localName" | "name">): { tema: string; emoji: string } | null {
-  const text = `${h.localName} ${h.name}`;
-  for (const s of SUGESTOES) {
-    if (s.match.test(text)) return { tema: s.tema, emoji: s.emoji };
-  }
-  return null;
-}
-
-/** Tema político mensal — mês a mês, mesmo sem feriado, há um foco recomendado */
-const TEMAS_MES: { titulo: string; descricao: string; emoji: string }[] = [
-  { titulo: "Balanço e metas",     descricao: "Início de ano: comunique balanço do ano anterior e metas claras para o ciclo.",                emoji: "🎯" },
-  { titulo: "Escuta de base",      descricao: "Mês curto: priorize visitas de campo e formulários de escuta nos bairros.",                    emoji: "👂" },
-  { titulo: "Mulheres e família",  descricao: "Dia Internacional da Mulher (8/3): pautas femininas, lideranças, mães solo.",                  emoji: "♀️" },
-  { titulo: "Fé e renovação",      descricao: "Páscoa: tom respeitoso, mensagens de esperança. Evite disparos na Sexta-Santa.",               emoji: "🌱" },
-  { titulo: "Trabalho e categorias", descricao: "1º de Maio: atos com sindicatos, categorias profissionais e empreendedores.",                emoji: "🛠️" },
-  { titulo: "Festas juninas",      descricao: "Aproveite festas locais: presença em quadrilhas, arraiás e ações comunitárias.",               emoji: "🌽" },
-  { titulo: "Recesso e bastidores", descricao: "Período de férias escolares: invista em conteúdo de bastidores e família do candidato.",       emoji: "🏖️" },
-  { titulo: "Pais e proteção",     descricao: "Dia dos Pais: pauta paternidade ativa, segurança e responsabilidade familiar.",                emoji: "👨‍👧" },
-  { titulo: "Patriotismo cívico",  descricao: "7 de Setembro: atos cívicos, patriotismo. Evite excesso de partidarização.",                   emoji: "🇧🇷" },
-  { titulo: "Crianças e idosos",   descricao: "Dia das Crianças (12/10) e do Idoso (1/10): proteção, saúde e educação.",                      emoji: "👶" },
-  { titulo: "Memória e diversidade", descricao: "Consciência Negra (20/11): pauta racial, lideranças negras, igualdade.",                     emoji: "✊🏿" },
-  { titulo: "Gratidão e gestão",   descricao: "Natal e fim de ano: mensagens de paz, prestação de contas e planejamento do próximo ciclo.",   emoji: "🎄" },
-];
 
 function diasAte(dateStr: string): number {
   const today = new Date();
@@ -84,6 +46,7 @@ const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 export default function CalendarioPolitico() {
   const today = new Date();
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const { ativos: estilosAtivos } = useEstilosTema();
 
   // Buscamos 3 anos para que navegação prev/next nos limites não quebre
   const yearsToLoad = useMemo(() => {
@@ -126,7 +89,10 @@ export default function CalendarioPolitico() {
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [allHolidays, cursor]);
 
-  const temaMes = TEMAS_MES[cursor.month];
+  const temasMes = useMemo(
+    () => getTemasMes(cursor.month, estilosAtivos),
+    [cursor.month, estilosAtivos],
+  );
 
   // Construção da grade: 6 linhas x 7 colunas
   const grid = useMemo(() => {
@@ -184,6 +150,9 @@ export default function CalendarioPolitico() {
               Apenas visualização — nenhum disparo é feito automaticamente.
             </p>
           </div>
+          <div className="ml-auto">
+            <EstilosTemaSelector />
+          </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -238,7 +207,7 @@ export default function CalendarioPolitico() {
                   <div className="grid grid-cols-7 gap-1">
                     {grid.map((cell) => {
                       const fers = holidaysByDate.get(cell.date) ?? [];
-                      const sug = fers.length > 0 ? getSugestao(fers[0]) : null;
+                      const sug = fers.length > 0 ? getSugestaoFeriado(fers[0], estilosAtivos) : null;
                       const isHoliday = fers.length > 0;
                       return (
                         <Tooltip key={cell.date} delayDuration={150}>
@@ -326,10 +295,14 @@ export default function CalendarioPolitico() {
                   <CardTitle className="text-sm">Tema político do mês</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl mb-1">{temaMes.emoji}</p>
-                <p className="font-semibold text-sm">{temaMes.titulo}</p>
-                <p className="text-xs text-muted-foreground mt-1">{temaMes.descricao}</p>
+              <CardContent className="space-y-3">
+                {temasMes.map((tm, i) => (
+                  <div key={`${tm.estilo}-${i}`} className={i > 0 ? "pt-3 border-t border-primary/20" : ""}>
+                    <p className="text-2xl mb-1">{tm.emoji}</p>
+                    <p className="font-semibold text-sm">{tm.titulo}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{tm.descricao}</p>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
@@ -349,7 +322,7 @@ export default function CalendarioPolitico() {
                 ) : (
                   <ul className="space-y-2">
                     {holidaysDoMes.map((h) => {
-                      const sug = getSugestao(h);
+                      const sug = getSugestaoFeriado(h, estilosAtivos);
                       const dias = diasAte(h.date);
                       const dt = new Date(h.date + "T12:00:00");
                       return (
