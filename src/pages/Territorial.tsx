@@ -16,6 +16,7 @@ import { MergeLocalitiesDialog } from "@/components/territorial/MergeLocalitiesD
 import { Checkbox } from "@/components/ui/checkbox";
 import { Merge } from "lucide-react";
 import { resolveUF, ufName, ufRegion, UF_LIST } from "@/lib/brazil-geo";
+import { toast } from "sonner";
 
 interface LocationGroup {
   key: string;
