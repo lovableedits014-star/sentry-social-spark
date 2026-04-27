@@ -411,6 +411,53 @@ export default function CalendarioPolitico() {
         )}
 
         {/* Tema político do mês — abaixo do calendário */}
+        {proximosFeriados.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm">Próximos feriados nacionais</CardTitle>
+              </div>
+              <CardDescription className="text-xs">
+                Planeje suas artes com antecedência. Clique para ir ao mês.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {proximosFeriados.map((h) => {
+                  const sug = getSugestaoFeriado(h, estilosAtivos);
+                  const dias = diasAte(h.date);
+                  const [hy, hm] = h.date.split("-").map(Number);
+                  return (
+                    <button
+                      key={`${h.date}-${h.name}`}
+                      type="button"
+                      onClick={() => {
+                        setCursor({ year: hy, month: hm - 1 });
+                        setSelectedDate(h.date);
+                      }}
+                      className="text-left rounded-md border p-2.5 hover:border-primary/60 hover:bg-primary/5 transition-all flex items-start gap-2.5"
+                    >
+                      <div className="text-2xl leading-none shrink-0">{sug?.emoji ?? "📅"}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{h.localName}</p>
+                        <p className="text-[11px] text-muted-foreground capitalize">
+                          {new Date(h.date + "T12:00:00").toLocaleDateString("pt-BR", {
+                            weekday: "short", day: "2-digit", month: "short",
+                          })}
+                        </p>
+                        <Badge variant={dias <= 7 ? "default" : "secondary"} className="mt-1 text-[10px]">
+                          {dias === 0 ? "hoje" : dias === 1 ? "amanhã" : `em ${dias} dias`}
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {temaMesAtivo && (
           <Card className="border-primary/30">
             <CardHeader className="pb-2">
