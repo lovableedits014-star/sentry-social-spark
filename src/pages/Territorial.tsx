@@ -119,6 +119,205 @@ function DistributionRow({ label, count, total, color = "bg-primary" }: { label:
   );
 }
 
+// Lista agrupada por cidade: cada cidade vira um "container" colapsável com seus bairros dentro.
+function CityGroupedList({
+  groups,
+  maxCount,
+  selectedKeys,
+  onToggleSelect,
+  onOpenDetail,
+  getHeatBadge,
+  getHeatLabel,
+  getHeatColor,
+  searchTerm,
+}: {
+  groups: LocationGroup[];
+  maxCount: number;
+  selectedKeys: Set<string>;
+  onToggleSelect: (key: string, v: boolean) => void;
+  onOpenDetail: (g: LocationGroup) => void;
+  getHeatBadge: (count: number) => "default" | "secondary" | "destructive";
+  getHeatLabel: (count: number) => string;
+  getHeatColor: (count: number) => string;
+  searchTerm: string;
+}) {
+  const cityGroups = useMemo(() => {
+    const canon = (v: string | null | undefined) => (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    type CityBucket = {
+      key: string;
+      city: string;
+      state: string | null;
+      total: number;
+      neighborhoods: LocationGroup[];
+      cityOnly?: LocationGroup; // entradas sem bairro
+    };
+    const map = new Map<string, CityBucket>();
+    for (const g of groups) {
+      const cityKey = canon(g.city);
+      if (!map.has(cityKey)) {
+        map.set(cityKey, { key: cityKey, city: g.city, state: g.state, total: 0, neighborhoods: [] });
+      }
+      const bucket = map.get(cityKey)!;
+      bucket.total += g.count;
+      if (!bucket.state && g.state) bucket.state = g.state;
+      if (g.neighborhood) bucket.neighborhoods.push(g);
+      else bucket.cityOnly = g;
+    }
+    const list = Array.from(map.values());
+    for (const b of list) b.neighborhoods.sort((a, b2) => b2.count - a.count);
+    return list.sort((a, b) => b.total - a.total);
+  }, [groups]);
+
+  // Quando o usuário busca algo, abre tudo automaticamente
+  const [openCities, setOpenCities] = useState<Set<string>>(new Set());
+  const allOpen = useMemo(() => searchTerm.length > 0, [searchTerm]);
+
+  return (
+    <div className="space-y-3">
+      {cityGroups.map((cg) => {
+        const isOpen = allOpen || openCities.has(cg.key);
+        const cityVariantWarn = cg.neighborhoods.some((n) => Object.keys(n.neighVariants || {}).length > 1);
+        return (
+          <Collapsible
+            key={cg.key}
+            open={isOpen}
+            onOpenChange={(o) => {
+              setOpenCities((prev) => {
+                const next = new Set(prev);
+                if (o) next.add(cg.key); else next.delete(cg.key);
+                return next;
+              });
+            }}
+          >
+            <Card className="overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                >
+                  <Building2 className="w-4 h-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm truncate">{cg.city}</span>
+                      {cg.state && <Badge variant="outline" className="h-5 text-[10px] font-mono">{cg.state}</Badge>}
+                      {cityVariantWarn && (
+                        <span className="text-[10px] text-destructive">⚠ contém variantes</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {cg.neighborhoods.length} bairro{cg.neighborhoods.length === 1 ? "" : "s"} · {cg.total} pessoa{cg.total === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs shrink-0">{cg.total}</Badge>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t bg-muted/20 p-3 space-y-2">
+                  {cg.neighborhoods.length === 0 && cg.cityOnly && (
+                    <NeighborhoodCard
+                      g={cg.cityOnly}
+                      label="Sem bairro especificado"
+                      maxCount={maxCount}
+                      isSelected={selectedKeys.has(cg.cityOnly.key)}
+                      onToggleSelect={onToggleSelect}
+                      onOpenDetail={onOpenDetail}
+                      getHeatBadge={getHeatBadge}
+                      getHeatLabel={getHeatLabel}
+                      getHeatColor={getHeatColor}
+                    />
+                  )}
+                  {cg.neighborhoods.length > 0 && (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {cg.neighborhoods.map((n) => (
+                        <NeighborhoodCard
+                          key={n.key}
+                          g={n}
+                          label={n.neighborhood!}
+                          maxCount={maxCount}
+                          isSelected={selectedKeys.has(n.key)}
+                          onToggleSelect={onToggleSelect}
+                          onOpenDetail={onOpenDetail}
+                          getHeatBadge={getHeatBadge}
+                          getHeatLabel={getHeatLabel}
+                          getHeatColor={getHeatColor}
+                        />
+                      ))}
+                      {cg.cityOnly && (
+                        <NeighborhoodCard
+                          g={cg.cityOnly}
+                          label="Sem bairro especificado"
+                          maxCount={maxCount}
+                          isSelected={selectedKeys.has(cg.cityOnly.key)}
+                          onToggleSelect={onToggleSelect}
+                          onOpenDetail={onOpenDetail}
+                          getHeatBadge={getHeatBadge}
+                          getHeatLabel={getHeatLabel}
+                          getHeatColor={getHeatColor}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
+function NeighborhoodCard({
+  g,
+  label,
+  maxCount,
+  isSelected,
+  onToggleSelect,
+  onOpenDetail,
+  getHeatBadge,
+  getHeatLabel,
+  getHeatColor,
+}: {
+  g: LocationGroup;
+  label: string;
+  maxCount: number;
+  isSelected: boolean;
+  onToggleSelect: (key: string, v: boolean) => void;
+  onOpenDetail: (g: LocationGroup) => void;
+  getHeatBadge: (count: number) => "default" | "secondary" | "destructive";
+  getHeatLabel: (count: number) => string;
+  getHeatColor: (count: number) => string;
+}) {
+  const variantCount = Object.keys(g.neighVariants || {}).length;
+  return (
+    <div className={`rounded-lg border bg-card p-3 transition-colors ${isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={(v) => onToggleSelect(g.key, !!v)}
+            className="mt-0.5"
+          />
+          <button type="button" onClick={() => onOpenDetail(g)} className="text-left min-w-0 group flex-1">
+            <p className="text-sm font-medium truncate group-hover:text-primary">{label}</p>
+            {variantCount > 1 && <p className="text-[10px] text-destructive">⚠ {variantCount} variantes</p>}
+          </button>
+        </div>
+        <Badge variant={getHeatBadge(g.count)} className="text-[10px] shrink-0">{getHeatLabel(g.count)}</Badge>
+      </div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Users className="w-3 h-3 text-muted-foreground" />
+        <span className="text-xs font-bold">{g.count}</span>
+        <span className="text-[10px] text-muted-foreground">pessoa{g.count === 1 ? "" : "s"}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full ${getHeatColor(g.count)}`} style={{ width: `${(g.count / maxCount) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function Territorial() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
