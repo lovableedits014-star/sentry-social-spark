@@ -148,15 +148,13 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
   const title = level === "neighborhood" ? `${neighborhood} — ${city}` : city;
 
   // Deduplica: mesma pessoa em tabelas diferentes (CRM + Apoiador, etc.)
-  // Chave: nome canônico + (telefone normalizado, se houver)
+  // No recorte de uma localidade, o nome canônico é a identidade principal:
+  // muitas contas de Apoiador vêm sem telefone, enquanto o CRM tem telefone.
   const mergedRows = useMemo<MergedRow[]>(() => {
-    const onlyDigits = (s: string | null) => (s || "").replace(/\D/g, "");
     const map = new Map<string, MergedRow>();
     for (const r of rows) {
-      const phone = onlyDigits(r.telefone);
       const nameKey = canon(r.nome);
-      // Se há telefone, agrupa por nome+telefone; senão, só por nome
-      const key = phone ? `${nameKey}|${phone}` : `${nameKey}|`;
+      const key = nameKey || `${r.origin}-${r.id}`;
       const existing = map.get(key);
       if (existing) {
         if (!existing.origins.includes(r.origin)) existing.origins.push(r.origin);
