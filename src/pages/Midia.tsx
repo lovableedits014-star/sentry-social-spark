@@ -30,6 +30,7 @@ type GdeltArticle = {
   language: string;
   sourcecountry: string;
   tone: number | null;
+  source?: "gdelt" | "google_news";
 };
 
 type GdeltData = {
@@ -41,6 +42,9 @@ type GdeltData = {
   top_sources: { domain: string; count: number }[];
   timeline: { date: string; volume: number; tone: number | null }[];
   articles: GdeltArticle[];
+  source_breakdown?: { gdelt: number; google_news: number; merged: number };
+  sources_used?: string[];
+  source_warnings?: Record<string, string>;
   generated_at: string;
 };
 
