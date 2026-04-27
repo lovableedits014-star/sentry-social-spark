@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
+import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw, MapPin } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -52,6 +53,10 @@ export default function ComposicaoChapa() {
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [importing, setImporting] = useState(false);
+
+  // Modal de detalhamento por município
+  const [selecionado, setSelecionado] = useState<ChapaRow | null>(null);
+  const [anoDetalhe, setAnoDetalhe] = useState<"ambos" | "2022" | "2024">("ambos");
 
   // Trigger de refetch após importação
   const [refreshTick, setRefreshTick] = useState(0);
