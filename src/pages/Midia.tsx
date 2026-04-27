@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -522,6 +522,53 @@ const MidiaPage = () => {
     }
     return groups;
   }, [data]);
+
+  /** Lista plana de artigos para navegação por teclado (j/k/Enter). */
+  const flatArticles = useMemo(
+    () => groupedArticles.flatMap((g) => g.items),
+    [groupedArticles],
+  );
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+  const [focusedIdx, setFocusedIdx] = useState<number>(-1);
+
+  useEffect(() => {
+    itemRefs.current = itemRefs.current.slice(0, flatArticles.length);
+    if (focusedIdx >= flatArticles.length) setFocusedIdx(-1);
+  }, [flatArticles.length, focusedIdx]);
+
+  const focusArticle = useCallback((i: number) => {
+    const el = itemRefs.current[i];
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      setFocusedIdx(i);
+    }
+  }, []);
+
+  const handleFeedKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (flatArticles.length === 0) return;
+      const target = e.target as HTMLElement;
+      // Não interferir em inputs/textareas dentro do feed
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      const cur = focusedIdx < 0 ? -1 : focusedIdx;
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        focusArticle(Math.min(flatArticles.length - 1, cur + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        focusArticle(Math.max(0, cur - 1));
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        focusArticle(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        focusArticle(flatArticles.length - 1);
+      }
+    },
+    [flatArticles.length, focusedIdx, focusArticle],
+  );
 
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-[1400px] space-y-6">
@@ -1050,7 +1097,14 @@ const MidiaPage = () => {
                     <Newspaper className="w-4 h-4" /> Feed de notícias
                     <Badge variant="secondary" className="ml-1">{data.articles.length}</Badge>
                   </CardTitle>
-                  <CardDescription>Mais recentes primeiro · Clique para abrir a fonte</CardDescription>
+                  <CardDescription>
+                    Mais recentes primeiro · Clique ou pressione Enter para abrir a fonte ·{" "}
+                    <span className="hidden sm:inline">
+                      Atalhos: <kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">J</kbd>/<kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">↓</kbd> próximo,{" "}
+                      <kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">K</kbd>/<kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">↑</kbd> anterior,{" "}
+                      <kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">Home</kbd>/<kbd className="px-1 py-0.5 rounded border text-[10px] bg-muted">End</kbd> início/fim
+                    </span>
+                  </CardDescription>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1071,20 +1125,28 @@ const MidiaPage = () => {
             </CardHeader>
             <CardContent className="p-0">
               {data.articles.length === 0 ? (
-                <div className="p-8 text-sm text-muted-foreground text-center">
+                <div className="p-8 text-sm text-muted-foreground text-center" role="status">
                   Nenhum artigo encontrado para esta combinação de filtros.
                 </div>
               ) : (
-                <div className="max-h-[720px] overflow-y-auto px-3 pb-3 space-y-4">
+                <div
+                  ref={feedRef}
+                  role="feed"
+                  aria-busy={isFetching}
+                  aria-label={`Feed de notícias com ${flatArticles.length} ${flatArticles.length === 1 ? "matéria" : "matérias"}. Use as setas para cima e para baixo, ou as teclas J e K, para navegar. Pressione Enter para abrir a matéria.`}
+                  tabIndex={0}
+                  onKeyDown={handleFeedKeyDown}
+                  className="max-h-[720px] overflow-y-auto px-3 pb-3 space-y-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
+                >
                   {groupedArticles.map((group) => (
-                    <div key={group.label}>
+                    <section key={group.label} aria-labelledby={`group-${group.label}`}>
                       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur py-1.5 mb-1 -mx-3 px-3 border-b">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <h3 id={`group-${group.label}`} className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                           {group.label}
-                          <Badge variant="outline" className="h-4 px-1 text-[10px]">{group.items.length}</Badge>
-                        </p>
+                          <Badge variant="outline" className="h-4 px-1 text-[10px]" aria-label={`${group.items.length} ${group.items.length === 1 ? "matéria" : "matérias"}`}>{group.items.length}</Badge>
+                        </h3>
                       </div>
-                      <div className="space-y-2">
+                      <ul className="space-y-2 list-none p-0 m-0">
                         {group.items.map((a, i) => {
                           const tone = a.tone;
                           const borderClass =
@@ -1094,25 +1156,35 @@ const MidiaPage = () => {
                             "border-l-amber-500";
                           const dt = parseSeenDate(a.seendate);
                           const fav = faviconFor(a.domain);
+                          // Índice global do artigo na lista plana
+                          const globalIdx = flatArticles.indexOf(a);
+                          const dateLabel = dt ? dt.toLocaleString("pt-BR") : "data desconhecida";
+                          const ariaLabel = `${a.title || "Sem título"}. Veículo ${a.domain}. ${toneLabel(a.tone)}${a.tone != null ? ` (${a.tone.toFixed(1)})` : ""}. Publicado ${dateLabel}. Fonte ${sourceLabel(a.source)}. Abre em nova aba.`;
                           return (
-                            <a
-                              key={`${a.url}-${i}`}
-                              href={a.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`block rounded-md border border-l-4 ${borderClass} bg-card p-3 hover:shadow-md hover:border-primary/30 hover:-translate-y-px transition-all group`}
-                            >
+                            <li key={`${a.url}-${i}`}>
+                              <a
+                                ref={(el) => { itemRefs.current[globalIdx] = el; }}
+                                href={a.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={ariaLabel}
+                                aria-posinset={globalIdx + 1}
+                                aria-setsize={flatArticles.length}
+                                onFocus={() => setFocusedIdx(globalIdx)}
+                                className={`block rounded-md border border-l-4 ${borderClass} bg-card p-3 hover:shadow-md hover:border-primary/30 hover:-translate-y-px transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary`}
+                              >
                               <div className="flex items-start gap-3">
                                 {fav ? (
                                   <img
                                     src={fav}
                                     alt=""
+                                    aria-hidden="true"
                                     className="w-6 h-6 rounded shrink-0 mt-0.5 bg-muted"
                                     loading="lazy"
                                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                                   />
                                 ) : (
-                                  <div className="w-6 h-6 rounded shrink-0 mt-0.5 bg-muted flex items-center justify-center">
+                                  <div className="w-6 h-6 rounded shrink-0 mt-0.5 bg-muted flex items-center justify-center" aria-hidden="true">
                                     <Newspaper className="w-3 h-3 text-muted-foreground" />
                                   </div>
                                 )}
@@ -1126,8 +1198,8 @@ const MidiaPage = () => {
                                     </span>
                                     {dt && (
                                       <>
-                                        <span>·</span>
-                                        <span>{fmtTime(dt)}</span>
+                                        <span aria-hidden="true">·</span>
+                                        <time dateTime={dt.toISOString()}>{fmtTime(dt)}</time>
                                       </>
                                     )}
                                     <Badge
@@ -1142,13 +1214,14 @@ const MidiaPage = () => {
                                     </Badge>
                                   </div>
                                 </div>
-                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <ExternalLink aria-hidden="true" className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />
                               </div>
-                            </a>
+                              </a>
+                            </li>
                           );
                         })}
-                      </div>
-                    </div>
+                      </ul>
+                    </section>
                   ))}
                 </div>
               )}
