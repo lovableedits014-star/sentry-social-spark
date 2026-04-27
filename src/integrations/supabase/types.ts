@@ -2991,6 +2991,7 @@ export type Database = {
       tse_votacao_local: {
         Row: {
           ano: number
+          bairro: string | null
           cargo: string
           cod_municipio: number
           endereco: string | null
@@ -3007,6 +3008,7 @@ export type Database = {
         }
         Insert: {
           ano: number
+          bairro?: string | null
           cargo: string
           cod_municipio: number
           endereco?: string | null
@@ -3023,6 +3025,7 @@ export type Database = {
         }
         Update: {
           ano?: number
+          bairro?: string | null
           cargo?: string
           cod_municipio?: number
           endereco?: string | null
@@ -3483,6 +3486,7 @@ export type Database = {
       get_tse_locais_summary: {
         Args: { p_cargo: string; p_turno: number }
         Returns: {
+          bairro: string
           endereco: string
           nome_local: string
           nr_local: number
