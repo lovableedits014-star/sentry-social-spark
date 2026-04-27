@@ -570,6 +570,7 @@ const InteligenciaEleitoral = () => {
           <TabsTrigger value="por-zona">Por zona eleitoral</TabsTrigger>
           <TabsTrigger value="por-local">Por local de votação</TabsTrigger>
           <TabsTrigger value="composicao-chapa">Composição de Chapa</TabsTrigger>
+          <TabsTrigger value="comparar-candidatos">Comparar candidatos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ranking" className="mt-4">
