@@ -809,6 +809,51 @@ const MidiaPage = () => {
         </CardContent>
       </Card>
 
+      {/* Mini-KPIs (apenas quando há dados) — coluna esquerda */}
+      {data && !isLoading && (
+        <div className="grid grid-cols-2 gap-2">
+          <Card className="bg-gradient-to-br from-primary/5 to-transparent">
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1"><Newspaper className="w-3 h-3" /> Matérias</CardDescription>
+              <CardTitle className="text-2xl">{data.total_articles.toLocaleString("pt-BR")}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1">
+                {data.tone_summary.avg != null && data.tone_summary.avg >= 1.5 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> :
+                  data.tone_summary.avg != null && data.tone_summary.avg <= -1.5 ? <TrendingDown className="w-3 h-3 text-rose-500" /> :
+                  <Minus className="w-3 h-3" />}
+                Tom médio
+              </CardDescription>
+              <CardTitle className={`text-2xl ${data.tone_summary.avg != null && data.tone_summary.avg >= 1.5 ? "text-emerald-600 dark:text-emerald-400" : data.tone_summary.avg != null && data.tone_summary.avg <= -1.5 ? "text-rose-600 dark:text-rose-400" : ""}`}>
+                {data.tone_summary.avg != null ? data.tone_summary.avg.toFixed(2) : "—"}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px]">Negativas / Positivas</CardDescription>
+              <CardTitle className="text-xl">
+                <span className="text-rose-500">{data.tone_summary.negatives}</span>
+                <span className="text-muted-foreground mx-1 text-base">/</span>
+                <span className="text-emerald-500">{data.tone_summary.positives}</span>
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-3">
+              <CardDescription className="text-[10px] flex items-center gap-1"><Globe2 className="w-3 h-3" /> Veículos</CardDescription>
+              <CardTitle className="text-2xl">{data.top_sources.length}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
+          </aside>
+
+          {/* === Coluna DIREITA === */}
+          <section className="space-y-4 min-w-0">
+
       {/* Estados */}
       {!submitted && !isLoading && (
         <Card>
