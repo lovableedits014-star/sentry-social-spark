@@ -480,15 +480,27 @@ export default function Territorial() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-          <MapPin className="w-7 h-7 text-primary" />
-          Base & Território
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl mt-1">
-          Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão no Brasil</strong> (geografia).
-          Mapa interativo por estado, drill-down em cidades e bairros — pronto para campanhas em qualquer região do país.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <MapPin className="w-7 h-7 text-primary" />
+            Base & Território
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-2xl mt-1">
+            Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão no Brasil</strong> (geografia).
+            Mapa interativo por estado, drill-down em cidades e bairros — pronto para campanhas em qualquer região do país.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReload}
+          disabled={reloading}
+          className="shrink-0"
+        >
+          <RefreshCw className={`w-4 h-4 mr-1.5 ${reloading ? "animate-spin" : ""}`} />
+          {reloading ? "Recarregando…" : "Recarregar dados"}
+        </Button>
       </div>
 
       {/* ═══════════════════════════════════════ */}
