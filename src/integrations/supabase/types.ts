@@ -3608,6 +3608,23 @@ export type Database = {
           partido: string
         }[]
       }
+      get_votos_por_municipio: {
+        Args: {
+          p_anos?: number[]
+          p_cargo?: string
+          p_partido?: string
+          p_uf?: string
+        }
+        Returns: {
+          candidatos: number
+          municipio: string
+          partidos: number
+          total: number
+          uf: string
+          votos_2022: number
+          votos_2024: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
