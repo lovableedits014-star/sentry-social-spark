@@ -618,9 +618,21 @@ const InteligenciaEleitoral = () => {
                           </SelectContent>
                         </Select>
                       )}
-                      {locaisFiltrados.map((l) => {
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {locaisVisiveis.length} {locaisVisiveis.length === 1 ? "local" : "locais"} visíveis
+                        </span>
+                        <button
+                          onClick={exportarLocaisVisiveis}
+                          disabled={locaisVisiveis.length === 0}
+                          className="text-[11px] px-2 py-1 rounded border flex items-center gap-1 hover:bg-muted disabled:opacity-50"
+                          title="Exporta XLSX com os locais filtrados (busca + bairro) exatamente como aparecem nesta lista."
+                        >
+                          <Download className="w-3 h-3" /> Exportar visível
+                        </button>
+                      </div>
+                      {locaisVisiveis.map((l) => {
                         const k = `${l.zona}-${l.nr_local}`;
-                        if (bairroFilter !== "__all__" && (l as any).bairro !== bairroFilter) return null;
                         return (
                           <button
                             key={k}
