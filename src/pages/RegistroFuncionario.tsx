@@ -13,6 +13,7 @@ import {
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
 import { useCpfCheck } from "@/hooks/use-cpf-check";
+import { CpfStatusIndicator } from "@/components/ui/cpf-status-indicator";
 import { XCircle } from "lucide-react";
 
 // ─── Social Link Capture ─────────────────────────────────────────────────────
@@ -311,26 +312,7 @@ export default function RegistroFuncionario() {
                 maxLength={14}
                 required
               />
-              {cpfCheck.status === "checking" && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Verificando CPF...
-                </p>
-              )}
-              {cpfCheck.status === "duplicate" && (
-                <p className="text-xs text-destructive flex items-center gap-1.5">
-                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
-                </p>
-              )}
-              {cpfCheck.status === "invalid" && (
-                <p className="text-xs text-destructive flex items-center gap-1.5">
-                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
-                </p>
-              )}
-              {cpfCheck.status === "ok" && (
-                <p className="text-xs text-emerald-600 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3 h-3" /> CPF disponível
-                </p>
-              )}
+              <CpfStatusIndicator result={cpfCheck} />
             </div>
 
             <div className="space-y-2">
