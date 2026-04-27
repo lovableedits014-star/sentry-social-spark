@@ -562,6 +562,12 @@ const MidiaPage = () => {
           </p>
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="alerts" className="mt-0">
+          <MediaAlertsManager clientId={clientId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
