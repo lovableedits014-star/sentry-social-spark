@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, Settings, LogOut, Shield,
-  Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Sparkles, Trophy, Target, Briefcase, Send, CalendarCheck,
+  Users, TrendingUp, Crown, Menu, X, MapPin, BookUser, UserPlus, Kanban, Sparkles, Trophy, Target, Briefcase, Send, CalendarCheck, Vote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ const MENU_SECTIONS: MenuSection[] = [
       { icon: Send, label: "Disparos WhatsApp", path: "/disparos" },
       { icon: Briefcase, label: "Contratados", path: "/contratados" },
       { icon: MapPin, label: "Territorial", path: "/territorial" },
+      { icon: Vote, label: "Inteligência Eleitoral", path: "/inteligencia-eleitoral" },
     ],
   },
   {
