@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User } from "lucide-react";
+import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 
 type Row = {
   id: number;
@@ -35,6 +36,7 @@ type LocalRow = {
   nr_local: number;
   nome_local: string | null;
   endereco: string | null;
+  bairro?: string | null;
   numero: number;
   nome_candidato: string | null;
   votos: number;
