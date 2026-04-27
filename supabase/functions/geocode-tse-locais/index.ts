@@ -13,20 +13,35 @@ const MAX_RUNTIME_MS = 50_000;
 
 async function inferBairrosBatch(
   items: Array<{ idx: number; endereco: string; nome_local: string | null }>,
+  modo: "padrao" | "por_nome" = "padrao",
 ): Promise<Record<number, string>> {
   const lista = items
-    .map((it) => `${it.idx}. ${it.nome_local ? `[${it.nome_local}] ` : ""}${it.endereco}`)
+    .map((it) =>
+      modo === "por_nome"
+        ? `${it.idx}. ${it.nome_local ?? "(sem nome)"} — Endereço: ${it.endereco}`
+        : `${it.idx}. ${it.nome_local ? `[${it.nome_local}] ` : ""}${it.endereco}`,
+    )
     .join("\n");
 
   const systemPrompt =
-    "Você é um especialista em geografia urbana de Campo Grande, MS, Brasil. " +
-    "Dada uma lista de endereços (rua e número) e nomes de locais (escolas, igrejas, etc.) " +
-    "todos localizados em Campo Grande/MS, retorne o nome do bairro de cada um. " +
-    "Use seu conhecimento sobre as ruas, avenidas e instituições da cidade. " +
-    "Se não tiver certeza razoável, retorne string vazia para aquele item. " +
-    "Nunca invente um bairro — prefira vazio a errar.";
+    modo === "por_nome"
+      ? "Você é um especialista em escolas, instituições e equipamentos públicos de Campo Grande, MS, Brasil. " +
+        "Cada item é um LOCAL DE VOTAÇÃO TSE (escola estadual/municipal, CEINF, igreja, sindicato, associação, faculdade etc.) em Campo Grande/MS. " +
+        "Use o NOME da instituição como pista principal — escolas têm bairros conhecidos. Use o endereço apenas como confirmação. " +
+        "Retorne o bairro oficial de Campo Grande/MS de cada local. " +
+        "Se realmente não conhecer aquela instituição específica, retorne string vazia. " +
+        "Nunca invente — prefira vazio a errar."
+      : "Você é um especialista em geografia urbana de Campo Grande, MS, Brasil. " +
+        "Dada uma lista de endereços (rua e número) e nomes de locais (escolas, igrejas, etc.) " +
+        "todos localizados em Campo Grande/MS, retorne o nome do bairro de cada um. " +
+        "Use seu conhecimento sobre as ruas, avenidas e instituições da cidade. " +
+        "Se não tiver certeza razoável, retorne string vazia para aquele item. " +
+        "Nunca invente um bairro — prefira vazio a errar.";
 
-  const userPrompt = `Identifique o bairro de cada endereço em Campo Grande/MS:\n\n${lista}`;
+  const userPrompt =
+    modo === "por_nome"
+      ? `Identifique o bairro destes locais de votação em Campo Grande/MS usando principalmente o NOME da instituição:\n\n${lista}`
+      : `Identifique o bairro de cada endereço em Campo Grande/MS:\n\n${lista}`;
 
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -103,18 +118,25 @@ Deno.serve(async (req) => {
     });
   }
 
+  const url = new URL(req.url);
+  const retry = url.searchParams.get("retry") === "1";
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // pega locais sem bairro (inclui os marcados como "" para reprocessar com IA)
-  const { data: locais, error } = await supabase
+  // padrão: pega só os ainda não processados (bairro IS NULL)
+  // retry: pega os que falharam antes (bairro = '') para tentar via NOME do local
+  const baseQuery = supabase
     .from("tse_votacao_local")
     .select("zona, nr_local, endereco, nome_local")
-    .is("bairro", null)
     .not("endereco", "is", null)
     .limit(2000);
+
+  const { data: locais, error } = retry
+    ? await baseQuery.eq("bairro", "")
+    : await baseQuery.is("bairro", null);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -145,7 +167,7 @@ Deno.serve(async (req) => {
 
     let resultados: Record<number, string> = {};
     try {
-      resultados = await inferBairrosBatch(items);
+      resultados = await inferBairrosBatch(items, retry ? "por_nome" : "padrao");
     } catch (e) {
       console.error("Erro no lote", e);
       failed += batch.length;
