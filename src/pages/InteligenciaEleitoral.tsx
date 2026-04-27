@@ -205,6 +205,13 @@ const InteligenciaEleitoral = () => {
     ).slice(0, 80);
   }, [locaisMeta, localSearch]);
 
+  // Lista efetivamente visível na sidebar (busca + filtro de bairro)
+  const locaisVisiveis = useMemo(() => {
+    return locaisFiltrados.filter(
+      (l: any) => bairroFilter === "__all__" || l.bairro === bairroFilter,
+    );
+  }, [locaisFiltrados, bairroFilter]);
+
   const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
   const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
 
