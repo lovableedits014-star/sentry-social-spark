@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -105,7 +105,7 @@ const MidiaPage = () => {
   const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
 
-  useMemo(() => {
+  useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
