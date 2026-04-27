@@ -417,7 +417,15 @@ export default function ComposicaoChapa() {
                 ordenados.slice(0, 1000).map((r, idx) => (
                   <TableRow key={`${r.nome_completo}-${r.partido}-${idx}`}>
                     <TableCell>
-                      <div className="font-medium">{r.nome_completo}</div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelecionado(r); setAnoDetalhe(anoMode); }}
+                        className="font-medium text-left hover:text-primary hover:underline inline-flex items-center gap-1"
+                        title="Ver força por município"
+                      >
+                        <MapPin className="w-3.5 h-3.5 opacity-60" />
+                        {r.nome_completo}
+                      </button>
                       {r.nome_urna && r.nome_urna !== r.nome_completo && (
                         <div className="text-xs text-muted-foreground">{r.nome_urna}</div>
                       )}
