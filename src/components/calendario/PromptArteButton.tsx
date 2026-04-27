@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,11 @@ import {
 import { useContextoArte } from "@/hooks/useContextoArte";
 
 type CandidatePhoto = { id: string; photo_url: string; label: string | null };
-type CandidateIdentity = { logo_url: string | null };
+type CandidateContext = {
+  name: string | null;
+  cargo: string | null;
+  logo_url: string | null;
+};
 
 type Props =
   | {
@@ -78,14 +81,17 @@ export function PromptArteButton(props: Props) {
   }, []);
 
   const identityQuery = useQuery({
-    queryKey: ["candidate-identity", clientId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("candidate_identity")
-        .select("logo_url")
-        .eq("client_id", clientId!)
-        .maybeSingle();
-      return (data ?? null) as CandidateIdentity | null;
+    queryKey: ["arte-candidate-context", clientId],
+    queryFn: async (): Promise<CandidateContext> => {
+      const [{ data: client }, { data: identity }] = await Promise.all([
+        supabase.from("clients").select("name, cargo").eq("id", clientId!).maybeSingle(),
+        supabase.from("candidate_identity").select("logo_url").eq("client_id", clientId!).maybeSingle(),
+      ]);
+      return {
+        name: client?.name ?? null,
+        cargo: client?.cargo ?? null,
+        logo_url: identity?.logo_url ?? null,
+      };
     },
     enabled: !!clientId && open,
   });
@@ -104,10 +110,21 @@ export function PromptArteButton(props: Props) {
   });
 
   const photos = photosQuery.data ?? [];
-  const logoUrl = identityQuery.data?.logo_url ?? undefined;
+  const candidateCtx = identityQuery.data;
+  const logoUrl = candidateCtx?.logo_url ?? undefined;
   const selectedPhoto = photos.find((p) => p.id === photoId);
 
-  // Quando abre, sincroniza draft com o contexto atual
+  // Quando a Identidade da Campanha carrega, hidrata o draft com nome+cargo automaticamente
+  useEffect(() => {
+    if (!open || !candidateCtx) return;
+    setDraft((d) => ({
+      ...d,
+      nomeCandidato: candidateCtx.name ?? d.nomeCandidato,
+      cargo: candidateCtx.cargo ?? d.cargo,
+    }));
+  }, [open, candidateCtx]);
+
+  // Quando abre, sincroniza draft com o contexto persistido (localStorage)
   const handleOpen = (v: boolean) => {
     setOpen(v);
     if (v) setDraft(ctx);
@@ -209,43 +226,10 @@ export function PromptArteButton(props: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="cand-nome" className="text-xs">Nome do candidato (opcional)</Label>
-              <Input
-                id="cand-nome"
-                placeholder="Ex: João da Silva"
-                value={draft.nomeCandidato ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, nomeCandidato: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cand-cargo" className="text-xs">Cargo / pré-cargo (opcional)</Label>
-              <Input
-                id="cand-cargo"
-                placeholder="Ex: Vereador, Prefeito, Pré-candidato"
-                value={draft.cargo ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, cargo: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cand-cidade" className="text-xs">Cidade / região (opcional)</Label>
-              <Input
-                id="cand-cidade"
-                placeholder="Ex: Belo Horizonte - MG"
-                value={draft.cidade ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, cidade: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cand-paleta" className="text-xs">Paleta de cores (opcional)</Label>
-              <Input
-                id="cand-paleta"
-                placeholder="Ex: azul royal e branco"
-                value={draft.paletaCores ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, paletaCores: e.target.value }))}
-              />
-            </div>
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+            ✨ A IA puxa automaticamente nome, cargo, cidade e identidade visual de{" "}
+            <strong>Configurações → Identidade da Campanha</strong> e{" "}
+            <strong>Materiais para o gerador de artes</strong>. Não precisa preencher nada aqui.
           </div>
 
           <div className="space-y-1.5">

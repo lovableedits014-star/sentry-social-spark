@@ -12,6 +12,7 @@ import {
   Sparkles,
   Loader2,
   Megaphone,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
@@ -46,6 +47,7 @@ export default function CalendarioPolitico() {
   const [tY, tM, tD] = todayYMD.split("-").map(Number);
   const todayParts = { year: tY, month: tM - 1, day: tD };
   const [cursor, setCursor] = useState({ year: todayParts.year, month: todayParts.month });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const { ativos: estilosAtivos } = useEstilosTema();
 
   // Buscamos 3 anos para que navegação prev/next nos limites não quebre
@@ -130,10 +132,23 @@ export default function CalendarioPolitico() {
   }, [cursor, todayYMD]);
 
   const goPrev = () =>
-    setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }));
+    setCursor((c) => {
+      setSelectedDate(null);
+      return c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 };
+    });
   const goNext = () =>
-    setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }));
-  const goToday = () => setCursor({ year: todayParts.year, month: todayParts.month });
+    setCursor((c) => {
+      setSelectedDate(null);
+      return c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 };
+    });
+  const goToday = () => {
+    setSelectedDate(null);
+    setCursor({ year: todayParts.year, month: todayParts.month });
+  };
+
+  const selectedHolidays = selectedDate ? holidaysByDate.get(selectedDate) ?? [] : [];
+  const selectedSug = selectedHolidays.length > 0 ? getSugestaoFeriado(selectedHolidays[0], estilosAtivos) : null;
+  const temaMesAtivo = temasMes[0]; // primeiro estilo ativo
 
   return (
     <TooltipProvider>
@@ -146,7 +161,7 @@ export default function CalendarioPolitico() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Calendário Político</h1>
             <p className="text-sm text-muted-foreground">
-              Grade mensal com feriados nacionais destacados e sugestão de tema do mês para orientar a agenda da campanha.
+              Clique em um <strong>dia com feriado</strong> para abrir as opções de arte e prompt logo abaixo.
               Apenas visualização — nenhum disparo é feito automaticamente.
             </p>
           </div>
@@ -155,9 +170,8 @@ export default function CalendarioPolitico() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          {/* Grade mensal */}
-          <Card>
+        {/* Grade mensal — largura total */}
+        <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
@@ -165,7 +179,7 @@ export default function CalendarioPolitico() {
                     {NOMES_MES[cursor.month]} de {cursor.year}
                   </CardTitle>
                   <CardDescription>
-                    {holidaysDoMes.length} feriado(s) nacional(is) neste mês
+                  {holidaysDoMes.length} feriado(s) nacional(is) neste mês — clique em um dia destacado para gerar arte
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1">
@@ -209,17 +223,25 @@ export default function CalendarioPolitico() {
                       const fers = holidaysByDate.get(cell.date) ?? [];
                       const sug = fers.length > 0 ? getSugestaoFeriado(fers[0], estilosAtivos) : null;
                       const isHoliday = fers.length > 0;
+                    const isSelected = selectedDate === cell.date;
+                    const clickable = isHoliday;
                       return (
                         <Tooltip key={cell.date} delayDuration={150}>
                           <TooltipTrigger asChild>
-                            <div
+                          <button
+                            type="button"
+                            onClick={() => clickable && setSelectedDate(isSelected ? null : cell.date)}
+                            disabled={!clickable}
                               className={cn(
-                                "min-h-[72px] rounded-md border p-1.5 text-left transition-colors",
+                              "min-h-[72px] rounded-md border p-1.5 text-left transition-all",
                                 "flex flex-col gap-1",
                                 cell.inMonth ? "bg-card" : "bg-muted/30",
                                 cell.isToday && "ring-2 ring-primary",
                                 isHoliday && cell.inMonth && "bg-primary/5 border-primary/40",
                                 isHoliday && !cell.inMonth && "bg-primary/5 border-primary/20",
+                              clickable && "cursor-pointer hover:bg-primary/10 hover:border-primary/60 hover:shadow-sm",
+                              !clickable && "cursor-default",
+                              isSelected && "bg-primary/15 border-primary ring-2 ring-primary shadow-md scale-[1.02]",
                               )}
                             >
                               <div className="flex items-center justify-between">
@@ -246,7 +268,7 @@ export default function CalendarioPolitico() {
                                   {fers[0].localName}
                                 </p>
                               )}
-                            </div>
+                          </button>
                           </TooltipTrigger>
                           {isHoliday && (
                             <TooltipContent side="top" className="max-w-xs">
@@ -262,6 +284,9 @@ export default function CalendarioPolitico() {
                                   <span><span className="font-semibold">Sugestão:</span> {sug.tema}</span>
                                 </p>
                               )}
+                            <p className="text-[10px] mt-1.5 text-primary font-medium">
+                              Clique para abrir opções de arte ↓
+                            </p>
                             </TooltipContent>
                           )}
                         </Tooltip>
@@ -285,95 +310,92 @@ export default function CalendarioPolitico() {
             </CardContent>
           </Card>
 
-          {/* Painel lateral */}
-          <div className="space-y-4">
-            {/* Tema político do mês */}
-            <Card className="border-primary/40 bg-primary/5">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <Megaphone className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm">Tema político do mês</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {temasMes.map((tm, i) => (
-                  <div key={`${tm.estilo}-${i}`} className={i > 0 ? "pt-3 border-t border-primary/20" : ""}>
-                    <p className="text-2xl mb-1">{tm.emoji}</p>
-                    <p className="font-semibold text-sm">{tm.titulo}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{tm.descricao}</p>
-                    <div className="mt-2">
-                      <PromptArteButton
-                        tipo="tema-mes"
-                        tema={{ titulo: tm.titulo, descricao: tm.descricao, emoji: tm.emoji }}
-                        size="sm"
-                        variant="outline"
-                        label="Prompt de arte"
-                      />
-                    </div>
+        {/* Painel inline expandido ao clicar num dia com feriado */}
+        {selectedDate && selectedHolidays.length > 0 && (
+          <Card className="border-primary/60 bg-primary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div className="flex items-start gap-3">
+                  <div className="text-3xl leading-none">{selectedSug?.emoji ?? "📅"}</div>
+                  <div>
+                    <CardTitle className="text-lg">
+                      {selectedHolidays.map((f) => f.localName).join(" + ")}
+                    </CardTitle>
+                    <CardDescription className="capitalize">
+                      {new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", {
+                        weekday: "long", day: "2-digit", month: "long", year: "numeric",
+                      })}
+                      {(() => {
+                        const d = diasAte(selectedDate);
+                        if (d === 0) return " · hoje";
+                        if (d > 0) return ` · em ${d} dia(s)`;
+                        return ` · há ${Math.abs(d)} dia(s)`;
+                      })()}
+                    </CardDescription>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Agenda do mês */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Feriados de {NOMES_MES[cursor.month]}</CardTitle>
-                <CardDescription className="text-xs">
-                  Use para evitar agendar atos e definir o tom da comunicação.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {holidaysDoMes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    Nenhum feriado nacional neste mês.
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedDate(null)}
+                  aria-label="Fechar"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {selectedSug && (
+                <div className="rounded-md border bg-background/60 p-3">
+                  <p className="text-xs flex items-start gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                    <span><span className="font-semibold">Sugestão de tom:</span> {selectedSug.tema}</span>
                   </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {holidaysDoMes.map((h) => {
-                      const sug = getSugestaoFeriado(h, estilosAtivos);
-                      const dias = diasAte(h.date);
-                      const dt = new Date(h.date + "T12:00:00");
-                      return (
-                        <li key={`${h.date}-${h.name}`} className="rounded-md border bg-card/50 p-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold">
-                              {sug?.emoji ?? "📅"} {h.localName}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                              {String(dt.getDate()).padStart(2, "0")}/{String(dt.getMonth() + 1).padStart(2, "0")}
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
-                            {dt.toLocaleDateString("pt-BR", { weekday: "long" })}
-                            {dias === 0 && " · hoje"}
-                            {dias > 0 && dias <= 30 && ` · em ${dias} dias`}
-                            {dias < 0 && ` · há ${Math.abs(dias)} dias`}
-                          </p>
-                          {sug && (
-                            <p className="text-[11px] text-muted-foreground mt-1 flex items-start gap-1">
-                              <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-primary/70" />
-                              <span>{sug.tema}</span>
-                            </p>
-                          )}
-                          <div className="mt-2">
-                            <PromptArteButton
-                              tipo="feriado"
-                              feriado={{ localName: h.localName, name: h.name, date: h.date }}
-                              size="sm"
-                              variant="outline"
-                              label="Prompt de arte"
-                            />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {selectedHolidays.map((h) => (
+                  <PromptArteButton
+                    key={`${h.date}-${h.name}`}
+                    tipo="feriado"
+                    feriado={{ localName: h.localName, name: h.name, date: h.date }}
+                    size="default"
+                    variant="default"
+                    label={`Gerar arte — ${h.localName}`}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tema político do mês — abaixo do calendário */}
+        {temaMesAtivo && (
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm">Tema político do mês — {NOMES_MES[cursor.month]}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="text-3xl">{temaMesAtivo.emoji}</div>
+                <div className="flex-1 min-w-[200px]">
+                  <p className="font-semibold text-sm">{temaMesAtivo.titulo}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{temaMesAtivo.descricao}</p>
+                </div>
+                <PromptArteButton
+                  tipo="tema-mes"
+                  tema={{ titulo: temaMesAtivo.titulo, descricao: temaMesAtivo.descricao, emoji: temaMesAtivo.emoji }}
+                  size="sm"
+                  variant="outline"
+                  label="Gerar arte do tema"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </TooltipProvider>
   );
