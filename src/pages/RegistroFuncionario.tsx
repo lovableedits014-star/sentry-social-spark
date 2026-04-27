@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, CheckCircle2, AlertCircle, MapPin, Phone,
-  Mail, Lock, Eye, EyeOff, Users2, Cake,
+  Mail, Lock, Eye, EyeOff, Users2, Cake, IdCard,
   Instagram, Facebook, ClipboardPaste, X, Check, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { DateInputBr } from "@/components/ui/date-input-br";
+import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
 
 // ─── Social Link Capture ─────────────────────────────────────────────────────
 interface SocialEntry { plataforma: string; usuario: string; url_perfil: string; }
@@ -173,12 +175,13 @@ export default function RegistroFuncionario() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [nome, setNome] = useState("");
+  const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [cidade, setCidade] = useState("");
+  const [rua, setRua] = useState("");
   const [bairro, setBairro] = useState("");
-  const [endereco, setEndereco] = useState("");
   const [dataNascimento, setDataNascimento] = useState("");
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
@@ -195,10 +198,13 @@ export default function RegistroFuncionario() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) { setError("Informe seu nome."); return; }
+    if (!isValidCpf(cpf)) { setError("CPF inválido. Confira os dígitos."); return; }
     if (!telefone.trim()) { setError("Informe seu telefone."); return; }
     if (!email.trim()) { setError("Informe seu e-mail."); return; }
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
     if (!cidade.trim()) { setError("Informe sua cidade."); return; }
+    if (!rua.trim()) { setError("Informe sua rua."); return; }
+    if (!bairro.trim()) { setError("Informe seu bairro."); return; }
     if (!dataNascimento) { setError("Informe sua data de nascimento."); return; }
 
     setLoading(true);
@@ -208,12 +214,13 @@ export default function RegistroFuncionario() {
       body: {
         client_id: clientId,
         nome: nome.trim(),
+        cpf: cpfDigits(cpf),
         telefone: telefone.trim(),
         email: email.trim().toLowerCase(),
         senha,
         cidade: cidade.trim(),
-        bairro: bairro.trim() || null,
-        endereco: endereco.trim() || null,
+        bairro: bairro.trim(),
+        endereco: rua.trim(),
         data_nascimento: dataNascimento,
         redes_sociais: socials,
       },
@@ -289,6 +296,19 @@ export default function RegistroFuncionario() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="cpf" className="flex items-center gap-2"><IdCard className="w-4 h-4 text-muted-foreground" />CPF *</Label>
+              <Input
+                id="cpf"
+                inputMode="numeric"
+                value={cpf}
+                onChange={e => { setCpf(formatCpf(e.target.value)); setError(""); }}
+                placeholder="000.000.000-00"
+                maxLength={14}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="telefone" className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground" />Telefone / WhatsApp *</Label>
               <Input id="telefone" value={telefone} onChange={e => { setTelefone(e.target.value); setError(""); }} placeholder="(67) 99999-9999" required />
             </div>
@@ -310,17 +330,15 @@ export default function RegistroFuncionario() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" />Localização *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input value={cidade} onChange={e => { setCidade(e.target.value); setError(""); }} placeholder="Cidade *" required />
-                <Input value={bairro} onChange={e => setBairro(e.target.value)} placeholder="Bairro" />
-              </div>
-              <Input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereço completo" />
+              <Label className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" />Endereço *</Label>
+              <Input value={cidade} onChange={e => { setCidade(e.target.value); setError(""); }} placeholder="Cidade *" required />
+              <Input value={rua} onChange={e => { setRua(e.target.value); setError(""); }} placeholder="Rua *" required />
+              <Input value={bairro} onChange={e => { setBairro(e.target.value); setError(""); }} placeholder="Bairro *" required />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="data_nascimento" className="flex items-center gap-2"><Cake className="w-4 h-4 text-muted-foreground" />Data de nascimento *</Label>
-              <Input id="data_nascimento" type="date" value={dataNascimento} onChange={e => { setDataNascimento(e.target.value); setError(""); }} required />
+              <DateInputBr id="data_nascimento" value={dataNascimento} onChange={(iso) => { setDataNascimento(iso); setError(""); }} required />
             </div>
 
             <SocialLinkCapture onSocialsChange={setSocials} />

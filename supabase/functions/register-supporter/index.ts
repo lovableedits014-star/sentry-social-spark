@@ -121,7 +121,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { client_id, name, facebook_url, instagram_url, phone, notes, referral_code, city, neighborhood, state } = await req.json();
+    const {
+      client_id, name, facebook_url, instagram_url, phone, notes, referral_code,
+      city, neighborhood, state, endereco, cpf, birth_date,
+    } = await req.json();
 
     if (!client_id || !name?.trim()) {
       return new Response(JSON.stringify({ success: false, error: "Nome e client_id são obrigatórios" }), {
@@ -134,6 +137,15 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    if (!phone?.trim()) {
+      return new Response(JSON.stringify({ success: false, error: "Telefone é obrigatório" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const cpfDigits = (cpf || "").toString().replace(/\D/g, "") || null;
+    const phoneDigits = (phone || "").toString().replace(/\D/g, "") || null;
 
     const rawProfiles: ParsedProfile[] = [];
     if (facebook_url) {
@@ -238,6 +250,12 @@ Deno.serve(async (req) => {
           client_id,
           name: name.trim(),
           classification: "apoiador_ativo",
+          cpf: cpfDigits,
+          telefone: phoneDigits,
+          birth_date: birth_date || null,
+          endereco: endereco?.trim() || null,
+          cidade: city?.trim() || null,
+          bairro: neighborhood?.trim() || null,
           notes: [
             notes?.trim(),
             phone?.trim() ? `Tel: ${phone.trim()}` : null,
@@ -250,7 +268,15 @@ Deno.serve(async (req) => {
       if (supError) throw supError;
       supporterId = supporter.id;
     } else {
-      const updateData: Record<string, unknown> = { classification: "apoiador_ativo" };
+      const updateData: Record<string, unknown> = {
+        classification: "apoiador_ativo",
+        cpf: cpfDigits,
+        telefone: phoneDigits,
+        birth_date: birth_date || null,
+        endereco: endereco?.trim() || null,
+        cidade: city?.trim() || null,
+        bairro: neighborhood?.trim() || null,
+      };
       const extraNotes = [
         notes?.trim(),
         phone?.trim() ? `Tel: ${phone.trim()}` : null,
@@ -291,7 +317,10 @@ Deno.serve(async (req) => {
 
       const pessoaPayload: Record<string, unknown> = {
         nome: name.trim(),
-        telefone: phone?.trim() || null,
+        telefone: phoneDigits,
+        cpf: cpfDigits,
+        endereco: endereco?.trim() || null,
+        data_nascimento: birth_date || null,
         cidade: city?.trim() || null,
         bairro: neighborhood?.trim() || null,
         tipo_pessoa: "apoiador",
@@ -367,6 +396,8 @@ Deno.serve(async (req) => {
       pending_shares: pendingShares,
       // Pass location data back so frontend can save after auth
       location_data: { city: city?.trim() || null, neighborhood: neighborhood?.trim() || null, state: state?.trim() || null },
+      // Pass extra data so frontend can save in supporter_accounts after auth signup
+      account_extra: { cpf: cpfDigits, birth_date: birth_date || null, endereco: endereco?.trim() || null, phone: phoneDigits },
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

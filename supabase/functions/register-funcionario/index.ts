@@ -17,15 +17,29 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const {
-      client_id, nome, telefone, email, senha,
+      client_id, nome, telefone, email, senha, cpf,
       cidade, bairro, endereco, redes_sociais, data_nascimento,
     } = await req.json();
 
-    if (!client_id || !nome || !telefone || !email || !senha) {
-      return new Response(JSON.stringify({ error: "Campos obrigatórios: nome, telefone, email, senha" }), {
+    if (!client_id || !nome || !telefone || !email || !senha || !cpf) {
+      return new Response(JSON.stringify({ error: "Campos obrigatórios: nome, cpf, telefone, email, senha" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    if (!cidade || !bairro || !endereco) {
+      return new Response(JSON.stringify({ error: "Cidade, bairro e rua são obrigatórios" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!data_nascimento) {
+      return new Response(JSON.stringify({ error: "Data de nascimento é obrigatória" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const cpfDigits = String(cpf).replace(/\D/g, "");
 
     const normalizedEmail = String(email).trim().toLowerCase();
 
@@ -136,6 +150,7 @@ Deno.serve(async (req) => {
         nome: nome.trim(),
         telefone: telefone.trim(),
         email: normalizedEmail,
+        cpf: cpfDigits,
         cidade: cidade?.trim() || null,
         bairro: bairro?.trim() || null,
         endereco: endereco?.trim() || null,
@@ -160,6 +175,7 @@ Deno.serve(async (req) => {
       nome: nome.trim(),
       email: normalizedEmail,
       telefone: telefone.trim(),
+      cpf: cpfDigits,
       cidade: cidade?.trim() || null,
       bairro: bairro?.trim() || null,
       endereco: endereco?.trim() || null,
