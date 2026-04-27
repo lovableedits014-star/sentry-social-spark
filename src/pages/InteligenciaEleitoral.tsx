@@ -90,6 +90,7 @@ const InteligenciaEleitoral = () => {
         nr_local: r.nr_local,
         nome_local: r.nome_local || "",
         endereco: r.endereco || "",
+        bairro: r.bairro || "",
         total: Number(r.total_votos || 0),
       }));
     },
@@ -195,12 +196,60 @@ const InteligenciaEleitoral = () => {
     const s = localSearch.toLowerCase().trim();
     if (!s) return locaisMeta.slice(0, 50);
     return locaisMeta.filter(
-      (l) => (l.nome_local || "").toLowerCase().includes(s) || (l.endereco || "").toLowerCase().includes(s) || String(l.zona).includes(s),
+      (l) =>
+        (l.nome_local || "").toLowerCase().includes(s) ||
+        (l.endereco || "").toLowerCase().includes(s) ||
+        ((l as any).bairro || "").toLowerCase().includes(s) ||
+        String(l.zona).includes(s),
     ).slice(0, 80);
   }, [locaisMeta, localSearch]);
 
   const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
   const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
+
+  // Bairros únicos presentes nos metadados (para o filtro)
+  const bairrosDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    locaisMeta.forEach((l: any) => { if (l.bairro) set.add(l.bairro); });
+    return Array.from(set).sort();
+  }, [locaisMeta]);
+
+  // Exportação XLSX
+  const exportXLSX = (filename: string, sheets: Record<string, any[]>) => {
+    const wb = XLSX.utils.book_new();
+    Object.entries(sheets).forEach(([name, data]) => {
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+    });
+    XLSX.writeFile(wb, filename);
+  };
+
+  const exportarVotosCandidato = () => {
+    const cand = ranking.find((c) => c.numero === selectedCandidato);
+    if (!cand) return;
+    const data = votosPorLocalCand.map((r, i) => ({
+      Posição: i + 1,
+      "Local de votação": r.nome_local,
+      Endereço: r.endereco,
+      Bairro: (r as any).bairro || "",
+      Zona: r.zona,
+      Votos: r.votos,
+    }));
+    exportXLSX(`votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { "Por local": data });
+  };
+
+  const exportarRankingLocal = () => {
+    const l = locaisMeta.find((x) => `${x.zona}-${x.nr_local}` === selectedLocal);
+    if (!l) return;
+    const data = rankingDoLocal.map((r, i) => ({
+      Posição: i + 1,
+      Candidato: r.nome_candidato,
+      Número: r.numero,
+      Votos: r.votos,
+      "% local": totalVotosLocal > 0 ? Number(((r.votos / totalVotosLocal) * 100).toFixed(2)) : 0,
+    }));
+    exportXLSX(`ranking-${(l.nome_local || "local").replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { Ranking: data });
+  };
 
   return (
     <div className="p-6 space-y-6">
