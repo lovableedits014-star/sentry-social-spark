@@ -11,6 +11,10 @@ const corsHeaders = {
  *
  * Endpoint:
  *   GET ?query=...&timespan=7d&country=BR&maxrecords=50
+ *       &domains=g1.globo.com,folha.uol.com.br
+ *       &exclude=opinião,coluna
+ *       &language=por
+ *       &start=20260420000000&end=20260427235959   (opcional — sobrepõe timespan)
  *
  * Retorna:
  *   - timeline: pontos diários (volume + tom médio)
@@ -37,8 +41,10 @@ type Article = {
 
 type Timeline = { date: string; volume: number; tone: number | null };
 
-function key(query: string, timespan: string, country: string) {
-  return `gdelt:${country}:${timespan}:${query.toLowerCase().trim()}`;
+function key(parts: Record<string, string>) {
+  // Chave determinística para o cache, independente da ordem dos parâmetros
+  const ordered = Object.keys(parts).sort().map((k) => `${k}=${parts[k]}`).join("|");
+  return `gdelt:${ordered.toLowerCase()}`;
 }
 
 /** Parse "20251020T123000Z" → "2025-10-20" */
@@ -47,9 +53,34 @@ function parseGdeltDate(s: string): string {
   return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 }
 
-async function fetchArticles(query: string, timespan: string, country: string, maxrecords: number): Promise<Article[]> {
-  const q = country && country !== "all" ? `${query} sourcecountry:${country}` : query;
-  const url = `${GDELT_BASE}?query=${encodeURIComponent(q)}&mode=ArtList&format=json&maxrecords=${maxrecords}&timespan=${encodeURIComponent(timespan)}&sort=DateDesc`;
+/** Constrói os parâmetros temporais (timespan vs janela personalizada). */
+function buildTimeParams(opts: { timespan: string; start?: string; end?: string }): string {
+  if (opts.start && opts.end) {
+    return `&startdatetime=${opts.start}&enddatetime=${opts.end}`;
+  }
+  return `&timespan=${encodeURIComponent(opts.timespan)}`;
+}
+
+type FetchOpts = {
+  query: string;
+  timespan: string;
+  country: string;
+  start?: string;
+  end?: string;
+  language?: string;
+};
+
+/** Aplica filtros do GDELT à query final (country/language). */
+function decorateQuery(opts: FetchOpts): string {
+  let q = opts.query;
+  if (opts.country && opts.country !== "all") q += ` sourcecountry:${opts.country}`;
+  if (opts.language) q += ` sourcelang:${opts.language}`;
+  return q;
+}
+
+async function fetchArticles(opts: FetchOpts, maxrecords: number): Promise<Article[]> {
+  const q = decorateQuery(opts);
+  const url = `${GDELT_BASE}?query=${encodeURIComponent(q)}&mode=ArtList&format=json&maxrecords=${maxrecords}${buildTimeParams(opts)}&sort=DateDesc`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`GDELT ArtList ${res.status}`);
   const text = await res.text();
@@ -68,10 +99,10 @@ async function fetchArticles(query: string, timespan: string, country: string, m
   }));
 }
 
-async function fetchTimeline(query: string, timespan: string, country: string): Promise<Timeline[]> {
-  const q = country && country !== "all" ? `${query} sourcecountry:${country}` : query;
+async function fetchTimeline(opts: FetchOpts): Promise<Timeline[]> {
+  const q = decorateQuery(opts);
   // TimelineVolInfo dá volume + tom médio em janelas
-  const url = `${GDELT_BASE}?query=${encodeURIComponent(q)}&mode=TimelineVolInfo&format=json&timespan=${encodeURIComponent(timespan)}`;
+  const url = `${GDELT_BASE}?query=${encodeURIComponent(q)}&mode=TimelineVolInfo&format=json${buildTimeParams(opts)}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) return [];
   const text = await res.text();
@@ -126,6 +157,11 @@ Deno.serve(async (req) => {
     const country = (url.searchParams.get("country") || "BR").trim();
     const maxrecords = Math.min(Math.max(parseInt(url.searchParams.get("maxrecords") || "50", 10) || 50, 5), 100);
     const force = url.searchParams.get("force") === "1";
+    const language = (url.searchParams.get("language") || "").trim();
+    const start = (url.searchParams.get("start") || "").trim();
+    const end = (url.searchParams.get("end") || "").trim();
+    const domainsRaw = (url.searchParams.get("domains") || "").trim();
+    const excludeRaw = (url.searchParams.get("exclude") || "").trim();
 
     if (!query || query.length < 2) {
       return new Response(
@@ -133,11 +169,50 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    if (!/^\d+(d|h)$/.test(timespan)) {
+    const hasCustomRange = !!(start && end);
+    if (!hasCustomRange && !/^\d+(d|h|min)$/.test(timespan)) {
       return new Response(
-        JSON.stringify({ error: "timespan inválido. Use ex: 24h, 3d, 7d, 14d, 30d" }),
+        JSON.stringify({ error: "timespan inválido. Use ex: 60min, 24h, 3d, 7d, 14d, 30d" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+    if (hasCustomRange && (!/^\d{14}$/.test(start) || !/^\d{14}$/.test(end))) {
+      return new Response(
+        JSON.stringify({ error: "start/end devem estar no formato YYYYMMDDHHMMSS (14 dígitos)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (language && !/^[a-z]{2,4}$/.test(language)) {
+      return new Response(
+        JSON.stringify({ error: "language inválido. Use código GDELT minúsculo (ex: por, eng, spa)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Domínios: aceita lista separada por vírgula. Cada domínio vira "domain:..."
+    const domains = domainsRaw
+      .split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => /^[a-z0-9.\-]+\.[a-z]{2,}$/.test(d))
+      .slice(0, 10);
+
+    // Termos a excluir (vira -"termo" no GDELT)
+    const excludes = excludeRaw
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2 && t.length <= 50)
+      .slice(0, 10);
+
+    // Monta a query expandida (com domínios e exclusões)
+    let finalQuery = query;
+    if (domains.length === 1) {
+      finalQuery += ` domain:${domains[0]}`;
+    } else if (domains.length > 1) {
+      finalQuery += ` (${domains.map((d) => `domain:${d}`).join(" OR ")})`;
+    }
+    for (const ex of excludes) {
+      const wrapped = ex.includes(" ") ? `"${ex}"` : ex;
+      finalQuery += ` -${wrapped}`;
     }
 
     const supaUrl = Deno.env.get("SUPABASE_URL");
@@ -149,7 +224,13 @@ Deno.serve(async (req) => {
       );
     }
     const supa = createClient(supaUrl, supaKey);
-    const cacheK = key(query, timespan, country);
+    const cacheK = key({
+      q: finalQuery,
+      ts: hasCustomRange ? `${start}-${end}` : timespan,
+      c: country,
+      lang: language || "",
+      mr: String(maxrecords),
+    });
 
     if (!force) {
       const { data: row } = await supa
@@ -167,10 +248,18 @@ Deno.serve(async (req) => {
 
     let articles: Article[] = [];
     let timeline: Timeline[] = [];
+    const fetchOpts: FetchOpts = {
+      query: finalQuery,
+      timespan,
+      country,
+      start: hasCustomRange ? start : undefined,
+      end: hasCustomRange ? end : undefined,
+      language: language || undefined,
+    };
     try {
       const [a, t] = await Promise.all([
-        fetchArticles(query, timespan, country, maxrecords),
-        fetchTimeline(query, timespan, country),
+        fetchArticles(fetchOpts, maxrecords),
+        fetchTimeline(fetchOpts),
       ]);
       articles = a;
       timeline = t;
@@ -191,9 +280,15 @@ Deno.serve(async (req) => {
 
     const { tone_summary, top_sources } = summarize(articles, timeline);
     const data = {
-      query,
+      query: finalQuery,
+      raw_query: query,
       timespan,
+      start: hasCustomRange ? start : null,
+      end: hasCustomRange ? end : null,
       country,
+      language: language || null,
+      domains,
+      excludes,
       total_articles: articles.length,
       tone_summary,
       top_sources,
