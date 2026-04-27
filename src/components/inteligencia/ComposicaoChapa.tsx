@@ -66,23 +66,17 @@ export default function ComposicaoChapa() {
     queryKey: ["chapa-locais", refreshTick],
     staleTime: Infinity,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tse_votacao_zona" as any)
-        .select("uf, municipio")
-        .limit(50000);
+      const { data, error } = await supabase.rpc("get_tse_municipios" as any);
       if (error) throw error;
-      const set = new Set<string>();
       const ufSet = new Set<string>();
       (data || []).forEach((r: any) => {
         if (r.uf) ufSet.add(r.uf);
-        if (r.uf && r.municipio) set.add(`${r.uf}|${r.municipio}`);
       });
       return {
         ufs: Array.from(ufSet).sort(),
-        municipios: Array.from(set).map((s) => {
-          const [u, m] = s.split("|");
-          return { uf: u, municipio: m };
-        }).sort((a, b) => a.municipio.localeCompare(b.municipio)),
+        municipios: (data || [])
+          .map((r: any) => ({ uf: r.uf, municipio: r.municipio }))
+          .sort((a: any, b: any) => a.municipio.localeCompare(b.municipio)),
       };
     },
   });
@@ -95,15 +89,9 @@ export default function ComposicaoChapa() {
     queryKey: ["chapa-partidos", refreshTick],
     staleTime: Infinity,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tse_votacao_zona" as any)
-        .select("partido")
-        .not("partido", "is", null)
-        .limit(50000);
+      const { data, error } = await supabase.rpc("get_tse_partidos" as any);
       if (error) throw error;
-      const set = new Set<string>();
-      (data || []).forEach((r: any) => r.partido && set.add(r.partido));
-      return Array.from(set).sort();
+      return (data || []).map((r: any) => r.partido);
     },
   });
 
