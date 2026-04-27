@@ -129,6 +129,46 @@ function sourceLabel(src?: string): string {
   return "—";
 }
 
+/** URL do favicon do veículo (Google S2). */
+function faviconFor(domain: string): string {
+  const d = (domain || "").trim().toLowerCase();
+  if (!d || d === "—") return "";
+  // Domínios com espaço (nomes em vez de host) — não tem favicon
+  if (/\s/.test(d)) return "";
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=32`;
+}
+
+/** Converte seendate (GDELT YYYYMMDDTHHMMSSZ ou ISO) em Date. */
+function parseSeenDate(s: string): Date | null {
+  if (!s) return null;
+  if (/^\d{8}T\d{6}Z$/.test(s)) {
+    const y = s.slice(0, 4), mo = s.slice(4, 6), d = s.slice(6, 8);
+    const h = s.slice(9, 11), mi = s.slice(11, 13), se = s.slice(13, 15);
+    const dt = new Date(`${y}-${mo}-${d}T${h}:${mi}:${se}Z`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/** Rótulo de grupo: "Hoje" / "Ontem" / "Há N dias" / data longa. */
+function groupLabelForDate(d: Date | null): string {
+  if (!d) return "Sem data";
+  const today = new Date();
+  const day0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((day0 - dDay) / 86400000);
+  if (diffDays <= 0) return "Hoje";
+  if (diffDays === 1) return "Ontem";
+  if (diffDays <= 6) return `Há ${diffDays} dias`;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function fmtTime(d: Date | null): string {
+  if (!d) return "";
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
 const MidiaPage = () => {
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
