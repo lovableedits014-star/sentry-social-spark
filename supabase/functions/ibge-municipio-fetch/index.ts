@@ -16,7 +16,9 @@ const corsHeaders = {
  *  - IBGE Agregados (SIDRA) → estimativa populacional mais recente disponível
  *
  * Cache: public.api_cache, TTL de 90 dias (dados anuais/quinquenais).
- * Endpoint: GET ?codigo=5002704   (código IBGE de 7 dígitos)
+ * Endpoint:
+ *   GET ?codigo=5002704                       (código IBGE de 7 dígitos)
+ *   GET ?nome=Campo Grande&uf=MS              (resolve via IBGE Localidades)
  * Retorno: { data: { codigo, nome, uf, regiao, microrregiao, mesorregiao, populacao, ano_populacao,
  *                    area_km2, densidade, gentilico? }, cached, source }
  */
@@ -41,6 +43,25 @@ type Municipio = {
 
 function cacheKey(codigo: number) {
   return `ibge:municipio:${codigo}`;
+}
+
+function nameKey(nome: string, uf: string) {
+  return `ibge:lookup:${uf.toUpperCase()}:${nome.toLowerCase().trim()}`;
+}
+
+function normalize(s: string) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+async function resolveCodigoByName(nome: string, uf: string): Promise<number | null> {
+  const url = `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf.toUpperCase()}/municipios`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) return null;
+  const list = await res.json();
+  if (!Array.isArray(list)) return null;
+  const target = normalize(nome);
+  const hit = list.find((m: any) => normalize(m.nome) === target);
+  return hit?.id ? Number(hit.id) : null;
 }
 
 async function fetchMunicipioBase(codigo: number) {
@@ -139,15 +160,10 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const codigoStr = url.searchParams.get("codigo");
+    const nomeParam = url.searchParams.get("nome");
+    const ufParam = url.searchParams.get("uf");
     const force = url.searchParams.get("force") === "1";
-    const codigo = codigoStr ? parseInt(codigoStr, 10) : NaN;
-
-    if (!Number.isInteger(codigo) || codigo < 1000000 || codigo > 9999999) {
-      return new Response(
-        JSON.stringify({ error: "codigo IBGE deve ter 7 dígitos (ex: 5002704 para Campo Grande/MS)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    let codigo = codigoStr ? parseInt(codigoStr, 10) : NaN;
 
     const supaUrl = Deno.env.get("SUPABASE_URL");
     const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -158,6 +174,42 @@ Deno.serve(async (req) => {
       );
     }
     const supa = createClient(supaUrl, supaKey);
+
+    // Resolver por nome+uf se necessário
+    if (!Number.isInteger(codigo) && nomeParam && ufParam) {
+      const lookKey = nameKey(nomeParam, ufParam);
+      const { data: cached } = await supa
+        .from("api_cache")
+        .select("payload, expires_at")
+        .eq("endpoint_key", lookKey)
+        .maybeSingle();
+      if (cached && new Date(cached.expires_at).getTime() > Date.now()) {
+        codigo = Number((cached.payload as any)?.codigo);
+      } else {
+        const resolved = await resolveCodigoByName(nomeParam, ufParam);
+        if (!resolved) {
+          return new Response(
+            JSON.stringify({ error: `Município "${nomeParam}/${ufParam}" não encontrado no IBGE` }),
+            { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        codigo = resolved;
+        await supa.from("api_cache").upsert({
+          endpoint_key: lookKey,
+          source: SOURCE,
+          payload: { codigo: resolved } as any,
+          fetched_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+    }
+
+    if (!Number.isInteger(codigo) || codigo < 1000000 || codigo > 9999999) {
+      return new Response(
+        JSON.stringify({ error: "Informe ?codigo=NNNNNNN (7 dígitos) ou ?nome=...&uf=XX" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const key = cacheKey(codigo);
 
