@@ -17,6 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getSugestaoFeriado } from "@/lib/sugestoes-tema";
+import { useEstilosTema } from "@/hooks/useEstilosTema";
+import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -26,34 +29,6 @@ type Holiday = {
   global?: boolean;
   year?: number;
 };
-
-/**
- * Sugestões temáticas por feriado conhecido — foco em apoio à decisão visual.
- * Match feito por substring case-insensitive no localName/name.
- */
-const SUGESTOES: { match: RegExp; tema: string; emoji: string }[] = [
-  { match: /confraterniza/i, tema: "Mensagem de virada de ano e balanço", emoji: "🎆" },
-  { match: /carnaval/i, tema: "Comunicado de pausa de campanha + segurança", emoji: "🎭" },
-  { match: /sexta.*santa|paix[ãa]o/i, tema: "Tom respeitoso, foco em fé e família", emoji: "✝️" },
-  { match: /p[áa]scoa/i, tema: "Mensagem de esperança e renovação", emoji: "🐣" },
-  { match: /tiradentes/i, tema: "Patriotismo, história e justiça", emoji: "⚖️" },
-  { match: /trabalhador|trabalho/i, tema: "Atos com sindicatos e categorias profissionais", emoji: "🛠️" },
-  { match: /corpus christi/i, tema: "Tom religioso, evitar disparos massivos", emoji: "🕊️" },
-  { match: /independ[êe]ncia/i, tema: "Patriotismo, atos cívicos, desfile", emoji: "🇧🇷" },
-  { match: /aparecida|padroeira|crian[çc]a/i, tema: "Família, infância e fé — duplo apelo", emoji: "👶" },
-  { match: /finados/i, tema: "Tom respeitoso, evitar tom comemorativo", emoji: "🕯️" },
-  { match: /proclama[çc][ãa]o.*rep[úu]blica/i, tema: "Patriotismo e democracia", emoji: "🏛️" },
-  { match: /consci[êe]ncia negra/i, tema: "Pauta racial, lideranças negras, Zumbi", emoji: "✊🏿" },
-  { match: /natal/i, tema: "Mensagem de paz, família e gratidão", emoji: "🎄" },
-];
-
-function getSugestao(h: Holiday): { tema: string; emoji: string } | null {
-  const text = `${h.localName} ${h.name}`;
-  for (const s of SUGESTOES) {
-    if (s.match.test(text)) return { tema: s.tema, emoji: s.emoji };
-  }
-  return null;
-}
 
 function diasAte(dateStr: string): number {
   // dateStr é YYYY-MM-DD (data local sem fuso) — comparar em UTC pra evitar drift
@@ -90,6 +65,7 @@ export function FeriadosWidget() {
   );
   // "proximos" = a partir de hoje, atravessando anos. Caso contrário, ano específico.
   const [yearFilter, setYearFilter] = useState<"proximos" | string>("proximos");
+  const { ativos: estilosAtivos } = useEstilosTema();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["holidays", "BR", yearOptions.join(",")],
@@ -151,6 +127,7 @@ export function FeriadosWidget() {
                   eventos presenciais e tom dos comunicados. Não dispara mensagens automaticamente.
                 </TooltipContent>
               </Tooltip>
+              <EstilosTemaSelector compact />
               <Select value={yearFilter} onValueChange={(v) => setYearFilter(v as typeof yearFilter)}>
                 <SelectTrigger className="h-8 w-[140px] text-xs">
                   <SelectValue placeholder="Período" />
@@ -192,7 +169,7 @@ export function FeriadosWidget() {
               {proximos.map((h) => {
                 const dias = diasAte(h.date);
                 const tag = diasLabel(dias);
-                const sug = getSugestao(h);
+                const sug = getSugestaoFeriado(h, estilosAtivos);
                 return (
                   <li
                     key={`${h.date}-${h.name}`}
