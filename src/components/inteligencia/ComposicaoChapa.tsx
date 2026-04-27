@@ -331,6 +331,51 @@ export default function ComposicaoChapa() {
         </Button>
       </div>
 
+      {/* Força por Partido */}
+      {!isLoading && partidosRanking.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" /> Força por Partido
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Soma dos votos dos candidatos listados acima, agrupada por partido. Útil para medir o tamanho da base eleitoral de cada legenda no recorte atual.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>Partido</TableHead>
+                  <TableHead className="text-right">Candidatos</TableHead>
+                  <TableHead className="text-right">Votos 2022</TableHead>
+                  <TableHead className="text-right">Votos 2024</TableHead>
+                  <TableHead className="text-right font-semibold">Total</TableHead>
+                  <TableHead className="text-right">% do total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partidosRanking.map((p, i) => {
+                  const pct = totalGeral > 0 ? (p.total / totalGeral) * 100 : 0;
+                  return (
+                    <TableRow key={p.partido}>
+                      <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell><Badge variant="outline">{p.partido}</Badge></TableCell>
+                      <TableCell className="text-right tabular-nums">{p.candidatos}</TableCell>
+                      <TableCell className="text-right tabular-nums">{p.v2022 ? fmt(p.v2022) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{p.v2024 ? fmt(p.v2024) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{fmt(p.total)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">{pct.toFixed(1)}%</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tabela */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
