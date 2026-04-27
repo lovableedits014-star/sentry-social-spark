@@ -3569,6 +3569,19 @@ export type Database = {
           zona: number
         }[]
       }
+      get_tse_municipios: {
+        Args: never
+        Returns: {
+          municipio: string
+          uf: string
+        }[]
+      }
+      get_tse_partidos: {
+        Args: never
+        Returns: {
+          partido: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
