@@ -450,9 +450,109 @@ const MidiaPage = () => {
                   ? "Adicione pelo menos uma palavra-chave ou município."
                   : <>Consulta gerada: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{buildQuery(terms, municipio.trim(), uf.trim()) || "(vazia)"}</code></>}
               </p>
-              <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
-                <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Buscas salvas */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm">
+                      <Bookmark className="w-3.5 h-3.5 mr-1.5" />
+                      Buscas salvas
+                      {savedSearches.length > 0 && (
+                        <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px]">{savedSearches.length}</Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="end">
+                    <div className="px-3 py-2 border-b">
+                      <p className="text-sm font-semibold">Minhas buscas salvas</p>
+                      <p className="text-[11px] text-muted-foreground">Clique para carregar e executar</p>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {savedSearches.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-4 text-center">
+                          Nenhuma busca salva ainda. Configure filtros e clique em <strong>Salvar</strong>.
+                        </p>
+                      ) : (
+                        savedSearches.map((s) => (
+                          <div key={s.id} className="flex items-start gap-2 px-3 py-2 hover:bg-muted/50 border-b last:border-0">
+                            <button
+                              type="button"
+                              onClick={() => loadSearch(s)}
+                              className="flex-1 text-left min-w-0"
+                            >
+                              <p className="text-sm font-medium truncate">{s.name}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {[
+                                  s.terms?.length ? `${s.terms.length} termo(s)` : null,
+                                  s.uf || null,
+                                  s.municipio || null,
+                                  s.timespan,
+                                  s.country,
+                                ].filter(Boolean).join(" · ")}
+                              </p>
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => deleteSearch(s.id, s.name)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Salvar busca atual */}
+                <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}
+                    >
+                      <BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />
+                      Salvar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Salvar busca</DialogTitle>
+                      <DialogDescription>
+                        Dê um nome para reutilizar esta combinação de filtros depois.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder='Ex.: "Lula em MS — última semana"'
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveCurrentSearch(); } }}
+                        autoFocus
+                      />
+                      <div className="rounded-md border bg-muted/40 p-2 text-[11px] space-y-0.5">
+                        <p><strong>Termos:</strong> {terms.length > 0 ? terms.join(", ") : "—"}</p>
+                        <p><strong>UF:</strong> {uf || "Todas"} · <strong>Município:</strong> {municipio || "—"}</p>
+                        <p><strong>Janela:</strong> {timespan} · <strong>País:</strong> {country}</p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancelar</Button>
+                      <Button type="button" onClick={saveCurrentSearch}>Salvar</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
+                  <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
