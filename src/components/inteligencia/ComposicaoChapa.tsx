@@ -200,6 +200,21 @@ export default function ComposicaoChapa() {
 
   const totalGeral = ordenados.reduce((s, r) => s + (r.total || 0), 0);
 
+  // Agrega força por partido com base nos resultados filtrados
+  const partidosRanking = useMemo(() => {
+    const map = new Map<string, { partido: string; total: number; v2022: number; v2024: number; candidatos: number }>();
+    for (const r of ordenados) {
+      const key = r.partido || "SEM PARTIDO";
+      const cur = map.get(key) || { partido: key, total: 0, v2022: 0, v2024: 0, candidatos: 0 };
+      cur.total += r.total || 0;
+      cur.v2022 += r.votos_2022 || 0;
+      cur.v2024 += r.votos_2024 || 0;
+      cur.candidatos += 1;
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [ordenados]);
+
   return (
     <div className="space-y-4">
       {/* Cabeçalho contextual */}
@@ -315,6 +330,51 @@ export default function ComposicaoChapa() {
           <Download className="w-4 h-4 mr-2" /> Exportar Excel
         </Button>
       </div>
+
+      {/* Força por Partido */}
+      {!isLoading && partidosRanking.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" /> Força por Partido
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Soma dos votos dos candidatos listados acima, agrupada por partido. Útil para medir o tamanho da base eleitoral de cada legenda no recorte atual.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>Partido</TableHead>
+                  <TableHead className="text-right">Candidatos</TableHead>
+                  <TableHead className="text-right">Votos 2022</TableHead>
+                  <TableHead className="text-right">Votos 2024</TableHead>
+                  <TableHead className="text-right font-semibold">Total</TableHead>
+                  <TableHead className="text-right">% do total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partidosRanking.map((p, i) => {
+                  const pct = totalGeral > 0 ? (p.total / totalGeral) * 100 : 0;
+                  return (
+                    <TableRow key={p.partido}>
+                      <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell><Badge variant="outline">{p.partido}</Badge></TableCell>
+                      <TableCell className="text-right tabular-nums">{p.candidatos}</TableCell>
+                      <TableCell className="text-right tabular-nums">{p.v2022 ? fmt(p.v2022) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{p.v2024 ? fmt(p.v2024) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{fmt(p.total)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">{pct.toFixed(1)}%</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabela */}
       <Card>
