@@ -70,22 +70,18 @@ const InteligenciaEleitoral = () => {
   const { data: locaisMeta = [] } = useQuery({
     queryKey: ["tse-locais-meta", cargo, turno],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tse_votacao_local" as any)
-        .select("zona,nr_local,nome_local,endereco,votos")
-        .eq("cargo", cargo)
-        .eq("turno", Number(turno))
-        .limit(70000);
+      const { data, error } = await supabase.rpc("get_tse_locais_summary" as any, {
+        p_cargo: cargo,
+        p_turno: Number(turno),
+      });
       if (error) throw error;
-      // Agrupar por local
-      const map = new Map<string, { zona: number; nr_local: number; nome_local: string; endereco: string; total: number }>();
-      for (const r of (data || []) as any[]) {
-        const k = `${r.zona}-${r.nr_local}`;
-        const cur = map.get(k) || { zona: r.zona, nr_local: r.nr_local, nome_local: r.nome_local, endereco: r.endereco, total: 0 };
-        cur.total += r.votos;
-        map.set(k, cur);
-      }
-      return Array.from(map.values()).sort((a, b) => b.total - a.total);
+      return ((data || []) as any[]).map((r) => ({
+        zona: r.zona,
+        nr_local: r.nr_local,
+        nome_local: r.nome_local || "",
+        endereco: r.endereco || "",
+        total: Number(r.total_votos || 0),
+      }));
     },
   });
 
