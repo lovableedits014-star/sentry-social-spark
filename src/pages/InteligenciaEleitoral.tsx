@@ -223,6 +223,19 @@ const InteligenciaEleitoral = () => {
     return Array.from(set).sort();
   }, [locaisMeta]);
 
+  // Estatística de geocodificação: total / com bairro / pendentes / falharam
+  const geocodeStats = useMemo(() => {
+    let ok = 0, pending = 0, failed = 0;
+    locaisMeta.forEach((l: any) => {
+      if (l.bairro && l.bairro !== "") ok++;
+      else if (l.bairro === "") failed++;
+      else pending++;
+    });
+    const total = locaisMeta.length;
+    const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+    return { total, ok, pending, failed, pct };
+  }, [locaisMeta]);
+
   // Exportação XLSX
   const exportXLSX = (filename: string, sheets: Record<string, any[]>) => {
     const wb = XLSX.utils.book_new();
