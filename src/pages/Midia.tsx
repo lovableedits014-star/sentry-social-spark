@@ -570,19 +570,6 @@ const MidiaPage = () => {
     [flatArticles.length, focusedIdx, focusArticle],
   );
 
-  // Índice global (entre grupos) para cada artigo
-  const globalIndexMap = useMemo(() => {
-    const m = new Map<string, number>();
-    let i = 0;
-    for (const g of groupedArticles) {
-      for (const a of g.items) {
-        m.set(`${a.url}__${i}`, i);
-        i++;
-      }
-    }
-    return m;
-  }, [groupedArticles]);
-
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-[1400px] space-y-6">
       {/* Header */}
