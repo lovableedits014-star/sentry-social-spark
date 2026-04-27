@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
+import { useCpfCheck } from "@/hooks/use-cpf-check";
+import { XCircle } from "lucide-react";
 
 // ─── Social Link Capture ─────────────────────────────────────────────────────
 interface SocialEntry { plataforma: string; usuario: string; url_perfil: string; }
@@ -186,6 +188,8 @@ export default function RegistroFuncionario() {
   const [socials, setSocials] = useState<SocialEntry[]>([]);
   const [portalUrl, setPortalUrl] = useState("");
 
+  const cpfCheck = useCpfCheck(cpf, clientId);
+
   useEffect(() => {
     const loadClient = async () => {
       const { data } = await supabase.from("clients").select("name").eq("id", clientId).maybeSingle();
@@ -199,6 +203,7 @@ export default function RegistroFuncionario() {
     e.preventDefault();
     if (!nome.trim()) { setError("Informe seu nome."); return; }
     if (!isValidCpf(cpf)) { setError("CPF inválido. Confira os dígitos."); return; }
+    if (cpfCheck.status === "duplicate") { setError("Este CPF já está cadastrado no sistema."); return; }
     if (!telefone.trim()) { setError("Informe seu telefone."); return; }
     if (!email.trim()) { setError("Informe seu e-mail."); return; }
     if (!senha || senha.length < 6) { setError("A senha deve ter no mínimo 6 caracteres."); return; }
@@ -306,6 +311,26 @@ export default function RegistroFuncionario() {
                 maxLength={14}
                 required
               />
+              {cpfCheck.status === "checking" && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Verificando CPF...
+                </p>
+              )}
+              {cpfCheck.status === "duplicate" && (
+                <p className="text-xs text-destructive flex items-center gap-1.5">
+                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
+                </p>
+              )}
+              {cpfCheck.status === "invalid" && (
+                <p className="text-xs text-destructive flex items-center gap-1.5">
+                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
+                </p>
+              )}
+              {cpfCheck.status === "ok" && (
+                <p className="text-xs text-emerald-600 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3 h-3" /> CPF disponível
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

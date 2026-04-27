@@ -11,6 +11,8 @@ import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, 
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
+import { useCpfCheck } from "@/hooks/use-cpf-check";
+import { Loader2 as Loader2Icon } from "lucide-react";
 
 type ParsedProfile = {
   platform: "facebook" | "instagram";
@@ -114,6 +116,8 @@ export default function SupporterRegister() {
   const [error, setError] = useState("");
   const [referrerName, setReferrerName] = useState<string | null>(null);
 
+  const cpfCheck = useCpfCheck(cpf, clientId);
+
   // Validate referral code on mount
   useEffect(() => {
     if (!refCode || !clientId) return;
@@ -142,6 +146,10 @@ export default function SupporterRegister() {
     }
     if (!isValidCpf(cpf)) {
       setError("CPF inválido. Confira os dígitos.");
+      return;
+    }
+    if (cpfCheck.status === "duplicate") {
+      setError("Este CPF já está cadastrado no sistema.");
       return;
     }
     if (!phone.trim()) {
@@ -379,6 +387,26 @@ export default function SupporterRegister() {
                 maxLength={14}
                 required
               />
+              {cpfCheck.status === "checking" && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Loader2Icon className="w-3 h-3 animate-spin" /> Verificando CPF...
+                </p>
+              )}
+              {cpfCheck.status === "duplicate" && (
+                <p className="text-xs text-destructive flex items-center gap-1.5">
+                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
+                </p>
+              )}
+              {cpfCheck.status === "invalid" && (
+                <p className="text-xs text-destructive flex items-center gap-1.5">
+                  <XCircle className="w-3 h-3" /> {cpfCheck.message}
+                </p>
+              )}
+              {cpfCheck.status === "ok" && (
+                <p className="text-xs text-emerald-600 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3 h-3" /> CPF disponível
+                </p>
+              )}
             </div>
 
             {/* Telefone (obrigatório) */}
