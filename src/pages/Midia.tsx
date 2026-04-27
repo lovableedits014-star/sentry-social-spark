@@ -520,7 +520,11 @@ const MidiaPage = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="monitor" className="space-y-6 mt-0">
+        <TabsContent value="monitor" className="mt-0">
+          {/* Layout 2 colunas: filtros sticky à esquerda + análise à direita */}
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4">
+          {/* === Coluna ESQUERDA (sticky) === */}
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
       {/* Filtros */}
       <Card>
         <CardHeader>
