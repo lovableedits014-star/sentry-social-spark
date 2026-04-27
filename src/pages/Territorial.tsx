@@ -34,9 +34,58 @@ interface PessoaRow {
   cidade: string | null;
   bairro: string | null;
   telefone: string | null;
+  cpf?: string | null;
+  supporter_id?: string | null;
   tipo_pessoa: string;
   origem_contato: string;
   created_at: string;
+}
+
+const canonPerson = (v: string | null | undefined) =>
+  (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+const onlyDigits = (v: string | null | undefined) => (v || "").replace(/\D/g, "");
+const cleanCity = (v: string | null | undefined) => ((v || "").trim().replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || (v || "").trim());
+const phoneIdentity = (v: string | null | undefined) => {
+  const digits = onlyDigits(v);
+  if (digits.length < 8) return "";
+  return digits.length > 11 ? digits.slice(-11) : digits;
+};
+
+const personAliases = (p: { name?: string | null; phone?: string | null; cpf?: string | null; city?: string | null; neighborhood?: string | null; supporter_id?: string | null }) => {
+  const aliases: string[] = [];
+  const cpf = onlyDigits(p.cpf);
+  const phone = phoneIdentity(p.phone);
+  const name = canonPerson(p.name);
+  if (p.supporter_id) aliases.push(`supporter:${p.supporter_id}`);
+  if (cpf.length === 11) aliases.push(`cpf:${cpf}`);
+  if (phone) aliases.push(`phone:${phone}`);
+  if (name) aliases.push(`name-local:${name}|${canonPerson(cleanCity(p.city))}|${canonPerson(p.neighborhood)}`);
+  return aliases;
+};
+
+function dedupeByPerson<T extends { id: string; name: string | null; phone: string | null; cpf?: string | null; city: string | null; neighborhood: string | null; state?: string | null; supporter_id?: string | null; created_at: string }>(entries: T[]) {
+  const aliasToKey = new Map<string, string>();
+  const people = new Map<string, T>();
+  for (const entry of entries) {
+    const aliases = personAliases(entry);
+    const existingKey = aliases.map((a) => aliasToKey.get(a)).find(Boolean);
+    if (existingKey && people.has(existingKey)) {
+      const current: any = people.get(existingKey)!;
+      if (!current.phone && entry.phone) current.phone = entry.phone;
+      if (!current.cpf && entry.cpf) current.cpf = entry.cpf;
+      if (!current.city && entry.city) current.city = entry.city;
+      if (!current.neighborhood && entry.neighborhood) current.neighborhood = entry.neighborhood;
+      if (!current.state && entry.state) current.state = entry.state;
+      if (new Date(entry.created_at).getTime() < new Date(current.created_at).getTime()) current.created_at = entry.created_at;
+      aliases.forEach((a) => aliasToKey.set(a, existingKey));
+    } else {
+      const key = aliases[0] || `row:${entry.id}`;
+      people.set(key, { ...entry });
+      aliases.forEach((a) => aliasToKey.set(a, key));
+    }
+  }
+  return Array.from(people.values());
 }
 
 function MetricCard({ icon: Icon, label, value, accent, description }: { icon: any; label: string; value: number; accent?: boolean; description?: string }) {
