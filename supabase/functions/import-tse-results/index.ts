@@ -14,36 +14,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
-// Cabeçalhos esperados (variam um pouco entre anos do TSE; mapeamos o que é estável)
-// Layout do votacao_candidato_munzona desde 2018:
-// 0:DT_GERACAO  1:HH_GERACAO  2:ANO_ELEICAO  3:CD_TIPO_ELEICAO  4:NM_TIPO_ELEICAO
-// 5:NR_TURNO    6:CD_ELEICAO  7:DS_ELEICAO   8:DT_ELEICAO       9:TP_ABRANGENCIA
-// 10:SG_UF      11:SG_UE      12:NM_UE       13:CD_MUNICIPIO    14:NM_MUNICIPIO
-// 15:NR_ZONA    16:CD_CARGO   17:DS_CARGO    18:SQ_CANDIDATO    19:NR_CANDIDATO
-// 20:NM_CANDIDATO 21:NM_URNA_CANDIDATO 22:NM_SOCIAL_CANDIDATO 23:CD_SITUACAO_CANDIDATURA
-// 24:DS_SITUACAO_CANDIDATURA 25:CD_DETALHE_SITUACAO_CAND 26:DS_DETALHE_SITUACAO_CAND
-// 27:TP_AGREMIACAO 28:NR_PARTIDO 29:SG_PARTIDO 30:NM_PARTIDO
-// 31:SQ_COLIGACAO 32:NM_COLIGACAO 33:DS_COMPOSICAO_COLIGACAO
-// 34:CD_FEDERACAO 35:NM_FEDERACAO 36:SG_FEDERACAO 37:DS_COMPOSICAO_FEDERACAO
-// 38:SG_UE_SUPERIOR 39:NM_UE_SUPERIOR 40:CD_SIT_TOT_TURNO 41:DS_SIT_TOT_TURNO
-// 42:ST_VOTO_EM_TRANSITO 43:QT_VOTOS_NOMINAIS 44:NM_TIPO_DESTINACAO_VOTOS 45:QT_VOTOS_NOMINAIS_VALIDOS
-
-const COL = {
-  ANO: 2,
-  TURNO: 5,
-  UF: 10,
-  COD_MUN: 13,
-  MUN: 14,
-  ZONA: 15,
-  CARGO: 17,
-  NUMERO: 19,
-  NOME_COMPLETO: 20,
-  NOME_URNA: 21,
-  SITUACAO: 41,
-  PARTIDO: 29,
-  VOTOS: 43,
-  VOTOS_VALIDOS: 45,
-};
+// Mapeamos por NOME de coluna (cabeçalho do CSV) em vez de índice — o layout
+// muda entre anos do TSE (2022 tem federações, 2018 não, etc).
 
 function parseCsvLine(line: string): string[] {
   // CSV do TSE: separador ';' e campos entre aspas duplas
@@ -119,7 +91,31 @@ Deno.serve(async (req) => {
     console.log("CSV decodificado:", text.length, "chars");
 
     const lines = text.split(/\r?\n/);
-    const dataLines = lines.slice(1).filter((l) => l && l.trim().length > 0); // pula cabeçalho
+    if (lines.length < 2) {
+      return new Response(JSON.stringify({ error: "CSV vazio" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const header = parseCsvLine(lines[0]).map((h) => h.trim().toUpperCase().replace(/^"|"$/g, ""));
+    const idx = (name: string) => header.indexOf(name);
+    const I = {
+      TURNO: idx("NR_TURNO"),
+      UF: idx("SG_UF"),
+      COD_MUN: idx("CD_MUNICIPIO"),
+      MUN: idx("NM_MUNICIPIO"),
+      ZONA: idx("NR_ZONA"),
+      CARGO: idx("DS_CARGO"),
+      NUMERO: idx("NR_CANDIDATO"),
+      NOME_COMPLETO: idx("NM_CANDIDATO"),
+      NOME_URNA: idx("NM_URNA_CANDIDATO"),
+      PARTIDO: idx("SG_PARTIDO"),
+      SITUACAO: idx("DS_SIT_TOT_TURNO"),
+      VOTOS: idx("QT_VOTOS_NOMINAIS"),
+    };
+    console.log("Mapeamento de colunas:", I);
+    const missing = Object.entries(I).filter(([_, v]) => v === -1).map(([k]) => k);
+    if (missing.length) {
+      return new Response(JSON.stringify({ error: `Colunas ausentes no CSV: ${missing.join(", ")}`, header }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const dataLines = lines.slice(1).filter((l) => l && l.trim().length > 0);
     console.log("Linhas a processar:", dataLines.length);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -134,8 +130,8 @@ Deno.serve(async (req) => {
 
     for (const line of dataLines) {
       const cols = parseCsvLine(line);
-      if (cols.length < 44) continue;
-      const cargoTxt = cols[COL.CARGO]?.trim() || "";
+      if (cols.length < header.length - 2) continue;
+      const cargoTxt = (cols[I.CARGO] || "").replace(/^"|"$/g, "").trim();
       // Normalizar nomes de cargos
       const cargo = cargoTxt
         .replace(/^DEPUTADO ESTADUAL$/i, "Deputado Estadual")
@@ -147,12 +143,12 @@ Deno.serve(async (req) => {
         .replace(/^VEREADOR$/i, "Vereador")
         .replace(/^PREFEITO$/i, "Prefeito");
       if (!cargo) continue;
-      const numero = parseInt(cols[COL.NUMERO] || "0", 10);
+      const numero = parseInt((cols[I.NUMERO] || "0").replace(/"/g, ""), 10);
       if (!numero) continue;
-      const cod_mun = parseInt(cols[COL.COD_MUN] || "0", 10);
-      const zona = parseInt(cols[COL.ZONA] || "0", 10);
-      const turno = parseInt(cols[COL.TURNO] || "1", 10);
-      const votos = parseInt(cols[COL.VOTOS] || "0", 10) || 0;
+      const cod_mun = parseInt((cols[I.COD_MUN] || "0").replace(/"/g, ""), 10);
+      const zona = parseInt((cols[I.ZONA] || "0").replace(/"/g, ""), 10);
+      const turno = parseInt((cols[I.TURNO] || "1").replace(/"/g, ""), 10);
+      const votos = parseInt((cols[I.VOTOS] || "0").replace(/"/g, ""), 10) || 0;
       const key = `${turno}|${cargo}|${cod_mun}|${zona}|${numero}`;
       const existing = agg.get(key);
       if (existing) {
@@ -163,14 +159,14 @@ Deno.serve(async (req) => {
           turno,
           cargo,
           cod_municipio: cod_mun,
-          municipio: cols[COL.MUN]?.trim() || "",
-          uf: cols[COL.UF]?.trim() || ufStr,
+          municipio: (cols[I.MUN] || "").replace(/"/g, "").trim(),
+          uf: (cols[I.UF] || ufStr).replace(/"/g, "").trim(),
           zona,
           numero,
-          nome_urna: cols[COL.NOME_URNA]?.trim() || null as any,
-          nome_completo: cols[COL.NOME_COMPLETO]?.trim() || null as any,
-          partido: cols[COL.PARTIDO]?.trim() || null as any,
-          situacao: cols[COL.SITUACAO]?.trim() || null as any,
+          nome_urna: (cols[I.NOME_URNA] || "").replace(/"/g, "").trim() || (null as any),
+          nome_completo: (cols[I.NOME_COMPLETO] || "").replace(/"/g, "").trim() || (null as any),
+          partido: (cols[I.PARTIDO] || "").replace(/"/g, "").trim() || (null as any),
+          situacao: (cols[I.SITUACAO] || "").replace(/"/g, "").trim() || (null as any),
           votos,
         });
       }

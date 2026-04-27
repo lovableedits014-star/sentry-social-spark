@@ -1,0 +1,1 @@
+DELETE FROM public.tse_votacao_zona WHERE ano = 2022;
