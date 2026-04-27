@@ -114,6 +114,21 @@ function buildQuery(terms: string[], municipio: string, uf: string): string {
   return parts.join(" ");
 }
 
+/** Constrói parâmetro `sources` para a Edge Function */
+function sourcesKey(s: { gdelt: boolean; google_news: boolean }): string {
+  const list: string[] = [];
+  if (s.gdelt) list.push("gdelt");
+  if (s.google_news) list.push("google_news");
+  return list.join(",") || "gdelt";
+}
+
+/** Label legível por fonte */
+function sourceLabel(src?: string): string {
+  if (src === "google_news") return "Google News";
+  if (src === "gdelt") return "GDELT";
+  return "—";
+}
+
 const MidiaPage = () => {
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
