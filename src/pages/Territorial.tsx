@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip } from "recharts";
-import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search, UserPlus, CalendarDays, BarChart3, Clock, Loader2, X, Globe2, Building2, Home } from "lucide-react";
+import { MapPin, Users, TrendingUp, TrendingDown, AlertTriangle, Search, UserPlus, CalendarDays, BarChart3, Clock, Loader2, X, Globe2, Building2, Home, RefreshCw } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format, subDays, startOfDay, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,6 +16,7 @@ import { MergeLocalitiesDialog } from "@/components/territorial/MergeLocalitiesD
 import { Checkbox } from "@/components/ui/checkbox";
 import { Merge } from "lucide-react";
 import { resolveUF, ufName, ufRegion, UF_LIST } from "@/lib/brazil-geo";
+import { toast } from "sonner";
 
 interface LocationGroup {
   key: string;
@@ -85,6 +86,32 @@ export default function Territorial() {
   const [mergeField, setMergeField] = useState<"cidade" | "bairro">("cidade");
   const [mergeVariants, setMergeVariants] = useState<Array<{ name: string; count: number }>>([]);
   const [mergeParentCity, setMergeParentCity] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    if (reloading) return;
+    setReloading(true);
+    try {
+      // Limpa todos os queries do Territorial e recarrega
+      const keys = [
+        "client",
+        "territorial-supporters",
+        "territorial-indicados",
+        "recruitment-pessoas",
+        "recruitment-contratados",
+        "recruitment-indicados",
+      ];
+      await Promise.all(
+        keys.map((k) => queryClient.invalidateQueries({ queryKey: [k] }))
+      );
+      await queryClient.refetchQueries({ type: "active" });
+      toast.success("Dados recarregados");
+    } catch (e: any) {
+      toast.error("Falha ao recarregar", { description: e?.message });
+    } finally {
+      setReloading(false);
+    }
+  };
 
   const { data: client } = useQuery({
     queryKey: ["client"],
@@ -453,15 +480,27 @@ export default function Territorial() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-          <MapPin className="w-7 h-7 text-primary" />
-          Base & Território
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl mt-1">
-          Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão no Brasil</strong> (geografia).
-          Mapa interativo por estado, drill-down em cidades e bairros — pronto para campanhas em qualquer região do país.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <MapPin className="w-7 h-7 text-primary" />
+            Base & Território
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-2xl mt-1">
+            Visão unificada de <strong>quantas pessoas você tem</strong> (crescimento) e <strong>onde elas estão no Brasil</strong> (geografia).
+            Mapa interativo por estado, drill-down em cidades e bairros — pronto para campanhas em qualquer região do país.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReload}
+          disabled={reloading}
+          className="shrink-0"
+        >
+          <RefreshCw className={`w-4 h-4 mr-1.5 ${reloading ? "animate-spin" : ""}`} />
+          {reloading ? "Recarregando…" : "Recarregar dados"}
+        </Button>
       </div>
 
       {/* ═══════════════════════════════════════ */}
