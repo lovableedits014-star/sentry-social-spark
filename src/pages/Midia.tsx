@@ -455,7 +455,8 @@ const MidiaPage = () => {
           <p className="text-muted-foreground mt-1 max-w-2xl">
             Monitore como temas, figuras políticas e municípios estão sendo cobertos pela imprensa.
             Combine palavras-chave, território (UF/município) e janela temporal. Dados via{" "}
-            <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer" className="text-primary underline">GDELT Project</a>.
+            <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer" className="text-primary underline">GDELT</a>
+            {" "}e <a href="https://news.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google News</a>.
           </p>
         </div>
         {data && (
