@@ -46,6 +46,8 @@ type LocalRow = {
 const InteligenciaEleitoral = () => {
   const [cargo, setCargo] = useState<string>("Prefeito");
   const [turno, setTurno] = useState<string>("1");
+  const queryClient = useQueryClient();
+  const [geocoding, setGeocoding] = useState(false);
   const [openZonas, setOpenZonas] = useState<Record<number, boolean>>({});
   const [zonaSearch, setZonaSearch] = useState<Record<number, string>>({});
   const [localMode, setLocalMode] = useState<"candidato" | "local">("candidato");
@@ -223,6 +225,41 @@ const InteligenciaEleitoral = () => {
     locaisMeta.forEach((l: any) => { if (l.bairro) set.add(l.bairro); });
     return Array.from(set).sort();
   }, [locaisMeta]);
+
+  // Estatística de geocodificação
+  const geocodeStats = useMemo(() => {
+    let ok = 0, pending = 0, failed = 0;
+    locaisMeta.forEach((l: any) => {
+      if (l.bairro && l.bairro !== "") ok++;
+      else if (l.bairro === "") failed++;
+      else pending++;
+    });
+    const total = locaisMeta.length;
+    const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+    return { total, ok, pending, failed, pct };
+  }, [locaisMeta]);
+
+  // Dispara geocodificação manual e recarrega dados
+  const dispararGeocodificacao = async () => {
+    setGeocoding(true);
+    const t = toast.loading("Geocodificando bairros… isso pode levar até 1 minuto.");
+    try {
+      const { data, error } = await supabase.functions.invoke("geocode-tse-locais", { body: {} });
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? 0;
+      const failed = (data as any)?.failed ?? 0;
+      const remaining = (data as any)?.remaining ?? 0;
+      await queryClient.invalidateQueries({ queryKey: ["tse-locais-meta"] });
+      toast.success(
+        `Geocodificação executada: ${updated} bairros encontrados, ${failed} falhas${remaining > 0 ? `, ${remaining} restantes (clique novamente).` : "."}`,
+        { id: t },
+      );
+    } catch (e: any) {
+      toast.error(`Falha ao geocodificar: ${e?.message || "erro desconhecido"}`, { id: t });
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
   // Exportação XLSX
   const exportXLSX = (filename: string, sheets: Record<string, any[]>) => {
