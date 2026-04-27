@@ -2988,6 +2988,57 @@ export type Database = {
           },
         ]
       }
+      tse_votacao_zona: {
+        Row: {
+          ano: number
+          cargo: string
+          cod_municipio: number
+          id: number
+          municipio: string
+          nome_completo: string | null
+          nome_urna: string | null
+          numero: number | null
+          partido: string | null
+          situacao: string | null
+          turno: number
+          uf: string
+          votos: number
+          zona: number
+        }
+        Insert: {
+          ano: number
+          cargo: string
+          cod_municipio: number
+          id?: number
+          municipio: string
+          nome_completo?: string | null
+          nome_urna?: string | null
+          numero?: number | null
+          partido?: string | null
+          situacao?: string | null
+          turno: number
+          uf: string
+          votos?: number
+          zona: number
+        }
+        Update: {
+          ano?: number
+          cargo?: string
+          cod_municipio?: number
+          id?: number
+          municipio?: string
+          nome_completo?: string | null
+          nome_urna?: string | null
+          numero?: number | null
+          partido?: string | null
+          situacao?: string | null
+          turno?: number
+          uf?: string
+          votos?: number
+          zona?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
