@@ -339,6 +339,12 @@ export default function CalendarioPolitico() {
                     <span className="flex items-center gap-1.5">
                       <span className="inline-block h-3 w-3 rounded bg-muted/30 border" /> Outro mês
                     </span>
+                    <span className="ml-auto hidden md:inline-flex items-center gap-1">
+                      Atalhos: <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">←</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">→</kbd> mês ·
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">T</kbd> hoje ·
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">Esc</kbd> fechar
+                    </span>
                   </div>
                 </>
               )}
