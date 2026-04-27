@@ -3480,6 +3480,16 @@ export type Database = {
           telefone: string
         }[]
       }
+      get_tse_locais_summary: {
+        Args: { p_cargo: string; p_turno: number }
+        Returns: {
+          endereco: string
+          nome_local: string
+          nr_local: number
+          total_votos: number
+          zona: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
