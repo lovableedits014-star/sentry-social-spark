@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Vote, BarChart3, Users, LayoutGrid, Map as MapIcon, GitCompare,
-  Building2, Trophy, MapPin, Database, FlaskConical, Network, Target,
+  Building2, Trophy, MapPin, Database, FlaskConical, Network, Target, Newspaper,
 } from "lucide-react";
 import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
 import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
@@ -17,6 +17,7 @@ import CampoGrandeAnalise from "@/components/inteligencia/cg/CampoGrandeAnalise"
 import { EleitoralFiltersProvider, useEleitoralFilters } from "@/components/inteligencia/_shared/EleitoralFiltersContext";
 import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeBar";
 import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
+import GdeltMonitor from "@/components/midia/GdeltMonitor";
 
 type CoverageRow = {
   ano: number;
@@ -139,7 +140,7 @@ const InteligenciaEleitoralInner = () => {
 
       {/* Tabs principais — 3 grupos */}
       <Tabs defaultValue="panorama" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 h-auto">
           <TabsTrigger value="panorama" className="flex items-center gap-2 py-2.5">
             <BarChart3 className="w-4 h-4" />
             <span>Panorama</span>
@@ -151,6 +152,10 @@ const InteligenciaEleitoralInner = () => {
           <TabsTrigger value="composicao" className="flex items-center gap-2 py-2.5">
             <FlaskConical className="w-4 h-4" />
             <span>Composição & Simulação</span>
+          </TabsTrigger>
+          <TabsTrigger value="midia" className="flex items-center gap-2 py-2.5">
+            <Newspaper className="w-4 h-4" />
+            <span>Mídia (GDELT)</span>
           </TabsTrigger>
           <TabsTrigger value="hiperlocal" className="flex items-center gap-2 py-2.5">
             <Building2 className="w-4 h-4" />
@@ -230,6 +235,26 @@ const InteligenciaEleitoralInner = () => {
             </CardHeader>
           </Card>
           <CampoGrandeAnalise />
+        </TabsContent>
+
+        {/* MÍDIA — GDELT */}
+        <TabsContent value="midia" className="mt-4">
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Newspaper className="w-5 h-5 text-primary" /> Cobertura de mídia em tempo real
+              </CardTitle>
+              <CardDescription>
+                Monitore como temas e figuras políticas estão sendo cobertos pela imprensa nas últimas horas/dias.
+                Volume, tom (positivo/negativo) e principais fontes — via GDELT Project.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <GdeltMonitor
+            defaultQuery={f.municipio !== "__all__" ? f.municipio : ""}
+            defaultCountry="BR"
+            defaultTimespan="7d"
+          />
         </TabsContent>
       </Tabs>
 
