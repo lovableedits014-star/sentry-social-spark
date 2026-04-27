@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User } from "lucide-react";
 
 type Row = {
   id: number;
@@ -27,11 +27,29 @@ type Row = {
   votos: number;
 };
 
+type LocalRow = {
+  id: number;
+  turno: number;
+  cargo: string;
+  zona: number;
+  nr_local: number;
+  nome_local: string | null;
+  endereco: string | null;
+  numero: number;
+  nome_candidato: string | null;
+  votos: number;
+};
+
 const InteligenciaEleitoral = () => {
   const [cargo, setCargo] = useState<string>("Prefeito");
   const [turno, setTurno] = useState<string>("1");
   const [openZonas, setOpenZonas] = useState<Record<number, boolean>>({});
   const [zonaSearch, setZonaSearch] = useState<Record<number, string>>({});
+  const [localMode, setLocalMode] = useState<"candidato" | "local">("candidato");
+  const [selectedCandidato, setSelectedCandidato] = useState<number | null>(null);
+  const [selectedLocal, setSelectedLocal] = useState<string | null>(null); // "zona-nr_local"
+  const [candidatoSearch, setCandidatoSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["tse-votacao", cargo, turno],
@@ -45,6 +63,67 @@ const InteligenciaEleitoral = () => {
         .limit(5000);
       if (error) throw error;
       return (data || []) as unknown as Row[];
+    },
+  });
+
+  // Buscar todos os locais distintos (uma vez por cargo/turno) — só metadados leves
+  const { data: locaisMeta = [] } = useQuery({
+    queryKey: ["tse-locais-meta", cargo, turno],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tse_votacao_local" as any)
+        .select("zona,nr_local,nome_local,endereco,votos")
+        .eq("cargo", cargo)
+        .eq("turno", Number(turno))
+        .limit(70000);
+      if (error) throw error;
+      // Agrupar por local
+      const map = new Map<string, { zona: number; nr_local: number; nome_local: string; endereco: string; total: number }>();
+      for (const r of (data || []) as any[]) {
+        const k = `${r.zona}-${r.nr_local}`;
+        const cur = map.get(k) || { zona: r.zona, nr_local: r.nr_local, nome_local: r.nome_local, endereco: r.endereco, total: 0 };
+        cur.total += r.votos;
+        map.set(k, cur);
+      }
+      return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    },
+  });
+
+  // Quando candidato selecionado: buscar votos dele em todos os locais
+  const { data: votosPorLocalCand = [], isLoading: loadingCand } = useQuery({
+    queryKey: ["tse-cand-locais", cargo, turno, selectedCandidato],
+    enabled: !!selectedCandidato,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tse_votacao_local" as any)
+        .select("*")
+        .eq("cargo", cargo)
+        .eq("turno", Number(turno))
+        .eq("numero", selectedCandidato!)
+        .order("votos", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as unknown as LocalRow[];
+    },
+  });
+
+  // Quando local selecionado: buscar ranking de candidatos nele
+  const { data: rankingDoLocal = [], isLoading: loadingLocal } = useQuery({
+    queryKey: ["tse-local-ranking", cargo, turno, selectedLocal],
+    enabled: !!selectedLocal,
+    queryFn: async () => {
+      const [zona, nr_local] = selectedLocal!.split("-").map(Number);
+      const { data, error } = await supabase
+        .from("tse_votacao_local" as any)
+        .select("*")
+        .eq("cargo", cargo)
+        .eq("turno", Number(turno))
+        .eq("zona", zona)
+        .eq("nr_local", nr_local)
+        .order("votos", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data || []) as unknown as LocalRow[];
     },
   });
 
@@ -97,6 +176,25 @@ const InteligenciaEleitoral = () => {
   const toggleZona = (z: number) => setOpenZonas((prev) => ({ ...prev, [z]: !prev[z] }));
   const expandAll = () => setOpenZonas(Object.fromEntries(rankingPorZona.map((z) => [z.zona, true])));
   const collapseAll = () => setOpenZonas({});
+
+  const candidatosFiltrados = useMemo(() => {
+    const s = candidatoSearch.toLowerCase().trim();
+    if (!s) return ranking.slice(0, 50);
+    return ranking.filter(
+      (c) => c.nome.toLowerCase().includes(s) || String(c.numero).includes(s) || c.partido.toLowerCase().includes(s),
+    ).slice(0, 80);
+  }, [ranking, candidatoSearch]);
+
+  const locaisFiltrados = useMemo(() => {
+    const s = localSearch.toLowerCase().trim();
+    if (!s) return locaisMeta.slice(0, 50);
+    return locaisMeta.filter(
+      (l) => (l.nome_local || "").toLowerCase().includes(s) || (l.endereco || "").toLowerCase().includes(s) || String(l.zona).includes(s),
+    ).slice(0, 80);
+  }, [locaisMeta, localSearch]);
+
+  const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
+  const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -158,6 +256,7 @@ const InteligenciaEleitoral = () => {
         <TabsList>
           <TabsTrigger value="ranking">Ranking geral</TabsTrigger>
           <TabsTrigger value="por-zona">Por zona eleitoral</TabsTrigger>
+          <TabsTrigger value="por-local">Por local de votação</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ranking" className="mt-4">
@@ -315,6 +414,191 @@ const InteligenciaEleitoral = () => {
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="por-local" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Análise por local de votação</CardTitle>
+              <CardDescription>
+                Granularidade máxima: descubra onde cada candidato fez votos (escola/colégio + endereço) ou veja o ranking dentro de um local específico. Ideal para mapear redutos no nível de bairro.
+              </CardDescription>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => { setLocalMode("candidato"); setSelectedLocal(null); }}
+                  className={`text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 ${localMode === "candidato" ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
+                >
+                  <User className="w-3.5 h-3.5" /> Buscar por candidato
+                </button>
+                <button
+                  onClick={() => { setLocalMode("local"); setSelectedCandidato(null); }}
+                  className={`text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 ${localMode === "local" ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
+                >
+                  <Building2 className="w-3.5 h-3.5" /> Buscar por local
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-[320px_1fr] gap-4">
+                {/* Coluna esquerda — lista para selecionar */}
+                <div className="border rounded-lg p-3 space-y-2 max-h-[640px] overflow-y-auto">
+                  {localMode === "candidato" ? (
+                    <>
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar candidato…"
+                          value={candidatoSearch}
+                          onChange={(e) => setCandidatoSearch(e.target.value)}
+                          className="pl-9 h-8 text-sm"
+                        />
+                      </div>
+                      {candidatosFiltrados.map((c) => (
+                        <button
+                          key={c.numero}
+                          onClick={() => setSelectedCandidato(c.numero)}
+                          className={`w-full text-left p-2 rounded text-sm hover:bg-muted transition ${selectedCandidato === c.numero ? "bg-muted border border-primary" : ""}`}
+                        >
+                          <div className="font-medium truncate">{c.nome}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.partido} · #{c.numero} · {c.total.toLocaleString("pt-BR")} votos
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar escola, endereço ou zona…"
+                          value={localSearch}
+                          onChange={(e) => setLocalSearch(e.target.value)}
+                          className="pl-9 h-8 text-sm"
+                        />
+                      </div>
+                      {locaisFiltrados.map((l) => {
+                        const k = `${l.zona}-${l.nr_local}`;
+                        return (
+                          <button
+                            key={k}
+                            onClick={() => setSelectedLocal(k)}
+                            className={`w-full text-left p-2 rounded text-sm hover:bg-muted transition ${selectedLocal === k ? "bg-muted border border-primary" : ""}`}
+                          >
+                            <div className="font-medium text-xs leading-tight truncate">{l.nome_local}</div>
+                            <div className="text-xs text-muted-foreground truncate">{l.endereco}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Zona {l.zona} · {l.total.toLocaleString("pt-BR")} votos
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+
+                {/* Coluna direita — detalhes */}
+                <div>
+                  {localMode === "candidato" && !selectedCandidato && (
+                    <div className="text-sm text-muted-foreground p-8 text-center border rounded-lg">
+                      Selecione um candidato à esquerda para ver onde ele fez votos.
+                    </div>
+                  )}
+                  {localMode === "local" && !selectedLocal && (
+                    <div className="text-sm text-muted-foreground p-8 text-center border rounded-lg">
+                      Selecione um local de votação para ver o ranking de candidatos nele.
+                    </div>
+                  )}
+                  {localMode === "candidato" && selectedCandidato && (
+                    <div className="space-y-3">
+                      <div className="border rounded-lg p-3 bg-muted/20">
+                        <div className="text-sm text-muted-foreground">Candidato</div>
+                        <div className="font-bold text-lg">{ranking.find((c) => c.numero === selectedCandidato)?.nome}</div>
+                        <div className="text-sm">
+                          {totalVotosCand.toLocaleString("pt-BR")} votos em {votosPorLocalCand.length} locais
+                        </div>
+                      </div>
+                      {loadingCand ? (
+                        <p className="text-sm text-muted-foreground">Carregando…</p>
+                      ) : (
+                        <div className="max-h-[520px] overflow-y-auto rounded border">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-background z-10">
+                              <TableRow>
+                                <TableHead className="w-12">Pos.</TableHead>
+                                <TableHead>Local de votação</TableHead>
+                                <TableHead>Endereço</TableHead>
+                                <TableHead>Zona</TableHead>
+                                <TableHead className="text-right">Votos</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {votosPorLocalCand.map((r, i) => (
+                                <TableRow key={r.id}>
+                                  <TableCell className={`font-bold ${i < 3 ? "text-primary" : ""}`}>{i + 1}º</TableCell>
+                                  <TableCell className="font-medium text-sm">{r.nome_local}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{r.endereco}</TableCell>
+                                  <TableCell className="tabular-nums">{r.zona}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-semibold">{r.votos.toLocaleString("pt-BR")}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {localMode === "local" && selectedLocal && (
+                    <div className="space-y-3">
+                      {(() => {
+                        const l = locaisMeta.find((x) => `${x.zona}-${x.nr_local}` === selectedLocal);
+                        return l ? (
+                          <div className="border rounded-lg p-3 bg-muted/20">
+                            <div className="text-sm text-muted-foreground">Local de votação · Zona {l.zona}</div>
+                            <div className="font-bold">{l.nome_local}</div>
+                            <div className="text-xs text-muted-foreground">{l.endereco}</div>
+                            <div className="text-sm mt-1">
+                              {totalVotosLocal.toLocaleString("pt-BR")} votos · {rankingDoLocal.length} candidatos
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                      {loadingLocal ? (
+                        <p className="text-sm text-muted-foreground">Carregando…</p>
+                      ) : (
+                        <div className="max-h-[520px] overflow-y-auto rounded border">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-background z-10">
+                              <TableRow>
+                                <TableHead className="w-12">Pos.</TableHead>
+                                <TableHead>Candidato</TableHead>
+                                <TableHead>Nº</TableHead>
+                                <TableHead className="text-right">Votos</TableHead>
+                                <TableHead className="text-right">% local</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {rankingDoLocal.map((r, i) => (
+                                <TableRow key={r.id}>
+                                  <TableCell className={`font-bold ${i < 3 ? "text-primary" : ""}`}>{i + 1}º</TableCell>
+                                  <TableCell className="font-medium">{r.nome_candidato}</TableCell>
+                                  <TableCell className="tabular-nums">{r.numero}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-semibold">{r.votos.toLocaleString("pt-BR")}</TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {totalVotosLocal > 0 ? ((r.votos / totalVotosLocal) * 100).toFixed(2) : "0.00"}%
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
