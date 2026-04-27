@@ -3504,6 +3504,28 @@ export type Database = {
         Args: { p_client_id: string; p_nome: string; p_redes: Json }
         Returns: string
       }
+      get_chapa_candidates: {
+        Args: {
+          p_anos?: number[]
+          p_cargos?: string[]
+          p_min_votos?: number
+          p_municipio?: string
+          p_partido?: string
+          p_search?: string
+          p_uf?: string
+        }
+        Returns: {
+          cargos: string
+          municipios: string
+          nome_completo: string
+          nome_urna: string
+          partido: string
+          total: number
+          ufs: string
+          votos_2022: number
+          votos_2024: number
+        }[]
+      }
       get_presence_overview: {
         Args: { p_client_id: string }
         Returns: {

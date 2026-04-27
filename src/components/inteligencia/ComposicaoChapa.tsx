@@ -1,0 +1,380 @@
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Download, Filter, Search, Users, ArrowUpDown, ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
+
+const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
+const CARGOS_DISPONIVEIS = [
+  "Prefeito", "Vereador", "Presidente", "Governador",
+  "Senador", "Deputado Federal", "Deputado Estadual", "Deputado Distrital",
+];
+
+type ChapaRow = {
+  nome_completo: string;
+  nome_urna: string | null;
+  partido: string | null;
+  cargos: string;
+  ufs: string;
+  municipios: string;
+  votos_2022: number;
+  votos_2024: number;
+  total: number;
+};
+
+type SortKey = "total" | "votos_2024" | "votos_2022" | "nome_completo" | "partido";
+type SortDir = "asc" | "desc";
+
+export default function ComposicaoChapa() {
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsSuperAdmin((user?.email || "").toLowerCase() === SUPER_ADMIN_EMAIL);
+    });
+  }, []);
+
+  // Filtros
+  const [minVotos, setMinVotos] = useState<string>("0");
+  const [anoMode, setAnoMode] = useState<"ambos" | "2022" | "2024">("ambos");
+  const [cargo, setCargo] = useState<string>("__all__");
+  const [partido, setPartido] = useState<string>("__all__");
+  const [uf, setUf] = useState<string>("MS");
+  const [municipio, setMunicipio] = useState<string>("__all__");
+  const [search, setSearch] = useState<string>("");
+  const [sortKey, setSortKey] = useState<SortKey>("total");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [importing, setImporting] = useState(false);
+
+  // Trigger de refetch após importação
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Lista de UFs e municípios disponíveis
+  const { data: locais = [] } = useQuery({
+    queryKey: ["chapa-locais", refreshTick],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tse_votacao_zona" as any)
+        .select("uf, municipio")
+        .limit(50000);
+      if (error) throw error;
+      const set = new Set<string>();
+      const ufSet = new Set<string>();
+      (data || []).forEach((r: any) => {
+        if (r.uf) ufSet.add(r.uf);
+        if (r.uf && r.municipio) set.add(`${r.uf}|${r.municipio}`);
+      });
+      return {
+        ufs: Array.from(ufSet).sort(),
+        municipios: Array.from(set).map((s) => {
+          const [u, m] = s.split("|");
+          return { uf: u, municipio: m };
+        }).sort((a, b) => a.municipio.localeCompare(b.municipio)),
+      };
+    },
+  });
+
+  const ufs = (locais as any).ufs || [];
+  const municipiosDaUf = ((locais as any).municipios || []).filter((m: any) => uf === "__all__" || m.uf === uf);
+
+  // Lista de partidos disponíveis (filtrada pelos dados visíveis)
+  const { data: partidos = [] } = useQuery({
+    queryKey: ["chapa-partidos", refreshTick],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tse_votacao_zona" as any)
+        .select("partido")
+        .not("partido", "is", null)
+        .limit(50000);
+      if (error) throw error;
+      const set = new Set<string>();
+      (data || []).forEach((r: any) => r.partido && set.add(r.partido));
+      return Array.from(set).sort();
+    },
+  });
+
+  // Resultado principal
+  const anos = anoMode === "ambos" ? [2022, 2024] : anoMode === "2022" ? [2022] : [2024];
+
+  const { data: candidatos = [], isLoading, refetch } = useQuery({
+    queryKey: ["chapa-candidatos", uf, municipio, anoMode, cargo, partido, minVotos, search, refreshTick],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_chapa_candidates" as any, {
+        p_uf: uf === "__all__" ? null : uf,
+        p_municipio: municipio === "__all__" ? null : municipio,
+        p_anos: anos,
+        p_cargos: cargo === "__all__" ? null : [cargo],
+        p_partido: partido === "__all__" ? null : partido,
+        p_min_votos: Number(minVotos) || 0,
+        p_search: search.trim() || null,
+      });
+      if (error) throw error;
+      return (data || []) as ChapaRow[];
+    },
+  });
+
+  // Reset município ao trocar UF
+  useEffect(() => { setMunicipio("__all__"); }, [uf]);
+
+  // Ordenação client-side (dados já vêm filtrados/agregados)
+  const ordenados = useMemo(() => {
+    const arr = [...candidatos];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "total": cmp = (a.total || 0) - (b.total || 0); break;
+        case "votos_2024": cmp = (a.votos_2024 || 0) - (b.votos_2024 || 0); break;
+        case "votos_2022": cmp = (a.votos_2022 || 0) - (b.votos_2022 || 0); break;
+        case "nome_completo": cmp = (a.nome_completo || "").localeCompare(b.nome_completo || ""); break;
+        case "partido": cmp = (a.partido || "").localeCompare(b.partido || ""); break;
+      }
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+    return arr;
+  }, [candidatos, sortKey, sortDir]);
+
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir(sortDir === "desc" ? "asc" : "desc");
+    else { setSortKey(k); setSortDir("desc"); }
+  };
+
+  const sortIcon = (k: SortKey) => {
+    if (sortKey !== k) return <ArrowUpDown className="w-3.5 h-3.5 inline ml-1 opacity-40" />;
+    return sortDir === "desc"
+      ? <ArrowDown className="w-3.5 h-3.5 inline ml-1" />
+      : <ArrowUp className="w-3.5 h-3.5 inline ml-1" />;
+  };
+
+  const fmt = (n: number) => (n || 0).toLocaleString("pt-BR");
+
+  const exportar = () => {
+    if (ordenados.length === 0) return;
+    const sheet = ordenados.map((r) => ({
+      Nome: r.nome_completo,
+      "Nome de urna": r.nome_urna || "",
+      Partido: r.partido || "",
+      Cargos: r.cargos || "",
+      UFs: r.ufs || "",
+      Municípios: r.municipios || "",
+      "Votos 2022": r.votos_2022 || 0,
+      "Votos 2024": r.votos_2024 || 0,
+      "Total": r.total || 0,
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(sheet);
+    XLSX.utils.book_append_sheet(wb, ws, "Composição de Chapa");
+    XLSX.writeFile(wb, `composicao_chapa_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const importarTSE2022 = async () => {
+    if (!confirm("Importar todos os candidatos do TSE 2022 do MS? O processo pode levar até 1 minuto.")) return;
+    setImporting(true);
+    toast.info("Iniciando importação dos dados do TSE 2022 (MS)...");
+    try {
+      const { data, error } = await supabase.functions.invoke("import-tse-results", {
+        body: { ano: 2022, uf: "MS" },
+      });
+      if (error) throw error;
+      const d: any = data;
+      if (d?.error) throw new Error(d.error);
+      toast.success(`Importação concluída: ${d?.inserted || 0} registros (${d?.failed || 0} falhas)`);
+      setRefreshTick((x) => x + 1);
+      refetch();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Falha na importação: ${e?.message || e}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const totalGeral = ordenados.reduce((s, r) => s + (r.total || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Cabeçalho contextual */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Users className="w-5 h-5 text-primary" /> Composição de Chapa
+          </CardTitle>
+          <CardDescription>
+            Cruze candidatos das eleições de <strong>2022</strong> e <strong>2024</strong> para identificar lideranças com base eleitoral comprovada. Ideal para montar chapas, escolher vices e mapear potenciais aliados ou adversários.
+          </CardDescription>
+        </CardHeader>
+        {isSuperAdmin && (
+          <CardContent className="pt-0">
+            <Button onClick={importarTSE2022} disabled={importing} variant="outline" size="sm">
+              <RefreshCw className={`w-4 h-4 mr-2 ${importing ? "animate-spin" : ""}`} />
+              {importing ? "Importando..." : "Importar dados TSE 2022 (MS)"}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-1">Disponível apenas para Super-Admin. Já existindo dados, eles serão atualizados (upsert).</p>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Filtros */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Filter className="w-4 h-4" /> Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div>
+            <Label className="text-xs">Mín. de votos</Label>
+            <Input
+              type="number"
+              min={0}
+              value={minVotos}
+              onChange={(e) => setMinVotos(e.target.value)}
+              placeholder="Ex: 1000"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Período</Label>
+            <Select value={anoMode} onValueChange={(v: any) => setAnoMode(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ambos">2022 + 2024</SelectItem>
+                <SelectItem value="2022">Somente 2022</SelectItem>
+                <SelectItem value="2024">Somente 2024</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Cargo</Label>
+            <Select value={cargo} onValueChange={setCargo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos</SelectItem>
+                {CARGOS_DISPONIVEIS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Partido</Label>
+            <Select value={partido} onValueChange={setPartido}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="__all__">Todos</SelectItem>
+                {(partidos as string[]).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">UF</Label>
+            <Select value={uf} onValueChange={setUf}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todas</SelectItem>
+                {(ufs as string[]).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Município</Label>
+            <Select value={municipio} onValueChange={setMunicipio}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="__all__">Todos</SelectItem>
+                {municipiosDaUf.map((m: any) => <SelectItem key={`${m.uf}-${m.municipio}`} value={m.municipio}>{m.municipio}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Buscar nome</Label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-7" placeholder="Nome do candidato" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Resumo + ações */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm text-muted-foreground">
+          {isLoading ? "Carregando..." : (
+            <>
+              <strong>{ordenados.length}</strong> candidato(s) encontrado(s) — Total agregado: <strong>{fmt(totalGeral)}</strong> votos
+            </>
+          )}
+        </div>
+        <Button onClick={exportar} disabled={ordenados.length === 0} variant="outline" size="sm">
+          <Download className="w-4 h-4 mr-2" /> Exportar Excel
+        </Button>
+      </div>
+
+      {/* Tabela */}
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("nome_completo")}>
+                  Nome {sortIcon("nome_completo")}
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("partido")}>
+                  Partido {sortIcon("partido")}
+                </TableHead>
+                <TableHead>Cargos</TableHead>
+                <TableHead>Município(s)</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("votos_2022")}>
+                  Votos 2022 {sortIcon("votos_2022")}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("votos_2024")}>
+                  Votos 2024 {sortIcon("votos_2024")}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none font-semibold" onClick={() => toggleSort("total")}>
+                  Total {sortIcon("total")}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Carregando candidatos...</TableCell></TableRow>
+              ) : ordenados.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  Nenhum candidato encontrado com os filtros atuais. {anoMode !== "2024" && "Lembre-se: dados de 2022 precisam ser importados pelo Super-Admin."}
+                </TableCell></TableRow>
+              ) : (
+                ordenados.slice(0, 1000).map((r, idx) => (
+                  <TableRow key={`${r.nome_completo}-${r.partido}-${idx}`}>
+                    <TableCell>
+                      <div className="font-medium">{r.nome_completo}</div>
+                      {r.nome_urna && r.nome_urna !== r.nome_completo && (
+                        <div className="text-xs text-muted-foreground">{r.nome_urna}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>{r.partido ? <Badge variant="outline">{r.partido}</Badge> : "—"}</TableCell>
+                    <TableCell className="text-xs">{r.cargos}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate" title={r.municipios}>{r.municipios}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.votos_2022 ? fmt(r.votos_2022) : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.votos_2024 ? fmt(r.votos_2024) : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">{fmt(r.total)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          {ordenados.length > 1000 && (
+            <div className="text-xs text-muted-foreground p-3 border-t">
+              Exibindo os 1.000 primeiros de {ordenados.length} resultados. Use os filtros para refinar.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
