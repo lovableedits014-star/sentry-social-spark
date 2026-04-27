@@ -54,6 +54,7 @@ export function FeriadosWidget() {
   );
   // "proximos" = a partir de hoje, atravessando anos. Caso contrário, ano específico.
   const [yearFilter, setYearFilter] = useState<"proximos" | string>("proximos");
+  const [expandido, setExpandido] = useState(false);
   const { ativos: estilosAtivos } = useEstilosTema();
 
   const { data, isLoading, error } = useQuery({
@@ -90,10 +91,13 @@ export function FeriadosWidget() {
       }
     }
 
-    return filtered
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 5);
+    return filtered.sort((a, b) => a.date.localeCompare(b.date));
   }, [data, yearFilter, currentYear]);
+
+  // Quantos exibir: padrão mostra próximos 5; expandido mostra todos do filtro
+  const LIMITE_PADRAO = 5;
+  const visiveis = expandido ? proximos : proximos.slice(0, LIMITE_PADRAO);
+  const restantes = proximos.length - visiveis.length;
 
   return (
     <TooltipProvider>
