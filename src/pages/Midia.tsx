@@ -559,6 +559,47 @@ const MidiaPage = () => {
               </div>
             </div>
 
+            {/* Fontes */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+                Fontes de mídia
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <strong>GDELT</strong>: portais grandes, com análise de tom e linha do tempo.<br/>
+                      <strong>Google News</strong>: agregador amplo, melhor cobertura regional.<br/>
+                      Combine ambos para máxima cobertura.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs px-3 py-1.5 border rounded-md cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={sources.gdelt}
+                    onChange={(e) => setSources((s) => ({ ...s, gdelt: e.target.checked || (!s.google_news) }))}
+                    className="accent-primary"
+                  />
+                  <span>GDELT</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1">tom + timeline</Badge>
+                </label>
+                <label className="flex items-center gap-2 text-xs px-3 py-1.5 border rounded-md cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={sources.google_news}
+                    onChange={(e) => setSources((s) => ({ ...s, google_news: e.target.checked || (!s.gdelt) }))}
+                    className="accent-primary"
+                  />
+                  <span>Google News</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1">cobertura regional</Badge>
+                </label>
+              </div>
+            </div>
+
             {/* UF + Município + Janela + País */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <div>
