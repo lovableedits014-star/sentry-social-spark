@@ -30,6 +30,7 @@ type GdeltArticle = {
   language: string;
   sourcecountry: string;
   tone: number | null;
+  source?: "gdelt" | "google_news";
 };
 
 type GdeltData = {
@@ -41,6 +42,9 @@ type GdeltData = {
   top_sources: { domain: string; count: number }[];
   timeline: { date: string; volume: number; tone: number | null }[];
   articles: GdeltArticle[];
+  source_breakdown?: { gdelt: number; google_news: number; merged: number };
+  sources_used?: string[];
+  source_warnings?: Record<string, string>;
   generated_at: string;
 };
 
@@ -110,6 +114,21 @@ function buildQuery(terms: string[], municipio: string, uf: string): string {
   return parts.join(" ");
 }
 
+/** Constrói parâmetro `sources` para a Edge Function */
+function sourcesKey(s: { gdelt: boolean; google_news: boolean }): string {
+  const list: string[] = [];
+  if (s.gdelt) list.push("gdelt");
+  if (s.google_news) list.push("google_news");
+  return list.join(",") || "gdelt";
+}
+
+/** Label legível por fonte */
+function sourceLabel(src?: string): string {
+  if (src === "google_news") return "Google News";
+  if (src === "gdelt") return "GDELT";
+  return "—";
+}
+
 const MidiaPage = () => {
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
@@ -117,7 +136,8 @@ const MidiaPage = () => {
   const [municipio, setMunicipio] = useState<string>("");
   const [country, setCountry] = useState<string>("BR");
   const [timespan, setTimespan] = useState<string>("7d");
-  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
+  const [sources, setSources] = useState<{ gdelt: boolean; google_news: boolean }>({ gdelt: true, google_news: true });
+  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string; src: string } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -174,7 +194,7 @@ const MidiaPage = () => {
     setTimespan(s.timespan || "7d");
     setCountry(s.country || "BR");
     const q = buildQuery(s.terms || [], (s.municipio || "").trim(), (s.uf || "").trim());
-    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country });
+    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country, src: sourcesKey(sources) });
     toast.success(`Busca "${s.name}" carregada`);
   };
 
@@ -240,7 +260,7 @@ const MidiaPage = () => {
       toast.error("Nenhuma notícia para exportar");
       return;
     }
-    const headers = ["Título", "Tom", "Tom (label)", "Domínio", "Data", "País", "Idioma", "URL"];
+    const headers = ["Título", "Tom", "Tom (label)", "Fonte", "Domínio", "Data", "País", "Idioma", "URL"];
     const escape = (v: unknown) => {
       const s = v == null ? "" : String(v);
       return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -251,6 +271,7 @@ const MidiaPage = () => {
         escape(a.title || ""),
         escape(a.tone != null ? a.tone.toFixed(2) : ""),
         escape(toneLabel(a.tone)),
+        escape(sourceLabel(a.source)),
         escape(a.domain || ""),
         escape(fmtDate(a.seendate)),
         escape(a.sourcecountry || ""),
@@ -311,6 +332,7 @@ const MidiaPage = () => {
       const rows = data.articles.map((a) => [
         a.title || "(sem título)",
         toneLabel(a.tone) + (a.tone != null ? ` (${a.tone.toFixed(1)})` : ""),
+        sourceLabel(a.source),
         a.domain || "",
         fmtDate(a.seendate),
         a.sourcecountry || "",
@@ -318,26 +340,27 @@ const MidiaPage = () => {
       ]);
 
       autoTable(doc, {
-        head: [["Título", "Tom", "Domínio", "Data", "País", "URL"]],
+        head: [["Título", "Tom", "Fonte", "Domínio", "Data", "País", "URL"]],
         body: rows,
         startY: 88,
         styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
         headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
-          0: { cellWidth: 250 },
+          0: { cellWidth: 230 },
           1: { cellWidth: 70 },
-          2: { cellWidth: 110 },
-          3: { cellWidth: 60 },
-          4: { cellWidth: 50 },
-          5: { cellWidth: 240, textColor: [29, 78, 216] },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 100 },
+          4: { cellWidth: 60 },
+          5: { cellWidth: 50 },
+          6: { cellWidth: 200, textColor: [29, 78, 216] },
         },
         didDrawPage: (d: any) => {
           const pageNum = doc.getNumberOfPages();
           doc.setFontSize(8);
           doc.setTextColor(150);
           doc.text(
-            `Sentinelle · Página ${pageNum} · Fonte: GDELT Project`,
+            `Sentinelle · Página ${pageNum} · Fontes: GDELT + Google News`,
             40,
             doc.internal.pageSize.getHeight() - 16,
           );
@@ -345,7 +368,7 @@ const MidiaPage = () => {
         },
         didDrawCell: (d: any) => {
           // Tornar URLs clicáveis
-          if (d.section === "body" && d.column.index === 5 && d.cell.raw) {
+          if (d.section === "body" && d.column.index === 6 && d.cell.raw) {
             const url = String(d.cell.raw);
             if (url.startsWith("http")) {
               doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url });
@@ -380,11 +403,11 @@ const MidiaPage = () => {
     e?.preventDefault();
     const q = buildQuery(terms, municipio.trim(), uf.trim());
     if (q.length < 2) return;
-    setSubmitted({ q, ts: timespan, c: country });
+    setSubmitted({ q, ts: timespan, c: country, src: sourcesKey(sources) });
   };
 
   const { data, isLoading, isFetching, refetch, error } = useQuery<GdeltData | null>({
-    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c],
+    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c, submitted?.src],
     enabled: !!submitted && (submitted.q?.length ?? 0) >= 2,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -394,6 +417,7 @@ const MidiaPage = () => {
         country: submitted.c,
         timespan: submitted.ts,
         maxrecords: "75",
+        sources: submitted.src || "gdelt,google_news",
       });
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gdelt-media-fetch?${params.toString()}`;
       const res = await fetch(url, {
@@ -431,7 +455,8 @@ const MidiaPage = () => {
           <p className="text-muted-foreground mt-1 max-w-2xl">
             Monitore como temas, figuras políticas e municípios estão sendo cobertos pela imprensa.
             Combine palavras-chave, território (UF/município) e janela temporal. Dados via{" "}
-            <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer" className="text-primary underline">GDELT Project</a>.
+            <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer" className="text-primary underline">GDELT</a>
+            {" "}e <a href="https://news.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google News</a>.
           </p>
         </div>
         {data && (
@@ -535,6 +560,47 @@ const MidiaPage = () => {
                     Limpar tudo
                   </Button>
                 )}
+              </div>
+            </div>
+
+            {/* Fontes */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+                Fontes de mídia
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <strong>GDELT</strong>: portais grandes, com análise de tom e linha do tempo.<br/>
+                      <strong>Google News</strong>: agregador amplo, melhor cobertura regional.<br/>
+                      Combine ambos para máxima cobertura.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs px-3 py-1.5 border rounded-md cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={sources.gdelt}
+                    onChange={(e) => setSources((s) => ({ ...s, gdelt: e.target.checked || (!s.google_news) }))}
+                    className="accent-primary"
+                  />
+                  <span>GDELT</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1">tom + timeline</Badge>
+                </label>
+                <label className="flex items-center gap-2 text-xs px-3 py-1.5 border rounded-md cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={sources.google_news}
+                    onChange={(e) => setSources((s) => ({ ...s, google_news: e.target.checked || (!s.gdelt) }))}
+                    className="accent-primary"
+                  />
+                  <span>Google News</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1">cobertura regional</Badge>
+                </label>
               </div>
             </div>
 
@@ -894,6 +960,12 @@ const MidiaPage = () => {
                         {a.title || "(sem título)"}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] h-4 px-1 ${a.source === "google_news" ? "border-blue-500/40 text-blue-700 dark:text-blue-400" : "border-violet-500/40 text-violet-700 dark:text-violet-400"}`}
+                        >
+                          {sourceLabel(a.source)}
+                        </Badge>
                         <span className="font-mono">{a.domain}</span>
                         <span>·</span>
                         <span>{fmtDate(a.seendate)}</span>
@@ -909,7 +981,11 @@ const MidiaPage = () => {
           </Card>
 
           <p className="text-[11px] text-muted-foreground italic text-center">
-            Fonte: GDELT Project · Atualizado {new Date(data.generated_at).toLocaleString("pt-BR")} ·
+            Fontes: GDELT + Google News
+            {data.source_breakdown && (
+              <> · {data.source_breakdown.gdelt} GDELT + {data.source_breakdown.google_news} Google News (após dedup: {data.source_breakdown.merged})</>
+            )}
+            {" "}· Atualizado {new Date(data.generated_at).toLocaleString("pt-BR")} ·
             Dados meramente informativos. Não use como base para disparos automatizados.
           </p>
         </>

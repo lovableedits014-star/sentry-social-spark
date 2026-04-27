@@ -33,12 +33,13 @@ type Article = {
   language: string;
   sourcecountry: string;
   tone: number | null;
+  source: "gdelt" | "google_news";
 };
 
 type Timeline = { date: string; volume: number; tone: number | null };
 
-function key(query: string, timespan: string, country: string) {
-  return `gdelt:${country}:${timespan}:${query.toLowerCase().trim()}`;
+function key(query: string, timespan: string, country: string, sources: string) {
+  return `media:${sources}:${country}:${timespan}:${query.toLowerCase().trim()}`;
 }
 
 /** Parse "20251020T123000Z" → "2025-10-20" */
@@ -65,7 +66,153 @@ async function fetchArticles(query: string, timespan: string, country: string, m
     language: a.language ?? "",
     sourcecountry: a.sourcecountry ?? "",
     tone: typeof a.tone === "number" ? a.tone : (a.tone != null ? Number(a.tone) : null),
+    source: "gdelt" as const,
   }));
+}
+
+/** Converte timespan "7d"/"24h" para parâmetro `when:` do Google News (ex: 7d, 1d) */
+function timespanToGNewsWhen(ts: string): string {
+  const m = /^(\d+)(d|h)$/.exec(ts);
+  if (!m) return "7d";
+  const n = parseInt(m[1], 10);
+  const unit = m[2];
+  if (unit === "h") {
+    // Google News não tem "h" — converter para 1d se < 24h, senão arredondar
+    return n < 24 ? "1d" : `${Math.ceil(n / 24)}d`;
+  }
+  return `${Math.min(n, 365)}d`;
+}
+
+/** País → hl/gl/ceid do Google News */
+function gnewsLocale(country: string): { hl: string; gl: string; ceid: string } {
+  const c = (country || "BR").toUpperCase();
+  switch (c) {
+    case "BR": return { hl: "pt-BR", gl: "BR", ceid: "BR:pt-419" };
+    case "PT": return { hl: "pt-PT", gl: "PT", ceid: "PT:pt-150" };
+    case "US": return { hl: "en-US", gl: "US", ceid: "US:en" };
+    case "ES": return { hl: "es-ES", gl: "ES", ceid: "ES:es" };
+    case "AR": return { hl: "es-AR", gl: "AR", ceid: "AR:es-419" };
+    default:   return { hl: "pt-BR", gl: "BR", ceid: "BR:pt-419" };
+  }
+}
+
+/** Extrai domínio limpo de uma URL */
+function extractDomain(url: string): string {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h.startsWith("www.") ? h.slice(4) : h;
+  } catch {
+    return "";
+  }
+}
+
+/** Decodifica entidades HTML básicas em strings curtas (títulos) */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
+}
+
+/** Parser RSS minimalista (sem libs). Extrai item.title, link, pubDate, source */
+function parseRssItems(xml: string): Array<{ title: string; link: string; pubDate: string; sourceName: string }> {
+  const items: Array<{ title: string; link: string; pubDate: string; sourceName: string }> = [];
+  const itemRe = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = itemRe.exec(xml)) !== null) {
+    const block = m[1];
+    const get = (tag: string) => {
+      const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+      const r = re.exec(block);
+      if (!r) return "";
+      let v = r[1].trim();
+      // remove CDATA
+      v = v.replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, "");
+      return decodeEntities(v.replace(/<[^>]+>/g, "").trim());
+    };
+    items.push({
+      title: get("title"),
+      link: get("link"),
+      pubDate: get("pubDate"),
+      sourceName: get("source"),
+    });
+  }
+  return items;
+}
+
+async function fetchGoogleNews(query: string, timespan: string, country: string, maxrecords: number): Promise<Article[]> {
+  const when = timespanToGNewsWhen(timespan);
+  const { hl, gl, ceid } = gnewsLocale(country);
+  // Adiciona filtro temporal direto na query
+  const q = `${query} when:${when}`;
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/rss+xml, application/xml, text/xml, */*",
+      "User-Agent": "Mozilla/5.0 (compatible; SentinelleMediaBot/1.0)",
+    },
+  });
+  if (!res.ok) throw new Error(`Google News RSS ${res.status}`);
+  const xml = await res.text();
+  if (!xml) return [];
+  const items = parseRssItems(xml);
+  const lang = hl.toLowerCase();
+  const sc = (gl || "BR").toUpperCase();
+  return items.slice(0, maxrecords).map((it) => {
+    const iso = it.pubDate ? new Date(it.pubDate).toISOString() : "";
+    // Converter ISO para formato GDELT-like (YYYYMMDDTHHMMSSZ) para o front continuar usando parseGdeltDate
+    const seen = iso ? iso.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z") : "";
+    // O Google News injeta o nome do veículo no <source> ou no final do título: "Título - Veículo".
+    // O `link` é um redirector (news.google.com/...), então usamos o nome do veículo como "domain".
+    let title = it.title || "";
+    let domain = it.sourceName || "";
+    if (!domain) {
+      const dash = title.lastIndexOf(" - ");
+      if (dash > 10) {
+        domain = title.slice(dash + 3).trim();
+        title = title.slice(0, dash).trim();
+      }
+    } else {
+      // Limpa " - Veículo" duplicado do título
+      const suffix = ` - ${domain}`;
+      if (title.endsWith(suffix)) title = title.slice(0, -suffix.length).trim();
+    }
+    if (!domain) domain = extractDomain(it.link || "") || "news.google.com";
+    return {
+      title,
+      url: it.link || "",
+      domain: domain.toLowerCase(),
+      seendate: seen,
+      language: lang,
+      sourcecountry: sc,
+      tone: null,
+      source: "google_news" as const,
+    };
+  }).filter((a) => a.url && a.title);
+}
+
+/** Mescla artigos de múltiplas fontes deduplicando por URL e (fallback) título normalizado */
+function mergeArticles(lists: Article[][]): Article[] {
+  const seenUrl = new Set<string>();
+  const seenTitle = new Set<string>();
+  const out: Article[] = [];
+  for (const list of lists) {
+    for (const a of list) {
+      const u = (a.url || "").split("?")[0].toLowerCase();
+      const t = (a.title || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
+      if (u && seenUrl.has(u)) continue;
+      if (t && seenTitle.has(t)) continue;
+      if (u) seenUrl.add(u);
+      if (t) seenTitle.add(t);
+      out.push(a);
+    }
+  }
+  // Ordena por data desc
+  return out.sort((a, b) => (b.seendate || "").localeCompare(a.seendate || ""));
 }
 
 async function fetchTimeline(query: string, timespan: string, country: string): Promise<Timeline[]> {
@@ -126,6 +273,14 @@ Deno.serve(async (req) => {
     const country = (url.searchParams.get("country") || "BR").trim();
     const maxrecords = Math.min(Math.max(parseInt(url.searchParams.get("maxrecords") || "50", 10) || 50, 5), 100);
     const force = url.searchParams.get("force") === "1";
+    // sources=gdelt,google_news (default: ambas)
+    const sourcesParam = (url.searchParams.get("sources") || "gdelt,google_news")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s === "gdelt" || s === "google_news");
+    const useGdelt = sourcesParam.includes("gdelt");
+    const useGNews = sourcesParam.includes("google_news");
+    const sourcesKey = sourcesParam.sort().join("+") || "gdelt";
 
     if (!query || query.length < 2) {
       return new Response(
@@ -149,7 +304,7 @@ Deno.serve(async (req) => {
       );
     }
     const supa = createClient(supaUrl, supaKey);
-    const cacheK = key(query, timespan, country);
+    const cacheK = key(query, timespan, country, sourcesKey);
 
     if (!force) {
       const { data: row } = await supa
@@ -165,15 +320,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    let articles: Article[] = [];
+    let gdeltArticles: Article[] = [];
+    let gnewsArticles: Article[] = [];
     let timeline: Timeline[] = [];
+    const sourceWarnings: Record<string, string> = {};
     try {
-      const [a, t] = await Promise.all([
-        fetchArticles(query, timespan, country, maxrecords),
-        fetchTimeline(query, timespan, country),
-      ]);
-      articles = a;
-      timeline = t;
+      const tasks: Array<Promise<void>> = [];
+      if (useGdelt) {
+        tasks.push(
+          fetchArticles(query, timespan, country, maxrecords)
+            .then((a) => { gdeltArticles = a; })
+            .catch((e) => { sourceWarnings.gdelt = String((e as Error).message); }),
+        );
+        tasks.push(
+          fetchTimeline(query, timespan, country)
+            .then((t) => { timeline = t; })
+            .catch(() => { /* timeline é opcional */ }),
+        );
+      }
+      if (useGNews) {
+        tasks.push(
+          fetchGoogleNews(query, timespan, country, maxrecords)
+            .then((a) => { gnewsArticles = a; })
+            .catch((e) => { sourceWarnings.google_news = String((e as Error).message); }),
+        );
+      }
+      await Promise.all(tasks);
     } catch (err) {
       const { data: row } = await supa
         .from("api_cache")
@@ -189,7 +361,13 @@ Deno.serve(async (req) => {
       throw err;
     }
 
+    const articles = mergeArticles([gdeltArticles, gnewsArticles]);
     const { tone_summary, top_sources } = summarize(articles, timeline);
+    const source_breakdown = {
+      gdelt: gdeltArticles.length,
+      google_news: gnewsArticles.length,
+      merged: articles.length,
+    };
     const data = {
       query,
       timespan,
@@ -199,6 +377,9 @@ Deno.serve(async (req) => {
       top_sources,
       timeline,
       articles: articles.slice(0, maxrecords),
+      source_breakdown,
+      sources_used: sourcesParam,
+      source_warnings: Object.keys(sourceWarnings).length ? sourceWarnings : undefined,
       generated_at: new Date().toISOString(),
     };
 
