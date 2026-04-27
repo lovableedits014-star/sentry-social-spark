@@ -306,6 +306,8 @@ export default function Territorial() {
       neighborhood: pickBest(b.neighVariants),
       state: b.state,
       count: b.count,
+      cityVariants: b.cityVariants,
+      neighVariants: b.neighVariants,
     }));
     return { groups: result.sort((a, b) => b.count - a.count), totalWithLocation: withLoc.length, totalWithout: withoutLoc.length };
   }, [allGeoEntries, selectedUF]);
