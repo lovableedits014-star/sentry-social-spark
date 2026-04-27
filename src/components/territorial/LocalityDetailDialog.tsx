@@ -21,7 +21,7 @@ export interface LocalityDetailDialogProps {
   neighborhood?: string | null;
 }
 
-type Origin = "pessoas" | "contratados" | "contratado_indicados" | "funcionarios";
+type Origin = "pessoas" | "contratados" | "contratado_indicados" | "funcionarios" | "supporter_accounts";
 
 interface Row {
   id: string;
@@ -45,6 +45,7 @@ const ORIGIN_LABEL: Record<Origin, string> = {
   contratados: "Contratado",
   contratado_indicados: "Indicado",
   funcionarios: "Funcionário",
+  supporter_accounts: "Apoiador",
 };
 
 const ORIGIN_VARIANT: Record<Origin, "default" | "secondary" | "outline" | "destructive"> = {
@@ -52,6 +53,7 @@ const ORIGIN_VARIANT: Record<Origin, "default" | "secondary" | "outline" | "dest
   contratados: "secondary",
   contratado_indicados: "outline",
   funcionarios: "destructive",
+  supporter_accounts: "default",
 };
 
 export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city, neighborhood }: LocalityDetailDialogProps) {
@@ -87,28 +89,30 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
         return out;
       };
 
-      const [pessoas, contratados, indicados, funcionarios] = await Promise.all([
+      const [pessoas, contratados, indicados, funcionarios, apoiadores] = await Promise.all([
         fetchAll("pessoas", "id, nome, telefone, cidade, bairro"),
         fetchAll("contratados", "id, nome, telefone, cidade, bairro"),
         fetchAll("contratado_indicados", "id, nome, telefone, cidade, bairro"),
         fetchAll("funcionarios", "id, nome, telefone, cidade, bairro"),
+        fetchAll("supporter_accounts", "id, name, phone, city, neighborhood"),
       ]);
 
       const collected: Row[] = [];
       const push = (origin: Origin, list: any[]) => {
         for (const r of list) {
           // Limpa sufixo " - UF" da cidade (mesma lógica do agregador)
-          const cityRaw = (r.cidade?.trim() || "");
+          const cityRaw = ((r.cidade ?? r.city)?.trim() || "");
           const cityClean = cityRaw.replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || cityRaw;
           if (canon(cityClean) !== cityKey) continue;
-          if (level === "neighborhood" && canon(r.bairro) !== neighKey) continue;
+          const bairro = r.bairro ?? r.neighborhood;
+          if (level === "neighborhood" && canon(bairro) !== neighKey) continue;
           collected.push({
             id: r.id,
             origin,
-            nome: r.nome,
-            telefone: r.telefone,
-            cidade: r.cidade,
-            bairro: r.bairro,
+            nome: r.nome ?? r.name,
+            telefone: r.telefone ?? r.phone,
+            cidade: r.cidade ?? r.city,
+            bairro,
           });
         }
       };
@@ -116,6 +120,7 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
       push("contratados", contratados);
       push("contratado_indicados", indicados);
       push("funcionarios", funcionarios);
+      push("supporter_accounts", apoiadores);
 
       collected.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
       if (!cancel) {
