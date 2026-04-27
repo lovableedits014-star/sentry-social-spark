@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download } from "lucide-react";
+import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download, RefreshCw, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 type Row = {
@@ -45,6 +46,8 @@ type LocalRow = {
 const InteligenciaEleitoral = () => {
   const [cargo, setCargo] = useState<string>("Prefeito");
   const [turno, setTurno] = useState<string>("1");
+  const queryClient = useQueryClient();
+  const [geocoding, setGeocoding] = useState(false);
   const [openZonas, setOpenZonas] = useState<Record<number, boolean>>({});
   const [zonaSearch, setZonaSearch] = useState<Record<number, string>>({});
   const [localMode, setLocalMode] = useState<"candidato" | "local">("candidato");
@@ -222,6 +225,41 @@ const InteligenciaEleitoral = () => {
     locaisMeta.forEach((l: any) => { if (l.bairro) set.add(l.bairro); });
     return Array.from(set).sort();
   }, [locaisMeta]);
+
+  // Estatística de geocodificação
+  const geocodeStats = useMemo(() => {
+    let ok = 0, pending = 0, failed = 0;
+    locaisMeta.forEach((l: any) => {
+      if (l.bairro && l.bairro !== "") ok++;
+      else if (l.bairro === "") failed++;
+      else pending++;
+    });
+    const total = locaisMeta.length;
+    const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+    return { total, ok, pending, failed, pct };
+  }, [locaisMeta]);
+
+  // Dispara geocodificação manual e recarrega dados
+  const dispararGeocodificacao = async () => {
+    setGeocoding(true);
+    const t = toast.loading("Geocodificando bairros… isso pode levar até 1 minuto.");
+    try {
+      const { data, error } = await supabase.functions.invoke("geocode-tse-locais", { body: {} });
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? 0;
+      const failed = (data as any)?.failed ?? 0;
+      const remaining = (data as any)?.remaining ?? 0;
+      await queryClient.invalidateQueries({ queryKey: ["tse-locais-meta"] });
+      toast.success(
+        `Geocodificação executada: ${updated} bairros encontrados, ${failed} falhas${remaining > 0 ? `, ${remaining} restantes (clique novamente).` : "."}`,
+        { id: t },
+      );
+    } catch (e: any) {
+      toast.error(`Falha ao geocodificar: ${e?.message || "erro desconhecido"}`, { id: t });
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
   // Exportação XLSX
   const exportXLSX = (filename: string, sheets: Record<string, any[]>) => {
@@ -563,6 +601,52 @@ const InteligenciaEleitoral = () => {
                   <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
                 </button>
               </div>
+              {/* Indicador de cobertura da geocodificação + botão de execução manual */}
+              {geocodeStats.total > 0 && (
+                <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-xs font-medium flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-primary" />
+                      Cobertura de bairros (geocodificação OpenStreetMap)
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                          <strong>{geocodeStats.ok.toLocaleString("pt-BR")}</strong> com bairro
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                          <strong>{geocodeStats.pending.toLocaleString("pt-BR")}</strong> pendentes
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+                          <strong>{geocodeStats.failed.toLocaleString("pt-BR")}</strong> falharam
+                        </span>
+                        <span className="text-muted-foreground">de {geocodeStats.total}</span>
+                      </div>
+                      <button
+                        onClick={dispararGeocodificacao}
+                        disabled={geocoding || geocodeStats.pending === 0}
+                        className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 bg-background hover:bg-muted disabled:opacity-50"
+                        title={geocodeStats.pending === 0 ? "Não há mais locais pendentes para geocodificar." : "Roda a geocodificação imediatamente (até ~45 locais por chamada, ~1 req/s no OpenStreetMap)."}
+                      >
+                        {geocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        {geocoding ? "Geocodificando…" : "Geocodificar agora"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex h-2 w-full rounded-full overflow-hidden bg-muted">
+                    <div className="bg-emerald-500 transition-all" style={{ width: `${(geocodeStats.ok / geocodeStats.total) * 100}%` }} />
+                    <div className="bg-rose-500 transition-all" style={{ width: `${(geocodeStats.failed / geocodeStats.total) * 100}%` }} />
+                    <div className="bg-amber-500 transition-all" style={{ width: `${(geocodeStats.pending / geocodeStats.total) * 100}%` }} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {geocodeStats.pct}% dos locais já têm bairro identificado.
+                    {geocodeStats.pending > 0 && " Cada execução processa até ~45 locais — clique novamente até zerar os pendentes."}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-[320px_1fr] gap-4">
