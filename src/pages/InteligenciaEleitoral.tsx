@@ -12,6 +12,7 @@ import { Vote, TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Bu
 import * as XLSX from "xlsx";
 import * as XLSXStyle from "xlsx-js-style";
 import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
+import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
 
 type Row = {
   id: number;
