@@ -523,6 +523,66 @@ const MidiaPage = () => {
     return groups;
   }, [data]);
 
+  /** Lista plana de artigos para navegação por teclado (j/k/Enter). */
+  const flatArticles = useMemo(
+    () => groupedArticles.flatMap((g) => g.items),
+    [groupedArticles],
+  );
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+  const [focusedIdx, setFocusedIdx] = useState<number>(-1);
+
+  useEffect(() => {
+    itemRefs.current = itemRefs.current.slice(0, flatArticles.length);
+    if (focusedIdx >= flatArticles.length) setFocusedIdx(-1);
+  }, [flatArticles.length, focusedIdx]);
+
+  const focusArticle = useCallback((i: number) => {
+    const el = itemRefs.current[i];
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      setFocusedIdx(i);
+    }
+  }, []);
+
+  const handleFeedKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (flatArticles.length === 0) return;
+      const target = e.target as HTMLElement;
+      // Não interferir em inputs/textareas dentro do feed
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      const cur = focusedIdx < 0 ? -1 : focusedIdx;
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        focusArticle(Math.min(flatArticles.length - 1, cur + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        focusArticle(Math.max(0, cur - 1));
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        focusArticle(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        focusArticle(flatArticles.length - 1);
+      }
+    },
+    [flatArticles.length, focusedIdx, focusArticle],
+  );
+
+  // Índice global (entre grupos) para cada artigo
+  const globalIndexMap = useMemo(() => {
+    const m = new Map<string, number>();
+    let i = 0;
+    for (const g of groupedArticles) {
+      for (const a of g.items) {
+        m.set(`${a.url}__${i}`, i);
+        i++;
+      }
+    }
+    return m;
+  }, [groupedArticles]);
+
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-[1400px] space-y-6">
       {/* Header */}
