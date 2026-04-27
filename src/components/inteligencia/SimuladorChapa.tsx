@@ -502,6 +502,88 @@ export default function SimuladorChapa() {
               Soma de votos da chapa por cidade. "Presentes" indica quantos candidatos têm voto ali.
             </CardDescription>
           </CardHeader>
+        </Card>
+      )}
+
+      {chapa.length > 0 && porMunicipio.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" /> Ranking por município — soma da chapa
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Cidades ordenadas pela soma total de votos da chapa. Cada linha lista os candidatos que pontuam ali, com seus respectivos votos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="max-h-[600px] overflow-y-auto divide-y">
+              {porMunicipio.slice(0, 100).map((m, idx) => {
+                const presentes = chapa
+                  .map((c, i) => {
+                    const k = `${c.nome}__${c.partido || ""}`;
+                    return { ...c, votos: m.porCand[k] || 0, color: PALETTE[i % PALETTE.length] };
+                  })
+                  .filter((c) => c.votos > 0)
+                  .sort((a, b) => b.votos - a.votos);
+                const top = presentes[0]?.votos || 1;
+                return (
+                  <div key={`rk-${m.uf}-${m.municipio}`} className="p-3">
+                    <div className="flex items-center justify-between mb-2 gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-mono text-muted-foreground w-6 text-right">{idx + 1}.</span>
+                        <span className="font-semibold truncate">{m.municipio}</span>
+                        <Badge variant="outline" className="text-[10px]">{m.uf}</Badge>
+                        <Badge variant={presentes.length > 1 ? "default" : "secondary"} className="text-[10px]">
+                          {presentes.length} {presentes.length === 1 ? "candidato" : "candidatos"}
+                        </Badge>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold tabular-nums">{fmt(m.total)}</div>
+                        <div className="text-[10px] text-muted-foreground">votos da chapa</div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {presentes.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color }} />
+                          <span className="text-xs truncate flex-1 min-w-0">
+                            {c.nome}
+                            <span className="text-muted-foreground"> · {c.partido || "—"}</span>
+                          </span>
+                          <div className="flex-1 max-w-[40%] h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${(c.votos / top) * 100}%`, background: c.color }}
+                            />
+                          </div>
+                          <span className="text-xs tabular-nums font-medium w-20 text-right">{fmt(c.votos)}</span>
+                          <span className="text-[10px] text-muted-foreground tabular-nums w-12 text-right">
+                            {m.total > 0 ? `${((c.votos / m.total) * 100).toFixed(0)}%` : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {porMunicipio.length > 100 && (
+              <div className="text-xs text-muted-foreground p-3 border-t">
+                Exibindo os 100 primeiros de {fmt(porMunicipio.length)} municípios. Exporte o Excel para ver todos.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {chapa.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Detalhamento por município (matriz)</CardTitle>
+            <CardDescription className="text-xs">
+              Tabela detalhada com votos por candidato em cada cidade.
+            </CardDescription>
+          </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             {isLoading ? (
               <div className="text-center py-10 text-sm text-muted-foreground">Carregando dados...</div>
