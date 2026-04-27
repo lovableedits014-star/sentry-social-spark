@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, ChevronDown, SlidersHorizontal, Ban, FileText } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
 
 /**
@@ -28,8 +30,14 @@ type GdeltArticle = {
 
 type GdeltData = {
   query: string;
+  raw_query?: string | null;
   timespan: string;
   country: string;
+  language?: string | null;
+  domains?: string[];
+  excludes?: string[];
+  start?: string | null;
+  end?: string | null;
   total_articles: number;
   tone_summary: { avg: number | null; positives: number; neutrals: number; negatives: number; total: number };
   top_sources: { domain: string; count: number }[];
@@ -55,6 +63,45 @@ const PRESETS = [
   { label: "STF", terms: ["STF", "supremo"] },
 ];
 
+/** Idiomas suportados pelo GDELT (sourcelang) */
+const LANGUAGES = [
+  { code: "", label: "Qualquer idioma" },
+  { code: "por", label: "🇧🇷 Português" },
+  { code: "eng", label: "🇺🇸 Inglês" },
+  { code: "spa", label: "🇪🇸 Espanhol" },
+  { code: "fra", label: "🇫🇷 Francês" },
+  { code: "deu", label: "🇩🇪 Alemão" },
+  { code: "ita", label: "🇮🇹 Italiano" },
+];
+
+/** Presets de fontes (domínios brasileiros mais comuns) */
+const SOURCE_PRESETS = [
+  { label: "Grandes portais", domains: ["g1.globo.com", "uol.com.br", "folha.uol.com.br", "estadao.com.br"] },
+  { label: "Mídia tradicional", domains: ["folha.uol.com.br", "estadao.com.br", "oglobo.globo.com", "valor.globo.com"] },
+  { label: "Independentes", domains: ["theintercept.com", "agenciapublica.org", "brasildefato.com.br"] },
+  { label: "Regional MS", domains: ["midiamax.com.br", "campograndenews.com.br", "correiodoestado.com.br"] },
+];
+
+/** Sanitiza domínio (remove protocolo, www, paths) e valida shape básico */
+function cleanDomain(raw: string): string | null {
+  if (!raw) return null;
+  const v = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
+  return /^[a-z0-9.\-]+\.[a-z]{2,}$/.test(v) ? v : null;
+}
+
+/** Converte Date → YYYYMMDDHHMMSS (UTC) para o GDELT. */
+function toGdeltDateTime(date: string, endOfDay: boolean): string {
+  // date no formato "YYYY-MM-DD"
+  const [y, m, d] = date.split("-");
+  if (!y || !m || !d) return "";
+  const time = endOfDay ? "235959" : "000000";
+  return `${y}${m}${d}${time}`;
+}
 function fmtDate(iso: string) {
   if (!iso) return "";
   if (/^\d{8}T/.test(iso)) {
@@ -94,13 +141,36 @@ function buildQuery(terms: string[], municipio: string, uf: string): string {
 }
 
 const MidiaPage = () => {
+  // Filtros básicos
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
   const [uf, setUf] = useState<string>("");
   const [municipio, setMunicipio] = useState<string>("");
   const [country, setCountry] = useState<string>("BR");
   const [timespan, setTimespan] = useState<string>("7d");
-  const [submitted, setSubmitted] = useState<{ q: string; ts: string; c: string } | null>(null);
+
+  // Filtros avançados
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [language, setLanguage] = useState<string>("");
+  const [domains, setDomains] = useState<string[]>([]);
+  const [domainInput, setDomainInput] = useState("");
+  const [excludeTerms, setExcludeTerms] = useState<string[]>([]);
+  const [excludeInput, setExcludeInput] = useState("");
+  const [useCustomRange, setUseCustomRange] = useState(false);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
+  type Submitted = {
+    q: string;
+    ts: string;
+    c: string;
+    lang: string;
+    domains: string;
+    exclude: string;
+    start?: string;
+    end?: string;
+  };
+  const [submitted, setSubmitted] = useState<Submitted | null>(null);
 
   const addTerm = (t: string) => {
     const v = t.trim();
@@ -120,11 +190,57 @@ const MidiaPage = () => {
     e?.preventDefault();
     const q = buildQuery(terms, municipio.trim(), uf.trim());
     if (q.length < 2) return;
-    setSubmitted({ q, ts: timespan, c: country });
+    let start: string | undefined;
+    let end: string | undefined;
+    if (useCustomRange && startDate && endDate) {
+      start = toGdeltDateTime(startDate, false);
+      end = toGdeltDateTime(endDate, true);
+      // Garante start <= end
+      if (start > end) [start, end] = [end, start];
+    }
+    setSubmitted({
+      q,
+      ts: timespan,
+      c: country,
+      lang: language,
+      domains: domains.join(","),
+      exclude: excludeTerms.join(","),
+      start,
+      end,
+    });
   };
 
+  const addDomain = (raw: string) => {
+    const v = cleanDomain(raw);
+    if (!v) return;
+    setDomains((prev) => (prev.includes(v) ? prev : [...prev, v].slice(0, 10)));
+  };
+  const removeDomain = (d: string) => setDomains((prev) => prev.filter((x) => x !== d));
+  const handleAddDomain = () => {
+    if (!domainInput.trim()) return;
+    addDomain(domainInput);
+    setDomainInput("");
+  };
+  const handleAddExclude = () => {
+    const v = excludeInput.trim();
+    if (v.length < 2) return;
+    setExcludeTerms((prev) => (prev.includes(v) ? prev : [...prev, v].slice(0, 10)));
+    setExcludeInput("");
+  };
+  const removeExclude = (t: string) => setExcludeTerms((prev) => prev.filter((x) => x !== t));
+
   const { data, isLoading, isFetching, refetch, error } = useQuery<GdeltData | null>({
-    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c],
+    queryKey: [
+      "midia-gdelt",
+      submitted?.q,
+      submitted?.ts,
+      submitted?.c,
+      submitted?.lang,
+      submitted?.domains,
+      submitted?.exclude,
+      submitted?.start,
+      submitted?.end,
+    ],
     enabled: !!submitted && (submitted.q?.length ?? 0) >= 2,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -135,6 +251,13 @@ const MidiaPage = () => {
         timespan: submitted.ts,
         maxrecords: "75",
       });
+      if (submitted.lang) params.set("language", submitted.lang);
+      if (submitted.domains) params.set("domains", submitted.domains);
+      if (submitted.exclude) params.set("exclude", submitted.exclude);
+      if (submitted.start && submitted.end) {
+        params.set("start", submitted.start);
+        params.set("end", submitted.end);
+      }
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gdelt-media-fetch?${params.toString()}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
