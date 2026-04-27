@@ -980,7 +980,11 @@ const MidiaPage = () => {
           </Card>
 
           <p className="text-[11px] text-muted-foreground italic text-center">
-            Fonte: GDELT Project · Atualizado {new Date(data.generated_at).toLocaleString("pt-BR")} ·
+            Fontes: GDELT + Google News
+            {data.source_breakdown && (
+              <> · {data.source_breakdown.gdelt} GDELT + {data.source_breakdown.google_news} Google News (após dedup: {data.source_breakdown.merged})</>
+            )}
+            {" "}· Atualizado {new Date(data.generated_at).toLocaleString("pt-BR")} ·
             Dados meramente informativos. Não use como base para disparos automatizados.
           </p>
         </>
