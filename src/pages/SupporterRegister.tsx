@@ -7,8 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Facebook, Instagram, CheckCircle2, Loader2, UserPlus, Phone, FileText, AlertCircle, XCircle, Mail, Lock, Eye, EyeOff, LogIn, MapPin, Users, HelpCircle, ChevronDown, ChevronUp, IdCard, Cake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
+import { DateInputBr } from "@/components/ui/date-input-br";
+import { formatCpf, cpfDigits, isValidCpf } from "@/lib/cpf-mask";
 
 type ParsedProfile = {
   platform: "facebook" | "instagram";
@@ -90,6 +92,7 @@ export default function SupporterRegister() {
   const [searchParams] = useSearchParams();
   const refCode = searchParams.get("ref") || "";
   const [name, setName] = useState("");
+  const [cpf, setCpf] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
   const [showFbHelp, setShowFbHelp] = useState(false);
@@ -100,8 +103,10 @@ export default function SupporterRegister() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [city, setCity] = useState("");
+  const [rua, setRua] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [state, setState] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -135,6 +140,14 @@ export default function SupporterRegister() {
       setError("Por favor, informe seu nome.");
       return;
     }
+    if (!isValidCpf(cpf)) {
+      setError("CPF inválido. Confira os dígitos.");
+      return;
+    }
+    if (!phone.trim()) {
+      setError("Por favor, informe seu telefone.");
+      return;
+    }
     if (!email.trim()) {
       setError("Por favor, informe seu e-mail para criar sua conta.");
       return;
@@ -147,8 +160,16 @@ export default function SupporterRegister() {
       setError("Por favor, informe sua cidade.");
       return;
     }
+    if (!rua.trim()) {
+      setError("Por favor, informe sua rua.");
+      return;
+    }
     if (!neighborhood.trim()) {
       setError("Por favor, informe seu bairro.");
+      return;
+    }
+    if (!birthDate) {
+      setError("Por favor, informe sua data de nascimento.");
       return;
     }
 
@@ -160,9 +181,12 @@ export default function SupporterRegister() {
         body: {
           client_id: clientId,
           name: name.trim(),
+          cpf: cpfDigits(cpf),
           facebook_url: facebookUrl.trim() || null,
           instagram_url: instagramUrl.trim() || null,
-          phone: phone.trim() || null,
+          phone: phone.trim(),
+          birth_date: birthDate,
+          endereco: rua.trim(),
           notes: notes.trim() || null,
           referral_code: refCode || null,
           city: city.trim() || null,
@@ -206,6 +230,10 @@ export default function SupporterRegister() {
                 client_id: clientId!,
                 name: name.trim(),
                 email: email.trim(),
+                cpf: cpfDigits(cpf),
+                phone: phone.trim(),
+                birth_date: birthDate,
+                endereco: rua.trim(),
                 facebook_username: fbResolved,
                 instagram_username: igResolved,
                 referred_by: data.referrer_account_id || null,
