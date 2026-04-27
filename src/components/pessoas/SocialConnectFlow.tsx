@@ -324,12 +324,12 @@ export default function SocialConnectFlow({ platform, value, onChange }: Props) 
                 title={
                   platform === "facebook"
                     ? 'Toque nos três pontinhos "⋯" no seu perfil'
-                    : 'Toque nos três traços "☰" no canto superior'
+                    : 'Toque no botão "Compartilhar perfil"'
                 }
                 description={
                   platform === "facebook"
                     ? 'Geralmente fica perto do botão "Editar perfil".'
-                    : "Depois toque em uma opção de compartilhar."
+                    : 'Fica logo abaixo da sua bio, ao lado de "Editar perfil".'
                 }
               />
               <TutorialStep
@@ -338,9 +338,13 @@ export default function SocialConnectFlow({ platform, value, onChange }: Props) 
                 title={
                   platform === "facebook"
                     ? 'Toque em "Copiar link do perfil"'
-                    : 'Toque em "Copiar link do perfil"'
+                    : 'Toque em "Copiar link" (abaixo do QR code)'
                 }
-                description="Pronto, o link foi copiado para a área de transferência."
+                description={
+                  platform === "facebook"
+                    ? "Pronto, o link foi copiado para a área de transferência."
+                    : "Vai aparecer um QR code grande — a opção 'Copiar link' fica logo abaixo dele."
+                }
               />
               <TutorialStep
                 number={5}
