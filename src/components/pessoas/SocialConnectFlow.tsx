@@ -1,11 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Facebook, Instagram, ExternalLink, ClipboardPaste, Loader2, CheckCircle2, RotateCw, X } from "lucide-react";
+import {
+  Facebook,
+  Instagram,
+  ClipboardPaste,
+  Loader2,
+  CheckCircle2,
+  RotateCw,
+  X,
+  HelpCircle,
+  ArrowLeft,
+  Share2,
+  Link2,
+  MoreHorizontal,
+  User,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
-import { buildSearchUrl, extractHandleFromUrl } from "@/lib/social-url";
+import { extractHandleFromUrl } from "@/lib/social-url";
 import { toast } from "sonner";
 
 type Platform = "facebook" | "instagram";
@@ -20,62 +34,58 @@ export type ConnectedSocial = {
 
 interface Props {
   platform: Platform;
-  /** Nome digitado no formulário, usado para pré-preencher a busca */
-  searchName: string;
+  /** Nome digitado no formulário — não usado no novo fluxo, mas mantido para compatibilidade */
+  searchName?: string;
   value: ConnectedSocial | null;
   onChange: (value: ConnectedSocial | null) => void;
 }
 
-type Step = "intro" | "paste" | "previewing" | "confirm" | "rejected";
+type Step = "paste" | "tutorial" | "previewing" | "confirm";
 
-const PLATFORM_META: Record<Platform, { label: string; color: string; icon: typeof Facebook }> = {
-  facebook: { label: "Facebook", color: "text-blue-600", icon: Facebook },
-  instagram: { label: "Instagram", color: "text-pink-500", icon: Instagram },
+const PLATFORM_META: Record<Platform, { label: string; color: string; icon: typeof Facebook; bgChip: string }> = {
+  facebook: {
+    label: "Facebook",
+    color: "text-blue-600",
+    icon: Facebook,
+    bgChip: "bg-blue-50 dark:bg-blue-950/30",
+  },
+  instagram: {
+    label: "Instagram",
+    color: "text-pink-500",
+    icon: Instagram,
+    bgChip: "bg-pink-50 dark:bg-pink-950/30",
+  },
 };
 
-export default function SocialConnectFlow({ platform, searchName, value, onChange }: Props) {
+export default function SocialConnectFlow({ platform, value, onChange }: Props) {
   const meta = PLATFORM_META[platform];
   const Icon = meta.icon;
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("intro");
+  const [step, setStep] = useState<Step>("paste");
   const [pastedLink, setPastedLink] = useState("");
   const [preview, setPreview] = useState<ConnectedSocial | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const popupRef = useRef<Window | null>(null);
 
   useEffect(() => {
     if (!open) {
-      // reset interno ao fechar
-      setStep("intro");
+      setStep("paste");
       setPastedLink("");
       setPreview(null);
       setPreviewError(null);
     }
   }, [open]);
 
-  function openSocialPopup() {
-    const url = buildSearchUrl(platform, searchName || "");
-    try {
-      popupRef.current = window.open(url, `connect-${platform}`, "width=480,height=720,noopener");
-    } catch {
-      // bloqueador de popup — ainda assim mostra o link como fallback
-      window.open(url, "_blank", "noopener");
-    }
-    setStep("paste");
-  }
-
   async function tryAutoPaste() {
     try {
-      // Em mobile, normalmente requer gesto do usuário (este clique conta)
       const text = await navigator.clipboard.readText();
       if (text && text.trim()) {
         setPastedLink(text.trim());
         await resolveLink(text.trim());
         return;
       }
-      toast.info("A área de transferência está vazia. Cole manualmente.");
+      toast.info("A área de transferência está vazia. Cole manualmente no campo abaixo.");
     } catch {
-      toast.info("Seu navegador não permitiu colar automaticamente. Cole manualmente no campo.");
+      toast.info("Seu navegador não permitiu colar automaticamente. Cole manualmente no campo abaixo.");
     }
   }
 
@@ -84,11 +94,9 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
     setPreviewError(null);
     setStep("previewing");
 
-    // 1) Tenta extrair handle direto (link "limpo")
     let handle = extractHandleFromUrl(platform, rawLink);
     let canonicalUrl: string | null = null;
 
-    // 2) Se não conseguiu (ex: link de share do FB), chama resolve-social-link
     if (!handle) {
       try {
         const { data, error } = await supabase.functions.invoke("resolve-social-link", {
@@ -106,13 +114,12 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
 
     if (!handle) {
       setPreviewError(
-        "Não consegui identificar o perfil neste link. Confira se você copiou o link do seu perfil (não de uma postagem).",
+        "Não consegui identificar o perfil neste link. Confira se você copiou o link do SEU perfil (não de uma postagem ou foto).",
       );
       setStep("paste");
       return;
     }
 
-    // 3) Busca preview (foto + nome) — mas mesmo se falhar, prossegue só com handle
     let name: string | null = null;
     let avatarUrl: string | null = null;
     let resolvedCanonical = canonicalUrl;
@@ -159,10 +166,10 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
     onChange(null);
   }
 
-  // ===== Render do "card" externo (estado conectado vs não conectado) =====
+  // ===== Estado conectado =====
   if (value) {
     return (
-      <div className={`flex items-center gap-3 rounded-lg border-2 border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 p-3`}>
+      <div className="flex items-center gap-3 rounded-lg border-2 border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
         <Avatar className="h-12 w-12 shrink-0">
           {value.avatarUrl ? <AvatarImage src={value.avatarUrl} alt={value.name || value.handle} /> : null}
           <AvatarFallback className={meta.color}>
@@ -172,9 +179,7 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span className="text-sm font-medium text-foreground truncate">
-              {meta.label} conectado
-            </span>
+            <span className="text-sm font-medium text-foreground truncate">{meta.label} conectado</span>
           </div>
           <div className="text-xs text-muted-foreground truncate">
             {value.name ? <strong className="text-foreground">{value.name}</strong> : null}
@@ -183,7 +188,7 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { setOpen(true); }}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
             <RotateCw className="h-3.5 w-3.5 mr-1" />
             Trocar
           </Button>
@@ -207,64 +212,47 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
         <Icon className={`h-5 w-5 ${meta.color}`} />
         <span className="flex-1 text-left">
           <span className="block text-sm font-semibold">Conectar meu {meta.label}</span>
-          <span className="block text-xs text-muted-foreground font-normal">Toque para buscar seu perfil</span>
+          <span className="block text-xs text-muted-foreground font-normal">Cole o link do seu perfil</span>
         </span>
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
+              {step === "tutorial" && (
+                <button
+                  type="button"
+                  onClick={() => setStep("paste")}
+                  className="p-1 -ml-1 rounded hover:bg-muted"
+                  aria-label="Voltar"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
               <Icon className={`h-5 w-5 ${meta.color}`} />
-              Conectar meu {meta.label}
+              {step === "tutorial" ? `Como pegar meu link` : `Conectar meu ${meta.label}`}
             </DialogTitle>
             <DialogDescription>
-              {step === "intro" && "Vamos abrir o " + meta.label + " pra você achar seu perfil."}
-              {step === "paste" && "Volte aqui depois de copiar o link do seu perfil."}
+              {step === "paste" && `Cole abaixo o link do seu perfil do ${meta.label}.`}
+              {step === "tutorial" && `Siga os passos no app do ${meta.label}:`}
               {step === "previewing" && "Buscando seu perfil..."}
               {step === "confirm" && "Confirme se este é o seu perfil:"}
             </DialogDescription>
           </DialogHeader>
 
-          {/* ============ STEP 1: INTRO ============ */}
-          {step === "intro" && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
-                <p className="font-medium">Como funciona:</p>
-                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Vamos abrir o {meta.label} numa janela já buscando pelo seu nome.</li>
-                  <li>Toque em <strong>você</strong> na lista de resultados.</li>
-                  <li>No seu perfil, toque em <strong>Compartilhar</strong> → <strong>Copiar link</strong>.</li>
-                  <li>Volte aqui e cole — a gente confirma a foto pra você.</li>
-                </ol>
-              </div>
-              {!searchName.trim() && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Dica: preencha seu nome completo lá em cima para a busca já vir pronta.
-                </p>
-              )}
-              <Button type="button" size="lg" className="w-full" onClick={openSocialPopup}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir {meta.label}
-              </Button>
-            </div>
-          )}
-
-          {/* ============ STEP 2: PASTE ============ */}
+          {/* ============ PASTE ============ */}
           {step === "paste" && (
             <div className="space-y-4">
-              <div className="rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-sm space-y-2">
-                <p className="font-medium text-foreground">No {meta.label} que abriu:</p>
-                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Toque no <strong>seu perfil</strong> na lista.</li>
-                  <li>Toque em <strong>⋯</strong> ou <strong>Compartilhar perfil</strong>.</li>
-                  <li>Toque em <strong>Copiar link</strong>.</li>
-                </ol>
-              </div>
-
-              <Button type="button" variant="default" size="lg" className="w-full" onClick={tryAutoPaste}>
-                <ClipboardPaste className="h-4 w-4 mr-2" />
-                Já copiei — colar do meu celular
+              <Button
+                type="button"
+                variant="default"
+                size="lg"
+                className="w-full h-14"
+                onClick={tryAutoPaste}
+              >
+                <ClipboardPaste className="h-5 w-5 mr-2" />
+                Já copiei — colar agora
               </Button>
 
               <div className="space-y-1.5">
@@ -272,8 +260,15 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
                 <Input
                   value={pastedLink}
                   onChange={(e) => setPastedLink(e.target.value)}
-                  placeholder={platform === "facebook" ? "https://facebook.com/..." : "https://instagram.com/..."}
+                  placeholder={
+                    platform === "facebook"
+                      ? "https://facebook.com/seu.perfil"
+                      : "https://instagram.com/seu_usuario"
+                  }
                   className="h-12 text-sm"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                 />
                 <Button
                   type="button"
@@ -295,15 +290,79 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
 
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:underline w-full text-center"
-                onClick={openSocialPopup}
+                className="flex items-center justify-center gap-1.5 text-sm text-primary hover:underline w-full pt-2 border-t"
+                onClick={() => setStep("tutorial")}
               >
-                Abrir {meta.label} de novo
+                <HelpCircle className="h-4 w-4" />
+                Não sei como pegar meu link
               </button>
             </div>
           )}
 
-          {/* ============ STEP 3: PREVIEWING ============ */}
+          {/* ============ TUTORIAL ============ */}
+          {step === "tutorial" && (
+            <div className="space-y-3">
+              <TutorialStep
+                number={1}
+                icon={<Icon className={`h-5 w-5 ${meta.color}`} />}
+                title={`Abra o app do ${meta.label}`}
+                description={`No seu celular, abra o aplicativo oficial do ${meta.label}.`}
+              />
+              <TutorialStep
+                number={2}
+                icon={<User className="h-5 w-5 text-muted-foreground" />}
+                title="Vá no SEU perfil"
+                description={
+                  platform === "facebook"
+                    ? "Toque na sua foto no canto da tela ou no menu (☰) → seu nome."
+                    : "Toque na sua foto no canto inferior direito da tela."
+                }
+              />
+              <TutorialStep
+                number={3}
+                icon={<MoreHorizontal className="h-5 w-5 text-muted-foreground" />}
+                title={
+                  platform === "facebook"
+                    ? 'Toque nos três pontinhos "⋯" no seu perfil'
+                    : 'Toque nos três traços "☰" no canto superior'
+                }
+                description={
+                  platform === "facebook"
+                    ? 'Geralmente fica perto do botão "Editar perfil".'
+                    : "Depois toque em uma opção de compartilhar."
+                }
+              />
+              <TutorialStep
+                number={4}
+                icon={<Share2 className="h-5 w-5 text-muted-foreground" />}
+                title={
+                  platform === "facebook"
+                    ? 'Toque em "Copiar link do perfil"'
+                    : 'Toque em "Copiar link do perfil"'
+                }
+                description="Pronto, o link foi copiado para a área de transferência."
+              />
+              <TutorialStep
+                number={5}
+                icon={<Link2 className="h-5 w-5 text-primary" />}
+                title="Volte aqui e cole"
+                description='Toque no botão verde "Já copiei — colar agora" e a gente confirma com sua foto.'
+                highlight
+              />
+
+              <Button
+                type="button"
+                variant="default"
+                size="lg"
+                className="w-full mt-4"
+                onClick={() => setStep("paste")}
+              >
+                Entendi, vou copiar agora
+              </Button>
+            </div>
+          )}
+
+          {/* ============ PREVIEWING ============ */}
           {step === "previewing" && (
             <div className="flex flex-col items-center py-8 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -311,19 +370,24 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
             </div>
           )}
 
-          {/* ============ STEP 4: CONFIRM ============ */}
+          {/* ============ CONFIRM ============ */}
           {step === "confirm" && preview && (
             <div className="space-y-4">
               <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 flex items-center gap-3">
                 <Avatar className="h-16 w-16 shrink-0">
-                  {preview.avatarUrl ? <AvatarImage src={preview.avatarUrl} alt={preview.name || preview.handle} /> : null}
+                  {preview.avatarUrl ? (
+                    <AvatarImage src={preview.avatarUrl} alt={preview.name || preview.handle} />
+                  ) : null}
                   <AvatarFallback className={meta.color}>
                     <Icon className="h-7 w-7" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="text-base font-semibold text-foreground truncate">
-                    {preview.name || (platform === "instagram" ? `@${preview.handle.replace(/^@/, "")}` : preview.handle)}
+                    {preview.name ||
+                      (platform === "instagram"
+                        ? `@${preview.handle.replace(/^@/, "")}`
+                        : preview.handle)}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
                     {preview.url.replace(/^https?:\/\//, "")}
@@ -351,5 +415,46 @@ export default function SocialConnectFlow({ platform, searchName, value, onChang
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function TutorialStep({
+  number,
+  icon,
+  title,
+  description,
+  highlight,
+}: {
+  number: number;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`flex gap-3 rounded-lg border p-3 ${
+        highlight
+          ? "border-primary/40 bg-primary/5"
+          : "border-border bg-muted/30"
+      }`}
+    >
+      <div className="flex flex-col items-center gap-1 shrink-0">
+        <div
+          className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${
+            highlight ? "bg-primary text-primary-foreground" : "bg-foreground/10 text-foreground"
+          }`}
+        >
+          {number}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          {icon}
+          <p className="text-sm font-semibold text-foreground leading-tight">{title}</p>
+        </div>
+        <p className="text-xs text-muted-foreground leading-snug">{description}</p>
+      </div>
+    </div>
   );
 }
