@@ -21,6 +21,7 @@ import { getSugestaoFeriado } from "@/lib/sugestoes-tema";
 import { useEstilosTema } from "@/hooks/useEstilosTema";
 import { EstilosTemaSelector } from "@/components/calendario/EstilosTemaSelector";
 import { diasAteCampanha, diasLabelCampanha } from "@/lib/calendario-datas";
+import { PromptArteButton } from "@/components/calendario/PromptArteButton";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -184,6 +185,15 @@ export function FeriadosWidget() {
                           <span><span className="font-medium">Sugestão:</span> {sug.tema}</span>
                         </p>
                       )}
+                      <div className="mt-2">
+                        <PromptArteButton
+                          tipo="feriado"
+                          feriado={{ localName: h.localName, name: h.name, date: h.date }}
+                          size="sm"
+                          variant="outline"
+                          label="Prompt de arte"
+                        />
+                      </div>
                     </div>
                   </li>
                 );
