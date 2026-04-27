@@ -17,12 +17,12 @@ export const ACCESS_PROFILES: Record<AccessProfile, { label: string; description
   gestor_campanha: {
     label: 'Gestor de Campanha',
     description: 'Apoiadores, Presenças, Territorial',
-    allowedPaths: ['/dashboard', '/supporters', '/checkins', '/territorial', '/pessoas', '/campanha'],
+    allowedPaths: ['/dashboard', '/supporters', '/checkins', '/territorial', '/pessoas', '/campanha', '/calendario-politico'],
   },
   operacional: {
     label: 'Operacional',
     description: 'Presenças/Disparos e Territorial',
-    allowedPaths: ['/dashboard', '/checkins', '/territorial'],
+    allowedPaths: ['/dashboard', '/checkins', '/territorial', '/calendario-politico'],
   },
 };
 
