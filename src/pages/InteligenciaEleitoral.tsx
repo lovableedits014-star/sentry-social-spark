@@ -252,6 +252,38 @@ const InteligenciaEleitoral = () => {
     exportXLSX(`ranking-${(l.nome_local || "local").replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { Ranking: data });
   };
 
+  // Auditoria: exporta TODOS os locais distintos com bairro (vazios incluídos) para conferência da geocodificação
+  const exportarAuditoriaBairros = () => {
+    const data = locaisMeta
+      .slice()
+      .sort((a, b) => a.zona - b.zona || a.nr_local - b.nr_local)
+      .map((l: any) => {
+        const bairro = l.bairro ?? "";
+        const status = bairro === "" ? "PENDENTE (não geocodificado)" : bairro === "" ? "FALHOU" : "OK";
+        return {
+          Zona: l.zona,
+          "Nº Local": l.nr_local,
+          "Local de votação": l.nome_local || "",
+          Endereço: l.endereco || "",
+          Bairro: bairro,
+          Status: bairro ? "OK" : "PENDENTE/FALHOU",
+          "Total votos": l.total,
+        };
+      });
+    const total = data.length;
+    const comBairro = data.filter((d) => d.Bairro).length;
+    const semBairro = total - comBairro;
+    const resumo = [
+      { Métrica: "Total de locais", Valor: total },
+      { Métrica: "Com bairro identificado", Valor: comBairro },
+      { Métrica: "Sem bairro (pendente ou falha)", Valor: semBairro },
+      { Métrica: "% cobertura", Valor: total > 0 ? `${((comBairro / total) * 100).toFixed(1)}%` : "0%" },
+      { Métrica: "Cargo", Valor: cargo },
+      { Métrica: "Turno", Valor: turno },
+    ];
+    exportXLSX(`auditoria-bairros-${cargo}-T${turno}.xlsx`, { "Locais": data, "Resumo": resumo });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -493,6 +525,14 @@ const InteligenciaEleitoral = () => {
                   className={`text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 ${localMode === "local" ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
                 >
                   <Building2 className="w-3.5 h-3.5" /> Buscar por local
+                </button>
+                <button
+                  onClick={exportarAuditoriaBairros}
+                  disabled={locaisMeta.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 hover:bg-muted ml-auto disabled:opacity-50"
+                  title="Baixa planilha com todos os locais e seus bairros (incluindo vazios) para conferir a geocodificação."
+                >
+                  <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
                 </button>
               </div>
             </CardHeader>
