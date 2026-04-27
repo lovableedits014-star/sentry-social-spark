@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   Loader2,
   Megaphone,
   X,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSugestaoFeriado, getTemasMes } from "@/lib/sugestoes-tema";
@@ -71,7 +72,19 @@ export default function CalendarioPolitico() {
     refetchOnWindowFocus: false,
   });
 
-  const allHolidays = useMemo(() => (data?.holidays ?? []).filter((h) => h.global !== false), [data]);
+  // Filtra globais e deduplica por data+name (evita duplicações entre anos cacheados)
+  const allHolidays = useMemo(() => {
+    const raw = (data?.holidays ?? []).filter((h) => h.global !== false);
+    const seen = new Set<string>();
+    const dedup: Holiday[] = [];
+    for (const h of raw) {
+      const k = `${h.date}|${h.name}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      dedup.push(h);
+    }
+    return dedup;
+  }, [data]);
 
   // Map data->feriado(s) para lookup O(1) na grade
   const holidaysByDate = useMemo(() => {
@@ -145,6 +158,28 @@ export default function CalendarioPolitico() {
     setSelectedDate(null);
     setCursor({ year: todayParts.year, month: todayParts.month });
   };
+
+  // Atalhos de teclado: ← → para navegar entre meses, T para hoje, Esc fecha o painel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target && (e.target as HTMLElement).tagName?.match(/INPUT|TEXTAREA|SELECT/)) return;
+      if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+      else if (e.key === "t" || e.key === "T") goToday();
+      else if (e.key === "Escape") setSelectedDate(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Próximos feriados (a partir de hoje, próximos 6)
+  const proximosFeriados = useMemo(() => {
+    return allHolidays
+      .filter((h) => h.date >= todayYMD)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 6);
+  }, [allHolidays, todayYMD]);
 
   const selectedHolidays = selectedDate ? holidaysByDate.get(selectedDate) ?? [] : [];
   const selectedSug = selectedHolidays.length > 0 ? getSugestaoFeriado(selectedHolidays[0], estilosAtivos) : null;
@@ -304,6 +339,12 @@ export default function CalendarioPolitico() {
                     <span className="flex items-center gap-1.5">
                       <span className="inline-block h-3 w-3 rounded bg-muted/30 border" /> Outro mês
                     </span>
+                    <span className="ml-auto hidden md:inline-flex items-center gap-1">
+                      Atalhos: <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">←</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">→</kbd> mês ·
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">T</kbd> hoje ·
+                      <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px]">Esc</kbd> fechar
+                    </span>
                   </div>
                 </>
               )}
@@ -370,6 +411,53 @@ export default function CalendarioPolitico() {
         )}
 
         {/* Tema político do mês — abaixo do calendário */}
+        {proximosFeriados.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm">Próximos feriados nacionais</CardTitle>
+              </div>
+              <CardDescription className="text-xs">
+                Planeje suas artes com antecedência. Clique para ir ao mês.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {proximosFeriados.map((h) => {
+                  const sug = getSugestaoFeriado(h, estilosAtivos);
+                  const dias = diasAte(h.date);
+                  const [hy, hm] = h.date.split("-").map(Number);
+                  return (
+                    <button
+                      key={`${h.date}-${h.name}`}
+                      type="button"
+                      onClick={() => {
+                        setCursor({ year: hy, month: hm - 1 });
+                        setSelectedDate(h.date);
+                      }}
+                      className="text-left rounded-md border p-2.5 hover:border-primary/60 hover:bg-primary/5 transition-all flex items-start gap-2.5"
+                    >
+                      <div className="text-2xl leading-none shrink-0">{sug?.emoji ?? "📅"}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{h.localName}</p>
+                        <p className="text-[11px] text-muted-foreground capitalize">
+                          {new Date(h.date + "T12:00:00").toLocaleDateString("pt-BR", {
+                            weekday: "short", day: "2-digit", month: "short",
+                          })}
+                        </p>
+                        <Badge variant={dias <= 7 ? "default" : "secondary"} className="mt-1 text-[10px]">
+                          {dias === 0 ? "hoje" : dias === 1 ? "amanhã" : `em ${dias} dias`}
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {temaMesAtivo && (
           <Card className="border-primary/30">
             <CardHeader className="pb-2">
