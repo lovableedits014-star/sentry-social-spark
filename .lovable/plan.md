@@ -1,108 +1,92 @@
-# 🚀 Roadmap de Integrações Grátis — versão revisada
+## O que vamos construir
 
-Análise do `github.com/public-apis/public-apis` concluída. **2 APIs adicionadas** ao plano (Nager.Date e Open-Meteo). O resto da lista é genérico/irrelevante para o público político brasileiro ou já coberto por fontes melhores.
+Duas frentes complementares dentro de **Inteligência Eleitoral**:
 
-Removidos definitivamente conforme suas instruções: Atividade Legislativa (Câmara/Senado), CRM com CNPJ, Portal da Transparência (CGU), OpenWeather, Telegram Bot, DeepL, alertas de clima via WhatsApp.
+### 1. Importador automático do TSE 2022 (todos cargos de MS)
+Uma Edge Function (`import-tse-results`) que baixa do repositório aberto do TSE (`https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/`) o ZIP oficial `votacao_candidato_munzona_2022.zip`, descompacta em memória, lê o CSV `votacao_candidato_munzona_2022_MS.csv` e popula `tse_votacao_zona` com `ano = 2022`. Cobre os 5 cargos: **Presidente, Governador, Senador, Deputado Federal, Deputado Estadual**.
 
----
+Botão "Importar dados 2022 (MS)" exibido apenas para Super-Admin numa nova seção da página.
 
-## 🌊 Onda 1 — Inteligência Eleitoral (TSE)
+### 2. Nova aba "Composição de Chapa"
+Dentro de `/inteligencia-eleitoral`, ao lado das abas atuais (Prefeito 2024, Vereador 2024). Exibe candidatos consolidados de **2022 + 2024** com filtros poderosos.
 
-**Objetivo**: dar ao candidato/gestor uma visão histórica eleitoral do território onde ele atua.
-
-### Fontes
-- **TSE Dados Abertos** (`dadosabertos.tse.jus.br`) — sem chave, sem rate limit relevante.
-  - Resultados de eleições anteriores por zona/seção
-  - Declarações de bens dos candidatos
-  - Filiação partidária
-
-### Entregas frontend
-- Nova aba **"Inteligência Eleitoral"** dentro do dashboard administrativo:
-  - Card "Histórico do meu reduto": mostra desempenho do candidato (ou aliados) na última eleição por zona/seção
-  - Mapa de calor textual (sem API de mapa, só painel) por bairro/zona
-  - Comparativo "candidatos concorrentes na mesma região"
-
-### Backend
-- Edge Function `tse-fetch-electoral-data` — wrapper com cache.
-- Tabela `tse_cache` (estilo `api_cache` genérico) com TTL de 30 dias (dados históricos não mudam).
-
----
-
-## 🌊 Onda 2 — Contexto, Monitoramento e Calendário
-
-### 2.1 IBGE — Contexto Socioeconômico
-- **Fonte**: `servicodados.ibge.gov.br/api/v1` — sem chave.
-- **Uso**: enriquecer painel Territorial com dados de renda, população, escolaridade por município/bairro. Permite segmentar discurso ("seus apoiadores no bairro X têm renda média de R$ Y, focar em discurso de Z").
-
-### 2.2 GDELT 2.0 — Monitor de Imprensa
-- **Fonte**: `api.gdeltproject.org/api/v2/doc/doc` — sem chave.
-- **Uso**: alimenta o Detector de Crise existente com menções do nome do candidato/cidade na imprensa nacional/internacional. Sparkline de "volume de menções nos últimos 7 dias".
-
-### 2.3 CEMADEN + INMET — Alertas Visuais de Clima
-- **CEMADEN**: alertas ativos de risco hidrológico/geológico por município.
-- **INMET**: avisos meteorológicos oficiais.
-- **Uso**: badge visual no calendário de eventos da campanha — "evento na cidade X tem alerta laranja de chuva forte". **Sem disparo automático no WhatsApp** (conforme você definiu).
-
-### 2.4 🆕 Open-Meteo — Previsão 7 Dias
-- **Fonte**: `api.open-meteo.com/v1/forecast` — sem chave, ilimitado.
-- **Uso**: complementa CEMADEN/INMET com previsão de 7 dias para eventos agendados. Permite remarcar com antecedência ("comício marcado pra sábado tem 80% de chuva").
-- **Por que adicionar**: CEMADEN só mostra alerta *ativo*. Open-Meteo dá visão futura, que é o que importa pra planejar agenda.
-
-### 2.5 🆕 Nager.Date — Feriados Brasileiros
-- **Fonte**: `date.nager.at/api/v3/PublicHolidays/{ano}/BR` — sem chave, ilimitado.
-- **Uso 1 (Disparos WhatsApp)**: bloquear ou alertar antes de agendar disparo em feriado nacional. Exibe aviso "atenção: 7 de setembro é feriado, taxa de leitura cai ~60%".
-- **Uso 2 (Calendário de Campanha)**: pinta feriados automaticamente no calendário de eventos. Pré-popula sugestões: "Dia das Mães → mensagem temática para suas apoiadoras mães", "Dia do Trabalhador → ato com sindicatos".
-- **Custo**: 1 fetch por ano por país, cacheável praticamente eterno.
-
----
-
-## 🏗️ Arquitetura comum (todas as ondas)
-
-### Tabela genérica de cache
-```sql
-create table public.api_cache (
-  endpoint_key text primary key,        -- ex: 'tse:zona:RJ:2022', 'nager:BR:2026'
-  payload jsonb not null,
-  fetched_at timestamptz default now(),
-  expires_at timestamptz not null
-);
+```text
+┌─ Inteligência Eleitoral ──────────────────────────────┐
+│ [Prefeito 2024] [Vereador 2024] [Composição de Chapa] │  ← abas no topo
+├───────────────────────────────────────────────────────┤
+│ FILTROS                                               │
+│ Mín. votos: [____]  Ano: [2022+2024▾] Cargo: [▾]      │
+│ Partido: [▾]  UF: [MS▾]  Município: [▾]  Buscar: [_] │
+├───────────────────────────────────────────────────────┤
+│ Ordenar por: [Total votos ▾] [⇅]                      │
+├───────────────────────────────────────────────────────┤
+│ Nome              Partido Cargo       2022   2024  Σ  │
+│ Fulano da Silva   PP      Vereador     —   12.430 …   │
+│ Beltrano X.       PL      Dep.Estadual 8.7k    —  …   │
+│ ...                                                   │
+└───────────────────────────────────────────────────────┘
+                                     [Exportar Excel]
 ```
-- TTL diferente por fonte: TSE = 30 dias, IBGE = 90 dias, GDELT = 1 hora, CEMADEN = 30 min, Open-Meteo = 1 hora, Nager = 1 ano.
-- RLS: leitura pública (são dados públicos), escrita apenas service role.
 
-### Edge Functions (uma por fonte)
-- `tse-fetch-electoral-data`
-- `ibge-fetch-context`
-- `gdelt-fetch-mentions`
-- `weather-alerts` (CEMADEN + INMET + Open-Meteo num só wrapper)
-- `holidays-fetch` (Nager.Date)
+## Filtros (todos opcionais e combináveis)
 
-Cada uma: valida input → consulta `api_cache` → se expirado, fetch externo → grava cache → retorna JSON. Fallback gracioso: se a fonte cair, retorna o último cache válido com flag `stale: true`.
+- **Mínimo de votos** — input numérico; filtra candidatos cuja soma dos votos (no escopo do filtro de ano) seja ≥ valor
+- **Ano** — `2022 + 2024 (todos)` | `Somente 2022` | `Somente 2024`
+- **Cargo** — multi-select (Prefeito, Vereador, Presidente, Governador, Senador, Dep. Federal, Dep. Estadual)
+- **Partido** — dropdown populado dinamicamente
+- **UF** — dropdown (hoje só MS, mas estrutura pronta)
+- **Município** — dropdown dependente da UF
+- **Busca livre** por nome (debounced)
 
-### Sem segredos novos
-Nenhuma das fontes selecionadas exige chave. Zero `add_secret`.
+## Ordenação
 
----
+Cabeçalhos de coluna clicáveis + dropdown de ordenação rápida:
+- Total de votos (soma 2022+2024)
+- Votos em 2024
+- Votos em 2022
+- Nome (A→Z / Z→A)
+- Partido (A→Z / Z→A)
 
-## ✅ Critérios de aceite
+## Cruzamento de candidatos entre anos
 
-1. Aba "Inteligência Eleitoral" mostra resultado real do TSE para pelo menos 1 zona escolhida pelo gestor.
-2. Painel Territorial exibe renda/população do IBGE para municípios cadastrados.
-3. Detector de Crise mostra sparkline de menções na imprensa via GDELT.
-4. Tela de criação de Disparo bloqueia/alerta quando data cai em feriado (Nager.Date).
-5. Calendário de eventos pinta feriados nacionais automaticamente.
-6. Card de evento agendado mostra previsão Open-Meteo + alerta CEMADEN/INMET (se houver).
-7. Todas as chamadas externas passam pelo cache — segunda visita à mesma tela não bate na API externa.
+Como o TSE não usa um ID estável entre eleições, agrupamos por chave normalizada:
+`lower(unaccent(nome_completo)) + '|' + partido` (fallback: só nome). Quando o mesmo candidato aparece em 2022 e 2024 — mesmo em cargos diferentes — aparece numa linha só com colunas separadas por ano e a soma total.
 
----
+## Detalhes técnicos
 
-## 📦 Ordem de execução sugerida
+**Banco**
+- Sem mudança de schema (já temos `ano, cargo, uf, municipio, partido, nome_completo, votos` em `tse_votacao_zona`).
+- Nova migração só adiciona índices: `(ano, cargo, partido)` e `(ano, uf, municipio)` para filtros rápidos.
+- Nova função SQL `get_chapa_candidates(p_uf, p_municipio, p_anos int[], p_cargos text[], p_partido, p_min_votos)` que retorna candidatos agregados por nome+partido com colunas `votos_2022`, `votos_2024`, `total`. Faz o agrupamento server-side para não puxar 100k linhas pro front.
 
-1. **Migração**: criar tabela `api_cache` (5 min).
-2. **Onda 1 completa** (TSE + UI da aba Inteligência Eleitoral).
-3. **Onda 2.5 (Nager.Date)** primeiro — é o mais barato e tem ganho imediato no módulo de Disparos que já existe.
-4. **Onda 2.3+2.4 (Clima)** — wrapper único `weather-alerts`, integra no calendário.
-5. **Onda 2.1 (IBGE)** — enriquecer painel Territorial.
-6. **Onda 2.2 (GDELT)** — integra no Detector de Crise existente.
+**Edge Function `import-tse-results`** (~150 linhas)
+- Input: `{ ano: 2022, uf: "MS" }`
+- Baixa ZIP do TSE com `fetch` + descompacta com `jsr:@zip-js/zip-js`
+- Lê CSV (latin1, separador `;`), filtra colunas necessárias
+- Insere em lotes de 1.000 com `upsert` na unique key `(ano, turno, cargo, cod_municipio, zona, numero)`
+- Reporta progresso ao retornar `{ inserted, skipped, total }`
+- Restrita a Super-Admin via verificação de JWT
 
-Sem mexer em RLS de tabelas existentes. Sem mexer em autenticação. Sem novas dependências npm relevantes (tudo `fetch` puro nas Edge Functions).
+**Frontend**
+- Nova aba `<TabsContent value="chapa">` em `InteligenciaEleitoral.tsx` (refatorando para `Tabs` se ainda não usar — já usa)
+- Componente `ComposicaoChapa.tsx` isolado
+- React Query com `staleTime: Infinity` (segue padrão do projeto)
+- Exportação Excel via `xlsx-js-style` (já importado na página)
+
+**Acesso**
+- Página existente já é restrita à equipe; nova aba herda o controle.
+- Botão "Importar 2022" só aparece para `lovableedits014@gmail.com` (Super-Admin).
+
+## Limitações honestas
+
+- O cruzamento entre anos é **heurístico por nome+partido**. Político que mudou de partido entre 2022 e 2024 vai aparecer em 2 linhas. Vou expor um botão "Mesclar manualmente" (fase 2) se virar problema.
+- Cada importação 2022 do MS = ~30k–50k linhas. A Edge Function tem limite de 60s, mas inserção em lotes paralelos resolve folgadamente.
+- Dados do TSE são públicos e abertos — sem necessidade de credenciais.
+
+## Entregáveis
+
+1. Migração SQL: índices + função `get_chapa_candidates`
+2. Edge Function `import-tse-results`
+3. Componente `src/components/inteligencia/ComposicaoChapa.tsx`
+4. Atualização de `src/pages/InteligenciaEleitoral.tsx` adicionando a aba e o botão de importação
+5. Botão de exportar Excel da chapa filtrada
