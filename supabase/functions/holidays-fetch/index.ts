@@ -1,135 +1,173 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "@supabase/supabase-js/cors";
+import { createClient } from "@supabase/supabase-js";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/**
+ * holidays-fetch
+ * Busca feriados nacionais brasileiros via Nager.Date (sem chave, ilimitado).
+ * Faz cache em public.api_cache com TTL de 1 ano (feriados não mudam).
+ * Endpoint: GET ?year=2026   ou   ?years=2026,2027
+ * Retorna: { holidays: [{ date, localName, name, types, ... }], cached: bool, source }
+ */
 
 const NAGER_BASE = "https://date.nager.at/api/v3/PublicHolidays";
-const TTL_DAYS = 365; // feriados oficiais não mudam dentro do ano
+const COUNTRY = "BR";
+const TTL_DAYS = 365;
 
-type Holiday = {
-  date: string;          // YYYY-MM-DD
+type NagerHoliday = {
+  date: string;
   localName: string;
   name: string;
   countryCode: string;
-  fixed?: boolean;
-  global?: boolean;
-  counties?: string[] | null;
-  launchYear?: number | null;
-  types?: string[];
+  fixed: boolean;
+  global: boolean;
+  counties: string[] | null;
+  launchYear: number | null;
+  types: string[];
 };
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+function cacheKey(year: number) {
+  return `nager:${COUNTRY}:${year}`;
+}
+
+async function fetchYearFromNager(year: number): Promise<NagerHoliday[]> {
+  const url = `${NAGER_BASE}/${year}/${COUNTRY}`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
   });
+  if (!res.ok) {
+    throw new Error(`Nager.Date returned ${res.status} for year ${year}`);
+  }
+  const data = (await res.json()) as NagerHoliday[];
+  if (!Array.isArray(data)) {
+    throw new Error(`Unexpected response shape from Nager.Date for year ${year}`);
+  }
+  return data;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    let year = Number(url.searchParams.get("year"));
-    let country = (url.searchParams.get("country") || "BR").toUpperCase();
+    const yearsParam = url.searchParams.get("years");
+    const yearParam = url.searchParams.get("year");
+    const force = url.searchParams.get("force") === "1";
 
-    if (req.method === "POST") {
+    let years: number[];
+    if (yearsParam) {
+      years = yearsParam
+        .split(",")
+        .map((y) => parseInt(y.trim(), 10))
+        .filter((y) => Number.isInteger(y) && y >= 2000 && y <= 2100);
+    } else if (yearParam) {
+      const y = parseInt(yearParam, 10);
+      if (!Number.isInteger(y) || y < 2000 || y > 2100) {
+        return new Response(
+          JSON.stringify({ error: "year must be an integer between 2000 and 2100" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      years = [y];
+    } else {
+      const current = new Date().getUTCFullYear();
+      years = [current, current + 1];
+    }
+
+    if (years.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "no valid years requested" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const allHolidays: (NagerHoliday & { year: number })[] = [];
+    let cachedCount = 0;
+    let fetchedCount = 0;
+    const errors: { year: number; error: string }[] = [];
+
+    for (const year of years) {
+      const key = cacheKey(year);
+
+      if (!force) {
+        const { data: cached } = await supabase
+          .from("api_cache")
+          .select("payload, expires_at")
+          .eq("endpoint_key", key)
+          .maybeSingle();
+
+        if (cached && new Date(cached.expires_at).getTime() > Date.now()) {
+          const arr = (cached.payload as unknown as NagerHoliday[]) ?? [];
+          for (const h of arr) allHolidays.push({ ...h, year });
+          cachedCount += 1;
+          continue;
+        }
+      }
+
       try {
-        const body = await req.json();
-        if (body?.year) year = Number(body.year);
-        if (body?.country) country = String(body.country).toUpperCase();
-      } catch (_) { /* sem body json é ok */ }
-    }
+        const fresh = await fetchYearFromNager(year);
+        const expires = new Date(Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const currentYear = new Date().getFullYear();
-    if (!year || isNaN(year)) year = currentYear;
-    if (year < 2000 || year > currentYear + 5) {
-      return jsonResponse({ error: "year fora do intervalo permitido" }, 400);
-    }
-    if (!/^[A-Z]{2}$/.test(country)) {
-      return jsonResponse({ error: "country deve ser ISO-3166 alpha-2 (ex: BR)" }, 400);
-    }
+        const { error: upsertError } = await supabase
+          .from("api_cache")
+          .upsert(
+            {
+              endpoint_key: key,
+              source: "nager.date",
+              payload: fresh,
+              fetched_at: new Date().toISOString(),
+              expires_at: expires,
+            },
+            { onConflict: "endpoint_key" },
+          );
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const admin = createClient(supabaseUrl, serviceKey);
+        if (upsertError) {
+          console.error(`[holidays-fetch] cache upsert failed for ${year}:`, upsertError);
+        }
 
-    const cacheKey = `nager:${country}:${year}`;
-
-    // 1) tenta cache
-    const { data: cached } = await admin
-      .from("api_cache")
-      .select("payload, fetched_at, expires_at")
-      .eq("endpoint_key", cacheKey)
-      .maybeSingle();
-
-    const now = Date.now();
-    if (cached && new Date(cached.expires_at).getTime() > now) {
-      return jsonResponse({
-        country,
-        year,
-        source: "cache",
-        fetched_at: cached.fetched_at,
-        holidays: cached.payload,
-      });
-    }
-
-    // 2) fetch externo
-    let holidays: Holiday[] = [];
-    let stale = false;
-    try {
-      const resp = await fetch(`${NAGER_BASE}/${year}/${country}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!resp.ok) {
-        throw new Error(`Nager.Date HTTP ${resp.status}`);
+        for (const h of fresh) allHolidays.push({ ...h, year });
+        fetchedCount += 1;
+      } catch (err) {
+        console.error(`[holidays-fetch] fetch failed for ${year}:`, err);
+        // Fallback: tenta servir cache vencido
+        const { data: stale } = await supabase
+          .from("api_cache")
+          .select("payload")
+          .eq("endpoint_key", key)
+          .maybeSingle();
+        if (stale?.payload) {
+          const arr = (stale.payload as unknown as NagerHoliday[]) ?? [];
+          for (const h of arr) allHolidays.push({ ...h, year });
+        } else {
+          errors.push({ year, error: err instanceof Error ? err.message : String(err) });
+        }
       }
-      holidays = (await resp.json()) as Holiday[];
-      if (!Array.isArray(holidays)) throw new Error("Resposta Nager.Date inválida");
-    } catch (err) {
-      console.error("holidays-fetch upstream error:", err);
-      // fallback: se temos cache mesmo expirado, devolvemos com flag stale
-      if (cached?.payload) {
-        return jsonResponse({
-          country,
-          year,
-          source: "cache-stale",
-          stale: true,
-          fetched_at: cached.fetched_at,
-          holidays: cached.payload,
-        });
-      }
-      return jsonResponse({ error: "Falha ao consultar Nager.Date e sem cache disponível" }, 502);
     }
 
-    // 3) grava cache
-    const expiresAt = new Date(now + TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    const { error: upsertErr } = await admin
-      .from("api_cache")
-      .upsert({
-        endpoint_key: cacheKey,
+    allHolidays.sort((a, b) => a.date.localeCompare(b.date));
+
+    return new Response(
+      JSON.stringify({
+        holidays: allHolidays,
+        years,
+        cached_years: cachedCount,
+        fetched_years: fetchedCount,
+        errors,
         source: "nager.date",
-        payload: holidays as unknown as Record<string, unknown>,
-        fetched_at: new Date(now).toISOString(),
-        expires_at: expiresAt,
-      }, { onConflict: "endpoint_key" });
-    if (upsertErr) console.error("holidays-fetch cache upsert error:", upsertErr);
-
-    return jsonResponse({
-      country,
-      year,
-      source: "fresh",
-      fetched_at: new Date(now).toISOString(),
-      holidays,
-      stale,
-    });
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
-    console.error("holidays-fetch error:", err);
-    return jsonResponse({ error: "internal" }, 500);
+    console.error("[holidays-fetch] fatal:", err);
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
