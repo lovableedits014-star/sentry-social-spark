@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,6 +50,14 @@ const InteligenciaEleitoral = () => {
   const [selectedLocal, setSelectedLocal] = useState<string | null>(null); // "zona-nr_local"
   const [candidatoSearch, setCandidatoSearch] = useState("");
   const [localSearch, setLocalSearch] = useState("");
+
+  // Resetar seleções ao trocar cargo ou turno (evita mostrar candidato de prefeito ao trocar para vereador)
+  useEffect(() => {
+    setSelectedCandidato(null);
+    setSelectedLocal(null);
+    setCandidatoSearch("");
+    setLocalSearch("");
+  }, [cargo, turno]);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["tse-votacao", cargo, turno],
@@ -175,10 +183,10 @@ const InteligenciaEleitoral = () => {
 
   const candidatosFiltrados = useMemo(() => {
     const s = candidatoSearch.toLowerCase().trim();
-    if (!s) return ranking.slice(0, 50);
+    if (!s) return ranking.slice(0, 200);
     return ranking.filter(
       (c) => c.nome.toLowerCase().includes(s) || String(c.numero).includes(s) || c.partido.toLowerCase().includes(s),
-    ).slice(0, 80);
+    ).slice(0, 200);
   }, [ranking, candidatoSearch]);
 
   const locaisFiltrados = useMemo(() => {
@@ -445,11 +453,14 @@ const InteligenciaEleitoral = () => {
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar candidato…"
+                          placeholder={`Buscar entre ${ranking.length} candidatos…`}
                           value={candidatoSearch}
                           onChange={(e) => setCandidatoSearch(e.target.value)}
                           className="pl-9 h-8 text-sm"
                         />
+                      </div>
+                      <div className="text-[11px] text-muted-foreground px-1">
+                        Mostrando {candidatosFiltrados.length} de {ranking.length} ({cargo})
                       </div>
                       {candidatosFiltrados.map((c) => (
                         <button
