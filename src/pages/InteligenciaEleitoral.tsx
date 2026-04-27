@@ -52,6 +52,7 @@ const InteligenciaEleitoral = () => {
   const [selectedLocal, setSelectedLocal] = useState<string | null>(null); // "zona-nr_local"
   const [candidatoSearch, setCandidatoSearch] = useState("");
   const [localSearch, setLocalSearch] = useState("");
+  const [bairroFilter, setBairroFilter] = useState<string>("__all__");
 
   // Resetar seleções ao trocar cargo ou turno (evita mostrar candidato de prefeito ao trocar para vereador)
   useEffect(() => {
@@ -90,6 +91,7 @@ const InteligenciaEleitoral = () => {
         nr_local: r.nr_local,
         nome_local: r.nome_local || "",
         endereco: r.endereco || "",
+        bairro: r.bairro || "",
         total: Number(r.total_votos || 0),
       }));
     },
@@ -195,12 +197,60 @@ const InteligenciaEleitoral = () => {
     const s = localSearch.toLowerCase().trim();
     if (!s) return locaisMeta.slice(0, 50);
     return locaisMeta.filter(
-      (l) => (l.nome_local || "").toLowerCase().includes(s) || (l.endereco || "").toLowerCase().includes(s) || String(l.zona).includes(s),
+      (l) =>
+        (l.nome_local || "").toLowerCase().includes(s) ||
+        (l.endereco || "").toLowerCase().includes(s) ||
+        ((l as any).bairro || "").toLowerCase().includes(s) ||
+        String(l.zona).includes(s),
     ).slice(0, 80);
   }, [locaisMeta, localSearch]);
 
   const totalVotosCand = votosPorLocalCand.reduce((s, r) => s + r.votos, 0);
   const totalVotosLocal = rankingDoLocal.reduce((s, r) => s + r.votos, 0);
+
+  // Bairros únicos presentes nos metadados (para o filtro)
+  const bairrosDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    locaisMeta.forEach((l: any) => { if (l.bairro) set.add(l.bairro); });
+    return Array.from(set).sort();
+  }, [locaisMeta]);
+
+  // Exportação XLSX
+  const exportXLSX = (filename: string, sheets: Record<string, any[]>) => {
+    const wb = XLSX.utils.book_new();
+    Object.entries(sheets).forEach(([name, data]) => {
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+    });
+    XLSX.writeFile(wb, filename);
+  };
+
+  const exportarVotosCandidato = () => {
+    const cand = ranking.find((c) => c.numero === selectedCandidato);
+    if (!cand) return;
+    const data = votosPorLocalCand.map((r, i) => ({
+      Posição: i + 1,
+      "Local de votação": r.nome_local,
+      Endereço: r.endereco,
+      Bairro: (r as any).bairro || "",
+      Zona: r.zona,
+      Votos: r.votos,
+    }));
+    exportXLSX(`votos-${cand.nome.replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { "Por local": data });
+  };
+
+  const exportarRankingLocal = () => {
+    const l = locaisMeta.find((x) => `${x.zona}-${x.nr_local}` === selectedLocal);
+    if (!l) return;
+    const data = rankingDoLocal.map((r, i) => ({
+      Posição: i + 1,
+      Candidato: r.nome_candidato,
+      Número: r.numero,
+      Votos: r.votos,
+      "% local": totalVotosLocal > 0 ? Number(((r.votos / totalVotosLocal) * 100).toFixed(2)) : 0,
+    }));
+    exportXLSX(`ranking-${(l.nome_local || "local").replace(/\s+/g, "_")}-${cargo}-T${turno}.xlsx`, { Ranking: data });
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -482,14 +532,28 @@ const InteligenciaEleitoral = () => {
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar escola, endereço ou zona…"
+                          placeholder="Buscar escola, endereço, bairro ou zona…"
                           value={localSearch}
                           onChange={(e) => setLocalSearch(e.target.value)}
                           className="pl-9 h-8 text-sm"
                         />
                       </div>
+                      {bairrosDisponiveis.length > 0 && (
+                        <Select value={bairroFilter} onValueChange={setBairroFilter}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Filtrar por bairro" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__all__">Todos os bairros</SelectItem>
+                            {bairrosDisponiveis.map((b) => (
+                              <SelectItem key={b} value={b}>{b}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       {locaisFiltrados.map((l) => {
                         const k = `${l.zona}-${l.nr_local}`;
+                        if (bairroFilter !== "__all__" && (l as any).bairro !== bairroFilter) return null;
                         return (
                           <button
                             key={k}
@@ -498,6 +562,9 @@ const InteligenciaEleitoral = () => {
                           >
                             <div className="font-medium text-xs leading-tight truncate">{l.nome_local}</div>
                             <div className="text-xs text-muted-foreground truncate">{l.endereco}</div>
+                            {(l as any).bairro && (
+                              <div className="text-[11px] text-primary truncate">📍 {(l as any).bairro}</div>
+                            )}
                             <div className="text-xs text-muted-foreground">
                               Zona {l.zona} · {l.total.toLocaleString("pt-BR")} votos
                             </div>
@@ -523,10 +590,21 @@ const InteligenciaEleitoral = () => {
                   {localMode === "candidato" && selectedCandidato && (
                     <div className="space-y-3">
                       <div className="border rounded-lg p-3 bg-muted/20">
-                        <div className="text-sm text-muted-foreground">Candidato</div>
-                        <div className="font-bold text-lg">{ranking.find((c) => c.numero === selectedCandidato)?.nome}</div>
-                        <div className="text-sm">
-                          {totalVotosCand.toLocaleString("pt-BR")} votos em {votosPorLocalCand.length} locais
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm text-muted-foreground">Candidato</div>
+                            <div className="font-bold text-lg">{ranking.find((c) => c.numero === selectedCandidato)?.nome}</div>
+                            <div className="text-sm">
+                              {totalVotosCand.toLocaleString("pt-BR")} votos em {votosPorLocalCand.length} locais
+                            </div>
+                          </div>
+                          <button
+                            onClick={exportarVotosCandidato}
+                            disabled={votosPorLocalCand.length === 0}
+                            className="text-xs px-3 py-1.5 rounded border bg-background hover:bg-muted flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Exportar XLSX
+                          </button>
                         </div>
                       </div>
                       {loadingCand ? (
@@ -539,6 +617,7 @@ const InteligenciaEleitoral = () => {
                                 <TableHead className="w-12">Pos.</TableHead>
                                 <TableHead>Local de votação</TableHead>
                                 <TableHead>Endereço</TableHead>
+                                <TableHead>Bairro</TableHead>
                                 <TableHead>Zona</TableHead>
                                 <TableHead className="text-right">Votos</TableHead>
                               </TableRow>
@@ -549,6 +628,7 @@ const InteligenciaEleitoral = () => {
                                   <TableCell className={`font-bold ${i < 3 ? "text-primary" : ""}`}>{i + 1}º</TableCell>
                                   <TableCell className="font-medium text-sm">{r.nome_local}</TableCell>
                                   <TableCell className="text-xs text-muted-foreground">{r.endereco}</TableCell>
+                                  <TableCell className="text-xs">{(r as any).bairro || <span className="text-muted-foreground">—</span>}</TableCell>
                                   <TableCell className="tabular-nums">{r.zona}</TableCell>
                                   <TableCell className="text-right tabular-nums font-semibold">{r.votos.toLocaleString("pt-BR")}</TableCell>
                                 </TableRow>
@@ -565,11 +645,25 @@ const InteligenciaEleitoral = () => {
                         const l = locaisMeta.find((x) => `${x.zona}-${x.nr_local}` === selectedLocal);
                         return l ? (
                           <div className="border rounded-lg p-3 bg-muted/20">
-                            <div className="text-sm text-muted-foreground">Local de votação · Zona {l.zona}</div>
-                            <div className="font-bold">{l.nome_local}</div>
-                            <div className="text-xs text-muted-foreground">{l.endereco}</div>
-                            <div className="text-sm mt-1">
-                              {totalVotosLocal.toLocaleString("pt-BR")} votos · {rankingDoLocal.length} candidatos
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="text-sm text-muted-foreground">Local de votação · Zona {l.zona}</div>
+                                <div className="font-bold">{l.nome_local}</div>
+                                <div className="text-xs text-muted-foreground">{l.endereco}</div>
+                                {(l as any).bairro && (
+                                  <div className="text-xs text-primary mt-0.5">📍 Bairro: {(l as any).bairro}</div>
+                                )}
+                                <div className="text-sm mt-1">
+                                  {totalVotosLocal.toLocaleString("pt-BR")} votos · {rankingDoLocal.length} candidatos
+                                </div>
+                              </div>
+                              <button
+                                onClick={exportarRankingLocal}
+                                disabled={rankingDoLocal.length === 0}
+                                className="text-xs px-3 py-1.5 rounded border bg-background hover:bg-muted flex items-center gap-1.5 disabled:opacity-50"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Exportar XLSX
+                              </button>
                             </div>
                           </div>
                         ) : null;
