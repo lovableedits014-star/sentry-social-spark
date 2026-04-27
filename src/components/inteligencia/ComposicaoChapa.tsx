@@ -200,6 +200,21 @@ export default function ComposicaoChapa() {
 
   const totalGeral = ordenados.reduce((s, r) => s + (r.total || 0), 0);
 
+  // Agrega força por partido com base nos resultados filtrados
+  const partidosRanking = useMemo(() => {
+    const map = new Map<string, { partido: string; total: number; v2022: number; v2024: number; candidatos: number }>();
+    for (const r of ordenados) {
+      const key = r.partido || "SEM PARTIDO";
+      const cur = map.get(key) || { partido: key, total: 0, v2022: 0, v2024: 0, candidatos: 0 };
+      cur.total += r.total || 0;
+      cur.v2022 += r.votos_2022 || 0;
+      cur.v2024 += r.votos_2024 || 0;
+      cur.candidatos += 1;
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [ordenados]);
+
   return (
     <div className="space-y-4">
       {/* Cabeçalho contextual */}
