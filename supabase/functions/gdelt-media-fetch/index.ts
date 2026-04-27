@@ -166,10 +166,26 @@ async function fetchGoogleNews(query: string, timespan: string, country: string,
     const iso = it.pubDate ? new Date(it.pubDate).toISOString() : "";
     // Converter ISO para formato GDELT-like (YYYYMMDDTHHMMSSZ) para o front continuar usando parseGdeltDate
     const seen = iso ? iso.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z") : "";
+    // O Google News injeta o nome do veículo no <source> ou no final do título: "Título - Veículo".
+    // O `link` é um redirector (news.google.com/...), então usamos o nome do veículo como "domain".
+    let title = it.title || "";
+    let domain = it.sourceName || "";
+    if (!domain) {
+      const dash = title.lastIndexOf(" - ");
+      if (dash > 10) {
+        domain = title.slice(dash + 3).trim();
+        title = title.slice(0, dash).trim();
+      }
+    } else {
+      // Limpa " - Veículo" duplicado do título
+      const suffix = ` - ${domain}`;
+      if (title.endsWith(suffix)) title = title.slice(0, -suffix.length).trim();
+    }
+    if (!domain) domain = extractDomain(it.link || "") || "news.google.com";
     return {
-      title: it.title || "",
+      title,
       url: it.link || "",
-      domain: extractDomain(it.link || ""),
+      domain: domain.toLowerCase(),
       seendate: seen,
       language: lang,
       sourcecountry: sc,
