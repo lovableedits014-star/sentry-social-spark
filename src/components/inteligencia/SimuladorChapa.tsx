@@ -396,6 +396,146 @@ export default function SimuladorChapa() {
         </div>
       )}
 
+      {chapa.length > 0 && uf !== "__all__" && universoMunicipios.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" /> Mapa de calor — cobertura em {uf}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Cada célula é um município de {uf}. Cor mais intensa = mais votos da chapa. Células
+              vermelhas tracejadas indicam <strong>gaps</strong> (sem cobertura). Passe o mouse para detalhes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(() => {
+              const cobertosMap = new Map(porMunicipio.map((m) => [m.municipio, m]));
+              const universoOrdenado = [...universoMunicipios].sort((a, b) =>
+                a.municipio.localeCompare(b.municipio, "pt-BR")
+              );
+              const maxVotos = Math.max(1, ...porMunicipio.map((m) => m.total));
+              const intensity = (v: number) => {
+                if (v <= 0) return 0;
+                // escala raiz quadrada para realçar diferenças nas pontas
+                return Math.min(1, Math.sqrt(v / maxVotos));
+              };
+              const cobertosCount = porMunicipio.filter((m) => m.uf === uf).length;
+              const totalUF = universoOrdenado.length;
+              const gapsUF = totalUF - cobertosCount;
+              return (
+                <>
+                  {/* Legenda */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Intensidade:</span>
+                      <div className="flex items-center gap-0.5">
+                        {[0.15, 0.3, 0.5, 0.7, 0.9, 1].map((a, i) => (
+                          <div
+                            key={i}
+                            className="w-5 h-3 rounded-sm border border-border/50"
+                            style={{ background: `hsl(var(--primary) / ${a})` }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-muted-foreground">+ votos</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm border border-dashed border-destructive bg-destructive/10" />
+                      <span className="text-muted-foreground">Gap (sem cobertura)</span>
+                    </div>
+                    <div className="ml-auto flex items-center gap-3 text-muted-foreground">
+                      <span><span className="font-semibold text-foreground">{fmt(cobertosCount)}</span> cobertos</span>
+                      <span className="text-destructive"><span className="font-semibold">{fmt(gapsUF)}</span> gaps</span>
+                      <span><span className="font-semibold text-foreground">{totalUF > 0 ? ((cobertosCount / totalUF) * 100).toFixed(1) : 0}%</span> cobertura</span>
+                    </div>
+                  </div>
+
+                  {/* Grid de células */}
+                  <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
+                    {universoOrdenado.map((u) => {
+                      const dados = cobertosMap.get(u.municipio);
+                      const votos = dados?.total || 0;
+                      const presentes = dados?.presentes || 0;
+                      const isGap = !dados || votos === 0;
+                      const alpha = intensity(votos);
+                      const presentesNomes = chapa
+                        .map((c) => {
+                          const k = `${c.nome}__${c.partido || ""}`;
+                          return { nome: c.nome, votos: dados?.porCand[k] || 0 };
+                        })
+                        .filter((x) => x.votos > 0)
+                        .sort((a, b) => b.votos - a.votos);
+                      const tooltip = isGap
+                        ? `${u.municipio}\nGap — nenhum candidato da chapa pontua aqui`
+                        : `${u.municipio}\n${fmt(votos)} votos · ${presentes} candidato(s)\n${presentesNomes
+                            .slice(0, 5)
+                            .map((p) => `• ${p.nome}: ${fmt(p.votos)}`)
+                            .join("\n")}`;
+                      return (
+                        <div
+                          key={u.municipio}
+                          title={tooltip}
+                          className={`relative h-12 rounded-sm border text-[10px] px-1.5 py-1 overflow-hidden cursor-default transition-transform hover:scale-105 hover:z-10 hover:shadow-md ${
+                            isGap
+                              ? "border-dashed border-destructive/60 bg-destructive/10"
+                              : "border-border/50"
+                          }`}
+                          style={
+                            isGap
+                              ? undefined
+                              : { background: `hsl(var(--primary) / ${alpha})` }
+                          }
+                        >
+                          <div
+                            className={`font-medium truncate leading-tight ${
+                              isGap
+                                ? "text-destructive"
+                                : alpha > 0.55
+                                ? "text-primary-foreground"
+                                : "text-foreground"
+                            }`}
+                          >
+                            {u.municipio}
+                          </div>
+                          <div
+                            className={`tabular-nums leading-tight ${
+                              isGap
+                                ? "text-destructive/70"
+                                : alpha > 0.55
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {isGap ? "sem voto" : fmt(votos)}
+                          </div>
+                          {!isGap && presentes > 1 && (
+                            <div
+                              className={`absolute top-0.5 right-1 text-[9px] font-bold ${
+                                alpha > 0.55 ? "text-primary-foreground" : "text-foreground/70"
+                              }`}
+                            >
+                              {presentes}×
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {chapa.length > 0 && uf === "__all__" && (
+        <Card className="border-dashed">
+          <CardContent className="p-4 text-xs text-muted-foreground text-center">
+            Selecione uma UF específica acima para visualizar o mapa de calor de municípios e gaps.
+          </CardContent>
+        </Card>
+      )}
+
       {chapa.length > 0 && (
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
