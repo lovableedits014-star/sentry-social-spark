@@ -600,7 +600,7 @@ const InteligenciaEleitoral = () => {
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar escola, endereço, bairro ou zona…"
+                          placeholder={bairroFilter !== "__all__" ? `Buscar dentro de ${bairroFilter}…` : "Buscar escola, endereço, bairro ou zona…"}
                           value={localSearch}
                           onChange={(e) => setLocalSearch(e.target.value)}
                           className="pl-9 h-8 text-sm"
