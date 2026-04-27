@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 import * as XLSXStyle from "xlsx-js-style";
 import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
 import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
+import EvolucaoPartidos from "@/components/inteligencia/EvolucaoPartidos";
 
 type Row = {
   id: number;
@@ -571,6 +572,7 @@ const InteligenciaEleitoral = () => {
           <TabsTrigger value="por-local">Por local de votação</TabsTrigger>
           <TabsTrigger value="composicao-chapa">Composição de Chapa</TabsTrigger>
           <TabsTrigger value="comparar-candidatos">Comparar candidatos</TabsTrigger>
+          <TabsTrigger value="evolucao-partidos">Partidos & Migrações</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ranking" className="mt-4">
@@ -1025,6 +1027,10 @@ const InteligenciaEleitoral = () => {
 
         <TabsContent value="comparar-candidatos" className="mt-4">
           <CompararCandidatos />
+        </TabsContent>
+
+        <TabsContent value="evolucao-partidos" className="mt-4">
+          <EvolucaoPartidos />
         </TabsContent>
       </Tabs>
 
