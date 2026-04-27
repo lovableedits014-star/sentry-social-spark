@@ -180,8 +180,8 @@ export default function Territorial() {
     queryKey: ["territorial-supporters", client?.id],
     queryFn: async () => {
       if (!client?.id) return [];
-      const { data } = await supabase.from("supporter_accounts").select("id, name, city, neighborhood, state, created_at").eq("client_id", client.id);
-      return (data || []) as Array<{ id: string; name: string; city: string | null; neighborhood: string | null; state: string | null; created_at: string }>;
+      const { data } = await supabase.from("supporter_accounts").select("id, name, phone, cpf, supporter_id, city, neighborhood, state, created_at").eq("client_id", client.id);
+      return (data || []) as Array<{ id: string; name: string; phone: string | null; cpf: string | null; supporter_id: string | null; city: string | null; neighborhood: string | null; state: string | null; created_at: string }>;
     },
     enabled: !!client?.id,
   });
@@ -190,8 +190,8 @@ export default function Territorial() {
     queryKey: ["territorial-indicados", client?.id],
     queryFn: async () => {
       if (!client?.id) return [];
-      const { data } = await supabase.from("contratado_indicados").select("id, nome, cidade, bairro, created_at").eq("client_id", client.id).eq("status", "confirmado");
-      return (data || []) as Array<{ id: string; nome: string; cidade: string | null; bairro: string | null; created_at: string }>;
+      const { data } = await supabase.from("contratado_indicados").select("id, nome, telefone, cidade, bairro, created_at").eq("client_id", client.id).eq("status", "confirmado");
+      return (data || []) as Array<{ id: string; nome: string; telefone: string | null; cidade: string | null; bairro: string | null; created_at: string }>;
     },
     enabled: !!client?.id,
   });
@@ -205,7 +205,7 @@ export default function Territorial() {
       const result: PessoaRow[] = [];
       let from = 0;
       while (true) {
-        const { data } = await supabase.from("pessoas").select("id, nome, cidade, bairro, telefone, tipo_pessoa, origem_contato, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+        const { data } = await supabase.from("pessoas").select("id, nome, cidade, bairro, telefone, cpf, supporter_id, tipo_pessoa, origem_contato, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         result.push(...data);
         if (data.length < PAGE) break;
