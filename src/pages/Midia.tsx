@@ -179,7 +179,7 @@ const MidiaPage = () => {
     setTimespan(s.timespan || "7d");
     setCountry(s.country || "BR");
     const q = buildQuery(s.terms || [], (s.municipio || "").trim(), (s.uf || "").trim());
-    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country });
+    if (q.length >= 2) setSubmitted({ q, ts: s.timespan, c: s.country, src: sourcesKey(sources) });
     toast.success(`Busca "${s.name}" carregada`);
   };
 
@@ -385,11 +385,11 @@ const MidiaPage = () => {
     e?.preventDefault();
     const q = buildQuery(terms, municipio.trim(), uf.trim());
     if (q.length < 2) return;
-    setSubmitted({ q, ts: timespan, c: country });
+    setSubmitted({ q, ts: timespan, c: country, src: sourcesKey(sources) });
   };
 
   const { data, isLoading, isFetching, refetch, error } = useQuery<GdeltData | null>({
-    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c],
+    queryKey: ["midia-gdelt", submitted?.q, submitted?.ts, submitted?.c, submitted?.src],
     enabled: !!submitted && (submitted.q?.length ?? 0) >= 2,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -399,6 +399,7 @@ const MidiaPage = () => {
         country: submitted.c,
         timespan: submitted.ts,
         maxrecords: "75",
+        sources: submitted.src || "gdelt,google_news",
       });
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gdelt-media-fetch?${params.toString()}`;
       const res = await fetch(url, {
