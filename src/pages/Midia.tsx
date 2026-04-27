@@ -209,6 +209,20 @@ const MidiaPage = () => {
         )}
       </div>
 
+      <Tabs defaultValue="monitor" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="monitor" className="gap-1.5">
+            <Search className="w-3.5 h-3.5" /> Monitoramento
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5">
+            <Bell className="w-3.5 h-3.5" /> Alertas
+            {unreadAlerts > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">{unreadAlerts}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="monitor" className="space-y-6 mt-0">
       {/* Filtros */}
       <Card>
         <CardHeader>
