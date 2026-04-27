@@ -34,9 +34,58 @@ interface PessoaRow {
   cidade: string | null;
   bairro: string | null;
   telefone: string | null;
+  cpf?: string | null;
+  supporter_id?: string | null;
   tipo_pessoa: string;
   origem_contato: string;
   created_at: string;
+}
+
+const canonPerson = (v: string | null | undefined) =>
+  (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+const onlyDigits = (v: string | null | undefined) => (v || "").replace(/\D/g, "");
+const cleanCity = (v: string | null | undefined) => ((v || "").trim().replace(/[\s,/-]+[A-Za-z]{2}\s*$/, "").trim() || (v || "").trim());
+const phoneIdentity = (v: string | null | undefined) => {
+  const digits = onlyDigits(v);
+  if (digits.length < 8) return "";
+  return digits.length > 11 ? digits.slice(-11) : digits;
+};
+
+const personAliases = (p: { name?: string | null; phone?: string | null; cpf?: string | null; city?: string | null; neighborhood?: string | null; supporter_id?: string | null }) => {
+  const aliases: string[] = [];
+  const cpf = onlyDigits(p.cpf);
+  const phone = phoneIdentity(p.phone);
+  const name = canonPerson(p.name);
+  if (p.supporter_id) aliases.push(`supporter:${p.supporter_id}`);
+  if (cpf.length === 11) aliases.push(`cpf:${cpf}`);
+  if (phone) aliases.push(`phone:${phone}`);
+  if (name) aliases.push(`name-local:${name}|${canonPerson(cleanCity(p.city))}|${canonPerson(p.neighborhood)}`);
+  return aliases;
+};
+
+function dedupeByPerson<T extends { id: string; name: string | null; phone: string | null; cpf?: string | null; city: string | null; neighborhood: string | null; state?: string | null; supporter_id?: string | null; created_at: string }>(entries: T[]) {
+  const aliasToKey = new Map<string, string>();
+  const people = new Map<string, T>();
+  for (const entry of entries) {
+    const aliases = personAliases(entry);
+    const existingKey = aliases.map((a) => aliasToKey.get(a)).find(Boolean);
+    if (existingKey && people.has(existingKey)) {
+      const current: any = people.get(existingKey)!;
+      if (!current.phone && entry.phone) current.phone = entry.phone;
+      if (!current.cpf && entry.cpf) current.cpf = entry.cpf;
+      if (!current.city && entry.city) current.city = entry.city;
+      if (!current.neighborhood && entry.neighborhood) current.neighborhood = entry.neighborhood;
+      if (!current.state && entry.state) current.state = entry.state;
+      if (new Date(entry.created_at).getTime() < new Date(current.created_at).getTime()) current.created_at = entry.created_at;
+      aliases.forEach((a) => aliasToKey.set(a, existingKey));
+    } else {
+      const key = aliases[0] || `row:${entry.id}`;
+      people.set(key, { ...entry });
+      aliases.forEach((a) => aliasToKey.set(a, key));
+    }
+  }
+  return Array.from(people.values());
 }
 
 function MetricCard({ icon: Icon, label, value, accent, description }: { icon: any; label: string; value: number; accent?: boolean; description?: string }) {
@@ -131,8 +180,8 @@ export default function Territorial() {
     queryKey: ["territorial-supporters", client?.id],
     queryFn: async () => {
       if (!client?.id) return [];
-      const { data } = await supabase.from("supporter_accounts").select("id, name, city, neighborhood, state, created_at").eq("client_id", client.id);
-      return (data || []) as Array<{ id: string; name: string; city: string | null; neighborhood: string | null; state: string | null; created_at: string }>;
+      const { data } = await supabase.from("supporter_accounts").select("id, name, phone, cpf, supporter_id, city, neighborhood, state, created_at").eq("client_id", client.id);
+      return (data || []) as Array<{ id: string; name: string; phone: string | null; cpf: string | null; supporter_id: string | null; city: string | null; neighborhood: string | null; state: string | null; created_at: string }>;
     },
     enabled: !!client?.id,
   });
@@ -141,8 +190,8 @@ export default function Territorial() {
     queryKey: ["territorial-indicados", client?.id],
     queryFn: async () => {
       if (!client?.id) return [];
-      const { data } = await supabase.from("contratado_indicados").select("id, nome, cidade, bairro, created_at").eq("client_id", client.id).eq("status", "confirmado");
-      return (data || []) as Array<{ id: string; nome: string; cidade: string | null; bairro: string | null; created_at: string }>;
+      const { data } = await supabase.from("contratado_indicados").select("id, nome, telefone, cidade, bairro, created_at").eq("client_id", client.id).eq("status", "confirmado");
+      return (data || []) as Array<{ id: string; nome: string; telefone: string | null; cidade: string | null; bairro: string | null; created_at: string }>;
     },
     enabled: !!client?.id,
   });
@@ -156,7 +205,7 @@ export default function Territorial() {
       const result: PessoaRow[] = [];
       let from = 0;
       while (true) {
-        const { data } = await supabase.from("pessoas").select("id, nome, cidade, bairro, telefone, tipo_pessoa, origem_contato, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+        const { data } = await supabase.from("pessoas").select("id, nome, cidade, bairro, telefone, cpf, supporter_id, tipo_pessoa, origem_contato, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         result.push(...data);
         if (data.length < PAGE) break;
@@ -175,10 +224,10 @@ export default function Territorial() {
       const result: PessoaRow[] = [];
       let from = 0;
       while (true) {
-        const { data } = await supabase.from("contratados").select("id, nome, cidade, bairro, telefone, is_lider, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+        const { data } = await supabase.from("contratados").select("id, nome, cidade, bairro, telefone, cpf, is_lider, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         for (const c of data) {
-          result.push({ id: c.id, nome: c.nome, cidade: c.cidade, bairro: c.bairro, telefone: c.telefone, tipo_pessoa: c.is_lider ? "lider" : "contratado", origem_contato: "formulario", created_at: c.created_at });
+          result.push({ id: c.id, nome: c.nome, cidade: c.cidade, bairro: c.bairro, telefone: c.telefone, cpf: c.cpf, tipo_pessoa: c.is_lider ? "lider" : "contratado", origem_contato: "formulario", created_at: c.created_at });
         }
         if (data.length < PAGE) break;
         from += PAGE;
@@ -210,16 +259,16 @@ export default function Territorial() {
   });
 
   // ═══════════════════════════════════════
-  // TERRITORIAL computed (unified entries: pessoas + supporters + indicados)
+  // TERRITORIAL computed (uma pessoa só: CRM + Apoiador/Contratado/Indicado não duplicam)
   // ═══════════════════════════════════════
-  type GeoEntry = { city: string | null; neighborhood: string | null; state: string | null; created_at: string };
+  type GeoEntry = { id: string; name: string | null; phone: string | null; cpf?: string | null; supporter_id?: string | null; city: string | null; neighborhood: string | null; state: string | null; created_at: string };
 
   const allGeoEntries = useMemo<GeoEntry[]>(() => {
     const entries: GeoEntry[] = [];
-    (supporters || []).forEach(s => entries.push({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at }));
-    (confirmedIndicados || []).forEach(i => entries.push({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at }));
-    (allPessoas || []).forEach(p => entries.push({ city: p.cidade, neighborhood: p.bairro, state: null, created_at: p.created_at }));
-    return entries;
+    (allPessoas || []).forEach(p => entries.push({ id: `pessoa:${p.id}`, name: p.nome, phone: p.telefone, cpf: p.cpf, supporter_id: p.supporter_id, city: p.cidade, neighborhood: p.bairro, state: null, created_at: p.created_at }));
+    (supporters || []).forEach(s => entries.push({ id: `supporter:${s.id}`, name: s.name, phone: s.phone, cpf: s.cpf, supporter_id: s.supporter_id, city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at }));
+    (confirmedIndicados || []).forEach(i => entries.push({ id: `indicado:${i.id}`, name: i.nome, phone: i.telefone, city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at }));
+    return dedupeByPerson(entries);
   }, [supporters, confirmedIndicados, allPessoas]);
 
   // Heuristic: infer UF from explicit state field, or "Cidade - UF" / "Cidade/UF" suffix in city.
@@ -369,19 +418,15 @@ export default function Territorial() {
   }, [allGeoEntries, selectedUF, selectedCity]);
 
   const growthStats = useMemo(() => {
-    if (!supporters) return null;
+    if (!allGeoEntries) return null;
     const now = Date.now();
     const d30 = 30 * 24 * 60 * 60 * 1000;
-    const allEntries = [
-      ...supporters.map(s => ({ city: s.city, neighborhood: s.neighborhood, created_at: s.created_at })),
-      ...(confirmedIndicados || []).map(i => ({ city: i.cidade, neighborhood: i.bairro, created_at: i.created_at })),
-    ];
-    const withLoc = allEntries.filter(s => s.city || s.neighborhood);
+    const withLoc = allGeoEntries.filter(s => s.city || s.neighborhood);
     const last30 = withLoc.filter(s => now - new Date(s.created_at).getTime() < d30).length;
     const prev30 = withLoc.filter(s => { const diff = now - new Date(s.created_at).getTime(); return diff >= d30 && diff < d30 * 2; }).length;
     const change = prev30 > 0 ? Math.round(((last30 - prev30) / prev30) * 100) : last30 > 0 ? 100 : 0;
     return { last30, prev30, change };
-  }, [supporters, confirmedIndicados]);
+  }, [allGeoEntries]);
 
   const maxCount = groups.length > 0 ? groups[0].count : 1;
 
@@ -431,16 +476,25 @@ export default function Territorial() {
   // RECRUITMENT computed
   // ═══════════════════════════════════════
   const mergedPessoas = useMemo(() => {
-    const seenNames = new Set<string>();
-    const dedup = (list: PessoaRow[]): PessoaRow[] => {
-      const result: PessoaRow[] = [];
-      for (const p of list) {
-        const key = p.nome.trim().toLowerCase();
-        if (!seenNames.has(key)) { seenNames.add(key); result.push(p); }
-      }
-      return result;
-    };
-    const merged = [...dedup(allPessoas || []), ...dedup(contratadoRows || []), ...dedup(indicadoRows || [])];
+    const source = [...(allPessoas || []), ...(contratadoRows || []), ...(indicadoRows || [])];
+    const merged = dedupeByPerson(source.map((p) => ({
+      ...p,
+      name: p.nome,
+      phone: p.telefone,
+      city: p.cidade,
+      neighborhood: p.bairro,
+    }))).map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      cidade: p.cidade,
+      bairro: p.bairro,
+      telefone: p.telefone,
+      cpf: p.cpf,
+      supporter_id: p.supporter_id,
+      tipo_pessoa: p.tipo_pessoa,
+      origem_contato: p.origem_contato,
+      created_at: p.created_at,
+    }));
     merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return merged;
   }, [allPessoas, contratadoRows, indicadoRows]);
