@@ -260,7 +260,7 @@ const MidiaPage = () => {
       toast.error("Nenhuma notícia para exportar");
       return;
     }
-    const headers = ["Título", "Tom", "Tom (label)", "Domínio", "Data", "País", "Idioma", "URL"];
+    const headers = ["Título", "Tom", "Tom (label)", "Fonte", "Domínio", "Data", "País", "Idioma", "URL"];
     const escape = (v: unknown) => {
       const s = v == null ? "" : String(v);
       return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -271,6 +271,7 @@ const MidiaPage = () => {
         escape(a.title || ""),
         escape(a.tone != null ? a.tone.toFixed(2) : ""),
         escape(toneLabel(a.tone)),
+        escape(sourceLabel(a.source)),
         escape(a.domain || ""),
         escape(fmtDate(a.seendate)),
         escape(a.sourcecountry || ""),
