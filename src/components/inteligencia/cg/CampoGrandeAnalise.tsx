@@ -153,6 +153,7 @@ const CampoGrandeAnalise = () => {
 
   const totalVotos = ranking.reduce((s, c) => s + c.total, 0);
   const top10 = ranking.slice(0, 10);
+  const eleitos = ranking.filter((c) => (c.situacao || "").toUpperCase().startsWith("ELEITO"));
 
   const zonas = useMemo(() => {
     const set = new Set<number>();
@@ -352,8 +353,10 @@ const CampoGrandeAnalise = () => {
         <TabsContent value="ranking" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Top 10 — {cargo} ({turno}º turno)</CardTitle>
-              <CardDescription>Soma de votos em todas as zonas eleitorais de Campo Grande/MS.</CardDescription>
+              <CardTitle>Eleitos — {cargo} ({turno}º turno)</CardTitle>
+              <CardDescription>
+                {eleitos.length} candidato(s) eleito(s). Soma de votos em todas as zonas eleitorais de Campo Grande/MS.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? <p className="text-muted-foreground">Carregando…</p> : (
@@ -370,7 +373,7 @@ const CampoGrandeAnalise = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {top10.map((c, i) => (
+                    {eleitos.map((c, i) => (
                       <TableRow key={c.numero}>
                         <TableCell className="font-bold">{i + 1}</TableCell>
                         <TableCell className="font-medium">{c.nome}</TableCell>
