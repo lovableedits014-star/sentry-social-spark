@@ -86,6 +86,32 @@ export default function Territorial() {
   const [mergeField, setMergeField] = useState<"cidade" | "bairro">("cidade");
   const [mergeVariants, setMergeVariants] = useState<Array<{ name: string; count: number }>>([]);
   const [mergeParentCity, setMergeParentCity] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    if (reloading) return;
+    setReloading(true);
+    try {
+      // Limpa todos os queries do Territorial e recarrega
+      const keys = [
+        "client",
+        "territorial-supporters",
+        "territorial-indicados",
+        "recruitment-pessoas",
+        "recruitment-contratados",
+        "recruitment-indicados",
+      ];
+      await Promise.all(
+        keys.map((k) => queryClient.invalidateQueries({ queryKey: [k] }))
+      );
+      await queryClient.refetchQueries({ type: "active" });
+      toast.success("Dados recarregados");
+    } catch (e: any) {
+      toast.error("Falha ao recarregar", { description: e?.message });
+    } finally {
+      setReloading(false);
+    }
+  };
 
   const { data: client } = useQuery({
     queryKey: ["client"],
