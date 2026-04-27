@@ -576,6 +576,41 @@ const InteligenciaEleitoral = () => {
                   <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
                 </button>
               </div>
+              {/* Indicador de cobertura da geocodificação */}
+              {geocodeStats.total > 0 && (
+                <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-2" title="Status do enriquecimento de bairro via OpenStreetMap. A geocodificação roda em background e respeita o rate limit (~1 req/s).">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-xs font-medium flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-primary" />
+                      Cobertura de bairros (geocodificação)
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                        <strong>{geocodeStats.ok.toLocaleString("pt-BR")}</strong> com bairro
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        <strong>{geocodeStats.pending.toLocaleString("pt-BR")}</strong> pendentes
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+                        <strong>{geocodeStats.failed.toLocaleString("pt-BR")}</strong> falharam
+                      </span>
+                      <span className="text-muted-foreground">de {geocodeStats.total} locais</span>
+                    </div>
+                  </div>
+                  <div className="flex h-2 w-full rounded-full overflow-hidden bg-muted">
+                    <div className="bg-emerald-500 transition-all" style={{ width: `${(geocodeStats.ok / geocodeStats.total) * 100}%` }} />
+                    <div className="bg-rose-500 transition-all" style={{ width: `${(geocodeStats.failed / geocodeStats.total) * 100}%` }} />
+                    <div className="bg-amber-500 transition-all" style={{ width: `${(geocodeStats.pending / geocodeStats.total) * 100}%` }} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {geocodeStats.pct}% dos locais já têm bairro identificado.
+                    {geocodeStats.pending > 0 && " A geocodificação processa em lotes — recarregue a página em alguns minutos para ver o progresso."}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-[320px_1fr] gap-4">
