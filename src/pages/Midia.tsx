@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
+import { Newspaper, Globe2, TrendingUp, TrendingDown, Minus, ExternalLink, RefreshCw, Info, Search, Sparkles, X, Bell, Bookmark, BookmarkPlus, Trash2, Download, FileText, FileSpreadsheet } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Line, LineChart, Legend } from "recharts";
 import MediaAlertsManager from "@/components/midia/MediaAlertsManager";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 /**
@@ -219,6 +220,146 @@ const MidiaPage = () => {
     }
     toast.success(`"${name}" removida`);
     queryClient.invalidateQueries({ queryKey: ["media-saved-searches", clientId] });
+  };
+
+  // ===== Exportação =====
+  const exportFileBase = useMemo(() => {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, "");
+    const slug = (terms.join("-") || municipio || uf || "midia")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "midia";
+    return `midia_${slug}_${stamp}`;
+  }, [terms, municipio, uf]);
+
+  const exportCSV = () => {
+    if (!data || data.articles.length === 0) {
+      toast.error("Nenhuma notícia para exportar");
+      return;
+    }
+    const headers = ["Título", "Tom", "Tom (label)", "Domínio", "Data", "País", "Idioma", "URL"];
+    const escape = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [headers.join(",")];
+    for (const a of data.articles) {
+      lines.push([
+        escape(a.title || ""),
+        escape(a.tone != null ? a.tone.toFixed(2) : ""),
+        escape(toneLabel(a.tone)),
+        escape(a.domain || ""),
+        escape(fmtDate(a.seendate)),
+        escape(a.sourcecountry || ""),
+        escape((a.language || "").toUpperCase()),
+        escape(a.url || ""),
+      ].join(","));
+    }
+    // BOM para Excel reconhecer UTF-8 (acentos)
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${exportFileBase}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`CSV com ${data.articles.length} notícia(s) gerado`);
+  };
+
+  const exportPDF = async () => {
+    if (!data || data.articles.length === 0) {
+      toast.error("Nenhuma notícia para exportar");
+      return;
+    }
+    try {
+      const [{ default: jsPDF }, autoTableMod] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      const autoTable = (autoTableMod as any).default ?? (autoTableMod as any);
+
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFontSize(14);
+      doc.text("Mídia & Cobertura Noticiosa", 40, 40);
+
+      doc.setFontSize(9);
+      doc.setTextColor(110);
+      const filtros = [
+        terms.length > 0 ? `Termos: ${terms.join(", ")}` : null,
+        uf ? `UF: ${uf}` : null,
+        municipio ? `Município: ${municipio}` : null,
+        `Janela: ${timespan}`,
+        `País: ${country}`,
+      ].filter(Boolean).join(" · ");
+      doc.text(filtros, 40, 56, { maxWidth: pageWidth - 80 });
+      doc.text(
+        `Total: ${data.total_articles.toLocaleString("pt-BR")} matérias · Tom médio: ${
+          data.tone_summary.avg != null ? data.tone_summary.avg.toFixed(2) : "—"
+        } · Gerado em ${new Date().toLocaleString("pt-BR")}`,
+        40,
+        70,
+      );
+      doc.setTextColor(0);
+
+      const rows = data.articles.map((a) => [
+        a.title || "(sem título)",
+        toneLabel(a.tone) + (a.tone != null ? ` (${a.tone.toFixed(1)})` : ""),
+        a.domain || "",
+        fmtDate(a.seendate),
+        a.sourcecountry || "",
+        a.url || "",
+      ]);
+
+      autoTable(doc, {
+        head: [["Título", "Tom", "Domínio", "Data", "País", "URL"]],
+        body: rows,
+        startY: 88,
+        styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 250 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 110 },
+          3: { cellWidth: 60 },
+          4: { cellWidth: 50 },
+          5: { cellWidth: 240, textColor: [29, 78, 216] },
+        },
+        didDrawPage: (d: any) => {
+          const pageNum = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(150);
+          doc.text(
+            `Sentinelle · Página ${pageNum} · Fonte: GDELT Project`,
+            40,
+            doc.internal.pageSize.getHeight() - 16,
+          );
+          doc.setTextColor(0);
+        },
+        didDrawCell: (d: any) => {
+          // Tornar URLs clicáveis
+          if (d.section === "body" && d.column.index === 5 && d.cell.raw) {
+            const url = String(d.cell.raw);
+            if (url.startsWith("http")) {
+              doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url });
+            }
+          }
+        },
+      });
+
+      doc.save(`${exportFileBase}.pdf`);
+      toast.success(`PDF com ${data.articles.length} notícia(s) gerado`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Falha ao gerar PDF: " + (err?.message || "erro desconhecido"));
+    }
   };
 
   const addTerm = (t: string) => {
@@ -709,8 +850,27 @@ const MidiaPage = () => {
           {/* Lista de notícias */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Notícias ({data.articles.length})</CardTitle>
-              <CardDescription>Ordenadas pelas mais recentes. Clique para abrir a fonte original.</CardDescription>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="text-base">Notícias ({data.articles.length})</CardTitle>
+                  <CardDescription>Ordenadas pelas mais recentes. Clique para abrir a fonte original.</CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={data.articles.length === 0}>
+                      <Download className="w-3.5 h-3.5 mr-1.5" /> Exportar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={exportCSV}>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> CSV (Excel)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportPDF}>
+                      <FileText className="w-4 h-4 mr-2" /> PDF (relatório)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[600px] overflow-y-auto divide-y">
