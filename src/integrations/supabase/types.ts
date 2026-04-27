@@ -431,6 +431,85 @@ export type Database = {
           },
         ]
       }
+      candidate_identity: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          logo_path: string | null
+          logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          logo_path?: string | null
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          logo_path?: string | null
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_identity_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_photos: {
+        Row: {
+          client_id: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          label: string | null
+          photo_path: string
+          photo_url: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label?: string | null
+          photo_path: string
+          photo_url: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label?: string | null
+          photo_path?: string
+          photo_url?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_photos_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           cargo: string | null
