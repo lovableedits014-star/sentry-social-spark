@@ -30,8 +30,17 @@ function setCached(key: string, value: any) {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-const BOT_HEADERS = {
+const FB_HEADERS = {
   'User-Agent': 'facebookexternalhit/1.1',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+};
+
+// Para o Instagram, o User-Agent do bot do FB devolve uma página vazia.
+// Usar User-Agent de iPhone real costuma servir og:image e og:title corretos.
+const IG_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
   'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 };
@@ -55,9 +64,9 @@ function metaContentReverse(html: string, prop: string): string | null {
   return m?.[1] || null;
 }
 
-async function fetchHtml(url: string): Promise<string | null> {
+async function fetchHtml(url: string, headers: Record<string, string> = FB_HEADERS): Promise<string | null> {
   try {
-    const res = await fetch(url, { headers: BOT_HEADERS, redirect: 'follow' });
+    const res = await fetch(url, { headers, redirect: 'follow' });
     if (!res.ok) {
       await res.text().catch(() => '');
       return null;
@@ -103,7 +112,7 @@ async function previewFacebook(handle: string) {
 async function previewInstagram(handle: string) {
   const clean = handle.replace(/^@/, '');
   const canonicalUrl = `https://www.instagram.com/${clean}/`;
-  const html = await fetchHtml(canonicalUrl);
+  const html = await fetchHtml(canonicalUrl, IG_HEADERS);
   if (!html) {
     return {
       found: false,
