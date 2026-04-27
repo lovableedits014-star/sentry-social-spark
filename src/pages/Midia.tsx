@@ -332,6 +332,7 @@ const MidiaPage = () => {
       const rows = data.articles.map((a) => [
         a.title || "(sem título)",
         toneLabel(a.tone) + (a.tone != null ? ` (${a.tone.toFixed(1)})` : ""),
+        sourceLabel(a.source),
         a.domain || "",
         fmtDate(a.seendate),
         a.sourcecountry || "",
@@ -339,26 +340,27 @@ const MidiaPage = () => {
       ]);
 
       autoTable(doc, {
-        head: [["Título", "Tom", "Domínio", "Data", "País", "URL"]],
+        head: [["Título", "Tom", "Fonte", "Domínio", "Data", "País", "URL"]],
         body: rows,
         startY: 88,
         styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
         headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
-          0: { cellWidth: 250 },
+          0: { cellWidth: 230 },
           1: { cellWidth: 70 },
-          2: { cellWidth: 110 },
-          3: { cellWidth: 60 },
-          4: { cellWidth: 50 },
-          5: { cellWidth: 240, textColor: [29, 78, 216] },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 100 },
+          4: { cellWidth: 60 },
+          5: { cellWidth: 50 },
+          6: { cellWidth: 200, textColor: [29, 78, 216] },
         },
         didDrawPage: (d: any) => {
           const pageNum = doc.getNumberOfPages();
           doc.setFontSize(8);
           doc.setTextColor(150);
           doc.text(
-            `Sentinelle · Página ${pageNum} · Fonte: GDELT Project`,
+            `Sentinelle · Página ${pageNum} · Fontes: GDELT + Google News`,
             40,
             doc.internal.pageSize.getHeight() - 16,
           );
@@ -366,7 +368,7 @@ const MidiaPage = () => {
         },
         didDrawCell: (d: any) => {
           // Tornar URLs clicáveis
-          if (d.section === "body" && d.column.index === 5 && d.cell.raw) {
+          if (d.section === "body" && d.column.index === 6 && d.cell.raw) {
             const url = String(d.cell.raw);
             if (url.startsWith("http")) {
               doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url });
