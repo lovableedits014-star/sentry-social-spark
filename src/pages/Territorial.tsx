@@ -24,6 +24,8 @@ interface LocationGroup {
   neighborhood: string | null;
   state: string | null;
   count: number;
+  cityVariants?: Record<string, number>;
+  neighVariants?: Record<string, number>;
 }
 
 interface PessoaRow {
@@ -82,6 +84,7 @@ export default function Territorial() {
   // Merge selection state
   const [selectedCityNames, setSelectedCityNames] = useState<Set<string>>(new Set());
   const [selectedNeighNames, setSelectedNeighNames] = useState<Set<string>>(new Set());
+  const [selectedLocationKeys, setSelectedLocationKeys] = useState<Set<string>>(new Set());
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeField, setMergeField] = useState<"cidade" | "bairro">("cidade");
   const [mergeVariants, setMergeVariants] = useState<Array<{ name: string; count: number }>>([]);
