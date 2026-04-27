@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,6 +10,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Holiday = {
   date: string; // YYYY-MM-DD
@@ -77,14 +84,21 @@ function diasLabel(dias: number): { label: string; tone: "soon" | "near" | "futu
 
 export function FeriadosWidget() {
   const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () => [currentYear, currentYear + 1, currentYear + 2],
+    [currentYear],
+  );
+  // "proximos" = a partir de hoje, atravessando anos. Caso contrário, ano específico.
+  const [yearFilter, setYearFilter] = useState<"proximos" | string>("proximos");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["holidays", "BR", currentYear, currentYear + 1],
+    queryKey: ["holidays", "BR", yearOptions.join(",")],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("holidays-fetch", {
-        body: null,
-        method: "GET",
-      });
+      const qs = `years=${yearOptions.join(",")}`;
+      const { data, error } = await supabase.functions.invoke(
+        `holidays-fetch?${qs}`,
+        { body: null, method: "GET" },
+      );
       if (error) throw error;
       return data as { holidays: Holiday[] };
     },
@@ -94,17 +108,27 @@ export function FeriadosWidget() {
 
   const proximos = useMemo(() => {
     const list = data?.holidays ?? [];
-    return list
-      // 1) só nacionais (global=true; tolera ausência do flag)
-      .filter((h) => h.global !== false)
-      // 2) remove datas passadas (mantém o de hoje)
-      .filter((h) => diasAte(h.date) >= 0)
-      // 3) ordena explicitamente por proximidade — defesa em profundidade
-      //    (a edge function já ordena, mas garante no client)
+    // 1) só nacionais (global=true; tolera ausência do flag)
+    let filtered = list.filter((h) => h.global !== false);
+
+    if (yearFilter === "proximos") {
+      // Modo padrão: a partir de hoje, qualquer ano (atravessa virada de ano)
+      filtered = filtered.filter((h) => diasAte(h.date) >= 0);
+    } else {
+      // Ano específico: pega o ano todo (inclui passados do ano selecionado)
+      const y = parseInt(yearFilter, 10);
+      filtered = filtered.filter((h) => h.date.startsWith(`${y}-`));
+      // Se for o ano corrente, prioriza os a partir de hoje quando houver
+      if (y === currentYear) {
+        const futuros = filtered.filter((h) => diasAte(h.date) >= 0);
+        if (futuros.length > 0) filtered = futuros;
+      }
+    }
+
+    return filtered
       .sort((a, b) => a.date.localeCompare(b.date))
-      // 4) só agora corta nos 5 mais próximos
       .slice(0, 5);
-  }, [data]);
+  }, [data, yearFilter, currentYear]);
 
   return (
     <TooltipProvider>
@@ -115,17 +139,32 @@ export function FeriadosWidget() {
               <CalendarDays className="h-5 w-5 text-primary" />
               <CardTitle className="text-base">Próximos feriados nacionais</CardTitle>
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-xs">
-                  Apoio à agenda
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                Lista visual dos feriados nacionais para ajudar a planejar agenda de campanha,
-                eventos presenciais e tom dos comunicados. Não dispara mensagens automaticamente.
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs hidden sm:inline-flex">
+                    Apoio à agenda
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Lista visual dos feriados nacionais para ajudar a planejar agenda de campanha,
+                  eventos presenciais e tom dos comunicados. Não dispara mensagens automaticamente.
+                </TooltipContent>
+              </Tooltip>
+              <Select value={yearFilter} onValueChange={(v) => setYearFilter(v as typeof yearFilter)}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="proximos">Próximos (todos)</SelectItem>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      Ano de {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <CardDescription>
             Use para evitar agendar atos em feriados, planejar atos cívicos e definir o tom da comunicação.
