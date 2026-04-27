@@ -17,6 +17,11 @@ type Body = {
   prompt?: string;
   // "fast" = Nano Banana padrão (mais barato). "pro" = Nano Banana 2 (qualidade alta, ainda rápido).
   qualidade?: "fast" | "pro";
+  // URL pública da logo do candidato (PNG transparente). Aplicada em toda arte.
+  logoUrl?: string;
+  // URL pública da foto escolhida do candidato. A IA NÃO recria o rosto —
+  // usa a foto como referência e constrói a arte ao redor.
+  photoUrl?: string;
 };
 
 const MODEL_FAST = "google/gemini-2.5-flash-image";
@@ -60,6 +65,43 @@ Deno.serve(async (req) => {
 
     const model = body.qualidade === "pro" ? MODEL_PRO : MODEL_FAST;
 
+    // Validação simples das URLs (precisam ser http/https)
+    const isValidUrl = (u?: string) =>
+      !!u && /^https?:\/\//i.test(u) && u.length < 2000;
+
+    const logoUrl = isValidUrl(body.logoUrl) ? body.logoUrl! : undefined;
+    const photoUrl = isValidUrl(body.photoUrl) ? body.photoUrl! : undefined;
+
+    // Monta as instruções extras quando há referências visuais.
+    const refInstructions: string[] = [];
+    if (photoUrl) {
+      refInstructions.push(
+        "IMPORTANTE: A primeira imagem em anexo é a FOTO DO CANDIDATO. " +
+          "Use exatamente esse rosto e essa pessoa na composição — NÃO recrie, NÃO altere traços, " +
+          "NÃO mude expressão. Apenas integre a pessoa na arte (fundo, elementos gráficos, iluminação coerente).",
+      );
+    }
+    if (logoUrl) {
+      refInstructions.push(
+        (photoUrl ? "A segunda imagem" : "A imagem em anexo") +
+          " é a LOGO da campanha. Aplique-a de forma elegante na arte (canto inferior, " +
+          "tamanho moderado, sem distorcer cores ou proporções).",
+      );
+    }
+
+    const finalText = refInstructions.length
+      ? `${refInstructions.join("\n")}\n\n${prompt}`
+      : prompt;
+
+    // Constrói o conteúdo da mensagem (texto + imagens de referência quando houver)
+    type ContentPart =
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } };
+
+    const content: ContentPart[] = [{ type: "text", text: finalText }];
+    if (photoUrl) content.push({ type: "image_url", image_url: { url: photoUrl } });
+    if (logoUrl) content.push({ type: "image_url", image_url: { url: logoUrl } });
+
     const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -70,7 +112,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content }],
           modalities: ["image", "text"],
         }),
       },

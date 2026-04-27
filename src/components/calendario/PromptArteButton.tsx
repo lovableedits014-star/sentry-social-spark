@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
@@ -7,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2 } from "lucide-react";
+import { Sparkles, Copy, Check, ExternalLink, Wand2, Download, Loader2, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import {
@@ -16,6 +18,9 @@ import {
   type ContextoArte,
 } from "@/lib/prompt-arte-feriado";
 import { useContextoArte } from "@/hooks/useContextoArte";
+
+type CandidatePhoto = { id: string; photo_url: string; label: string | null };
+type CandidateIdentity = { logo_url: string | null };
 
 type Props =
   | {
@@ -52,6 +57,55 @@ export function PromptArteButton(props: Props) {
   const [gerando, setGerando] = useState(false);
   const [imagemUrl, setImagemUrl] = useState<string | null>(null);
   const [qualidade, setQualidade] = useState<"fast" | "pro">("fast");
+  const [photoId, setPhotoId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+
+  // Descobre clientId do usuário logado (1x)
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (!cancel && data?.id) setClientId(data.id);
+    })();
+    return () => { cancel = true; };
+  }, []);
+
+  const identityQuery = useQuery({
+    queryKey: ["candidate-identity", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("candidate_identity")
+        .select("logo_url")
+        .eq("client_id", clientId!)
+        .maybeSingle();
+      return (data ?? null) as CandidateIdentity | null;
+    },
+    enabled: !!clientId && open,
+  });
+
+  const photosQuery = useQuery({
+    queryKey: ["candidate-photos", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("candidate_photos")
+        .select("id, photo_url, label")
+        .eq("client_id", clientId!)
+        .order("display_order", { ascending: true });
+      return (data ?? []) as CandidatePhoto[];
+    },
+    enabled: !!clientId && open,
+  });
+
+  const photos = photosQuery.data ?? [];
+  const logoUrl = identityQuery.data?.logo_url ?? undefined;
+  const selectedPhoto = photos.find((p) => p.id === photoId);
 
   // Quando abre, sincroniza draft com o contexto atual
   const handleOpen = (v: boolean) => {
@@ -84,7 +138,12 @@ export function PromptArteButton(props: Props) {
     update(draft); // persiste contexto
     try {
       const { data, error } = await supabase.functions.invoke("generate-arte-feriado", {
-        body: { prompt, qualidade },
+        body: {
+          prompt,
+          qualidade,
+          logoUrl,
+          photoUrl: selectedPhoto?.photo_url,
+        },
       });
       if (error) throw error;
       const payload = data as { imageUrl?: string; error?: string };
@@ -235,6 +294,75 @@ export function PromptArteButton(props: Props) {
               Gera diretamente sem sair da plataforma. Consome saldo de IA do Lovable Cloud
               ($1 grátis/mês). <span className="font-medium">Não interfere</span> no provedor de IA configurado em Configurações.
             </p>
+
+            {/* Seletor de foto + logo do candidato */}
+            <div className="space-y-2 rounded border bg-background p-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <Label className="text-[11px] font-semibold flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  Foto do candidato para usar nesta arte
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  {logoUrl ? (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <img src={logoUrl} alt="" className="h-3 w-3 object-contain" />
+                      Logo será aplicada
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px]">
+                      Sem logo cadastrada
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {photos.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground py-2 text-center">
+                  Nenhuma foto cadastrada. Vá em <strong>Configurações → Materiais para o gerador
+                  de artes</strong> e envie pelo menos 1 foto. A arte será gerada sem foto do
+                  candidato.
+                </div>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoId(null)}
+                    className={`shrink-0 w-16 h-16 rounded border-2 flex items-center justify-center text-[10px] transition-colors ${
+                      photoId === null
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-muted bg-muted/40 text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    Sem foto
+                  </button>
+                  {photos.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPhotoId(p.id)}
+                      title={p.label || "Foto do candidato"}
+                      className={`shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-colors ${
+                        photoId === p.id
+                          ? "border-primary ring-2 ring-primary/40"
+                          : "border-transparent hover:border-muted-foreground"
+                      }`}
+                    >
+                      <img
+                        src={p.photo_url}
+                        alt={p.label || ""}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedPhoto && (
+                <p className="text-[10px] text-muted-foreground">
+                  ✓ A IA usará <strong>{selectedPhoto.label || "esta foto"}</strong> exatamente como
+                  está, sem recriar o rosto. Apenas o cenário e elementos serão gerados ao redor.
+                </p>
+              )}
+            </div>
 
             {imagemUrl && (
               <div className="rounded border bg-background overflow-hidden">
