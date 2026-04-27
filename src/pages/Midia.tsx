@@ -611,7 +611,13 @@ const MidiaPage = () => {
                   ? "Adicione pelo menos uma palavra-chave ou município."
                   : <>Consulta gerada: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{buildQuery(terms, municipio.trim(), uf.trim()) || "(vazia)"}</code></>}
               </p>
-              <Button type="submit" disabled={terms.length === 0 && !municipio.trim() && !uf.trim()}>
+              <Button
+                type="submit"
+                disabled={
+                  (terms.length === 0 && !municipio.trim() && !uf.trim()) ||
+                  (useCustomRange && (!startDate || !endDate))
+                }
+              >
                 <Search className="w-4 h-4 mr-1.5" /> Buscar mídia
               </Button>
             </div>
