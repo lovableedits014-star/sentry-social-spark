@@ -1954,6 +1954,56 @@ export type Database = {
           },
         ]
       }
+      media_saved_searches: {
+        Row: {
+          client_id: string
+          country: string
+          created_at: string
+          id: string
+          municipio: string | null
+          name: string
+          terms: Json
+          timespan: string
+          uf: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          country?: string
+          created_at?: string
+          id?: string
+          municipio?: string | null
+          name: string
+          terms?: Json
+          timespan?: string
+          uf?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          country?: string
+          created_at?: string
+          id?: string
+          municipio?: string | null
+          name?: string
+          terms?: Json
+          timespan?: string
+          uf?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_saved_searches_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_dispatches: {
         Row: {
           batch_delay_seconds: number
