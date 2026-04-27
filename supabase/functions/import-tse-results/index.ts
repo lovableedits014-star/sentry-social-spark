@@ -1,6 +1,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BlobReader, ZipReader, TextWriter } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { HttpReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+
+// Desliga workers (não funcionam bem em edge functions Deno)
+configure({ useWebWorkers: false });
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,27 +99,22 @@ Deno.serve(async (req) => {
     }
 
     const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_${anoNum}.zip`;
-    console.log("Baixando", zipUrl);
-    const zipResp = await fetch(zipUrl);
-    if (!zipResp.ok) {
-      return new Response(JSON.stringify({ error: `Falha ao baixar ZIP do TSE: ${zipResp.status}` }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const zipBlob = await zipResp.blob();
-    console.log("ZIP baixado:", zipBlob.size, "bytes");
+    console.log("Abrindo ZIP via HTTP range:", zipUrl);
 
-    const reader = new ZipReader(new BlobReader(zipBlob));
+    // HttpReader usa requisições Range para ler o ZIP sem baixar tudo em memória
+    const reader = new ZipReader(new HttpReader(zipUrl, { useRangeHeader: true, preventHeadRequest: false }));
     const entries = await reader.getEntries();
+    console.log("Entries no ZIP:", entries.length);
     const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
     if (!target) {
       await reader.close();
       return new Response(JSON.stringify({ error: `CSV da UF ${ufStr} não encontrado no ZIP` }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    console.log("Extraindo apenas:", target.filename, "(", target.uncompressedSize, "bytes )");
 
-    // Lê como Uint8Array via Blob → arrayBuffer (zipjs decodifica latin1 errado se passar TextWriter direto)
-    const blobWriter = new (await import("https://deno.land/x/zipjs@v2.7.45/index.js")).BlobWriter();
-    const blob = await target.getData!(blobWriter);
+    // Extrai SOMENTE o CSV da UF — muito menor que o ZIP completo
+    const buf: Uint8Array = await target.getData!(new Uint8ArrayWriter());
     await reader.close();
-    const buf = new Uint8Array(await blob.arrayBuffer());
     const text = decodeLatin1(buf);
     console.log("CSV decodificado:", text.length, "chars");
 
