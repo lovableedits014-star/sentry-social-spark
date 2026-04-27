@@ -224,10 +224,10 @@ export default function Territorial() {
       const result: PessoaRow[] = [];
       let from = 0;
       while (true) {
-        const { data } = await supabase.from("contratados").select("id, nome, cidade, bairro, telefone, is_lider, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+        const { data } = await supabase.from("contratados").select("id, nome, cidade, bairro, telefone, cpf, is_lider, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
         if (!data || data.length === 0) break;
         for (const c of data) {
-          result.push({ id: c.id, nome: c.nome, cidade: c.cidade, bairro: c.bairro, telefone: c.telefone, tipo_pessoa: c.is_lider ? "lider" : "contratado", origem_contato: "formulario", created_at: c.created_at });
+          result.push({ id: c.id, nome: c.nome, cidade: c.cidade, bairro: c.bairro, telefone: c.telefone, cpf: c.cpf, tipo_pessoa: c.is_lider ? "lider" : "contratado", origem_contato: "formulario", created_at: c.created_at });
         }
         if (data.length < PAGE) break;
         from += PAGE;
@@ -259,16 +259,16 @@ export default function Territorial() {
   });
 
   // ═══════════════════════════════════════
-  // TERRITORIAL computed (unified entries: pessoas + supporters + indicados)
+  // TERRITORIAL computed (uma pessoa só: CRM + Apoiador/Contratado/Indicado não duplicam)
   // ═══════════════════════════════════════
-  type GeoEntry = { city: string | null; neighborhood: string | null; state: string | null; created_at: string };
+  type GeoEntry = { id: string; name: string | null; phone: string | null; cpf?: string | null; supporter_id?: string | null; city: string | null; neighborhood: string | null; state: string | null; created_at: string };
 
   const allGeoEntries = useMemo<GeoEntry[]>(() => {
     const entries: GeoEntry[] = [];
-    (supporters || []).forEach(s => entries.push({ city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at }));
-    (confirmedIndicados || []).forEach(i => entries.push({ city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at }));
-    (allPessoas || []).forEach(p => entries.push({ city: p.cidade, neighborhood: p.bairro, state: null, created_at: p.created_at }));
-    return entries;
+    (allPessoas || []).forEach(p => entries.push({ id: `pessoa:${p.id}`, name: p.nome, phone: p.telefone, cpf: p.cpf, supporter_id: p.supporter_id, city: p.cidade, neighborhood: p.bairro, state: null, created_at: p.created_at }));
+    (supporters || []).forEach(s => entries.push({ id: `supporter:${s.id}`, name: s.name, phone: s.phone, cpf: s.cpf, supporter_id: s.supporter_id, city: s.city, neighborhood: s.neighborhood, state: s.state, created_at: s.created_at }));
+    (confirmedIndicados || []).forEach(i => entries.push({ id: `indicado:${i.id}`, name: i.nome, phone: i.telefone, city: i.cidade, neighborhood: i.bairro, state: null, created_at: i.created_at }));
+    return dedupeByPerson(entries);
   }, [supporters, confirmedIndicados, allPessoas]);
 
   // Heuristic: infer UF from explicit state field, or "Cidade - UF" / "Cidade/UF" suffix in city.
