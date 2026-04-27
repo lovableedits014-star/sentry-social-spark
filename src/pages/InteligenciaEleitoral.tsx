@@ -16,6 +16,7 @@ import SimuladorChapa from "@/components/inteligencia/SimuladorChapa";
 import CampoGrandeAnalise from "@/components/inteligencia/cg/CampoGrandeAnalise";
 import { EleitoralFiltersProvider, useEleitoralFilters } from "@/components/inteligencia/_shared/EleitoralFiltersContext";
 import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeBar";
+import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
 
 type CoverageRow = {
   ano: number;
@@ -102,6 +103,11 @@ const InteligenciaEleitoralInner = () => {
 
       {/* Barra de escopo global (filtros + breadcrumb) */}
       <EleitoralScopeBar />
+
+      {/* Contexto socioeconômico IBGE — só quando UF + município específicos */}
+      {f.uf !== "__all__" && f.municipio !== "__all__" && (
+        <MunicipioContextoIBGE nome={f.municipio} uf={f.uf} />
+      )}
 
       {/* KPIs contextuais — reagem ao escopo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
