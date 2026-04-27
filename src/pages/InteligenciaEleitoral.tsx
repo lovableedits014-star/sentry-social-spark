@@ -291,6 +291,26 @@ const InteligenciaEleitoral = () => {
     exportXLSX(`auditoria-bairros-${cargo}-T${turno}.xlsx`, { "Locais": data, "Resumo": resumo });
   };
 
+  // Exporta exatamente o que está visível na sidebar de "Buscar por local" (busca + filtro de bairro aplicados)
+  const exportarLocaisVisiveis = () => {
+    const data = locaisVisiveis.map((l: any) => ({
+      Zona: l.zona,
+      "Nº Local": l.nr_local,
+      "Local de votação": l.nome_local || "",
+      Endereço: l.endereco || "",
+      Bairro: l.bairro || "",
+      "Total votos": l.total,
+    }));
+    const filtrosAplicados = [
+      { Filtro: "Cargo", Valor: cargo },
+      { Filtro: "Turno", Valor: turno },
+      { Filtro: "Busca", Valor: localSearch || "(nenhuma)" },
+      { Filtro: "Bairro", Valor: bairroFilter === "__all__" ? "Todos" : bairroFilter },
+      { Filtro: "Resultados exibidos", Valor: data.length },
+    ];
+    exportXLSX(`locais-visiveis-${cargo}-T${turno}.xlsx`, { Locais: data, Filtros: filtrosAplicados });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
