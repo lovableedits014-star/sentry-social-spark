@@ -54,6 +54,7 @@ export function FeriadosWidget() {
   );
   // "proximos" = a partir de hoje, atravessando anos. Caso contrário, ano específico.
   const [yearFilter, setYearFilter] = useState<"proximos" | string>("proximos");
+  const [expandido, setExpandido] = useState(false);
   const { ativos: estilosAtivos } = useEstilosTema();
 
   const { data, isLoading, error } = useQuery({
@@ -90,10 +91,13 @@ export function FeriadosWidget() {
       }
     }
 
-    return filtered
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 5);
+    return filtered.sort((a, b) => a.date.localeCompare(b.date));
   }, [data, yearFilter, currentYear]);
+
+  // Quantos exibir: padrão mostra próximos 5; expandido mostra todos do filtro
+  const LIMITE_PADRAO = 5;
+  const visiveis = expandido ? proximos : proximos.slice(0, LIMITE_PADRAO);
+  const restantes = proximos.length - visiveis.length;
 
   return (
     <TooltipProvider>
@@ -155,7 +159,7 @@ export function FeriadosWidget() {
           )}
           {proximos.length > 0 && (
             <ul className="space-y-2">
-              {proximos.map((h) => {
+              {visiveis.map((h) => {
                 const dias = diasAte(h.date);
                 const tag = diasLabel(dias);
                 const sug = getSugestaoFeriado(h, estilosAtivos);
@@ -200,6 +204,24 @@ export function FeriadosWidget() {
               })}
             </ul>
           )}
+          {proximos.length > LIMITE_PADRAO && (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                Mostrando {visiveis.length} de {proximos.length} feriado(s) {yearFilter === "proximos" ? "à frente" : `em ${yearFilter}`}.
+              </p>
+              <button
+                type="button"
+                onClick={() => setExpandido((v) => !v)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {expandido ? "Ver menos" : `Ver todos (+${restantes})`}
+              </button>
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-3 leading-snug">
+            Fonte: feriados <span className="font-medium">nacionais brasileiros</span>. Feriados municipais e estaduais
+            não estão incluídos — confira o calendário oficial da sua cidade/estado para datas locais.
+          </p>
         </CardContent>
       </Card>
     </TooltipProvider>
