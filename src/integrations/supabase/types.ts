@@ -2988,6 +2988,57 @@ export type Database = {
           },
         ]
       }
+      tse_votacao_local: {
+        Row: {
+          ano: number
+          cargo: string
+          cod_municipio: number
+          endereco: string | null
+          id: number
+          municipio: string
+          nome_candidato: string | null
+          nome_local: string | null
+          nr_local: number
+          numero: number
+          turno: number
+          uf: string
+          votos: number
+          zona: number
+        }
+        Insert: {
+          ano: number
+          cargo: string
+          cod_municipio: number
+          endereco?: string | null
+          id?: number
+          municipio: string
+          nome_candidato?: string | null
+          nome_local?: string | null
+          nr_local: number
+          numero: number
+          turno: number
+          uf: string
+          votos?: number
+          zona: number
+        }
+        Update: {
+          ano?: number
+          cargo?: string
+          cod_municipio?: number
+          endereco?: string | null
+          id?: number
+          municipio?: string
+          nome_candidato?: string | null
+          nome_local?: string | null
+          nr_local?: number
+          numero?: number
+          turno?: number
+          uf?: string
+          votos?: number
+          zona?: number
+        }
+        Relationships: []
+      }
       tse_votacao_zona: {
         Row: {
           ano: number
@@ -3427,6 +3478,16 @@ export type Database = {
           person_type: string
           presenca_obrigatoria: boolean
           telefone: string
+        }[]
+      }
+      get_tse_locais_summary: {
+        Args: { p_cargo: string; p_turno: number }
+        Returns: {
+          endereco: string
+          nome_local: string
+          nr_local: number
+          total_votos: number
+          zona: number
         }[]
       }
       has_role: {
