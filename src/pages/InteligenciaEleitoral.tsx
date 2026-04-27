@@ -1022,6 +1022,10 @@ const InteligenciaEleitoral = () => {
         <TabsContent value="composicao-chapa" className="mt-4">
           <ComposicaoChapa />
         </TabsContent>
+
+        <TabsContent value="comparar-candidatos" className="mt-4">
+          <CompararCandidatos />
+        </TabsContent>
       </Tabs>
 
       <p className="text-xs text-muted-foreground text-center">
