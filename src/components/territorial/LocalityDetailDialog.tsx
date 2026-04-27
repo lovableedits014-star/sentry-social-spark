@@ -32,6 +32,14 @@ interface Row {
   bairro: string | null;
 }
 
+interface MergedRow {
+  key: string;
+  nome: string;
+  telefone: string | null;
+  bairro: string | null;
+  origins: Origin[];
+}
+
 const canon = (v: string | null | undefined) =>
   (v || "")
     .normalize("NFD")
@@ -139,6 +147,34 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
 
   const title = level === "neighborhood" ? `${neighborhood} — ${city}` : city;
 
+  // Deduplica: mesma pessoa em tabelas diferentes (CRM + Apoiador, etc.)
+  // Chave: nome canônico + (telefone normalizado, se houver)
+  const mergedRows = useMemo<MergedRow[]>(() => {
+    const onlyDigits = (s: string | null) => (s || "").replace(/\D/g, "");
+    const map = new Map<string, MergedRow>();
+    for (const r of rows) {
+      const phone = onlyDigits(r.telefone);
+      const nameKey = canon(r.nome);
+      // Se há telefone, agrupa por nome+telefone; senão, só por nome
+      const key = phone ? `${nameKey}|${phone}` : `${nameKey}|`;
+      const existing = map.get(key);
+      if (existing) {
+        if (!existing.origins.includes(r.origin)) existing.origins.push(r.origin);
+        if (!existing.telefone && r.telefone) existing.telefone = r.telefone;
+        if (!existing.bairro && r.bairro) existing.bairro = r.bairro;
+      } else {
+        map.set(key, {
+          key,
+          nome: r.nome,
+          telefone: r.telefone,
+          bairro: r.bairro,
+          origins: [r.origin],
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [rows]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -148,7 +184,7 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
             {title}
           </DialogTitle>
           <DialogDescription>
-            {loading ? "Carregando…" : `${rows.length} pessoa${rows.length === 1 ? "" : "s"} cadastrada${rows.length === 1 ? "" : "s"} nesta localidade.`}
+            {loading ? "Carregando…" : `${mergedRows.length} pessoa${mergedRows.length === 1 ? "" : "s"} cadastrada${mergedRows.length === 1 ? "" : "s"} nesta localidade.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -156,7 +192,7 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
-        ) : rows.length === 0 ? (
+        ) : mergedRows.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             <Users className="w-8 h-8 mx-auto opacity-30 mb-2" />
             Nenhuma pessoa encontrada.
@@ -164,8 +200,8 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
         ) : (
           <ScrollArea className="max-h-[60vh] pr-2">
             <div className="space-y-1.5">
-              {rows.map((r) => (
-                <div key={`${r.origin}-${r.id}`} className="flex items-center gap-2 p-2.5 rounded-md border bg-card">
+              {mergedRows.map((r) => (
+                <div key={r.key} className="flex items-center gap-2 p-2.5 rounded-md border bg-card">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{r.nome}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -177,9 +213,13 @@ export function LocalityDetailDialog({ open, onOpenChange, clientId, level, city
                       )}
                     </div>
                   </div>
-                  <Badge variant={ORIGIN_VARIANT[r.origin]} className="text-[10px] shrink-0">
-                    {ORIGIN_LABEL[r.origin]}
-                  </Badge>
+                  <div className="flex flex-wrap gap-1 shrink-0 justify-end">
+                    {r.origins.map((o) => (
+                      <Badge key={o} variant={ORIGIN_VARIANT[o]} className="text-[10px]">
+                        {ORIGIN_LABEL[o]}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
