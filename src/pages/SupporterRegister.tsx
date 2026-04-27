@@ -364,6 +364,38 @@ export default function SupporterRegister() {
               />
             </div>
 
+            {/* CPF */}
+            <div className="space-y-2">
+              <Label htmlFor="cpf" className="flex items-center gap-2">
+                <IdCard className="w-4 h-4 text-muted-foreground" />
+                CPF *
+              </Label>
+              <Input
+                id="cpf"
+                inputMode="numeric"
+                value={cpf}
+                onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
+                placeholder="000.000.000-00"
+                maxLength={14}
+                required
+              />
+            </div>
+
+            {/* Telefone (obrigatório) */}
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-muted-foreground" />
+                Telefone / WhatsApp *
+              </Label>
+              <Input
+                id="phone"
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setError(""); }}
+                placeholder="(67) 99999-9999"
+                required
+              />
+            </div>
+
             {/* Email */}
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center gap-2">
@@ -403,54 +435,60 @@ export default function SupporterRegister() {
               <p className="text-xs text-muted-foreground">Essa senha será usada para acessar o Portal do Apoiador</p>
             </div>
 
-            {/* Facebook */}
+            {/* Endereço (Cidade, Rua, Bairro) */}
             <div className="space-y-2">
-              <Label htmlFor="facebook" className="flex items-center gap-2">
-                <Facebook className="w-4 h-4 text-blue-600" />
-                Link do Facebook
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-muted-foreground" />
+                Endereço *
               </Label>
-              <button
-                type="button"
-                onClick={() => setShowFbHelp(!showFbHelp)}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-                Como pegar o link do meu Facebook?
-                {showFbHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showFbHelp && (
-                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-3">
-                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
-                    <li>📱 Abra o app do Facebook no seu celular</li>
-                    <li>👤 Toque na sua foto de perfil (canto superior direito)</li>
-                    <li>🔗 Toque em "Compartilhar perfil" e depois em "Copiar link"</li>
-                    <li>✅ Volte aqui e cole no campo abaixo</li>
-                  </ol>
-                  <img src="/assets/help-facebook.png" alt="Como copiar link do Facebook" className="w-full h-auto rounded-md border border-border" />
-                </div>
-              )}
               <Input
-                id="facebook"
-                value={facebookUrl}
-                onChange={(e) => { setFacebookUrl(e.target.value); setError(""); }}
-                placeholder="https://facebook.com/seu.perfil"
+                value={city}
+                onChange={(e) => { setCity(e.target.value); setError(""); }}
+                placeholder="Cidade *"
+                required
               />
-              {/* Preview */}
-              {facebookUrl.trim() && (
-                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md ${fbParsed ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>
-                  {fbParsed ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Identificado: <strong>{fbParsed.username}</strong></span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Link não reconhecido. Use o link completo do perfil (ex: facebook.com/joao.silva)</span>
-                    </>
-                  )}
-                </div>
-              )}
+              <Input
+                value={rua}
+                onChange={(e) => { setRua(e.target.value); setError(""); }}
+                placeholder="Rua *"
+                required
+              />
+              <Input
+                value={neighborhood}
+                onChange={(e) => { setNeighborhood(e.target.value); setError(""); }}
+                placeholder="Bairro *"
+                required
+              />
+              <Select value={state} onValueChange={setState}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Estado (UF)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {UF_OPTIONS.map(uf => (
+                    <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Data de nascimento */}
+            <div className="space-y-2">
+              <Label htmlFor="birth_date" className="flex items-center gap-2">
+                <Cake className="w-4 h-4 text-muted-foreground" />
+                Data de nascimento *
+              </Label>
+              <DateInputBr
+                id="birth_date"
+                value={birthDate}
+                onChange={(iso) => { setBirthDate(iso); setError(""); }}
+                required
+              />
+            </div>
+
+            {/* Redes Sociais — Instagram primeiro */}
+            <div className="pt-2">
+              <p className="text-sm font-medium text-foreground">Redes Sociais</p>
+              <p className="text-xs text-muted-foreground">Cole os links dos seus perfis para receber missões e ter seu engajamento contabilizado.</p>
             </div>
 
             {/* Instagram */}
@@ -503,49 +541,54 @@ export default function SupporterRegister() {
               )}
             </div>
 
-            {/* Location fields */}
+            {/* Facebook */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-                Localização *
+              <Label htmlFor="facebook" className="flex items-center gap-2">
+                <Facebook className="w-4 h-4 text-blue-600" />
+                Link do Facebook
               </Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  value={city}
-                  onChange={(e) => { setCity(e.target.value); setError(""); }}
-                  placeholder="Cidade *"
-                  required
-                />
-                <Input
-                  value={neighborhood}
-                  onChange={(e) => { setNeighborhood(e.target.value); setError(""); }}
-                  placeholder="Bairro *"
-                  required
-                />
-              </div>
-              <Select value={state} onValueChange={setState}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado (UF)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {UF_OPTIONS.map(uf => (
-                    <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                Telefone (opcional)
-              </Label>
+              <button
+                type="button"
+                onClick={() => setShowFbHelp(!showFbHelp)}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                Como pegar o link do meu Facebook?
+                {showFbHelp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              {showFbHelp && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-3">
+                  <ol className="text-xs space-y-1.5 list-decimal list-inside text-foreground">
+                    <li>📱 Abra o app do Facebook no seu celular</li>
+                    <li>👤 Toque na sua foto de perfil (canto superior direito)</li>
+                    <li>🔗 Toque em "Compartilhar perfil" e depois em "Copiar link"</li>
+                    <li>✅ Volte aqui e cole no campo abaixo</li>
+                  </ol>
+                  <img src="/assets/help-facebook.png" alt="Como copiar link do Facebook" className="w-full h-auto rounded-md border border-border" />
+                </div>
+              )}
               <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(11) 99999-9999"
+                id="facebook"
+                value={facebookUrl}
+                onChange={(e) => { setFacebookUrl(e.target.value); setError(""); }}
+                placeholder="https://facebook.com/seu.perfil"
               />
+              {/* Preview */}
+              {facebookUrl.trim() && (
+                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md ${fbParsed ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>
+                  {fbParsed ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Identificado: <strong>{fbParsed.username}</strong></span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Link não reconhecido. Use o link completo do perfil (ex: facebook.com/joao.silva)</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
