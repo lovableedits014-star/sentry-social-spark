@@ -210,7 +210,10 @@ export default function WhatsAppInstancePoolCard({ clientId, instance, onChange 
   const formattedPhone = formatPhoneBR(instance.phone_number);
 
   return (
-    <div className={`border rounded-lg p-4 space-y-3 bg-card ${instance.is_primary ? "ring-2 ring-amber-400/50 border-amber-400/40" : ""}`}>
+    <div
+      id={`wa-instance-${instance.id}`}
+      className={`border rounded-lg p-4 space-y-3 bg-card transition-all ${instance.is_primary ? "ring-2 ring-amber-400/50 border-amber-400/40" : ""}`}
+    >
       {/* Header: health + name + status */}
       <div className="flex items-start gap-3">
         <TooltipProvider>
