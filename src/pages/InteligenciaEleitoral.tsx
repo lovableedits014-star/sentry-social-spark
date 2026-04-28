@@ -37,15 +37,30 @@ const InteligenciaEleitoralInner = () => {
     queryKey: ["tse-coverage-global", f.uf, f.municipio, f.anoMode, f.cargo],
     staleTime: Infinity,
     queryFn: async () => {
-      let q: any = supabase
-        .from("tse_votacao_zona" as any)
-        .select("ano,uf,cod_municipio,numero,partido,votos,cargo,municipio");
-      if (f.uf !== "__all__") q = q.eq("uf", f.uf);
-      if (f.municipio !== "__all__") q = q.eq("municipio", f.municipio);
-      if (f.cargo !== "__all__") q = q.eq("cargo", f.cargo);
-      if (f.anoMode !== "ambos") q = q.eq("ano", Number(f.anoMode));
-      const { data, error } = await q;
-      if (error) throw error;
+      // Paginação manual: o Supabase limita a 1000 linhas por requisição.
+      // Sem isso o "Total de votos" ficava truncado (ex: MS retornava só ~584k).
+      const PAGE = 1000;
+      let from = 0;
+      const all: any[] = [];
+      // Hard cap de segurança (200k linhas = 200 requisições)
+      const MAX_ROWS = 200000;
+      while (from < MAX_ROWS) {
+        let q: any = supabase
+          .from("tse_votacao_zona" as any)
+          .select("ano,uf,cod_municipio,numero,partido,votos,cargo,municipio")
+          .range(from, from + PAGE - 1);
+        if (f.uf !== "__all__") q = q.eq("uf", f.uf);
+        if (f.municipio !== "__all__") q = q.eq("municipio", f.municipio);
+        if (f.cargo !== "__all__") q = q.eq("cargo", f.cargo);
+        if (f.anoMode !== "ambos") q = q.eq("ano", Number(f.anoMode));
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data as any[]) || [];
+        all.push(...rows);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      const data = all;
       const byAno = new Map<number, { ufs: Set<string>; munis: Set<number>; cands: Set<string>; votos: number }>();
       (data as any[] || []).forEach((r) => {
         if (!byAno.has(r.ano)) byAno.set(r.ano, { ufs: new Set(), munis: new Set(), cands: new Set(), votos: 0 });
