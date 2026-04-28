@@ -212,11 +212,71 @@ async function fetchTseLocal(supa: any, uf: string, municipio: string) {
     .slice(0, 8)
     .map(([partido, votos]) => ({ partido, votos }));
 
+  // Performance do prefeito eleito 2024 POR ZONA — base do "Top locais críticos"
+  const prefeito2024 = (zonaRows as any[]).filter(
+    (r) => r.ano === 2024 && /prefeito/i.test(r.cargo) && r.zona != null,
+  );
+  const eleito2024Key = (() => {
+    const pref = top.find((b) => b.ano === 2024 && /prefeito/i.test(b.cargo));
+    return pref?.top?.[0]?.nome || null;
+  })();
+
+  // Soma por zona: votos do eleito vs total da zona
+  const porZona = new Map<number, { votos_eleito: number; votos_total: number }>();
+  for (const r of prefeito2024) {
+    const z = Number(r.zona);
+    const cur = porZona.get(z) || { votos_eleito: 0, votos_total: 0 };
+    cur.votos_total += Number(r.votos || 0);
+    if (eleito2024Key && (r.nome_completo === eleito2024Key || r.nome_urna === eleito2024Key)) {
+      cur.votos_eleito += Number(r.votos || 0);
+    }
+    porZona.set(z, cur);
+  }
+  const desempenho_zonas = Array.from(porZona.entries())
+    .map(([zona, v]) => ({
+      zona,
+      votos_eleito: v.votos_eleito,
+      votos_total: v.votos_total,
+      pct_eleito: v.votos_total > 0 ? Math.round((v.votos_eleito / v.votos_total) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => a.pct_eleito - b.pct_eleito); // pior zona primeiro = mais oportunidade
+
+  // Locais reais (escolas) por zona — prioriza as zonas mais fracas do incumbente
+  const zonasFracas = desempenho_zonas.slice(0, 8).map((z) => z.zona);
+  let locaisCriticos: any[] = [];
+  if (zonasFracas.length > 0) {
+    const { data: locais } = await supa
+      .from("tse_votacao_local")
+      .select("zona,nr_local,nome_local,endereco,bairro")
+      .eq("uf", uf)
+      .eq("municipio", municipio)
+      .in("zona", zonasFracas)
+      .limit(400);
+    // dedup por (zona, nr_local)
+    const seen = new Set<string>();
+    const uniq: any[] = [];
+    for (const l of locais || []) {
+      const k = `${l.zona}-${l.nr_local}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      uniq.push(l);
+    }
+    // anota com pct do eleito naquela zona
+    const pctMap = new Map(desempenho_zonas.map((z) => [z.zona, z.pct_eleito]));
+    locaisCriticos = uniq.map((l) => ({
+      ...l,
+      pct_eleito_zona: pctMap.get(l.zona) ?? null,
+    }));
+  }
+
   return {
     vazio: false,
     total_registros: zonaRows.length,
     top_por_cargo_ano: top,
     partidos_dominantes: partidosOrdenados,
+    eleito_prefeito_2024: eleito2024Key,
+    desempenho_zonas,
+    locais_criticos: locaisCriticos,
   };
 }
 
