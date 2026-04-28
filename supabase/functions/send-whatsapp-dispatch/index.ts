@@ -101,6 +101,69 @@ function isInstanceDisconnectedError(res: Response, data: any): boolean {
   return msg.includes("instance") && (msg.includes("disconnect") || msg.includes("not connected") || msg.includes("offline"));
 }
 
+// ============================================================
+// Pré-checagem (preflight) de saúde da instância antes do envio.
+// Consulta a bridge para confirmar que a instância está de pé, e
+// se necessário tenta uma reconexão silenciosa. Retorna uma string
+// resumindo o resultado para gravar no log de envios.
+// ============================================================
+type PreflightResult = {
+  status: "connected" | "reconnected" | "disconnected" | "skipped" | "error";
+  reconnected: boolean;
+  detail?: string;
+};
+
+async function preflightInstance(params: {
+  bridgeUrl: string;
+  bridgeApiKey: string;
+  instanceId: string;
+  apelido?: string;
+}): Promise<PreflightResult> {
+  const { bridgeUrl, bridgeApiKey, instanceId, apelido } = params;
+  const tag = `[preflight] inst=${apelido || instanceId}`;
+
+  // 1) Status atual na bridge
+  let statusRaw = "";
+  try {
+    const res = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": bridgeApiKey },
+      body: JSON.stringify({ action: "instance_status" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    statusRaw = String(data?.status || data?.instance?.status || "").toLowerCase();
+    if (statusRaw === "connected" || statusRaw === "open") {
+      console.log(`${tag} ✅ saudável (status=${statusRaw})`);
+      return { status: "connected", reconnected: false, detail: statusRaw };
+    }
+  } catch (err) {
+    console.warn(`${tag} ⚠️ erro ao consultar status:`, (err as Error).message);
+    return { status: "error", reconnected: false, detail: (err as Error).message };
+  }
+
+  console.warn(`${tag} ⚠️ não-conectada (status=${statusRaw || "desconhecido"}). Tentando reconectar...`);
+
+  // 2) Tenta reconectar silenciosamente
+  try {
+    const recRes = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": bridgeApiKey },
+      body: JSON.stringify({ action: "reconnect" }),
+    });
+    const recData = await recRes.json().catch(() => ({}));
+    const newStatus = String(recData?.status || recData?.instance?.status || "").toLowerCase();
+    if (newStatus === "connected" || newStatus === "open") {
+      console.log(`${tag} ♻️ reconectada com sucesso (status=${newStatus})`);
+      return { status: "reconnected", reconnected: true, detail: newStatus };
+    }
+    console.warn(`${tag} ❌ reconexão não estabilizou (status=${newStatus || "vazio"})`);
+    return { status: "disconnected", reconnected: true, detail: newStatus || "no_status" };
+  } catch (err) {
+    console.warn(`${tag} ❌ erro ao reconectar:`, (err as Error).message);
+    return { status: "disconnected", reconnected: true, detail: (err as Error).message };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
