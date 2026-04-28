@@ -40,6 +40,7 @@ import PortalUnificado from "./pages/PortalUnificado";
 import InteligenciaEleitoral from "./pages/InteligenciaEleitoral";
 import CalendarioPolitico from "./pages/CalendarioPolitico";
 import Midia from "./pages/Midia";
+import StatusWhatsApp from "./pages/StatusWhatsApp";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 
 // Wrappers de redirect para preservar links antigos
