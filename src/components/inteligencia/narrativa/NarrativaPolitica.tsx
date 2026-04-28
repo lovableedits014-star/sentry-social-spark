@@ -480,7 +480,7 @@ const DossieView = ({ dossie }: { dossie: Dossie }) => {
         ? md.slice(0, 3800) + "\n\n…[dossiê truncado — abra o PDF para ver completo]"
         : md;
       const r = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "send_message", phone: waPhone, message },
+        body: { action: "send", phone: waPhone, message },
       });
       if (r.error) throw r.error;
       toast({ title: "Enviado", description: `Dossiê enviado para ${waPhone}` });
