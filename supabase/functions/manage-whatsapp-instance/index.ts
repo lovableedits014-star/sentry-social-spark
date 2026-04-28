@@ -293,15 +293,24 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     const body = await req.json();
     const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
-    const cronAllowed = action === "health_check_all" && authHeader === `Bearer ${anonKey}`;
+    const cronRequested = action === "health_check_all";
 
-    if ((authErr || !user) && !cronAllowed) {
+    if ((authErr || !user) && !cronRequested) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     if (action === "health_check_all") {
+      const keepaliveToken = req.headers.get("X-Keepalive-Token");
+      const { data: tokenConfig } = await adminClient
+        .from("platform_config")
+        .select("value")
+        .eq("key", "whatsapp_keepalive_token")
+        .maybeSingle();
+      if (!tokenConfig?.value || keepaliveToken !== tokenConfig.value) {
+        return jsonResponse({ success: false, error: "Unauthorized keepalive" }, 401);
+      }
       const { data: rows, error } = await adminClient
         .from("whatsapp_instances")
         .select("id, bridge_api_key, status, connected_since, is_active")
