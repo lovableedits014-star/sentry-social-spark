@@ -609,20 +609,15 @@ Deno.serve(async (req) => {
       if (!clientApiKey) {
         return jsonResponse({ success: false, status: "disconnected", error: "Instância sem credencial; conecte novamente pelo QR Code." });
       }
-
-      const reconnectBody = { action: "reconnect" };
-      const { bridgeRes, bridgeData } = await fetchBridgeAction({
-        action: "reconnect",
-        apiKey: clientApiKey,
-        body: reconnectBody,
-      });
+      const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+      const bridgeData = reconnect.details || {};
       if (isQrPendingResponse(bridgeData)) return awaitingQrResponse("Instância caiu. Reconexão iniciada; escaneie o QR Code para estabilizar.");
       return jsonResponse({
-        success: bridgeRes.ok && bridgeData?.success !== false,
-        status: bridgeData?.status || bridgeData?.instance?.status || "connecting",
+        success: reconnect.ok && bridgeData?.success !== false,
+        status: reconnect.status || bridgeData?.status || bridgeData?.instance?.status || "connecting",
         qrcode: bridgeData?.qrcode || bridgeData?.instance?.qrcode,
         instance: bridgeData?.instance,
-        error: !bridgeRes.ok || bridgeData?.success === false ? (bridgeData?.error || "Erro ao reconectar") : undefined,
+        error: !reconnect.ok || bridgeData?.success === false ? (bridgeData?.error || "Erro ao reconectar") : undefined,
       });
     }
 
