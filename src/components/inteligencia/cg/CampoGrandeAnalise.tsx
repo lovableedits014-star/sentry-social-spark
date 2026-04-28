@@ -566,26 +566,35 @@ const CampoGrandeAnalise = () => {
                 >
                   <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
                 </button>
+                <button
+                  onClick={reprocessarBairros}
+                  disabled={reprocessing}
+                  title="Consulta o OpenStreetMap (geocoding real) para identificar o bairro de cada escola pelo endereço. Substitui qualquer classificação anterior feita por IA."
+                  className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 hover:bg-muted disabled:opacity-50"
+                >
+                  {reprocessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  {reprocessing ? "Reprocessando…" : "Reprocessar bairros (OSM)"}
+                </button>
               </div>
               {geocodeStats.total > 0 && (
                 <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="text-xs font-medium flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-primary" />
-                      Cobertura de bairros (geocodificação)
+                      Cobertura de bairros (geocodificação real via OpenStreetMap)
                     </div>
                     <div className="flex items-center gap-3 text-[11px]">
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                        <strong>{geocodeStats.ok.toLocaleString("pt-BR")}</strong> com bairro
+                        <strong>{geocodeStats.ok.toLocaleString("pt-BR")}</strong> confirmados
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
-                        <strong>{geocodeStats.pending.toLocaleString("pt-BR")}</strong> pendentes
+                        <strong>{geocodeStats.pending.toLocaleString("pt-BR")}</strong> a processar
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
-                        <strong>{geocodeStats.failed.toLocaleString("pt-BR")}</strong> falharam
+                        <strong>{geocodeStats.failed.toLocaleString("pt-BR")}</strong> sem resultado
                       </span>
                       <span className="text-muted-foreground">de {geocodeStats.total} locais</span>
                     </div>
@@ -596,7 +605,8 @@ const CampoGrandeAnalise = () => {
                     <div className="bg-amber-500 transition-all" style={{ width: `${(geocodeStats.pending / geocodeStats.total) * 100}%` }} />
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    {geocodeStats.pct}% dos locais já têm bairro identificado.
+                    {geocodeStats.pct}% dos locais com bairro identificado por geocoding real (coordenadas GPS).
+                    Itens "sem resultado" ficam vazios — o sistema NÃO inventa bairros.
                   </div>
                 </div>
               )}
