@@ -581,7 +581,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  O dossiê completo será enviado como <b>PDF anexo</b> via uma instância saudável do pool, com uma legenda curta de apresentação.
+                  O dossiê completo será enviado como <b>link clicável</b> para download do PDF, via uma instância saudável do pool. O link permanece disponível por <b>7 dias</b>.
                 </p>
               </div>
               <DialogFooter>
