@@ -56,7 +56,7 @@ const PAIN_COLORS: Record<string, string> = {
 
 const AREA_LABEL: Record<string, string> = {
   saude: "Saúde", educacao: "Educação", seguranca: "Segurança",
-  infra: "Infraestrutura", economia: "Economia",
+  infra: "Infraestrutura", economia: "Economia", social: "Social",
 };
 
 function copyText(t: string) {
@@ -399,15 +399,39 @@ const DossieView = ({ dossie }: { dossie: Dossie }) => {
           <CardContent className="space-y-2">
             {dores.length === 0 && <p className="text-sm text-muted-foreground">Sem dados de dor.</p>}
             {dores.map((d: any) => (
-              <div key={d.area} className="flex items-center justify-between p-2 rounded border">
-                <div>
-                  <div className="font-medium text-sm">{AREA_LABEL[d.area] || d.area}</div>
-                  <div className="text-xs text-muted-foreground">{d.mencoes_midia} menções na mídia</div>
+              <div key={d.area} className="p-2 rounded border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-sm">{AREA_LABEL[d.area] || d.area}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {d.tem_dados ? `${d.evidencias?.length || 0} indicador(es) reais` : "sem dados numéricos"} · {d.mencoes_midia} menções
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl font-bold tabular-nums">{d.pain_score}</div>
+                    <Badge className={PAIN_COLORS[d.classificacao]}>{d.classificacao}</Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-2xl font-bold tabular-nums">{d.pain_score}</div>
-                  <Badge className={PAIN_COLORS[d.classificacao]}>{d.classificacao}</Badge>
-                </div>
+                {d.evidencias && d.evidencias.length > 0 && (
+                  <ul className="text-[11px] space-y-1 pl-2 border-l-2 border-muted">
+                    {d.evidencias.slice(0, 4).map((e: any, i: number) => (
+                      <li key={i} className="text-muted-foreground">
+                        <span className="font-medium text-foreground">{e.titulo}:</span>{" "}
+                        <span className="tabular-nums">{e.valor_cidade} {e.unidade}</span>
+                        {e.valor_estado != null && (
+                          <span> · média {dossie.uf}: <span className="tabular-nums">{Number(e.valor_estado).toFixed(2)}</span>
+                            {e.delta_pct != null && (
+                              <span className={e.delta_pct > 5 ? "text-destructive ml-1" : e.delta_pct < -5 ? "text-emerald-600 ml-1" : "ml-1"}>
+                                ({e.delta_pct > 0 ? "+" : ""}{e.delta_pct.toFixed(1)}%)
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        <span className="ml-1 opacity-60">[{e.fonte}, {e.ano}]</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </CardContent>

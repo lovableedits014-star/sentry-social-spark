@@ -51,12 +51,47 @@ function buildUserPrompt(dossie: any) {
   const tse = dossie.dados_brutos?.tse_local || {};
   const midia = dossie.dados_brutos?.midia_gdelt || {};
   const analise = dossie.analise || {};
+  const indicadores = ibge?.indicadores || {};
+  const indicadoresEstado = ibge?.indicadores_estado || {};
+
+  // Lista compacta de indicadores reais com comparação ao estado
+  const linhasIndicadores: string[] = [];
+  for (const [id, data] of Object.entries(indicadores)) {
+    const d: any = data;
+    if (!d) continue;
+    const e: any = indicadoresEstado[id];
+    const partes = [`- ${d.label}: ${d.valor} ${d.unidade} (${d.ano}, ${d.fonte})`];
+    if (e && Number.isFinite(e.valor)) {
+      const diff = d.valor - e.valor;
+      const sinal = diff > 0 ? "+" : "";
+      partes.push(`  → média ${meta.uf}: ${e.valor} (${sinal}${diff.toFixed(2)})`);
+    }
+    linhasIndicadores.push(partes.join("\n"));
+  }
+
+  // Evidências numéricas das dores (já agregadas pela narrativa-analise)
+  const evidenciasDores = (analise?.dores || [])
+    .filter((d: any) => d.tem_dados && d.evidencias?.length)
+    .map((d: any) => {
+      const evs = d.evidencias.map((e: any) => {
+        const cmp = e.valor_estado != null
+          ? ` vs ${e.valor_estado.toFixed(2)} (média ${meta.uf}, delta ${e.delta_pct?.toFixed(1)}%)`
+          : "";
+        return `   • ${e.titulo}: ${e.valor_cidade} ${e.unidade}${cmp} [${e.fonte}, ${e.ano}]`;
+      }).join("\n");
+      return `${d.area.toUpperCase()} — ${d.classificacao} (score ${d.pain_score}):\n${evs}`;
+    }).join("\n\n");
 
   return `DOSSIÊ DA CIDADE
 Cidade: ${meta.municipio} / ${meta.uf}
-População estimada: ${ibge?.populacao?.val ?? "—"} (${ibge?.populacao?.ano ?? "—"})
-PIB per capita: ${ibge?.pib_per_capita?.val ?? "—"}
 Região: ${ibge?.base?.regiao ?? "—"}
+Microrregião: ${ibge?.base?.microrregiao ?? "—"}
+
+INDICADORES MUNICIPAIS REAIS (com comparação ao estado de ${meta.uf}):
+${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
+
+EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
+${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
 TOP CANDIDATOS LOCAIS (TSE):
 ${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
@@ -69,10 +104,15 @@ ${(tse?.partidos_dominantes || []).slice(0, 5).map((p: any) => `${p.partido}: ${
 MÍDIA RECENTE (últimos 30 dias, ${midia?.total ?? 0} artigos, tom médio ${midia?.tom_medio?.toFixed?.(2) ?? "—"}):
 ${(midia?.artigos || []).slice(0, 8).map((a: any) => `- "${a.titulo}" (${a.fonte})`).join("\n") || "(sem cobertura)"}
 
-ANÁLISE DE DOR:
-${(analise?.dores || []).map((d: any) => `- ${d.area}: ${d.classificacao} (score ${d.pain_score}, ${d.mencoes_midia} menções)`).join("\n") || "—"}
-
 Oportunidade política: ${analise?.oportunidade?.nivel} (score ${analise?.oportunidade?.oportunidade_score}). Dor principal: ${analise?.oportunidade?.dor_principal}. Força do gestor atual: ${analise?.oportunidade?.forca_gestor_atual ?? "—"}%.
+
+INSTRUÇÕES CRÍTICAS:
+- USE OS NÚMEROS REAIS acima nos discursos (ex: "esgoto chega a só 58% das casas, contra 70% da média do estado")
+- Quando houver delta vs estado, EXPLORE o contraste — é arma política poderosa
+- Cite o ano dos dados quando recente (não cite anos de 2010 ou anteriores como se fossem atuais)
+- Se um indicador NÃO tiver dado, NÃO invente — fale do que tem
+- Os "ataques 3-camadas" devem usar números específicos da cidade
+- O bairro_sugerido deve ser uma região plausível da cidade (ex: "região leste", "periferia norte")
 
 Gere o pacote completo de munição política para esta cidade.`;
 }

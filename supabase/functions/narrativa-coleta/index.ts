@@ -7,9 +7,12 @@ const corsHeaders = {
 
 /**
  * narrativa-coleta
- * Coleta paralela de dados públicos sobre uma cidade brasileira para alimentar
- * o gerador de narrativa política. Usa apenas APIs sem chave (IBGE, TSE local,
- * GDELT) e devolve um payload bruto que será analisado por `narrativa-analise`.
+ * Coleta paralela de dados REAIS sobre uma cidade brasileira para alimentar
+ * o gerador de narrativa política. Usa apenas APIs públicas sem chave:
+ *  - IBGE Cidades (Painel do Município) — 15+ indicadores reais
+ *  - IBGE Cidades (média estadual) — para gerar contraste numérico
+ *  - TSE local (banco interno)
+ *  - GDELT (mídia recente)
  *
  * Body JSON: { client_id, uf, municipio, ibge_code? }
  * Resposta: { dossie_id, dados_brutos }
@@ -17,6 +20,50 @@ const corsHeaders = {
 
 const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPA_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Mapa de UF -> código IBGE do estado (N3)
+const UF_TO_CODE: Record<string, number> = {
+  AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32, GO: 52,
+  MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41, PE: 26, PI: 22,
+  RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42, SP: 35, SE: 28, TO: 17,
+};
+
+/**
+ * Indicadores políticos do Painel do Município (IBGE Cidades).
+ * Cada um tem: id IBGE, label, área temática, unidade, e direção
+ * (higher_is_worse: se valor mais alto significa MAIS dor).
+ */
+type IndicadorMeta = {
+  id: number;
+  label: string;
+  area: "saude" | "educacao" | "infra" | "economia" | "social" | "demografia";
+  unidade: string;
+  higher_is_worse: boolean;
+  fonte: string;
+};
+
+const INDICADORES: IndicadorMeta[] = [
+  { id: 29167, label: "Área territorial",        area: "demografia", unidade: "km²",                        higher_is_worse: false, fonte: "IBGE 2025" },
+  { id: 29168, label: "Densidade demográfica",   area: "demografia", unidade: "hab/km²",                    higher_is_worse: false, fonte: "Censo 2010" },
+  { id: 29171, label: "População estimada",      area: "demografia", unidade: "pessoas",                    higher_is_worse: false, fonte: "IBGE 2025" },
+  { id: 30255, label: "IDH-M",                   area: "social",     unidade: "índice 0-1",                 higher_is_worse: false, fonte: "Atlas Brasil 2010" },
+  { id: 30246, label: "Incidência da pobreza",   area: "social",     unidade: "%",                          higher_is_worse: true,  fonte: "IBGE 2003" },
+  { id: 30252, label: "Índice de Gini",          area: "social",     unidade: "índice 0-1",                 higher_is_worse: true,  fonte: "IBGE 2003" },
+  { id: 30279, label: "Mortalidade infantil",    area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte: "DataSUS via IBGE" },
+  { id: 60022, label: "Mortalidade infantil 2",  area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte: "DataSUS" },
+  { id: 60030, label: "Esgoto adequado",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2022" },
+  { id: 60029, label: "Arborização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2010" },
+  { id: 60031, label: "Urbanização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2010" },
+  { id: 60041, label: "IDEB anos iniciais",      area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte: "INEP 2023" },
+  { id: 60042, label: "IDEB anos finais",        area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte: "INEP 2023" },
+  { id: 60045, label: "Escolarização 6-14 anos", area: "educacao",   unidade: "%",                          higher_is_worse: false, fonte: "Censo 2022" },
+  { id: 60038, label: "Salário médio mensal",    area: "economia",   unidade: "salários mínimos",           higher_is_worse: false, fonte: "IBGE 2022" },
+  { id: 60036, label: "População ocupada",       area: "economia",   unidade: "%",                          higher_is_worse: false, fonte: "IBGE 2022" },
+  { id: 60047, label: "PIB per capita",          area: "economia",   unidade: "R$",                         higher_is_worse: false, fonte: "IBGE 2022" },
+  { id: 60048, label: "% receita de transferências federais", area: "economia", unidade: "%",               higher_is_worse: true,  fonte: "Tesouro 2024" },
+];
+
+const IND_IDS = INDICADORES.map((i) => i.id).join("|");
 
 function normalize(s: string) {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -62,35 +109,59 @@ async function fetchIbgeBase(codigo: number) {
   };
 }
 
-async function fetchIbgeAgregado(agregado: number, variavel: number, codigo: number) {
-  const json: any = await safeFetchJson(
-    `https://servicodados.ibge.gov.br/api/v3/agregados/${agregado}/periodos/all/variaveis/${variavel}?localidades=N6[${codigo}]`,
-  );
-  const series = json?.[0]?.resultados?.[0]?.series?.[0]?.serie;
-  if (!series || typeof series !== "object") return null;
-  const entries = Object.entries(series)
-    .map(([ano, val]) => ({ ano: Number(ano), val: val == null ? null : Number(val) }))
-    .filter((e) => e.val != null && !Number.isNaN(e.val))
-    .sort((a, b) => b.ano - a.ano);
-  if (!entries.length) return null;
-  return entries[0]; // mais recente
+/**
+ * Busca o conjunto completo de indicadores políticos para um localidade
+ * (município OU estado). Retorna o valor mais recente de cada indicador.
+ */
+async function fetchPainelIndicadores(localidadeCode: number | string) {
+  // O endpoint do IBGE Cidades aceita o código com o dígito verificador OU sem.
+  // Para municípios usamos o código de 7 dígitos (ex: 5002704); o IBGE devolve
+  // a série indexada pelo código de 6 dígitos (ex: 500270) — isso não importa
+  // pra gente, só lemos o objeto `res`.
+  const url = `https://servicodados.ibge.gov.br/api/v1/pesquisas/indicadores/${IND_IDS}/resultados/${localidadeCode}`;
+  const json: any = await safeFetchJson(url, 12000);
+  if (!Array.isArray(json)) return {};
+
+  const out: Record<string, { id: number; label: string; area: string; unidade: string; fonte: string; ano: number; valor: number; higher_is_worse: boolean } | null> = {};
+
+  for (const meta of INDICADORES) {
+    const found = json.find((x: any) => Number(x?.id) === meta.id);
+    if (!found) { out[String(meta.id)] = null; continue; }
+    // Pega a série mais recente com valor numérico válido
+    const res = found.res?.[0]?.res || {};
+    const entries = Object.entries(res)
+      .map(([ano, v]: [string, any]) => ({ ano: Number(ano), v: typeof v === "string" && v !== "-" ? Number(v) : (v as number) }))
+      .filter((e) => Number.isFinite(e.v) && !Number.isNaN(e.v))
+      .sort((a, b) => b.ano - a.ano);
+    if (!entries.length) { out[String(meta.id)] = null; continue; }
+    out[String(meta.id)] = {
+      id: meta.id,
+      label: meta.label,
+      area: meta.area,
+      unidade: meta.unidade,
+      fonte: meta.fonte,
+      ano: entries[0].ano,
+      valor: entries[0].v,
+      higher_is_worse: meta.higher_is_worse,
+    };
+  }
+  return out;
 }
 
-async function fetchIbgeDossie(codigo: number) {
-  const [base, pop, area, pib, idhPlaceholder] = await Promise.all([
-    fetchIbgeBase(codigo),
-    fetchIbgeAgregado(6579, 9324, codigo), // estimativa população
-    fetchIbgeAgregado(1301, 6318, codigo), // área km2
-    fetchIbgeAgregado(5938, 37, codigo),   // PIB per capita
-    Promise.resolve(null),
-  ]);
-  return {
-    base,
-    populacao: pop,
-    area_km2: area?.val ?? null,
-    pib_per_capita: pib,
-    idhPlaceholder,
-  };
+/**
+ * Calcula a média estadual de cada indicador a partir de TODOS os municípios
+ * da UF (versão MVP: pega só o nível estadual N3 do IBGE Cidades, que já é
+ * agregado e gratuito). Cache em memória para não martelar o IBGE.
+ */
+const MEDIA_ESTADO_CACHE = new Map<string, any>();
+async function fetchMediaEstadual(uf: string) {
+  const cached = MEDIA_ESTADO_CACHE.get(uf);
+  if (cached) return cached;
+  const code = UF_TO_CODE[uf.toUpperCase()];
+  if (!code) return {};
+  const data = await fetchPainelIndicadores(code);
+  MEDIA_ESTADO_CACHE.set(uf, data);
+  return data;
 }
 
 /* ----------------- TSE local (do nosso banco) ----------------- */
@@ -204,16 +275,27 @@ Deno.serve(async (req) => {
       ibge_code = await resolveIbgeCode(municipio, uf);
     }
 
-    // Coleta paralela
-    const [ibge, tse, gdelt] = await Promise.all([
-      ibge_code ? fetchIbgeDossie(Number(ibge_code)) : Promise.resolve(null),
+    // Coleta paralela: indicadores municipais + indicadores do estado + base + TSE + mídia
+    const [base, indicadores, indicadoresEstado, tse, gdelt] = await Promise.all([
+      ibge_code ? fetchIbgeBase(Number(ibge_code)) : Promise.resolve(null),
+      ibge_code ? fetchPainelIndicadores(Number(ibge_code)) : Promise.resolve({}),
+      fetchMediaEstadual(uf),
       fetchTseLocal(supa, uf, municipio),
       fetchGdelt(municipio),
     ]);
 
     const dadosBrutos = {
       meta: { uf, municipio, ibge_code, coletado_em: new Date().toISOString() },
-      ibge,
+      ibge: {
+        base,
+        // Mantém os campos legados que o front já consome
+        populacao: indicadores["29171"] ? { ano: indicadores["29171"]!.ano, val: indicadores["29171"]!.valor } : null,
+        area_km2: indicadores["29167"]?.valor ?? null,
+        pib_per_capita: indicadores["60047"] ? { ano: indicadores["60047"]!.ano, val: indicadores["60047"]!.valor } : null,
+        // NOVO: catálogo completo de indicadores reais com fonte e ano
+        indicadores,
+        indicadores_estado: indicadoresEstado,
+      },
       tse_local: tse,
       midia_gdelt: gdelt,
     };
