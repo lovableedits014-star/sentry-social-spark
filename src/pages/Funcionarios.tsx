@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,14 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users2, Trophy, TrendingUp, UserPlus, Copy, CheckCircle2,
-  Clock, Crown, Medal, Award, Loader2, CalendarCheck, ClipboardList,
+  Clock, Crown, Medal, Award, Loader2, CalendarCheck, ClipboardList, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import AcoesExternasTab from "@/components/funcionarios/AcoesExternasTab";
 
 export default function Funcionarios() {
   const [copied, setCopied] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nome: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: client } = useQuery({
     queryKey: ["my-client"],
@@ -129,6 +142,27 @@ export default function Funcionarios() {
     if (index === 1) return <Medal className="w-4 h-4 text-gray-400" />;
     if (index === 2) return <Award className="w-4 h-4 text-amber-700" />;
     return null;
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Remove dependências (referrals e check-ins) antes do funcionário
+      await supabase.from("funcionario_referrals" as any).delete().eq("funcionario_id", deleteTarget.id);
+      await supabase.from("funcionario_checkins" as any).delete().eq("funcionario_id", deleteTarget.id);
+      const { error } = await supabase.from("funcionarios" as any).delete().eq("id", deleteTarget.id);
+      if (error) throw error;
+      toast.success(`Funcionário "${deleteTarget.nome}" excluído.`);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["funcionarios-list", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["funcionarios-stats", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["funcionario-recent-referrals", clientId] });
+    } catch (e: any) {
+      toast.error("Erro ao excluir: " + (e?.message || "tente novamente"));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (!clientId) {
@@ -247,9 +281,20 @@ export default function Funcionarios() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium truncate">{m.nome}</p>
-                          <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs ml-2 shrink-0">
-                            {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                            <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs">
+                              {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteTarget({ id: m.id, nome: m.nome })}
+                              aria-label={`Excluir ${m.nome}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         <Progress value={maxReferrals > 0 ? (m.referral_count / maxReferrals) * 100 : 0} className="h-1.5 mt-1" />
                       </div>
@@ -306,6 +351,27 @@ export default function Funcionarios() {
           <AcoesExternasTab clientId={clientId} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>? Esta ação remove o funcionário, suas indicações e check-ins. Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
