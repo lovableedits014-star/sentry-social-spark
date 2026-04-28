@@ -65,9 +65,16 @@ export function EleitoralFiltersProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => { writeToURL(state); }, [state]);
 
-  const setUf = useCallback((uf: string) => setState((s) => ({ ...s, uf, municipio: "__all__" })), []);
+  // Mudar UF/Ano invalida município e cargo (combinações podem não existir)
+  const setUf = useCallback(
+    (uf: string) => setState((s) => ({ ...s, uf, municipio: "__all__", cargo: "__all__" })),
+    [],
+  );
   const setMunicipio = useCallback((municipio: string) => setState((s) => ({ ...s, municipio })), []);
-  const setAnoMode = useCallback((anoMode: AnoMode) => setState((s) => ({ ...s, anoMode })), []);
+  const setAnoMode = useCallback(
+    (anoMode: AnoMode) => setState((s) => ({ ...s, anoMode, cargo: "__all__", municipio: "__all__" })),
+    [],
+  );
   const setCargo = useCallback((cargo: string) => setState((s) => ({ ...s, cargo })), []);
   const setPartido = useCallback((partido: string) => setState((s) => ({ ...s, partido })), []);
   const reset = useCallback(() => setState(DEFAULT), []);
