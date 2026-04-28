@@ -4041,6 +4041,7 @@ export type Database = {
       }
       is_super_admin: { Args: never; Returns: boolean }
       is_valid_cpf: { Args: { cpf: string }; Returns: boolean }
+      keepalive_whatsapp_instances: { Args: never; Returns: undefined }
       link_orphan_engagement_actions: {
         Args: { p_client_id: string }
         Returns: number
