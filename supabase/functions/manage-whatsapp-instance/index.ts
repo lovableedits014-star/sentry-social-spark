@@ -579,6 +579,9 @@ Deno.serve(async (req) => {
       }
       const health = await syncInstanceHealth(adminClient, activeInstanceRow);
       if (health.status === "connected") return jsonResponse({ success: true, status: "connected", health });
+      if (!clientApiKey) {
+        return jsonResponse({ success: false, status: "disconnected", error: "Instância sem credencial; conecte novamente pelo QR Code." });
+      }
 
       const reconnectBody = { action: "reconnect" };
       const { bridgeRes, bridgeData } = await fetchBridgeAction({
