@@ -626,8 +626,8 @@ Deno.serve(async (req) => {
           if (!bridgeUrl || !bridgeApiKey) {
             // Nenhuma instância disponível agora — pausa pra retomar depois
             await adminClient.from("whatsapp_dispatches").update({
-              status: "pausado_janela",
-              pause_reason: "Nenhuma instância conectada disponível",
+              status: "pausado_sem_instancia",
+              pause_reason: "Nenhuma instância conectada disponível — retomado automaticamente quando reconectar",
               enviados: sent,
               falhas: failed,
               updated_at: new Date().toISOString(),
