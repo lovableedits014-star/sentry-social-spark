@@ -509,10 +509,44 @@ Deno.serve(async (req) => {
           }
           lastInstanceId = instanceId;
 
+          // ===== PREFLIGHT: garante instância conectada antes de enviar =====
+          // Roda uma vez por instância no ciclo. Se reconexão silenciosa falha,
+          // marca a instância como desconectada e pula pra próxima rodada (que
+          // escolherá outra via pick_healthy_whatsapp_instance).
+          let preflight: PreflightResult = { status: "skipped", reconnected: false };
+          if (instanceId && bridgeUrl && bridgeApiKey) {
+            const cached = preflightByInstance[instanceId];
+            if (cached && cached.status === "connected") {
+              preflight = cached;
+            } else {
+              preflight = await preflightInstance({
+                bridgeUrl, bridgeApiKey, instanceId,
+              });
+              preflightByInstance[instanceId] = preflight;
+            }
+
+            if (preflight.status === "disconnected") {
+              // Marca como desconectada e força nova escolha de instância
+              await adminClient.from("whatsapp_instances")
+                .update({ status: "disconnected" })
+                .eq("id", instanceId);
+              await adminClient.rpc("log_whatsapp_send", {
+                p_instance_id: instanceId, p_client_id: client_id,
+                p_dispatch_id: dispatch.id, p_success: false,
+                p_error_message: `Preflight: instância offline (${preflight.detail || "sem status"})`,
+                p_preflight_status: preflight.status,
+                p_preflight_reconnected: preflight.reconnected,
+              });
+              // invalida cache pra reavaliar e pula esse destinatário no próximo loop
+              delete preflightByInstance[instanceId];
+              continue;
+            }
+          }
+
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
             const phoneClean = cleanPhoneForBridge(recipient.telefone);
-            console.log(`[dispatch] inst=${instanceId ?? "legacy"} phone=${phoneClean}`);
+            console.log(`[dispatch] inst=${instanceId ?? "legacy"} preflight=${preflight.status}${preflight.reconnected ? "(reconectado)" : ""} phone=${phoneClean}`);
 
             const { res: sendRes, data: sendData } = await fetchBridgeSend({
               bridgeUrl,
@@ -533,6 +567,8 @@ Deno.serve(async (req) => {
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: true, p_error_message: null,
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
               }
             } else {
@@ -541,9 +577,12 @@ Deno.serve(async (req) => {
                 await adminClient.from("whatsapp_instances")
                   .update({ status: "disconnected" })
                   .eq("id", instanceId);
+                delete preflightByInstance[instanceId];
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
                 // Não conta como falha do destinatário; tenta de novo no próximo loop
                 continue;
@@ -557,6 +596,8 @@ Deno.serve(async (req) => {
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
               }
             }
@@ -570,6 +611,8 @@ Deno.serve(async (req) => {
               await adminClient.rpc("log_whatsapp_send", {
                 p_instance_id: instanceId, p_client_id: client_id,
                 p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(err).slice(0, 200),
+                p_preflight_status: preflight.status,
+                p_preflight_reconnected: preflight.reconnected,
               });
             }
           }
