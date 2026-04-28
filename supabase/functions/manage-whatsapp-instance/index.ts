@@ -376,7 +376,7 @@ Deno.serve(async (req) => {
     if (action === "list_instances") {
       const { data, error } = await adminClient
         .from("whatsapp_instances")
-        .select("id, apelido, phone_number, status, is_active, is_primary, last_send_at, messages_sent_today, messages_sent_today_date, total_sent, total_failed, consecutive_failures, connected_since, notes, bridge_url, created_at, updated_at")
+        .select("id, apelido, phone_number, status, is_active, is_primary, last_send_at, messages_sent_today, messages_sent_today_date, total_sent, total_failed, consecutive_failures, connected_since, last_disconnected_at, notes, bridge_url, created_at, updated_at")
         .eq("client_id", resolvedClientId)
         .order("is_primary", { ascending: false })
         .order("created_at", { ascending: true });

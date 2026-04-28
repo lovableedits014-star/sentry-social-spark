@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Smartphone, ShieldCheck, Activity } from "lucide-react";
+import { Loader2, Plus, Smartphone, ShieldCheck, Activity, AlertTriangle, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import WhatsAppInstancePoolCard, { type PoolInstance } from "./WhatsAppInstancePoolCard";
 import WhatsAppPoolSummary from "./WhatsAppPoolSummary";
@@ -55,6 +55,33 @@ export default function WhatsAppPoolManager({ clientId }: Props) {
 
   const activeCount = instances.filter((i) => i.is_active && i.status === "connected").length;
 
+  // Instâncias ATIVAS desconectadas há mais de 10 minutos
+  const TEN_MIN_MS = 10 * 60 * 1000;
+  const now = Date.now();
+  const stuckDisconnected = instances.filter((i) => {
+    if (!i.is_active) return false;
+    if (i.status === "connected") return false;
+    if (!i.last_disconnected_at) return false;
+    return now - new Date(i.last_disconnected_at).getTime() >= TEN_MIN_MS;
+  });
+
+  const formatDownTime = (iso: string) => {
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (diff < 60) return `há ${diff} min`;
+    const h = Math.floor(diff / 60);
+    if (h < 24) return `há ${h}h`;
+    return `há ${Math.floor(h / 24)}d`;
+  };
+
+  const scrollToInstance = (id: string) => {
+    const el = document.getElementById(`wa-instance-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-red-500");
+      setTimeout(() => el.classList.remove("ring-2", "ring-red-500"), 2500);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -87,6 +114,48 @@ export default function WhatsAppPoolManager({ clientId }: Props) {
         ) : (
           <>
             <WhatsAppPoolSummary instances={instances} clientId={clientId} />
+
+            {stuckDisconnected.length > 0 && (
+              <div className="rounded-lg border-2 border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-4 py-3 space-y-2 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                      {stuckDisconnected.length === 1
+                        ? "1 instância está desconectada há mais de 10 minutos"
+                        : `${stuckDisconnected.length} instâncias estão desconectadas há mais de 10 minutos`}
+                    </p>
+                    <p className="text-xs text-red-700/80 dark:text-red-400/80 mt-0.5">
+                      Disparos automáticos podem estar sendo afetados. Reconecte agora para evitar falhas.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-1.5 pl-7">
+                  {stuckDisconnected.map((i) => (
+                    <li
+                      key={i.id}
+                      className="flex items-center justify-between gap-2 text-xs bg-white/60 dark:bg-red-950/40 rounded px-2.5 py-1.5"
+                    >
+                      <span className="flex items-center gap-1.5 text-red-900 dark:text-red-200 min-w-0">
+                        <WifiOff className="w-3.5 h-3.5 shrink-0" />
+                        <span className="font-medium truncate">{i.apelido}</span>
+                        <span className="text-red-600/70 dark:text-red-400/70 whitespace-nowrap">
+                          · offline {formatDownTime(i.last_disconnected_at!)}
+                        </span>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 px-2.5 text-xs shrink-0"
+                        onClick={() => scrollToInstance(i.id)}
+                      >
+                        Reconectar agora
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {activeCount === 1 && (
               <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
