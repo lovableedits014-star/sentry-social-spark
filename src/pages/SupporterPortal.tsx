@@ -162,25 +162,14 @@ export default function SupporterPortal() {
       checkTodayCheckin(existingAccount.id);
       loadCheckinStats(existingAccount.id);
     } else {
-      // Create account if user just registered
-      const userName = session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Apoiador";
-      const { data: newAccount } = await supabase
-        .from("supporter_accounts")
-        .insert({
-          user_id: session.user.id,
-          client_id: clientId,
-          name: userName,
-          email: session.user.email!,
-        })
-        .select()
-        .single();
-
-      if (newAccount) {
-        setAccount(newAccount);
-        setEditName(newAccount.name || "");
-        // Auto link as supporter in the supporters table
-        await linkAsSupporterActive(newAccount.id, userName);
-      }
+      // Não criamos mais um supporter_account vazio aqui — isso gerava
+      // "cadastros fantasma" quando o usuário fazia login (ex.: Google) e
+      // abandonava o formulário. Em vez disso, redirecionamos para o
+      // formulário de cadastro completo, que valida todos os campos
+      // obrigatórios (telefone, CPF, cidade, bairro, endereço, nascimento).
+      toast.info("Complete seu cadastro para acessar o portal.");
+      navigate(`/cadastro/${clientId}?papel=apoiador`);
+      return;
     }
 
     // Load missions pinned by the manager
