@@ -33,54 +33,143 @@ function clamp(n: number, min = 0, max = 100) {
 }
 
 /**
- * Heurísticas iniciais — refinadas conforme adicionarmos DataSUS/INEP/SNIS na onda 2.
- * Por enquanto usamos sinais indiretos:
- *  - tom médio do GDELT (negativo = mais dor)
- *  - menções de palavras-chave em manchetes
- *  - densidade populacional (super densa = pressão urbana)
+ * Mapa de Dor REAL — baseado em desvio numérico vs média estadual.
+ *
+ * Para cada indicador relevante (saúde, educação, infra, economia, social):
+ *  1) compara o valor da cidade com a média estadual
+ *  2) calcula um delta percentual (positivo = pior que o estado)
+ *  3) usa esse delta + menções na mídia como score 0..100
+ *
+ * O score vira um pain_score por área. As áreas são depois agregadas
+ * em "Saúde", "Educação", "Infraestrutura", "Economia", "Social".
  */
+const AREA_INDICADORES: Record<string, { id: number; peso: number; titulo: string }[]> = {
+  saude: [
+    { id: 30279, peso: 1.0, titulo: "Mortalidade infantil" },
+    { id: 60022, peso: 0.6, titulo: "Mortalidade infantil (DataSUS)" },
+  ],
+  educacao: [
+    { id: 60041, peso: 1.0, titulo: "IDEB anos iniciais" },
+    { id: 60042, peso: 1.0, titulo: "IDEB anos finais" },
+    { id: 60045, peso: 0.6, titulo: "Escolarização 6-14 anos" },
+  ],
+  infra: [
+    { id: 60030, peso: 1.0, titulo: "Esgoto adequado" },
+    { id: 60031, peso: 0.5, titulo: "Urbanização das vias" },
+    { id: 60029, peso: 0.3, titulo: "Arborização" },
+  ],
+  economia: [
+    { id: 60038, peso: 1.0, titulo: "Salário médio mensal" },
+    { id: 60047, peso: 0.7, titulo: "PIB per capita" },
+    { id: 60048, peso: 1.0, titulo: "Dependência de transferências federais" },
+    { id: 60036, peso: 0.5, titulo: "População ocupada" },
+  ],
+  social: [
+    { id: 30246, peso: 1.0, titulo: "Pobreza" },
+    { id: 30252, peso: 0.7, titulo: "Desigualdade (Gini)" },
+    { id: 30255, peso: 0.8, titulo: "IDH-M" },
+  ],
+};
+
+function pctDeviation(cidade: number, estado: number, higherIsWorse: boolean): number {
+  if (!Number.isFinite(estado) || estado === 0) return 0;
+  const raw = ((cidade - estado) / Math.abs(estado)) * 100;
+  // higher_is_worse=true: cidade > estado => pior (delta positivo)
+  // higher_is_worse=false: cidade < estado => pior (invertemos)
+  return higherIsWorse ? raw : -raw;
+}
+
 function calcularDores(dadosBrutos: any) {
   const artigos = dadosBrutos?.midia_gdelt?.artigos || [];
   const tomMedio = dadosBrutos?.midia_gdelt?.tom_medio ?? 0;
+  const indicadores = dadosBrutos?.ibge?.indicadores || {};
+  const indicadoresEstado = dadosBrutos?.ibge?.indicadores_estado || {};
 
+  // Conta menções por área (sinal complementar da mídia)
   const titulos = artigos.map((a: any) => (a.titulo || "").toLowerCase()).join(" | ");
-
-  const counts = {
-    saude: 0, educacao: 0, seguranca: 0, infra: 0, economia: 0,
+  const kw: Record<string, string[]> = {
+    saude: ["saúde", "ubs", "hospital", "vacina", "fila", "remédio", "ambulância", "posto", "sus"],
+    educacao: ["escola", "educação", "aluno", "professor", "creche", "ensino", "ideb", "merenda"],
+    infra: ["buraco", "asfalto", "rua", "esgoto", "água", "iluminação", "transporte", "ônibus", "saneamento", "obra"],
+    economia: ["desemprego", "emprego", "crise", "fechou", "comércio", "imposto", "salário", "renda"],
+    social: ["pobreza", "fome", "miséria", "desigualdade", "vulnerável", "auxílio"],
   };
-  const kw: Record<keyof typeof counts, string[]> = {
-    saude: ["saúde", "ubs", "hospital", "vacina", "fila", "remédio", "ambulância"],
-    educacao: ["escola", "educação", "aluno", "professor", "creche", "ensino"],
-    seguranca: ["violência", "homicídio", "assalto", "roubo", "tráfico", "polícia", "segurança"],
-    infra: ["buraco", "asfalto", "rua", "esgoto", "água", "iluminação", "transporte", "ônibus"],
-    economia: ["desemprego", "emprego", "crise", "fechou", "comércio", "imposto"],
-  };
+  const mencoes: Record<string, number> = {};
   for (const [area, words] of Object.entries(kw)) {
+    let n = 0;
     for (const w of words) {
       const re = new RegExp(`\\b${w}`, "gi");
-      const matches = titulos.match(re);
-      if (matches) (counts as any)[area] += matches.length;
+      const m = titulos.match(re);
+      if (m) n += m.length;
     }
+    mencoes[area] = n;
   }
 
-  // Boost por tom muito negativo
-  const negBoost = tomMedio < -3 ? 25 : tomMedio < -1 ? 12 : 0;
+  const negBoost = tomMedio < -3 ? 15 : tomMedio < -1 ? 7 : 0;
 
-  const dores = (Object.keys(counts) as (keyof typeof counts)[]).map((area) => {
-    const raw = counts[area];
-    // 0 menções => pain baixo (~10), 1=>30, 2=>50, 3+=>70+
-    let score = 10 + raw * 20 + negBoost;
-    score = clamp(score);
+  const dores = Object.entries(AREA_INDICADORES).map(([area, lista]) => {
+    let scoreSomado = 0;
+    let pesoTotal = 0;
+    const evidencias: any[] = [];
+
+    for (const { id, peso, titulo } of lista) {
+      const cidade = indicadores[String(id)];
+      const estado = indicadoresEstado[String(id)];
+      if (!cidade || !Number.isFinite(cidade.valor)) continue;
+
+      let painLocal = 50; // baseline neutro quando não há comparação
+      let deltaPct: number | null = null;
+      let estadoVal: number | null = null;
+
+      if (estado && Number.isFinite(estado.valor)) {
+        estadoVal = estado.valor;
+        deltaPct = pctDeviation(cidade.valor, estado.valor, cidade.higher_is_worse);
+        // Mapeia delta (-50% a +100%) para score 10..100
+        // delta 0 => 50; delta +20% => 70; delta +50% => 95
+        painLocal = clamp(50 + deltaPct * 1.0);
+      } else {
+        // Sem média estadual — usa thresholds absolutos para alguns indicadores
+        if (id === 30279 || id === 60022) painLocal = clamp(20 + cidade.valor * 3);   // mort. infantil
+        if (id === 60030) painLocal = clamp(100 - cidade.valor);                      // esgoto
+        if (id === 60041 || id === 60042) painLocal = clamp(100 - cidade.valor * 10); // IDEB
+        if (id === 30246) painLocal = clamp(20 + cidade.valor * 1.2);                 // pobreza
+        if (id === 60048) painLocal = clamp(cidade.valor);                            // % transferências
+      }
+
+      scoreSomado += painLocal * peso;
+      pesoTotal += peso;
+      evidencias.push({
+        indicador_id: id,
+        titulo,
+        valor_cidade: cidade.valor,
+        ano: cidade.ano,
+        unidade: cidade.unidade,
+        fonte: cidade.fonte,
+        valor_estado: estadoVal,
+        delta_pct: deltaPct,
+        pain_local: Math.round(painLocal),
+      });
+    }
+
+    const baseScore = pesoTotal > 0 ? Math.round(scoreSomado / pesoTotal) : 30;
+    const score = clamp(baseScore + (mencoes[area] || 0) * 4 + negBoost);
+
     return {
       area,
       pain_score: score,
       classificacao: classifyPain(score),
-      mencoes_midia: raw,
+      mencoes_midia: mencoes[area] || 0,
+      evidencias,
+      tem_dados: evidencias.length > 0,
     };
   });
 
-  // Ordena por dor decrescente
-  dores.sort((a, b) => b.pain_score - a.pain_score);
+  // Ordena por dor decrescente, mas prioriza dores com evidência real
+  dores.sort((a, b) => {
+    if (a.tem_dados !== b.tem_dados) return a.tem_dados ? -1 : 1;
+    return b.pain_score - a.pain_score;
+  });
+
   return { dores, tom_medio_midia: tomMedio };
 }
 
