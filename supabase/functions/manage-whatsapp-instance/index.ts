@@ -655,12 +655,16 @@ Deno.serve(async (req) => {
 
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
-      const status = bridgeData?.status === "connected" ? "connected"
-        : bridgeData?.status === "connecting" ? "connecting"
+      const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+      const status = rawStatus === "connected" || rawStatus === "open" ? "connected"
+        : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr" ? "connecting"
         : "disconnected";
       const updates: any = { status, last_health_check_at: new Date().toISOString() };
       if (status === "connected" && !activeInstanceRow.connected_since) {
         updates.connected_since = new Date().toISOString();
+      }
+      if (status !== "connected") {
+        updates.connected_since = null;
       }
       // Sincroniza telefone sempre que a bridge informar (mesmo em connecting)
       const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
