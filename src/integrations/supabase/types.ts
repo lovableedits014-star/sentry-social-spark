@@ -3773,6 +3773,8 @@ export type Database = {
           error_message: string | null
           id: string
           instance_id: string
+          preflight_reconnected: boolean
+          preflight_status: string | null
           sent_at: string
           success: boolean
         }
@@ -3782,6 +3784,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           instance_id: string
+          preflight_reconnected?: boolean
+          preflight_status?: string | null
           sent_at?: string
           success: boolean
         }
@@ -3791,6 +3795,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           instance_id?: string
+          preflight_reconnected?: boolean
+          preflight_status?: string | null
           sent_at?: string
           success?: boolean
         }
@@ -4049,16 +4055,29 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: number
       }
-      log_whatsapp_send: {
-        Args: {
-          p_client_id: string
-          p_dispatch_id: string
-          p_error_message?: string
-          p_instance_id: string
-          p_success: boolean
-        }
-        Returns: undefined
-      }
+      log_whatsapp_send:
+        | {
+            Args: {
+              p_client_id: string
+              p_dispatch_id: string
+              p_error_message?: string
+              p_instance_id: string
+              p_success: boolean
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_client_id: string
+              p_dispatch_id: string
+              p_error_message?: string
+              p_instance_id: string
+              p_preflight_reconnected?: boolean
+              p_preflight_status?: string
+              p_success: boolean
+            }
+            Returns: undefined
+          }
       normalize_br_phone: { Args: { p_raw: string }; Returns: string }
       normalize_locality: { Args: { p_input: string }; Returns: string }
       normalize_person_name: { Args: { p_name: string }; Returns: string }
