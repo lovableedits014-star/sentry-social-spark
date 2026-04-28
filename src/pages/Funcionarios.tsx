@@ -281,9 +281,20 @@ export default function Funcionarios() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium truncate">{m.nome}</p>
-                          <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs ml-2 shrink-0">
-                            {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                            <Badge variant={i < 3 ? "default" : "secondary"} className="text-xs">
+                              {m.referral_count} {m.referral_count === 1 ? "indicação" : "indicações"}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteTarget({ id: m.id, nome: m.nome })}
+                              aria-label={`Excluir ${m.nome}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         <Progress value={maxReferrals > 0 ? (m.referral_count / maxReferrals) * 100 : 0} className="h-1.5 mt-1" />
                       </div>
@@ -340,6 +351,27 @@ export default function Funcionarios() {
           <AcoesExternasTab clientId={clientId} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>? Esta ação remove o funcionário, suas indicações e check-ins. Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
