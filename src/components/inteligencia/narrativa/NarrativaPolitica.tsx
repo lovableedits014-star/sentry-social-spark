@@ -14,8 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
-  AlertTriangle, History, Copy, Loader2, Search,
+  AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned,
 } from "lucide-react";
+import jsPDF from "jspdf";
 
 type Dossie = {
   id: string;
@@ -62,6 +63,101 @@ const AREA_LABEL: Record<string, string> = {
 function copyText(t: string) {
   navigator.clipboard.writeText(t);
   toast({ title: "Copiado", description: "Texto copiado para a área de transferência." });
+}
+
+/* ----------------- Exportações ----------------- */
+function buildDossieMarkdown(dossie: any): string {
+  const c = dossie.conteudos || {};
+  const a = dossie.analise || {};
+  const top = a.top_locais_criticos || [];
+  const lines: string[] = [];
+  lines.push(`# Dossiê político — ${dossie.municipio}/${dossie.uf}`);
+  lines.push(`Gerado em ${new Date(dossie.generated_at || dossie.created_at).toLocaleString("pt-BR")}`);
+  lines.push("");
+  lines.push(`## Oportunidade política: ${a.oportunidade?.nivel || "—"} (score ${a.oportunidade?.oportunidade_score || "—"})`);
+  lines.push(`- Dor principal: ${a.oportunidade?.dor_principal || "—"}`);
+  lines.push(`- Força do gestor atual: ${a.oportunidade?.forca_gestor_atual ?? "—"}%`);
+  lines.push("");
+  lines.push(`## Mapa de Dor`);
+  for (const d of (a.dores || [])) {
+    lines.push(`### ${d.area.toUpperCase()} — ${d.classificacao} (score ${d.pain_score})`);
+    for (const e of (d.evidencias || [])) {
+      const cmp = e.valor_estado != null ? ` vs ${Number(e.valor_estado).toFixed(2)} média ${dossie.uf} (${e.delta_pct > 0 ? "+" : ""}${e.delta_pct?.toFixed(1)}%)` : "";
+      lines.push(`- ${e.titulo}: ${e.valor_cidade} ${e.unidade}${cmp} [${e.fonte}, ${e.ano}]`);
+    }
+    lines.push("");
+  }
+  if (top.length > 0) {
+    lines.push(`## Top 10 locais críticos (zonas onde o prefeito atual foi mais fraco)`);
+    for (const l of top) {
+      lines.push(`${l.rank}. ${l.bairro} — ${l.nome_local || "—"} (zona ${l.zona}, eleito ${l.pct_eleito_zona ?? "?"}%)`);
+      if (l.endereco) lines.push(`   ${l.endereco}`);
+    }
+    lines.push("");
+  }
+  if (c.discursos) {
+    for (const k of ["popular", "tecnico", "emocional"]) {
+      lines.push(`## Discurso — ${k}`);
+      lines.push(c.discursos[k] || "—");
+      lines.push("");
+    }
+  }
+  if (c.ataques_3_camadas) {
+    lines.push(`## Ataques 3-camadas`);
+    for (const at of c.ataques_3_camadas) {
+      lines.push(`### ${at.tema}`);
+      lines.push(`- Falha do gestor: ${at.falha_do_gestor}`);
+      lines.push(`- Solução: ${at.solucao_proposta}`);
+    }
+    lines.push("");
+  }
+  if (c.manchetes_reels) {
+    lines.push(`## Manchetes/Reels`);
+    for (const m of c.manchetes_reels) lines.push(`- ${m}`);
+    lines.push("");
+  }
+  if (c.roteiro_visita) {
+    lines.push(`## Roteiro de visita`);
+    lines.push(`- Foco: ${c.roteiro_visita.foco}`);
+    lines.push(`- Emoção: ${c.roteiro_visita.emocao_alvo}`);
+    lines.push(`- Bairro: ${c.roteiro_visita.bairro_sugerido}`);
+    lines.push(`- Primeira frase: "${c.roteiro_visita.primeira_frase}"`);
+    lines.push(`- Mensagem central: ${c.roteiro_visita.mensagem_central}`);
+    lines.push(`- Chamada: ${c.roteiro_visita.chamada_acao}`);
+  }
+  return lines.join("\n");
+}
+
+function exportDossiePdf(dossie: any) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 40;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  const md = buildDossieMarkdown(dossie);
+  const blocks = md.split("\n");
+
+  for (const raw of blocks) {
+    let line = raw;
+    let size = 10;
+    let bold = false;
+    if (line.startsWith("# ")) { size = 18; bold = true; line = line.slice(2); }
+    else if (line.startsWith("## ")) { size = 14; bold = true; line = line.slice(3); }
+    else if (line.startsWith("### ")) { size = 12; bold = true; line = line.slice(4); }
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    if (line.trim() === "") { y += size * 0.5; continue; }
+    const wrapped = doc.splitTextToSize(line, maxW);
+    for (const w of wrapped) {
+      if (y + size + 4 > pageH - margin) { doc.addPage(); y = margin; }
+      doc.text(w, margin, y);
+      y += size + 4;
+    }
+  }
+
+  doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
 }
 
 const NarrativaPolitica = () => {
