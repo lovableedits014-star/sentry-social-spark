@@ -28,6 +28,7 @@ export interface PoolInstance {
   total_failed: number;
   consecutive_failures: number;
   connected_since: string | null;
+  last_disconnected_at: string | null;
   health_score: number;
   success_rate_24h: number;
   sent_24h: number;
