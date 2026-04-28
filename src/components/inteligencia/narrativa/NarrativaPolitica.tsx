@@ -481,23 +481,47 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
     }
     setWaSending(true);
     try {
-      // Gera o PDF em memória (sem baixar) e converte para base64 para enviar como anexo.
+      if (!clientId) throw new Error("Cliente não identificado");
+
+      // 1) Gera o PDF em memória
       const pdfDoc = buildDossiePdf(dossie, false);
-      const pdfDataUri = pdfDoc.output("datauristring"); // "data:application/pdf;base64,..."
-      const base64 = pdfDataUri.split(",", 2)[1] || pdfDataUri;
-      const filename = `dossie-${(dossie.municipio || "municipio").toString().toLowerCase().replace(/\s+/g,"-")}-${dossie.uf || ""}.pdf`;
-      // Legenda curta — o conteúdo completo vai no PDF anexo
-      const caption = `📊 *Dossiê Estratégico — ${dossie.municipio || ""} / ${dossie.uf || ""}*\n\nResumo, dores, oportunidades e roteiro de visita no PDF em anexo.`;
+      const pdfBlob = pdfDoc.output("blob") as Blob;
+      const slug = (dossie.municipio || "municipio").toString()
+        .toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "");
+      const filename = `dossie-${slug}-${(dossie.uf || "").toLowerCase()}.pdf`;
+      // Caminho com TTL: dispatches/<client_id>/<timestamp>-<filename>
+      // Os arquivos são removidos automaticamente após 7 dias por cron job.
+      const objectPath = `dispatches/${clientId}/${Date.now()}-${filename}`;
+
+      // 2) Upload para o bucket público `whatsapp-media`
+      const up = await supabase.storage
+        .from("whatsapp-media")
+        .upload(objectPath, pdfBlob, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      if (up.error) throw up.error;
+
+      const { data: pub } = supabase.storage
+        .from("whatsapp-media")
+        .getPublicUrl(objectPath);
+      const downloadUrl = pub?.publicUrl;
+      if (!downloadUrl) throw new Error("Falha ao gerar link público do PDF");
+
+      // 3) Mensagem de texto com link
+      const message =
+        `📊 *Dossiê Estratégico — ${dossie.municipio || ""} / ${dossie.uf || ""}*\n\n` +
+        `Resumo, dores, oportunidades e roteiro de visita no PDF abaixo:\n\n` +
+        `📎 ${downloadUrl}\n\n` +
+        `_O link fica disponível por 7 dias._`;
 
       // Normaliza para formato 13 dígitos (55 + DDD + número)
       let phone = waPhone.replace(/\D/g, "");
-      if (phone.length === 11) phone = "55" + phone;        // DDD+9dígitos
-      else if (phone.length === 10) phone = "55" + phone;   // DDD+8dígitos
-      // se já vier com 55, mantém
+      if (phone.length === 11) phone = "55" + phone;
+      else if (phone.length === 10) phone = "55" + phone;
 
-      if (!clientId) throw new Error("Cliente não identificado");
-
-      // 1) Escolhe instância saudável do pool (rotação anti-banimento)
+      // 4) Escolhe instância saudável do pool
       const { data: instanceId, error: pickErr } = await supabase
         .rpc("pick_healthy_whatsapp_instance", { p_client_id: clientId });
       if (pickErr) throw pickErr;
@@ -505,16 +529,12 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
         throw new Error("Nenhum chip WhatsApp ativo no pool. Configure em Settings → Pool de Instâncias.");
       }
 
-      // 2) Envia o PDF como anexo via bridge (action: send_media)
+      // 5) Envia mensagem de texto com o link
       const r = await supabase.functions.invoke("manage-whatsapp-instance", {
         body: {
-          action: "send_media",
+          action: "send",
           phone,
-          media: base64,
-          mimetype: "application/pdf",
-          filename,
-          caption,
-          message: caption, // fallback para bridges que esperam "message"
+          message,
           instance_id: instanceId,
           client_id: clientId,
         },
@@ -523,7 +543,10 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
       if (r.data?.success === false || r.data?.error) {
         throw new Error(r.data?.error || "Falha no envio pela bridge");
       }
-      toast({ title: "PDF enviado", description: `Dossiê em PDF enviado para ${phone}` });
+      toast({
+        title: "Dossiê enviado",
+        description: `Link do PDF enviado para ${phone}. Disponível por 7 dias.`,
+      });
       setWaOpen(false);
     } catch (e: any) {
       toast({ title: "Falha ao enviar", description: e?.message || "Erro", variant: "destructive" });
@@ -558,7 +581,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  O dossiê completo será enviado como <b>PDF anexo</b> via uma instância saudável do pool, com uma legenda curta de apresentação.
+                  O dossiê completo será enviado como <b>link clicável</b> para download do PDF, via uma instância saudável do pool. O link permanece disponível por <b>7 dias</b>.
                 </p>
               </div>
               <DialogFooter>
