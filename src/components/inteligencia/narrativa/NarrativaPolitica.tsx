@@ -372,7 +372,7 @@ const NarrativaPolitica = () => {
       )}
 
       {/* Resultado */}
-      {activeDossie ? <DossieView dossie={activeDossie} /> : (
+      {activeDossie ? <DossieView dossie={activeDossie} clientId={clientId} /> : (
         <Card><CardContent className="p-8 text-center text-muted-foreground text-sm">
           Nenhum dossiê ainda. Selecione uma cidade acima e gere o primeiro.
         </CardContent></Card>
@@ -455,7 +455,7 @@ const PerfilCard = ({ perfil, onSave }: { perfil: Perfil | null; onSave: (p: Par
 };
 
 /* ----------------- Resultado / Dossiê ----------------- */
-const DossieView = ({ dossie }: { dossie: Dossie }) => {
+const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | null }) => {
   const ibge = dossie.dados_brutos?.ibge;
   const analise = dossie.analise;
   const conteudos = dossie.conteudos;
@@ -479,11 +479,31 @@ const DossieView = ({ dossie }: { dossie: Dossie }) => {
       const message = md.length > 3800
         ? md.slice(0, 3800) + "\n\n…[dossiê truncado — abra o PDF para ver completo]"
         : md;
+      // Normaliza para formato 13 dígitos (55 + DDD + número)
+      let phone = waPhone.replace(/\D/g, "");
+      if (phone.length === 11) phone = "55" + phone;        // DDD+9dígitos
+      else if (phone.length === 10) phone = "55" + phone;   // DDD+8dígitos
+      // se já vier com 55, mantém
+
+      if (!clientId) throw new Error("Cliente não identificado");
+
+      // 1) Escolhe instância saudável do pool (rotação anti-banimento)
+      const { data: instanceId, error: pickErr } = await supabase
+        .rpc("pick_healthy_whatsapp_instance", { p_client_id: clientId });
+      if (pickErr) throw pickErr;
+      if (!instanceId) {
+        throw new Error("Nenhum chip WhatsApp ativo no pool. Configure em Settings → Pool de Instâncias.");
+      }
+
+      // 2) Envia usando a instância escolhida (mesma rota usada pelos disparos)
       const r = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "send", phone: waPhone, message },
+        body: { action: "send", phone, message, instance_id: instanceId, client_id: clientId },
       });
       if (r.error) throw r.error;
-      toast({ title: "Enviado", description: `Dossiê enviado para ${waPhone}` });
+      if (r.data?.success === false || r.data?.error) {
+        throw new Error(r.data?.error || "Falha no envio pela bridge");
+      }
+      toast({ title: "Enviado", description: `Dossiê enviado para ${phone} via pool` });
       setWaOpen(false);
     } catch (e: any) {
       toast({ title: "Falha ao enviar", description: e?.message || "Erro", variant: "destructive" });
