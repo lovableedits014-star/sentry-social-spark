@@ -126,6 +126,24 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
   return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
 }
 
+async function tryReconnectInstance(adminClient: any, inst: any) {
+  if (!inst?.bridge_api_key) return { id: inst?.id, reconnected: false, reason: "missing_api_key" };
+  const { bridgeRes, bridgeData } = await fetchBridgeAction({
+    action: "reconnect",
+    apiKey: inst.bridge_api_key,
+    body: { action: "reconnect" },
+  });
+  const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+  const status = rawStatus === "connected" || rawStatus === "open" ? "connected" : "connecting";
+  const updates: any = { status, last_health_check_at: new Date().toISOString() };
+  const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
+    || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
+  if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
+  if (status === "connected") updates.connected_since = new Date().toISOString();
+  await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
+  return { id: inst.id, reconnected: status === "connected", status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
+}
+
 async function deleteExistingInstance(params: {
   adminClient: any;
   clientId: string;
