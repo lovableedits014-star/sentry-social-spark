@@ -101,6 +101,69 @@ function isInstanceDisconnectedError(res: Response, data: any): boolean {
   return msg.includes("instance") && (msg.includes("disconnect") || msg.includes("not connected") || msg.includes("offline"));
 }
 
+// ============================================================
+// Pré-checagem (preflight) de saúde da instância antes do envio.
+// Consulta a bridge para confirmar que a instância está de pé, e
+// se necessário tenta uma reconexão silenciosa. Retorna uma string
+// resumindo o resultado para gravar no log de envios.
+// ============================================================
+type PreflightResult = {
+  status: "connected" | "reconnected" | "disconnected" | "skipped" | "error";
+  reconnected: boolean;
+  detail?: string;
+};
+
+async function preflightInstance(params: {
+  bridgeUrl: string;
+  bridgeApiKey: string;
+  instanceId: string;
+  apelido?: string;
+}): Promise<PreflightResult> {
+  const { bridgeUrl, bridgeApiKey, instanceId, apelido } = params;
+  const tag = `[preflight] inst=${apelido || instanceId}`;
+
+  // 1) Status atual na bridge
+  let statusRaw = "";
+  try {
+    const res = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": bridgeApiKey },
+      body: JSON.stringify({ action: "instance_status" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    statusRaw = String(data?.status || data?.instance?.status || "").toLowerCase();
+    if (statusRaw === "connected" || statusRaw === "open") {
+      console.log(`${tag} ✅ saudável (status=${statusRaw})`);
+      return { status: "connected", reconnected: false, detail: statusRaw };
+    }
+  } catch (err) {
+    console.warn(`${tag} ⚠️ erro ao consultar status:`, (err as Error).message);
+    return { status: "error", reconnected: false, detail: (err as Error).message };
+  }
+
+  console.warn(`${tag} ⚠️ não-conectada (status=${statusRaw || "desconhecido"}). Tentando reconectar...`);
+
+  // 2) Tenta reconectar silenciosamente
+  try {
+    const recRes = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": bridgeApiKey },
+      body: JSON.stringify({ action: "reconnect" }),
+    });
+    const recData = await recRes.json().catch(() => ({}));
+    const newStatus = String(recData?.status || recData?.instance?.status || "").toLowerCase();
+    if (newStatus === "connected" || newStatus === "open") {
+      console.log(`${tag} ♻️ reconectada com sucesso (status=${newStatus})`);
+      return { status: "reconnected", reconnected: true, detail: newStatus };
+    }
+    console.warn(`${tag} ❌ reconexão não estabilizou (status=${newStatus || "vazio"})`);
+    return { status: "disconnected", reconnected: true, detail: newStatus || "no_status" };
+  } catch (err) {
+    console.warn(`${tag} ❌ erro ao reconectar:`, (err as Error).message);
+    return { status: "disconnected", reconnected: true, detail: (err as Error).message };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -359,6 +422,8 @@ Deno.serve(async (req) => {
       let sent = (prevStats || []).filter((s: any) => s.status === "enviado").length;
       let failed = (prevStats || []).filter((s: any) => s.status === "falha").length;
       let lastInstanceId: string | null = null;
+      // Cache do último preflight por instância (resetado se trocar de chip).
+      let preflightByInstance: Record<string, PreflightResult> = {};
 
       for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
         if (Date.now() - startTime > MAX_RUNTIME_MS) {
@@ -444,10 +509,44 @@ Deno.serve(async (req) => {
           }
           lastInstanceId = instanceId;
 
+          // ===== PREFLIGHT: garante instância conectada antes de enviar =====
+          // Roda uma vez por instância no ciclo. Se reconexão silenciosa falha,
+          // marca a instância como desconectada e pula pra próxima rodada (que
+          // escolherá outra via pick_healthy_whatsapp_instance).
+          let preflight: PreflightResult = { status: "skipped", reconnected: false };
+          if (instanceId && bridgeUrl && bridgeApiKey) {
+            const cached = preflightByInstance[instanceId];
+            if (cached && cached.status === "connected") {
+              preflight = cached;
+            } else {
+              preflight = await preflightInstance({
+                bridgeUrl, bridgeApiKey, instanceId,
+              });
+              preflightByInstance[instanceId] = preflight;
+            }
+
+            if (preflight.status === "disconnected") {
+              // Marca como desconectada e força nova escolha de instância
+              await adminClient.from("whatsapp_instances")
+                .update({ status: "disconnected" })
+                .eq("id", instanceId);
+              await adminClient.rpc("log_whatsapp_send", {
+                p_instance_id: instanceId, p_client_id: client_id,
+                p_dispatch_id: dispatch.id, p_success: false,
+                p_error_message: `Preflight: instância offline (${preflight.detail || "sem status"})`,
+                p_preflight_status: preflight.status,
+                p_preflight_reconnected: preflight.reconnected,
+              });
+              // invalida cache pra reavaliar e pula esse destinatário no próximo loop
+              delete preflightByInstance[instanceId];
+              continue;
+            }
+          }
+
           try {
             const personalizedMsg = mensagem.replace(/{nome}/g, recipient.nome);
             const phoneClean = cleanPhoneForBridge(recipient.telefone);
-            console.log(`[dispatch] inst=${instanceId ?? "legacy"} phone=${phoneClean}`);
+            console.log(`[dispatch] inst=${instanceId ?? "legacy"} preflight=${preflight.status}${preflight.reconnected ? "(reconectado)" : ""} phone=${phoneClean}`);
 
             const { res: sendRes, data: sendData } = await fetchBridgeSend({
               bridgeUrl,
@@ -468,6 +567,8 @@ Deno.serve(async (req) => {
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: true, p_error_message: null,
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
               }
             } else {
@@ -476,9 +577,12 @@ Deno.serve(async (req) => {
                 await adminClient.from("whatsapp_instances")
                   .update({ status: "disconnected" })
                   .eq("id", instanceId);
+                delete preflightByInstance[instanceId];
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
                 // Não conta como falha do destinatário; tenta de novo no próximo loop
                 continue;
@@ -492,6 +596,8 @@ Deno.serve(async (req) => {
                 await adminClient.rpc("log_whatsapp_send", {
                   p_instance_id: instanceId, p_client_id: client_id,
                   p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(failure).slice(0, 200),
+                  p_preflight_status: preflight.status,
+                  p_preflight_reconnected: preflight.reconnected,
                 });
               }
             }
@@ -505,6 +611,8 @@ Deno.serve(async (req) => {
               await adminClient.rpc("log_whatsapp_send", {
                 p_instance_id: instanceId, p_client_id: client_id,
                 p_dispatch_id: dispatch.id, p_success: false, p_error_message: String(err).slice(0, 200),
+                p_preflight_status: preflight.status,
+                p_preflight_reconnected: preflight.reconnected,
               });
             }
           }
