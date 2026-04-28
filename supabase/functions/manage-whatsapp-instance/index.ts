@@ -291,13 +291,27 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) {
+    const body = await req.json();
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
+    const cronAllowed = action === "health_check_all" && authHeader === `Bearer ${anonKey}`;
+
+    if ((authErr || !user) && !cronAllowed) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
+
+    if (action === "health_check_all") {
+      const { data: rows, error } = await adminClient
+        .from("whatsapp_instances")
+        .select("id, bridge_api_key, status, connected_since, is_active")
+        .eq("is_active", true)
+        .not("bridge_api_key", "is", null)
+        .limit(50);
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      const results = await Promise.allSettled((rows || []).map((inst: any) => syncInstanceHealth(adminClient, inst)));
+      return jsonResponse({ success: true, checked: results.length, results });
+    }
 
     // Resolve client_id
     let resolvedClientId = client_id;
