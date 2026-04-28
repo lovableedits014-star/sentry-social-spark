@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download, Info } from "lucide-react";
+import { TrendingUp, MapPin, Trophy, ChevronDown, ChevronRight, Search, Building2, User, Download, Info, RefreshCw, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import * as XLSXStyle from "xlsx-js-style";
 import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
@@ -55,6 +57,34 @@ const CampoGrandeAnalise = () => {
   const [candidatoSearch, setCandidatoSearch] = useState("");
   const [localSearch, setLocalSearch] = useState("");
   const [bairroFilter, setBairroFilter] = useState<string>("__all__");
+  const [reprocessing, setReprocessing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const reprocessarBairros = async () => {
+    setReprocessing(true);
+    toast.info("Reprocessando bairros via OpenStreetMap…", {
+      description: "Pode levar 1–2 minutos. Você pode continuar usando o sistema.",
+    });
+    try {
+      const { data, error } = await supabase.functions.invoke("geocode-tse-locais", {
+        body: {},
+      });
+      if (error) throw error;
+      toast.success(
+        `Bairros atualizados: ${data?.updated ?? 0} confirmados, ${data?.not_found ?? 0} sem resultado.`,
+        {
+          description: data?.remaining > 0
+            ? `Ainda restam ${data.remaining} para processar — clique de novo para continuar.`
+            : "Todos os locais foram processados.",
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: ["tse-locais-meta"] });
+    } catch (e: any) {
+      toast.error("Falha ao reprocessar bairros", { description: String(e?.message || e) });
+    } finally {
+      setReprocessing(false);
+    }
+  };
 
   useEffect(() => {
     setSelectedCandidato(null);
