@@ -3818,6 +3818,7 @@ export type Database = {
           instance_token: string | null
           is_active: boolean
           is_primary: boolean
+          last_disconnected_at: string | null
           last_health_check_at: string | null
           last_send_at: string | null
           messages_sent_today: number
@@ -3843,6 +3844,7 @@ export type Database = {
           instance_token?: string | null
           is_active?: boolean
           is_primary?: boolean
+          last_disconnected_at?: string | null
           last_health_check_at?: string | null
           last_send_at?: string | null
           messages_sent_today?: number
@@ -3868,6 +3870,7 @@ export type Database = {
           instance_token?: string | null
           is_active?: boolean
           is_primary?: boolean
+          last_disconnected_at?: string | null
           last_health_check_at?: string | null
           last_send_at?: string | null
           messages_sent_today?: number
