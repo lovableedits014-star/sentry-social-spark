@@ -60,22 +60,30 @@ const CampoGrandeAnalise = () => {
   const [reprocessing, setReprocessing] = useState(false);
   const queryClient = useQueryClient();
 
-  const reprocessarBairros = async () => {
+  const reprocessarBairros = async (retryEmpty = false) => {
     setReprocessing(true);
-    toast.info("Reprocessando bairros via OpenStreetMap…", {
-      description: "Pode levar 1–2 minutos. Você pode continuar usando o sistema.",
-    });
+    toast.info(
+      retryEmpty
+        ? "Re-tentando locais sem resultado anterior…"
+        : "Reprocessando bairros via OpenStreetMap…",
+      {
+        description: "Pode levar 1–2 minutos. Você pode continuar usando o sistema.",
+      },
+    );
     try {
       const { data, error } = await supabase.functions.invoke("geocode-tse-locais", {
-        body: {},
+        body: retryEmpty ? { retry_empty: true } : {},
       });
       if (error) throw error;
       toast.success(
-        `Bairros atualizados: ${data?.updated ?? 0} confirmados, ${data?.not_found ?? 0} sem resultado.`,
+        `Bairros atualizados: ${data?.updated ?? 0} confirmados, ${data?.not_found ?? 0} ainda sem resultado.`,
         {
-          description: data?.remaining > 0
-            ? `Ainda restam ${data.remaining} para processar — clique de novo para continuar.`
-            : "Todos os locais foram processados.",
+          description:
+            data?.remaining > 0
+              ? `Ainda restam ${data.remaining} para processar — clique de novo para continuar.`
+              : retryEmpty
+                ? "Os que continuam vazios provavelmente não existem no OpenStreetMap."
+                : "Todos os locais foram processados.",
         },
       );
       queryClient.invalidateQueries({ queryKey: ["tse-locais-meta"] });
@@ -567,7 +575,7 @@ const CampoGrandeAnalise = () => {
                   <Download className="w-3.5 h-3.5" /> Auditar bairros (XLSX)
                 </button>
                 <button
-                  onClick={reprocessarBairros}
+                  onClick={() => reprocessarBairros(false)}
                   disabled={reprocessing}
                   title="Consulta o OpenStreetMap (geocoding real) para identificar o bairro de cada escola pelo endereço. Substitui qualquer classificação anterior feita por IA."
                   className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 hover:bg-muted disabled:opacity-50"
@@ -575,6 +583,17 @@ const CampoGrandeAnalise = () => {
                   {reprocessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                   {reprocessing ? "Reprocessando…" : "Reprocessar bairros (OSM)"}
                 </button>
+                {geocodeStats.failed > 0 && (
+                  <button
+                    onClick={() => reprocessarBairros(true)}
+                    disabled={reprocessing}
+                    title="Re-consulta o OpenStreetMap apenas para os locais que ficaram sem resultado, usando estratégias adicionais (rua sem número, nome simplificado da escola)."
+                    className="text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 hover:bg-muted disabled:opacity-50 border-amber-500/40 text-amber-700 dark:text-amber-400"
+                  >
+                    {reprocessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Tentar novamente os {geocodeStats.failed} sem resultado
+                  </button>
+                )}
               </div>
               {geocodeStats.total > 0 && (
                 <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-2">

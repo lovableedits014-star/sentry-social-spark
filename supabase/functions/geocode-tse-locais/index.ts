@@ -115,13 +115,27 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Pega locais ainda não processados (bairro IS NULL).
-  const { data: locais, error } = await supabase
+  // Modo: "pending" (bairro IS NULL) ou "retry_empty" (bairro = '' — tentou mas não achou).
+  let mode: "pending" | "retry_empty" = "pending";
+  try {
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      if (body?.retry_empty === true) mode = "retry_empty";
+    }
+  } catch (_) { /* ignore */ }
+
+  let query = supabase
     .from("tse_votacao_local")
     .select("zona, nr_local, endereco, nome_local")
-    .not("endereco", "is", null)
-    .is("bairro", null)
-    .limit(2000);
+    .not("endereco", "is", null);
+
+  if (mode === "retry_empty") {
+    query = query.eq("bairro", "");
+  } else {
+    query = query.is("bairro", null);
+  }
+
+  const { data: locais, error } = await query.limit(2000);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -171,6 +185,35 @@ Deno.serve(async (req) => {
         await sleep(NOMINATIM_DELAY_MS);
         if (r2?.bairro) result = r2;
       }
+
+      // Tentativa 3: endereço SEM número (rua + cidade) — pega o lado da rua
+      if ((!result || !result.bairro) && l.endereco) {
+        const ruaSemNumero = l.endereco
+          .replace(/\bN\.\s*\d+/gi, "")
+          .replace(/,?\s*\d+\s*$/g, "")
+          .replace(/,?\s*S\/?N\b/gi, "")
+          .trim();
+        if (ruaSemNumero) {
+          const q3 = `${ruaSemNumero}, ${geo.cidade}, ${geo.uf}, Brasil`;
+          const r3 = await geocodeAddress(q3);
+          await sleep(NOMINATIM_DELAY_MS);
+          if (r3?.bairro) result = r3;
+        }
+      }
+
+      // Tentativa 4: nome do local simplificado (remove prefixos comuns)
+      if ((!result || !result.bairro) && l.nome_local) {
+        const nomeSimples = l.nome_local
+          .replace(/^(ESCOLA\s+(MUNICIPAL|ESTADUAL|PARTICULAR)|EM|EE|EMEF|EMEI|CEINF|COL[ÉE]GIO)\s+/i, "")
+          .replace(/^(DR\.?|PROF\.?|PROFESSOR[A]?|SENADOR[A]?)\s+/i, "")
+          .trim();
+        if (nomeSimples && nomeSimples !== l.nome_local) {
+          const q4 = `${nomeSimples}, ${geo.cidade}, ${geo.uf}, Brasil`;
+          const r4 = await geocodeAddress(q4);
+          await sleep(NOMINATIM_DELAY_MS);
+          if (r4?.bairro) result = r4;
+        }
+      }
     } catch (e) {
       console.error("Erro geocode", l.zona, l.nr_local, e);
       failed++;
@@ -197,12 +240,16 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       strategy: "nominatim_osm",
+      mode,
       processed: updated + notFound + failed,
       updated,
       not_found: notFound,
       failed,
       remaining: unique.length - updated - notFound - failed,
-      note: "Bairros vazios = OSM não encontrou — preferimos vazio a errar. Reexecute para continuar processando.",
+      note:
+        mode === "retry_empty"
+          ? "Re-tentativa de locais sem resultado anterior. Os que continuam vazios provavelmente não existem no OSM."
+          : "Bairros vazios = OSM não encontrou — preferimos vazio a errar. Reexecute para continuar processando.",
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
