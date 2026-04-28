@@ -573,6 +573,29 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, webhook_url: webhookUrl, bridge: bridgeData });
     }
 
+    if (action === "ensure_connected") {
+      if (!instance_id || !activeInstanceRow) {
+        return jsonResponse({ success: false, error: "instance_id obrigatório" }, 400);
+      }
+      const health = await syncInstanceHealth(adminClient, activeInstanceRow);
+      if (health.status === "connected") return jsonResponse({ success: true, status: "connected", health });
+
+      const reconnectBody = { action: "reconnect" };
+      const { bridgeRes, bridgeData } = await fetchBridgeAction({
+        action: "reconnect",
+        apiKey: clientApiKey,
+        body: reconnectBody,
+      });
+      if (isQrPendingResponse(bridgeData)) return awaitingQrResponse("Instância caiu. Reconexão iniciada; escaneie o QR Code para estabilizar.");
+      return jsonResponse({
+        success: bridgeRes.ok && bridgeData?.success !== false,
+        status: bridgeData?.status || bridgeData?.instance?.status || "connecting",
+        qrcode: bridgeData?.qrcode || bridgeData?.instance?.qrcode,
+        instance: bridgeData?.instance,
+        error: !bridgeRes.ok || bridgeData?.success === false ? (bridgeData?.error || "Erro ao reconectar") : undefined,
+      });
+    }
+
     // === ACTIONS THAT REQUIRE API KEY ===
     if (!clientApiKey) {
       if (action === "reconnect") {
