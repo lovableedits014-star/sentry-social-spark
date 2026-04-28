@@ -336,7 +336,11 @@ Deno.serve(async (req) => {
         .not("bridge_api_key", "is", null)
         .limit(50);
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
-      const results = await Promise.allSettled((rows || []).map((inst: any) => syncInstanceHealth(adminClient, inst)));
+      const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
+        const health = await syncInstanceHealth(adminClient, inst);
+        if (health.status === "connected") return health;
+        return { ...health, reconnect: await tryReconnectInstance(adminClient, inst) };
+      }));
       return jsonResponse({ success: true, checked: results.length, results });
     }
 
