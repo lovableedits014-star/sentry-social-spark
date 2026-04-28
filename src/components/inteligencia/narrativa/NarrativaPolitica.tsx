@@ -128,7 +128,9 @@ function buildDossieMarkdown(dossie: any): string {
   return lines.join("\n");
 }
 
-function exportDossiePdf(dossie: any) {
+// Gera o PDF do dossiê. Se `download=true`, dispara o download para o usuário.
+// Sempre devolve o documento jsPDF para reuso (ex: enviar como anexo no WhatsApp).
+function buildDossiePdf(dossie: any, download = true) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const margin = 40;
   const pageW = doc.internal.pageSize.getWidth();
@@ -157,7 +159,12 @@ function exportDossiePdf(dossie: any) {
     }
   }
 
-  doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
+  if (download) doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
+  return doc;
+}
+
+function exportDossiePdf(dossie: any) {
+  buildDossiePdf(dossie, true);
 }
 
 const NarrativaPolitica = () => {
@@ -474,11 +481,14 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
     }
     setWaSending(true);
     try {
-      const md = buildDossieMarkdown(dossie);
-      // WhatsApp tem limite ~4096 chars — corta com aviso
-      const message = md.length > 3800
-        ? md.slice(0, 3800) + "\n\n…[dossiê truncado — abra o PDF para ver completo]"
-        : md;
+      // Gera o PDF em memória (sem baixar) e converte para base64 para enviar como anexo.
+      const pdfDoc = buildDossiePdf(dossie, false);
+      const pdfDataUri = pdfDoc.output("datauristring"); // "data:application/pdf;base64,..."
+      const base64 = pdfDataUri.split(",", 2)[1] || pdfDataUri;
+      const filename = `dossie-${(dossie.municipio || "municipio").toString().toLowerCase().replace(/\s+/g,"-")}-${dossie.uf || ""}.pdf`;
+      // Legenda curta — o conteúdo completo vai no PDF anexo
+      const caption = `📊 *Dossiê Estratégico — ${dossie.municipio || ""} / ${dossie.uf || ""}*\n\nResumo, dores, oportunidades e roteiro de visita no PDF em anexo.`;
+
       // Normaliza para formato 13 dígitos (55 + DDD + número)
       let phone = waPhone.replace(/\D/g, "");
       if (phone.length === 11) phone = "55" + phone;        // DDD+9dígitos
@@ -495,15 +505,25 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
         throw new Error("Nenhum chip WhatsApp ativo no pool. Configure em Settings → Pool de Instâncias.");
       }
 
-      // 2) Envia usando a instância escolhida (mesma rota usada pelos disparos)
+      // 2) Envia o PDF como anexo via bridge (action: send_media)
       const r = await supabase.functions.invoke("manage-whatsapp-instance", {
-        body: { action: "send", phone, message, instance_id: instanceId, client_id: clientId },
+        body: {
+          action: "send_media",
+          phone,
+          media: base64,
+          mimetype: "application/pdf",
+          filename,
+          caption,
+          message: caption, // fallback para bridges que esperam "message"
+          instance_id: instanceId,
+          client_id: clientId,
+        },
       });
       if (r.error) throw r.error;
       if (r.data?.success === false || r.data?.error) {
         throw new Error(r.data?.error || "Falha no envio pela bridge");
       }
-      toast({ title: "Enviado", description: `Dossiê enviado para ${phone} via pool` });
+      toast({ title: "PDF enviado", description: `Dossiê em PDF enviado para ${phone}` });
       setWaOpen(false);
     } catch (e: any) {
       toast({ title: "Falha ao enviar", description: e?.message || "Erro", variant: "destructive" });
@@ -538,7 +558,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  O dossiê será enviado em texto. Para o PDF completo, use "Exportar PDF" e anexe manualmente.
+                  O dossiê completo será enviado como <b>PDF anexo</b> via uma instância saudável do pool, com uma legenda curta de apresentação.
                 </p>
               </div>
               <DialogFooter>

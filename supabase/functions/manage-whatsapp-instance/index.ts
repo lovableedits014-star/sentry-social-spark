@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
     });
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
     const cronRequested = action === "health_check_all";
 
     if ((authErr || !user) && !cronRequested) {
@@ -670,6 +670,24 @@ Deno.serve(async (req) => {
     const proxyBody: any = { action };
     if (phone) proxyBody.phone = action === "send" ? normalizeBrazilPhoneForBridge(phone) : phone;
     if (message) proxyBody.message = message;
+
+    // Envio de mídia (PDF, imagem, áudio etc.) — aceita action "send_media"
+    if (action === "send_media") {
+      // Normaliza o telefone como no envio de texto
+      if (phone) proxyBody.phone = normalizeBrazilPhoneForBridge(phone);
+      if (media) proxyBody.media = media;             // base64 (com ou sem prefixo data:)
+      if (mimetype) proxyBody.mimetype = mimetype;     // ex: "application/pdf"
+      if (filename) proxyBody.filename = filename;     // ex: "dossie-campo-grande.pdf"
+      if (caption) proxyBody.caption = caption;        // legenda opcional
+      // Compatibilidade com bridges que usam outras chaves
+      if (filename && !proxyBody.fileName) proxyBody.fileName = filename;
+      if (mimetype && !proxyBody.mediaType) {
+        proxyBody.mediaType = mimetype.startsWith("image/") ? "image"
+          : mimetype.startsWith("audio/") ? "audio"
+          : mimetype.startsWith("video/") ? "video"
+          : "document";
+      }
+    }
 
     if (action === "send" && typeof phone === "string" && phone) {
       console.log("[WhatsApp manage-whatsapp-instance] phone recebido no body:", phone);
