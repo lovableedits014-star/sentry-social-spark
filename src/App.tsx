@@ -40,6 +40,7 @@ import PortalUnificado from "./pages/PortalUnificado";
 import InteligenciaEleitoral from "./pages/InteligenciaEleitoral";
 import CalendarioPolitico from "./pages/CalendarioPolitico";
 import Midia from "./pages/Midia";
+import StatusWhatsApp from "./pages/StatusWhatsApp";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 
 // Wrappers de redirect para preservar links antigos
@@ -99,6 +100,7 @@ const App = () => (
             <Route path="/calendario-politico" element={<CalendarioPolitico />} />
             <Route path="/midia" element={<Midia />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/status-whatsapp" element={<StatusWhatsApp />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
