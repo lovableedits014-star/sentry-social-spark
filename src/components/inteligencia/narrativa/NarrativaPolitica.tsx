@@ -128,7 +128,9 @@ function buildDossieMarkdown(dossie: any): string {
   return lines.join("\n");
 }
 
-function exportDossiePdf(dossie: any) {
+// Gera o PDF do dossiê. Se `download=true`, dispara o download para o usuário.
+// Sempre devolve o documento jsPDF para reuso (ex: enviar como anexo no WhatsApp).
+function buildDossiePdf(dossie: any, download = true) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const margin = 40;
   const pageW = doc.internal.pageSize.getWidth();
@@ -157,7 +159,12 @@ function exportDossiePdf(dossie: any) {
     }
   }
 
-  doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
+  if (download) doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
+  return doc;
+}
+
+function exportDossiePdf(dossie: any) {
+  buildDossiePdf(dossie, true);
 }
 
 const NarrativaPolitica = () => {
