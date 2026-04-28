@@ -558,7 +558,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  O dossiê será enviado em texto. Para o PDF completo, use "Exportar PDF" e anexe manualmente.
+                  O dossiê completo será enviado como <b>PDF anexo</b> via uma instância saudável do pool, com uma legenda curta de apresentação.
                 </p>
               </div>
               <DialogFooter>
