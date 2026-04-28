@@ -100,6 +100,7 @@ const App = () => (
             <Route path="/calendario-politico" element={<CalendarioPolitico />} />
             <Route path="/midia" element={<Midia />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/status-whatsapp" element={<StatusWhatsApp />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
