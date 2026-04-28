@@ -462,9 +462,76 @@ const DossieView = ({ dossie }: { dossie: Dossie }) => {
   const dores = analise?.dores || [];
   const oportunidade = analise?.oportunidade;
   const midia = dossie.dados_brutos?.midia_gdelt;
+  const topLocais = analise?.top_locais_criticos || [];
+  const [waOpen, setWaOpen] = useState(false);
+  const [waPhone, setWaPhone] = useState("");
+  const [waSending, setWaSending] = useState(false);
+
+  const sendWhatsApp = async () => {
+    if (!waPhone) {
+      toast({ title: "Informe o número", variant: "destructive" });
+      return;
+    }
+    setWaSending(true);
+    try {
+      const md = buildDossieMarkdown(dossie);
+      // WhatsApp tem limite ~4096 chars — corta com aviso
+      const message = md.length > 3800
+        ? md.slice(0, 3800) + "\n\n…[dossiê truncado — abra o PDF para ver completo]"
+        : md;
+      const r = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "send_message", phone: waPhone, message },
+      });
+      if (r.error) throw r.error;
+      toast({ title: "Enviado", description: `Dossiê enviado para ${waPhone}` });
+      setWaOpen(false);
+    } catch (e: any) {
+      toast({ title: "Falha ao enviar", description: e?.message || "Erro", variant: "destructive" });
+    } finally {
+      setWaSending(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
+      {/* Barra de ações: PDF + WhatsApp */}
+      {conteudos && Object.keys(conteudos).length > 0 && (
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button size="sm" variant="outline" onClick={() => exportDossiePdf(dossie)}>
+            <FileDown className="w-4 h-4 mr-2" /> Exportar PDF
+          </Button>
+          <Dialog open={waOpen} onOpenChange={setWaOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Send className="w-4 h-4 mr-2" /> Enviar por WhatsApp
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Enviar dossiê via WhatsApp</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Número (com DDD, só dígitos)</Label>
+                  <Input
+                    placeholder="ex: 67999999999"
+                    value={waPhone}
+                    onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  O dossiê será enviado em texto. Para o PDF completo, use "Exportar PDF" e anexe manualmente.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={sendWhatsApp} disabled={waSending}>
+                  {waSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                  Enviar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
+
       {/* RAIO-X */}
       <Card>
         <CardHeader className="pb-2">
@@ -547,6 +614,43 @@ const DossieView = ({ dossie }: { dossie: Dossie }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* TOP 10 LOCAIS CRÍTICOS */}
+      {topLocais.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPinned className="w-4 h-4 text-primary" /> Top 10 locais críticos
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Bairros/escolas das zonas TSE onde o prefeito eleito em 2024 teve <b>menor desempenho</b> —
+              esses são os pontos de maior oportunidade política para visita e mobilização.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {topLocais.map((l: any) => (
+                <div key={`${l.zona}-${l.rank}`} className="flex items-start gap-3 p-2 border rounded">
+                  <div className="text-2xl font-bold tabular-nums w-8 text-center text-muted-foreground">{l.rank}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{l.bairro}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {l.nome_local || "—"}{l.endereco ? ` · ${l.endereco}` : ""}
+                    </div>
+                    <div className="text-[11px] mt-1 text-destructive">{l.motivo}</div>
+                  </div>
+                  <Badge variant="outline" className="shrink-0">Zona {l.zona}</Badge>
+                  {l.pct_eleito_zona != null && (
+                    <Badge className="shrink-0 bg-destructive/10 text-destructive border-destructive/30">
+                      {l.pct_eleito_zona}%
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* CONTEÚDOS GERADOS */}
       {conteudos && Object.keys(conteudos).length > 0 ? (
