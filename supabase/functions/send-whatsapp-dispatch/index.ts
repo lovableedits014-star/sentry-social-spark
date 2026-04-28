@@ -422,6 +422,8 @@ Deno.serve(async (req) => {
       let sent = (prevStats || []).filter((s: any) => s.status === "enviado").length;
       let failed = (prevStats || []).filter((s: any) => s.status === "falha").length;
       let lastInstanceId: string | null = null;
+      // Cache do último preflight por instância (resetado se trocar de chip).
+      let preflightByInstance: Record<string, PreflightResult> = {};
 
       for (let batch = 0; batch < Math.ceil(recipients.length / BATCH_SIZE); batch++) {
         if (Date.now() - startTime > MAX_RUNTIME_MS) {
