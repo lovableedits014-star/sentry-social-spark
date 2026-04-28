@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
     });
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
     const cronRequested = action === "health_check_all";
 
     if ((authErr || !user) && !cronRequested) {
