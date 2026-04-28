@@ -1,5 +1,7 @@
-// Preenche o campo `bairro` dos locais TSE usando Lovable AI (Gemini).
-// Processa em lotes — endereços são de Campo Grande/MS, então o modelo infere o bairro a partir da rua + número.
+// Preenche o campo `bairro` dos locais TSE usando GEOCODING REAL via Nominatim (OpenStreetMap).
+// Estratégia autoritativa baseada em coordenadas geográficas reais — não inventa, não alucina.
+// Para cada endereço: geocoda na OSM, pega lat/lon, faz reverse-geocode para extrair `suburb`/`neighbourhood`.
+// Quando OSM não retorna, deixa NULL (para revisão manual) — NUNCA chuta um bairro.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -7,9 +9,103 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-const BATCH_SIZE = 30;
+// Nominatim exige rate-limit de 1 req/s e User-Agent identificável.
+const NOMINATIM_DELAY_MS = 1100;
+const USER_AGENT = "SentrySocialSpark/1.0 (geocoding TSE locais; contact: lovableedits014@gmail.com)";
 const MAX_RUNTIME_MS = 50_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function normalizeEndereco(endereco: string, cidade: string, uf: string): string {
+  // Remove "N. 1095" → "1095"; padroniza para "<rua>, <numero>, <cidade>, <uf>, Brasil".
+  let s = endereco.trim();
+  s = s.replace(/\bN\.\s*/gi, "");
+  s = s.replace(/\s+/g, " ");
+  return `${s}, ${cidade}, ${uf}, Brasil`;
+}
+
+type GeoResult = { lat: number; lon: number; bairro: string | null; raw_addr?: any };
+
+async function geocodeAddress(query: string): Promise<GeoResult | null> {
+  // 1) Forward geocode → coordenadas
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("countrycodes", "br");
+
+  const resp = await fetch(url.toString(), {
+    headers: { "User-Agent": USER_AGENT, "Accept-Language": "pt-BR" },
+  });
+  if (!resp.ok) {
+    console.warn("Nominatim search status", resp.status, query);
+    return null;
+  }
+  const arr = await resp.json();
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+
+  const hit = arr[0];
+  const lat = parseFloat(hit.lat);
+  const lon = parseFloat(hit.lon);
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+
+  const addr = hit.address || {};
+  const bairro =
+    addr.suburb ||
+    addr.neighbourhood ||
+    addr.city_district ||
+    addr.quarter ||
+    addr.residential ||
+    null;
+
+  // Se já veio bairro no forward, retorna direto.
+  if (bairro) {
+    return { lat, lon, bairro, raw_addr: addr };
+  }
+
+  // 2) Caso contrário, faz reverse-geocode (mais detalhado para coordenadas)
+  await sleep(NOMINATIM_DELAY_MS);
+  const rev = new URL("https://nominatim.openstreetmap.org/reverse");
+  rev.searchParams.set("lat", String(lat));
+  rev.searchParams.set("lon", String(lon));
+  rev.searchParams.set("format", "jsonv2");
+  rev.searchParams.set("addressdetails", "1");
+  rev.searchParams.set("zoom", "17");
+
+  const r2 = await fetch(rev.toString(), {
+    headers: { "User-Agent": USER_AGENT, "Accept-Language": "pt-BR" },
+  });
+  if (!r2.ok) return { lat, lon, bairro: null };
+  const j2 = await r2.json();
+  const a2 = j2.address || {};
+  const bairro2 =
+    a2.suburb ||
+    a2.neighbourhood ||
+    a2.city_district ||
+    a2.quarter ||
+    a2.residential ||
+    null;
+  return { lat, lon, bairro: bairro2, raw_addr: a2 };
+}
+
+async function inferCidadeUf(
+  supabase: any,
+  zona: number,
+): Promise<{ cidade: string; uf: string }> {
+  // Por padrão, este sistema só carrega TSE para Campo Grande/MS hoje.
+  // Mantemos um fallback configurável caso evolua.
+  const { data } = await supabase
+    .from("tse_votacao_zona")
+    .select("municipio, uf")
+    .eq("zona", zona)
+    .limit(1)
+    .maybeSingle();
+  return {
+    cidade: data?.municipio || "Campo Grande",
+    uf: data?.uf || "MS",
+  };
+}
 
 async function inferBairrosBatch(
   items: Array<{ idx: number; endereco: string; nome_local: string | null }>,
@@ -111,32 +207,18 @@ async function inferBairrosBatch(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY não configurada" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const url = new URL(req.url);
-  const retry = url.searchParams.get("retry") === "1";
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // padrão: pega só os ainda não processados (bairro IS NULL)
-  // retry: pega os que falharam antes (bairro = '') para tentar via NOME do local
-  const baseQuery = supabase
+  // Pega locais ainda não processados (bairro IS NULL).
+  const { data: locais, error } = await supabase
     .from("tse_votacao_local")
     .select("zona, nr_local, endereco, nome_local")
     .not("endereco", "is", null)
+    .is("bairro", null)
     .limit(2000);
-
-  const { data: locais, error } = retry
-    ? await baseQuery.eq("bairro", "")
-    : await baseQuery.is("bairro", null);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -155,46 +237,70 @@ Deno.serve(async (req) => {
     unique.push(l as any);
   }
 
+  // Cache cidade/uf por zona
+  const cidadeCache = new Map<number, { cidade: string; uf: string }>();
+
   let updated = 0;
+  let notFound = 0;
   let failed = 0;
   const start = Date.now();
 
-  // processa em lotes via IA
-  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+  for (const l of unique) {
     if (Date.now() - start > MAX_RUNTIME_MS) break;
-    const batch = unique.slice(i, i + BATCH_SIZE);
-    const items = batch.map((l, k) => ({ idx: k, endereco: l.endereco, nome_local: l.nome_local }));
 
-    let resultados: Record<number, string> = {};
+    let geo = cidadeCache.get(l.zona);
+    if (!geo) {
+      geo = await inferCidadeUf(supabase, l.zona);
+      cidadeCache.set(l.zona, geo);
+    }
+
+    // Tentativa 1: endereço + número (mais preciso)
+    let result: GeoResult | null = null;
     try {
-      resultados = await inferBairrosBatch(items, retry ? "por_nome" : "padrao");
+      const q1 = normalizeEndereco(l.endereco, geo.cidade, geo.uf);
+      result = await geocodeAddress(q1);
+      await sleep(NOMINATIM_DELAY_MS);
+
+      // Tentativa 2: nome do local (escola) + cidade — caso 1 falhe
+      if ((!result || !result.bairro) && l.nome_local) {
+        const q2 = `${l.nome_local}, ${geo.cidade}, ${geo.uf}, Brasil`;
+        const r2 = await geocodeAddress(q2);
+        await sleep(NOMINATIM_DELAY_MS);
+        if (r2?.bairro) result = r2;
+      }
     } catch (e) {
-      console.error("Erro no lote", e);
-      failed += batch.length;
+      console.error("Erro geocode", l.zona, l.nr_local, e);
+      failed++;
       continue;
     }
 
-    // aplica updates
-    for (let k = 0; k < batch.length; k++) {
-      const l = batch[k];
-      const bairro = resultados[k] ?? "";
-      const { error: upErr } = await supabase
-        .from("tse_votacao_local")
-        .update({ bairro })
-        .eq("zona", l.zona)
-        .eq("nr_local", l.nr_local);
-      if (upErr) {
-        failed++;
-      } else if (bairro) {
-        updated++;
-      } else {
-        failed++;
-      }
+    const bairro = result?.bairro || ""; // string vazia = tentou mas não achou (não confiável)
+
+    const { error: upErr } = await supabase
+      .from("tse_votacao_local")
+      .update({ bairro })
+      .eq("zona", l.zona)
+      .eq("nr_local", l.nr_local);
+
+    if (upErr) {
+      failed++;
+    } else if (bairro) {
+      updated++;
+    } else {
+      notFound++;
     }
   }
 
   return new Response(
-    JSON.stringify({ processed: updated + failed, updated, failed, remaining: unique.length - updated - failed }),
+    JSON.stringify({
+      strategy: "nominatim_osm",
+      processed: updated + notFound + failed,
+      updated,
+      not_found: notFound,
+      failed,
+      remaining: unique.length - updated - notFound - failed,
+      note: "Bairros vazios = OSM não encontrou — preferimos vazio a errar. Reexecute para continuar processando.",
+    }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
