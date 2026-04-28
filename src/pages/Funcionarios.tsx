@@ -144,6 +144,27 @@ export default function Funcionarios() {
     return null;
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Remove dependências (referrals e check-ins) antes do funcionário
+      await supabase.from("funcionario_referrals" as any).delete().eq("funcionario_id", deleteTarget.id);
+      await supabase.from("funcionario_checkins" as any).delete().eq("funcionario_id", deleteTarget.id);
+      const { error } = await supabase.from("funcionarios" as any).delete().eq("id", deleteTarget.id);
+      if (error) throw error;
+      toast.success(`Funcionário "${deleteTarget.nome}" excluído.`);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["funcionarios-list", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["funcionarios-stats", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["funcionario-recent-referrals", clientId] });
+    } catch (e: any) {
+      toast.error("Erro ao excluir: " + (e?.message || "tente novamente"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!clientId) {
     return (
       <div className="p-6 flex items-center justify-center">
