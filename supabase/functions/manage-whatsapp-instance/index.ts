@@ -675,13 +675,65 @@ Deno.serve(async (req) => {
     if (action === "send_media") {
       // Normaliza o telefone como no envio de texto
       if (phone) proxyBody.phone = normalizeBrazilPhoneForBridge(phone);
-      if (media) proxyBody.media = media;             // base64 (com ou sem prefixo data:)
-      if (mimetype) proxyBody.mimetype = mimetype;     // ex: "application/pdf"
-      if (filename) proxyBody.filename = filename;     // ex: "dossie-campo-grande.pdf"
-      if (caption) proxyBody.caption = caption;        // legenda opcional
-      // Compatibilidade com bridges que usam outras chaves
-      if (filename && !proxyBody.fileName) proxyBody.fileName = filename;
-      if (mimetype && !proxyBody.mediaType) {
+
+      // A bridge espera uma URL pública (`media_uri`/`media_url`), não base64.
+      // Se vier base64 em `media`, fazemos upload para o bucket público
+      // `whatsapp-media` e geramos a URL assinada/pública para enviar.
+      let mediaUrl: string | null = null;
+
+      if (typeof media === "string" && media.length > 0) {
+        try {
+          // Aceita "data:application/pdf;base64,XXXX" ou só o base64
+          const rawBase64 = media.includes(",") ? media.split(",", 2)[1] : media;
+          const detectedMime = (media.startsWith("data:") && media.includes(";base64,"))
+            ? media.substring(5, media.indexOf(";base64,"))
+            : (mimetype || "application/octet-stream");
+          const finalMime = mimetype || detectedMime;
+          const ext = finalMime === "application/pdf" ? "pdf"
+            : finalMime.startsWith("image/") ? finalMime.split("/")[1]
+            : finalMime.startsWith("audio/") ? finalMime.split("/")[1]
+            : finalMime.startsWith("video/") ? finalMime.split("/")[1]
+            : "bin";
+          const safeName = (filename || `media-${Date.now()}.${ext}`).replace(/[^\w.\-]/g, "_");
+          const objectPath = `outbox/${resolvedClientId || "anon"}/${Date.now()}-${safeName}`;
+
+          // Decodifica base64 → bytes
+          const binary = atob(rawBase64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+          const upload = await adminClient.storage
+            .from("whatsapp-media")
+            .upload(objectPath, bytes, {
+              contentType: finalMime,
+              upsert: true,
+            });
+          if (upload.error) throw upload.error;
+
+          const { data: pub } = adminClient.storage
+            .from("whatsapp-media")
+            .getPublicUrl(objectPath);
+          mediaUrl = pub?.publicUrl || null;
+          console.log("[manage-whatsapp-instance] media uploaded:", objectPath, "->", mediaUrl);
+        } catch (e) {
+          console.error("[manage-whatsapp-instance] media upload failed:", e);
+          return jsonResponse({ success: false, error: `Falha ao preparar anexo: ${(e as Error).message}` });
+        }
+      }
+
+      if (mediaUrl) {
+        // Cobre múltiplos contratos de bridges
+        proxyBody.media_uri = mediaUrl;
+        proxyBody.media_url = mediaUrl;
+        proxyBody.url = mediaUrl;
+      }
+      if (mimetype) proxyBody.mimetype = mimetype;
+      if (filename) {
+        proxyBody.filename = filename;
+        proxyBody.fileName = filename;
+      }
+      if (caption) proxyBody.caption = caption;
+      if (mimetype) {
         proxyBody.mediaType = mimetype.startsWith("image/") ? "image"
           : mimetype.startsWith("audio/") ? "audio"
           : mimetype.startsWith("video/") ? "video"
