@@ -61,6 +61,10 @@ const INDICADORES: IndicadorMeta[] = [
   { id: 60036, label: "População ocupada",       area: "economia",   unidade: "%",                          higher_is_worse: false, fonte: "IBGE 2022" },
   { id: 60047, label: "PIB per capita",          area: "economia",   unidade: "R$",                         higher_is_worse: false, fonte: "IBGE 2022" },
   { id: 60048, label: "% receita de transferências federais", area: "economia", unidade: "%",               higher_is_worse: true,  fonte: "Tesouro 2024" },
+  // SNIS / Saneamento adicional
+  { id: 60037, label: "Pessoas em domicílios com água canalizada", area: "infra", unidade: "%",            higher_is_worse: false, fonte: "Censo 2010" },
+  // IPEA / vulnerabilidade
+  { id: 30277, label: "Pessoas pobres (renda <½ SM)", area: "social", unidade: "%",                       higher_is_worse: true,  fonte: "Atlas/IPEA 2010" },
 ];
 
 const IND_IDS = INDICADORES.map((i) => i.id).join("|");
