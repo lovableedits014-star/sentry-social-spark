@@ -78,7 +78,8 @@ const NarrativaPolitica = () => {
       if (c?.id) { setClientId(c.id); return; }
       const { data: tm } = await supabase
         .from("team_members" as any).select("client_id").eq("user_id", user.id).maybeSingle();
-      if (tm?.client_id) setClientId(tm.client_id);
+      const tmRow = tm as any;
+      if (tmRow?.client_id) setClientId(tmRow.client_id);
     })();
   }, []);
 
