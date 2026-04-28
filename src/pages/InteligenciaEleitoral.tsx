@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Vote, BarChart3, Users, LayoutGrid, Map as MapIcon, GitCompare,
-  Building2, Trophy, MapPin, Database, FlaskConical, Network, Target, Newspaper,
+  Building2, Trophy, MapPin, Database, FlaskConical, Network, Target, Newspaper, Megaphone,
 } from "lucide-react";
 import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
 import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
@@ -18,6 +18,7 @@ import { EleitoralFiltersProvider, useEleitoralFilters } from "@/components/inte
 import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeBar";
 import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
 import GdeltMonitor from "@/components/midia/GdeltMonitor";
+import NarrativaPolitica from "@/components/inteligencia/narrativa/NarrativaPolitica";
 
 type CoverageRow = {
   ano: number;
@@ -155,7 +156,7 @@ const InteligenciaEleitoralInner = () => {
 
       {/* Tabs principais — 3 grupos */}
       <Tabs defaultValue="panorama" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-6 h-auto">
           <TabsTrigger value="panorama" className="flex items-center gap-2 py-2.5">
             <BarChart3 className="w-4 h-4" />
             <span>Panorama</span>
@@ -175,6 +176,10 @@ const InteligenciaEleitoralInner = () => {
           <TabsTrigger value="hiperlocal" className="flex items-center gap-2 py-2.5">
             <Building2 className="w-4 h-4" />
             <span>Hiperlocal · CG/MS</span>
+          </TabsTrigger>
+          <TabsTrigger value="narrativa" className="flex items-center gap-2 py-2.5">
+            <Megaphone className="w-4 h-4" />
+            <span>Narrativa Política</span>
           </TabsTrigger>
         </TabsList>
 
@@ -270,6 +275,11 @@ const InteligenciaEleitoralInner = () => {
             defaultCountry="BR"
             defaultTimespan="7d"
           />
+        </TabsContent>
+
+        {/* NARRATIVA POLÍTICA */}
+        <TabsContent value="narrativa" className="mt-4">
+          <NarrativaPolitica />
         </TabsContent>
       </Tabs>
 
