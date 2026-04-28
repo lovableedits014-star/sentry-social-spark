@@ -2081,6 +2081,190 @@ export type Database = {
           },
         ]
       }
+      narrativa_dossies: {
+        Row: {
+          analise: Json
+          analyzed_at: string | null
+          client_id: string
+          collected_at: string | null
+          conteudos: Json
+          created_at: string
+          created_by: string | null
+          dados_brutos: Json
+          erro_msg: string | null
+          generated_at: string | null
+          ibge_code: string | null
+          id: string
+          municipio: string
+          status: string
+          uf: string
+          updated_at: string
+        }
+        Insert: {
+          analise?: Json
+          analyzed_at?: string | null
+          client_id: string
+          collected_at?: string | null
+          conteudos?: Json
+          created_at?: string
+          created_by?: string | null
+          dados_brutos?: Json
+          erro_msg?: string | null
+          generated_at?: string | null
+          ibge_code?: string | null
+          id?: string
+          municipio: string
+          status?: string
+          uf: string
+          updated_at?: string
+        }
+        Update: {
+          analise?: Json
+          analyzed_at?: string | null
+          client_id?: string
+          collected_at?: string | null
+          conteudos?: Json
+          created_at?: string
+          created_by?: string | null
+          dados_brutos?: Json
+          erro_msg?: string | null
+          generated_at?: string | null
+          ibge_code?: string | null
+          id?: string
+          municipio?: string
+          status?: string
+          uf?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrativa_dossies_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      narrativa_perfil_candidato: {
+        Row: {
+          bandeiras: Json
+          cargo_pretendido: string | null
+          client_id: string
+          created_at: string
+          estilo_discurso: string | null
+          id: string
+          nome_candidato: string | null
+          observacoes: string | null
+          partido: string | null
+          proposta_central: string | null
+          publico_alvo: string | null
+          tom_voz: string | null
+          updated_at: string
+        }
+        Insert: {
+          bandeiras?: Json
+          cargo_pretendido?: string | null
+          client_id: string
+          created_at?: string
+          estilo_discurso?: string | null
+          id?: string
+          nome_candidato?: string | null
+          observacoes?: string | null
+          partido?: string | null
+          proposta_central?: string | null
+          publico_alvo?: string | null
+          tom_voz?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bandeiras?: Json
+          cargo_pretendido?: string | null
+          client_id?: string
+          created_at?: string
+          estilo_discurso?: string | null
+          id?: string
+          nome_candidato?: string | null
+          observacoes?: string | null
+          partido?: string | null
+          proposta_central?: string | null
+          publico_alvo?: string | null
+          tom_voz?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrativa_perfil_candidato_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      narrativa_visitas_realizadas: {
+        Row: {
+          bairros_visitados: Json
+          client_id: string
+          created_at: string
+          created_by: string | null
+          data_visita: string
+          dossie_id: string | null
+          id: string
+          municipio: string
+          observacoes: string | null
+          resultado_percebido: string | null
+          temas_abordados: Json
+          uf: string
+          updated_at: string
+        }
+        Insert: {
+          bairros_visitados?: Json
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          data_visita?: string
+          dossie_id?: string | null
+          id?: string
+          municipio: string
+          observacoes?: string | null
+          resultado_percebido?: string | null
+          temas_abordados?: Json
+          uf: string
+          updated_at?: string
+        }
+        Update: {
+          bairros_visitados?: Json
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_visita?: string
+          dossie_id?: string | null
+          id?: string
+          municipio?: string
+          observacoes?: string | null
+          resultado_percebido?: string | null
+          temas_abordados?: Json
+          uf?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrativa_visitas_realizadas_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "narrativa_visitas_realizadas_dossie_id_fkey"
+            columns: ["dossie_id"]
+            isOneToOne: false
+            referencedRelation: "narrativa_dossies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pessoa_social: {
         Row: {
           created_at: string

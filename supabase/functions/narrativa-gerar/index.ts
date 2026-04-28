@@ -1,0 +1,226 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+/**
+ * narrativa-gerar
+ * A partir do dossiê (dados_brutos + analise) e do perfil do candidato,
+ * usa Lovable AI para gerar:
+ *  - 3 versões de discurso (popular / técnico / emocional)
+ *  - 3 ataques 3-camadas (Tema -> Falha do gestor -> Solução do candidato)
+ *  - 3 manchetes para reels/cards
+ *  - 1 roteiro de visita estratégica (foco emocional + bairro sugerido)
+ *
+ * Body: { dossie_id }
+ */
+
+const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPA_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-2.5-flash";
+
+function buildSystemPrompt(perfil: any) {
+  const bandeiras = Array.isArray(perfil?.bandeiras) ? perfil.bandeiras.join(", ") : "";
+  return `Você é um estrategista político brasileiro especializado em discursos de campanha territorial.
+
+CANDIDATO:
+- Nome: ${perfil?.nome_candidato || "—"}
+- Cargo pretendido: ${perfil?.cargo_pretendido || "—"}
+- Partido: ${perfil?.partido || "—"}
+- Bandeiras: ${bandeiras || "—"}
+- Tom de voz preferido: ${perfil?.tom_voz || "popular"}
+- Estilo: ${perfil?.estilo_discurso || "—"}
+- Proposta central: ${perfil?.proposta_central || "—"}
+
+REGRAS OBRIGATÓRIAS:
+- Fale SEMPRE em português brasileiro coloquial.
+- Use os DADOS REAIS do dossiê — nunca invente números nem nomes.
+- Quando citar uma dor, conecte-a EMOCIONALMENTE com a vida cotidiana do morador.
+- O candidato é alguém que VEM DE BAIXO, conhece a realidade, fala direto.
+- Nunca seja genérico. Sempre mencione o NOME da cidade.
+- Saída deve ser estritamente um JSON válido seguindo o schema do tool.`;
+}
+
+function buildUserPrompt(dossie: any) {
+  const meta = dossie.dados_brutos?.meta || {};
+  const ibge = dossie.dados_brutos?.ibge || {};
+  const tse = dossie.dados_brutos?.tse_local || {};
+  const midia = dossie.dados_brutos?.midia_gdelt || {};
+  const analise = dossie.analise || {};
+
+  return `DOSSIÊ DA CIDADE
+Cidade: ${meta.municipio} / ${meta.uf}
+População estimada: ${ibge?.populacao?.val ?? "—"} (${ibge?.populacao?.ano ?? "—"})
+PIB per capita: ${ibge?.pib_per_capita?.val ?? "—"}
+Região: ${ibge?.base?.regiao ?? "—"}
+
+TOP CANDIDATOS LOCAIS (TSE):
+${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
+  `- ${b.ano} ${b.cargo}: ${b.top.slice(0, 3).map((c: any) => `${c.nome} (${c.partido}) ${c.votos} votos`).join(" | ")}`,
+).join("\n") || "(sem dados)"}
+
+PARTIDOS DOMINANTES:
+${(tse?.partidos_dominantes || []).slice(0, 5).map((p: any) => `${p.partido}: ${p.votos}`).join(", ") || "—"}
+
+MÍDIA RECENTE (últimos 30 dias, ${midia?.total ?? 0} artigos, tom médio ${midia?.tom_medio?.toFixed?.(2) ?? "—"}):
+${(midia?.artigos || []).slice(0, 8).map((a: any) => `- "${a.titulo}" (${a.fonte})`).join("\n") || "(sem cobertura)"}
+
+ANÁLISE DE DOR:
+${(analise?.dores || []).map((d: any) => `- ${d.area}: ${d.classificacao} (score ${d.pain_score}, ${d.mencoes_midia} menções)`).join("\n") || "—"}
+
+Oportunidade política: ${analise?.oportunidade?.nivel} (score ${analise?.oportunidade?.oportunidade_score}). Dor principal: ${analise?.oportunidade?.dor_principal}. Força do gestor atual: ${analise?.oportunidade?.forca_gestor_atual ?? "—"}%.
+
+Gere o pacote completo de munição política para esta cidade.`;
+}
+
+const TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "gerar_pacote_narrativa",
+    description: "Gera o pacote completo de discurso, ataques, manchetes e roteiro de visita.",
+    parameters: {
+      type: "object",
+      properties: {
+        discursos: {
+          type: "object",
+          properties: {
+            popular: { type: "string", description: "Discurso linguagem do povo, 200-300 palavras." },
+            tecnico: { type: "string", description: "Discurso com dados, propostas claras, 200-300 palavras." },
+            emocional: { type: "string", description: "Discurso visceral, conta uma história, 200-300 palavras." },
+          },
+          required: ["popular", "tecnico", "emocional"],
+          additionalProperties: false,
+        },
+        ataques_3_camadas: {
+          type: "array",
+          minItems: 3,
+          maxItems: 3,
+          items: {
+            type: "object",
+            properties: {
+              tema: { type: "string" },
+              falha_do_gestor: { type: "string" },
+              solucao_proposta: { type: "string" },
+            },
+            required: ["tema", "falha_do_gestor", "solucao_proposta"],
+            additionalProperties: false,
+          },
+        },
+        manchetes_reels: {
+          type: "array",
+          minItems: 3,
+          maxItems: 5,
+          items: { type: "string", description: "Frase curta tipo manchete (max 80 chars)." },
+        },
+        roteiro_visita: {
+          type: "object",
+          properties: {
+            foco: { type: "string", description: "Tema central da visita." },
+            emocao_alvo: { type: "string", description: "Emoção que queremos despertar." },
+            bairro_sugerido: { type: "string", description: "Bairro/região onde a dor é mais forte." },
+            primeira_frase: { type: "string", description: "Como o candidato deve abrir a fala." },
+            mensagem_central: { type: "string" },
+            chamada_acao: { type: "string" },
+          },
+          required: ["foco", "emocao_alvo", "bairro_sugerido", "primeira_frase", "mensagem_central", "chamada_acao"],
+          additionalProperties: false,
+        },
+      },
+      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "roteiro_visita"],
+      additionalProperties: false,
+    },
+  },
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY ausente");
+    const { dossie_id } = await req.json();
+    if (!dossie_id) {
+      return new Response(JSON.stringify({ error: "dossie_id obrigatório" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supa = createClient(SUPA_URL, SUPA_KEY);
+
+    const { data: dossie, error: dErr } = await supa
+      .from("narrativa_dossies")
+      .select("*")
+      .eq("id", dossie_id)
+      .maybeSingle();
+    if (dErr || !dossie) throw new Error("Dossiê não encontrado");
+
+    const { data: perfil } = await supa
+      .from("narrativa_perfil_candidato")
+      .select("*")
+      .eq("client_id", dossie.client_id)
+      .maybeSingle();
+
+    await supa.from("narrativa_dossies").update({ status: "gerando" }).eq("id", dossie_id);
+
+    const aiRes = await fetch(AI_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: buildSystemPrompt(perfil) },
+          { role: "user", content: buildUserPrompt(dossie) },
+        ],
+        tools: [TOOL_SCHEMA],
+        tool_choice: { type: "function", function: { name: "gerar_pacote_narrativa" } },
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      if (aiRes.status === 429) {
+        await supa.from("narrativa_dossies").update({ status: "erro", erro_msg: "Limite de requisições atingido. Tente novamente em alguns instantes." }).eq("id", dossie_id);
+        return new Response(JSON.stringify({ error: "Limite de requisições da IA. Aguarde e tente de novo." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (aiRes.status === 402) {
+        await supa.from("narrativa_dossies").update({ status: "erro", erro_msg: "Créditos da IA esgotados." }).eq("id", dossie_id);
+        return new Response(JSON.stringify({ error: "Créditos da IA esgotados. Adicione créditos no workspace." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`AI gateway: ${aiRes.status} ${errText}`);
+    }
+
+    const aiJson = await aiRes.json();
+    const tcArgs = aiJson?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    if (!tcArgs) throw new Error("IA não retornou tool_call estruturada");
+    const conteudos = JSON.parse(tcArgs);
+
+    await supa
+      .from("narrativa_dossies")
+      .update({
+        conteudos,
+        status: "pronto",
+        generated_at: new Date().toISOString(),
+      })
+      .eq("id", dossie_id);
+
+    return new Response(JSON.stringify({ dossie_id, conteudos }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "erro desconhecido";
+    console.error("narrativa-gerar error:", msg);
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
