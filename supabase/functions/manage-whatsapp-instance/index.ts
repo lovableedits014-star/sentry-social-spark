@@ -96,6 +96,36 @@ async function fetchBridgeAction(params: {
   throw new Error("Falha inesperada ao comunicar com a ponte WhatsApp");
 }
 
+async function syncInstanceHealth(adminClient: any, inst: any) {
+  if (!inst?.bridge_api_key) return { id: inst?.id, status: "disconnected", ok: false };
+
+  const { bridgeRes, bridgeData } = await fetchBridgeAction({
+    action: "instance_status",
+    apiKey: inst.bridge_api_key,
+    body: { action: "instance_status" },
+  });
+
+  const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+  const status = rawStatus === "connected" || rawStatus === "open"
+    ? "connected"
+    : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr"
+      ? "connecting"
+      : "disconnected";
+
+  const updates: any = {
+    status,
+    last_health_check_at: new Date().toISOString(),
+  };
+  const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
+    || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
+  if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
+  if (status === "connected" && !inst.connected_since) updates.connected_since = new Date().toISOString();
+  if (status !== "connected") updates.connected_since = null;
+
+  await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
+  return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
+}
+
 async function deleteExistingInstance(params: {
   adminClient: any;
   clientId: string;
