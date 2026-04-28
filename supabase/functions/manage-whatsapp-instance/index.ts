@@ -96,6 +96,54 @@ async function fetchBridgeAction(params: {
   throw new Error("Falha inesperada ao comunicar com a ponte WhatsApp");
 }
 
+async function syncInstanceHealth(adminClient: any, inst: any) {
+  if (!inst?.bridge_api_key) return { id: inst?.id, status: "disconnected", ok: false };
+
+  const { bridgeRes, bridgeData } = await fetchBridgeAction({
+    action: "instance_status",
+    apiKey: inst.bridge_api_key,
+    body: { action: "instance_status" },
+  });
+
+  const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+  const status = rawStatus === "connected" || rawStatus === "open"
+    ? "connected"
+    : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr"
+      ? "connecting"
+      : "disconnected";
+
+  const updates: any = {
+    status,
+    last_health_check_at: new Date().toISOString(),
+  };
+  const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
+    || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
+  if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
+  if (status === "connected" && !inst.connected_since) updates.connected_since = new Date().toISOString();
+  if (status !== "connected") updates.connected_since = null;
+
+  await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
+  return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
+}
+
+async function tryReconnectInstance(adminClient: any, inst: any) {
+  if (!inst?.bridge_api_key) return { id: inst?.id, reconnected: false, reason: "missing_api_key" };
+  const { bridgeRes, bridgeData } = await fetchBridgeAction({
+    action: "reconnect",
+    apiKey: inst.bridge_api_key,
+    body: { action: "reconnect" },
+  });
+  const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+  const status = rawStatus === "connected" || rawStatus === "open" ? "connected" : "connecting";
+  const updates: any = { status, last_health_check_at: new Date().toISOString() };
+  const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
+    || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
+  if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
+  if (status === "connected") updates.connected_since = new Date().toISOString();
+  await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
+  return { id: inst.id, reconnected: status === "connected", status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
+}
+
 async function deleteExistingInstance(params: {
   adminClient: any;
   clientId: string;
@@ -261,13 +309,40 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) {
+    const body = await req.json();
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
+    const cronRequested = action === "health_check_all";
+
+    if ((authErr || !user) && !cronRequested) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus } = body;
     const adminClient = createClient(supabaseUrl, serviceKey);
+
+    if (action === "health_check_all") {
+      const keepaliveToken = req.headers.get("X-Keepalive-Token");
+      const { data: tokenConfig } = await adminClient
+        .from("platform_config")
+        .select("value")
+        .eq("key", "whatsapp_keepalive_token")
+        .maybeSingle();
+      if (!tokenConfig?.value || keepaliveToken !== tokenConfig.value) {
+        return jsonResponse({ success: false, error: "Unauthorized keepalive" }, 401);
+      }
+      const { data: rows, error } = await adminClient
+        .from("whatsapp_instances")
+        .select("id, bridge_api_key, status, connected_since, is_active")
+        .eq("is_active", true)
+        .not("bridge_api_key", "is", null)
+        .limit(50);
+      if (error) return jsonResponse({ success: false, error: error.message }, 500);
+      const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
+        const health = await syncInstanceHealth(adminClient, inst);
+        if (health.status === "connected") return health;
+        return { ...health, reconnect: await tryReconnectInstance(adminClient, inst) };
+      }));
+      return jsonResponse({ success: true, checked: results.length, results });
+    }
 
     // Resolve client_id
     let resolvedClientId = client_id;
@@ -529,6 +604,27 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, webhook_url: webhookUrl, bridge: bridgeData });
     }
 
+    if (action === "ensure_connected") {
+      if (!instance_id || !activeInstanceRow) {
+        return jsonResponse({ success: false, error: "instance_id obrigatório" }, 400);
+      }
+      const health = await syncInstanceHealth(adminClient, activeInstanceRow);
+      if (health.status === "connected") return jsonResponse({ success: true, status: "connected", health });
+      if (!clientApiKey) {
+        return jsonResponse({ success: false, status: "disconnected", error: "Instância sem credencial; conecte novamente pelo QR Code." });
+      }
+      const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+      const bridgeData = reconnect.details || {};
+      if (isQrPendingResponse(bridgeData)) return awaitingQrResponse("Instância caiu. Reconexão iniciada; escaneie o QR Code para estabilizar.");
+      return jsonResponse({
+        success: reconnect.ok && bridgeData?.success !== false,
+        status: reconnect.status || bridgeData?.status || bridgeData?.instance?.status || "connecting",
+        qrcode: bridgeData?.qrcode || bridgeData?.instance?.qrcode,
+        instance: bridgeData?.instance,
+        error: !reconnect.ok || bridgeData?.success === false ? (bridgeData?.error || "Erro ao reconectar") : undefined,
+      });
+    }
+
     // === ACTIONS THAT REQUIRE API KEY ===
     if (!clientApiKey) {
       if (action === "reconnect") {
@@ -588,12 +684,16 @@ Deno.serve(async (req) => {
 
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
-      const status = bridgeData?.status === "connected" ? "connected"
-        : bridgeData?.status === "connecting" ? "connecting"
+      const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+      const status = rawStatus === "connected" || rawStatus === "open" ? "connected"
+        : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr" ? "connecting"
         : "disconnected";
       const updates: any = { status, last_health_check_at: new Date().toISOString() };
       if (status === "connected" && !activeInstanceRow.connected_since) {
         updates.connected_since = new Date().toISOString();
+      }
+      if (status !== "connected") {
+        updates.connected_since = null;
       }
       // Sincroniza telefone sempre que a bridge informar (mesmo em connecting)
       const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
