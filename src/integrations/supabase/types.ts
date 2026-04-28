@@ -3899,6 +3899,71 @@ export type Database = {
           },
         ]
       }
+      whatsapp_send_retry_queue: {
+        Row: {
+          attempts: number
+          client_id: string
+          created_at: string
+          enviado_em: string | null
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          max_attempts: number
+          mensagem: string
+          next_attempt_at: string
+          nome: string | null
+          origem: string
+          origem_ref: string | null
+          status: string
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          client_id: string
+          created_at?: string
+          enviado_em?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          mensagem: string
+          next_attempt_at?: string
+          nome?: string | null
+          origem?: string
+          origem_ref?: string | null
+          status?: string
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          client_id?: string
+          created_at?: string
+          enviado_em?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          mensagem?: string
+          next_attempt_at?: string
+          nome?: string | null
+          origem?: string
+          origem_ref?: string | null
+          status?: string
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_send_retry_queue_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3915,6 +3980,17 @@ export type Database = {
       count_assigned_supporters: {
         Args: { p_team_member_id: string }
         Returns: number
+      }
+      enqueue_whatsapp_retry: {
+        Args: {
+          p_client_id: string
+          p_mensagem: string
+          p_nome?: string
+          p_origem?: string
+          p_origem_ref?: string
+          p_telefone: string
+        }
+        Returns: string
       }
       ensure_supporter_for_entity: {
         Args: { p_client_id: string; p_nome: string; p_redes: Json }
@@ -4104,6 +4180,7 @@ export type Database = {
         Returns: string
       }
       resume_paused_whatsapp_dispatches: { Args: never; Returns: undefined }
+      resume_whatsapp_on_reconnect: { Args: never; Returns: undefined }
       snapshot_monthly_scores: {
         Args: { p_client_id: string }
         Returns: number

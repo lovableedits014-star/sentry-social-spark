@@ -179,6 +179,138 @@ Deno.serve(async (req) => {
 
     const payload = await req.json();
     const isResume = !!payload.resume_dispatch_id;
+    const isRetryQueue = !!payload.retry_queue_id;
+
+    // ====== MODO RETRY QUEUE (chamado pelo cron resume_whatsapp_on_reconnect) ======
+    // Envio único proveniente da fila de retentativas. Não cria registro de dispatch
+    // — apenas tenta entregar usando uma instância conectada do pool. Em caso de
+    // falha definitiva (tentativas esgotadas) marca o item como falha_definitiva.
+    if (isRetryQueue) {
+      const queueId = payload.retry_queue_id as string;
+      const queueClientId = payload.client_id as string;
+      const queueMsg = String(payload.mensagem || "");
+      const queueRecipient = (payload.recipients?.[0] || {}) as { telefone?: string; nome?: string };
+
+      if (!queueClientId || !queueRecipient.telefone || !queueMsg) {
+        return new Response(JSON.stringify({ error: "retry queue payload inválido" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Carrega item para conferir status atual e limites
+      const { data: queueItem } = await adminClient
+        .from("whatsapp_send_retry_queue")
+        .select("id, attempts, max_attempts, status")
+        .eq("id", queueId)
+        .maybeSingle();
+      if (!queueItem || queueItem.status !== "pendente") {
+        return new Response(JSON.stringify({ skipped: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Escolhe instância saudável
+      const { data: pickedId } = await adminClient
+        .rpc("pick_healthy_whatsapp_instance", { p_client_id: queueClientId });
+      if (!pickedId) {
+        // Sem instância: reagenda 5min sem consumir tentativa extra
+        await adminClient.from("whatsapp_send_retry_queue").update({
+          attempts: Math.max(0, (queueItem.attempts || 1) - 1), // desfaz incremento do cron
+          next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+          last_error: "Nenhuma instância conectada disponível",
+        }).eq("id", queueId);
+        return new Response(JSON.stringify({ requeued: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: inst } = await adminClient
+        .from("whatsapp_instances")
+        .select("id, bridge_url, bridge_api_key")
+        .eq("id", pickedId)
+        .maybeSingle();
+      if (!inst?.bridge_url || !inst?.bridge_api_key) {
+        await adminClient.from("whatsapp_send_retry_queue").update({
+          next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+          last_error: "Instância selecionada sem credenciais",
+        }).eq("id", queueId);
+        return new Response(JSON.stringify({ requeued: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const personalizedMsg = queueMsg.replace(/{nome}/g, queueRecipient.nome || "");
+        const phoneClean = cleanPhoneForBridge(queueRecipient.telefone);
+
+        // Preflight
+        const pre = await preflightInstance({
+          bridgeUrl: inst.bridge_url, bridgeApiKey: inst.bridge_api_key, instanceId: inst.id,
+        });
+        if (pre.status === "disconnected") {
+          await adminClient.from("whatsapp_instances")
+            .update({ status: "disconnected" }).eq("id", inst.id);
+          await adminClient.from("whatsapp_send_retry_queue").update({
+            next_attempt_at: new Date(Date.now() + 3 * 60_000).toISOString(),
+            last_error: `Preflight: instância offline (${pre.detail || "sem status"})`,
+          }).eq("id", queueId);
+          return new Response(JSON.stringify({ requeued: true, reason: "preflight" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { res: sendRes, data: sendData } = await fetchBridgeSend({
+          bridgeUrl: inst.bridge_url, bridgeApiKey: inst.bridge_api_key,
+          phone: phoneClean, message: personalizedMsg,
+        });
+        const failure = getSendFailure(sendRes, sendData);
+
+        if (!failure) {
+          await adminClient.from("whatsapp_send_retry_queue").update({
+            status: "enviado", enviado_em: new Date().toISOString(), last_error: null,
+          }).eq("id", queueId);
+          await adminClient.rpc("log_whatsapp_send", {
+            p_instance_id: inst.id, p_client_id: queueClientId,
+            p_dispatch_id: null, p_success: true, p_error_message: null,
+            p_preflight_status: pre.status, p_preflight_reconnected: pre.reconnected,
+          });
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Falha — verifica se chegou ao limite ou se reagenda com backoff
+        const newAttempts = queueItem.attempts || 1;
+        const willGiveUp = newAttempts >= (queueItem.max_attempts || 8);
+        const backoffMin = Math.min(60, Math.pow(2, newAttempts)); // 2,4,8,16,32,60...
+        await adminClient.from("whatsapp_send_retry_queue").update({
+          status: willGiveUp ? "falha_definitiva" : "pendente",
+          next_attempt_at: willGiveUp ? null : new Date(Date.now() + backoffMin * 60_000).toISOString(),
+          last_error: String(failure).slice(0, 300),
+        }).eq("id", queueId);
+        await adminClient.rpc("log_whatsapp_send", {
+          p_instance_id: inst.id, p_client_id: queueClientId,
+          p_dispatch_id: null, p_success: false,
+          p_error_message: String(failure).slice(0, 200),
+          p_preflight_status: pre.status, p_preflight_reconnected: pre.reconnected,
+        });
+        return new Response(JSON.stringify({ retried: true, gave_up: willGiveUp }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        const newAttempts = queueItem.attempts || 1;
+        const willGiveUp = newAttempts >= (queueItem.max_attempts || 8);
+        const backoffMin = Math.min(60, Math.pow(2, newAttempts));
+        await adminClient.from("whatsapp_send_retry_queue").update({
+          status: willGiveUp ? "falha_definitiva" : "pendente",
+          next_attempt_at: willGiveUp ? null : new Date(Date.now() + backoffMin * 60_000).toISOString(),
+          last_error: String(err).slice(0, 300),
+        }).eq("id", queueId);
+        return new Response(JSON.stringify({ retried: true, error: String(err) }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // ====== MODO RESUME (chamado pelo cron) ======
     let client_id: string;
@@ -494,8 +626,8 @@ Deno.serve(async (req) => {
           if (!bridgeUrl || !bridgeApiKey) {
             // Nenhuma instância disponível agora — pausa pra retomar depois
             await adminClient.from("whatsapp_dispatches").update({
-              status: "pausado_janela",
-              pause_reason: "Nenhuma instância conectada disponível",
+              status: "pausado_sem_instancia",
+              pause_reason: "Nenhuma instância conectada disponível — retomado automaticamente quando reconectar",
               enviados: sent,
               falhas: failed,
               updated_at: new Date().toISOString(),
