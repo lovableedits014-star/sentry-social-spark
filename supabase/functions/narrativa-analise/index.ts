@@ -57,6 +57,7 @@ const AREA_INDICADORES: Record<string, { id: number; peso: number; titulo: strin
     { id: 60030, peso: 1.0, titulo: "Esgoto adequado" },
     { id: 60031, peso: 0.5, titulo: "Urbanização das vias" },
     { id: 60029, peso: 0.3, titulo: "Arborização" },
+    { id: 60037, peso: 0.8, titulo: "Água canalizada" },
   ],
   economia: [
     { id: 60038, peso: 1.0, titulo: "Salário médio mensal" },
@@ -68,6 +69,7 @@ const AREA_INDICADORES: Record<string, { id: number; peso: number; titulo: strin
     { id: 30246, peso: 1.0, titulo: "Pobreza" },
     { id: 30252, peso: 0.7, titulo: "Desigualdade (Gini)" },
     { id: 30255, peso: 0.8, titulo: "IDH-M" },
+    { id: 30277, peso: 0.9, titulo: "Pessoas com renda <½ SM" },
   ],
 };
 
@@ -204,12 +206,63 @@ function calcularOportunidade(dores: any[], dadosBrutos: any) {
   };
 }
 
-function inferirBairros(dadosBrutos: any) {
-  // Onda 1: extrai zonas únicas do TSE como proxy de bairro
+/**
+ * Top 10 LOCAIS CRÍTICOS = locais reais (escolas/UBS/etc) nas zonas onde
+ * o prefeito atual teve PIOR desempenho em 2024. Esses são os pontos de
+ * maior oportunidade política para visita/campanha.
+ */
+function topLocaisCriticos(dadosBrutos: any) {
   const tse = dadosBrutos?.tse_local;
   if (!tse || tse.vazio) return [];
-  // A função tse_local atual não traz zonas; placeholder simples
-  return [];
+  const locais: any[] = tse.locais_criticos || [];
+  if (locais.length === 0) return [];
+
+  // Agrupa por bairro (quando existe) — pega o local "âncora" por bairro
+  const porBairro = new Map<string, any>();
+  const semBairro: any[] = [];
+  for (const l of locais) {
+    const key = (l.bairro || "").trim();
+    if (!key) {
+      semBairro.push(l);
+      continue;
+    }
+    const cur = porBairro.get(key);
+    if (!cur || (l.pct_eleito_zona ?? 100) < (cur.pct_eleito_zona ?? 100)) {
+      porBairro.set(key, l);
+    }
+  }
+
+  const ranked = [
+    ...Array.from(porBairro.values()),
+    ...semBairro.slice(0, 4),
+  ]
+    .sort((a, b) => (a.pct_eleito_zona ?? 100) - (b.pct_eleito_zona ?? 100))
+    .slice(0, 10)
+    .map((l, i) => ({
+      rank: i + 1,
+      bairro: l.bairro || "(bairro desconhecido)",
+      zona: l.zona,
+      nome_local: l.nome_local,
+      endereco: l.endereco,
+      pct_eleito_zona: l.pct_eleito_zona,
+      motivo: l.pct_eleito_zona != null
+        ? `Prefeito eleito teve só ${l.pct_eleito_zona}% dos votos nesta zona — abaixo da média municipal`
+        : "Zona sem dado consolidado de desempenho do incumbente",
+    }));
+
+  return ranked;
+}
+
+/**
+ * Bairros inferidos = lista única de bairros distintos dos top locais críticos.
+ * Usa SOMENTE bairros que vieram dos endereços TSE reais (sem inventar).
+ */
+function inferirBairros(dadosBrutos: any, topLocais: any[]) {
+  const set = new Set<string>();
+  for (const l of topLocais || []) {
+    if (l.bairro && l.bairro !== "(bairro desconhecido)") set.add(l.bairro);
+  }
+  return Array.from(set).slice(0, 8);
 }
 
 Deno.serve(async (req) => {
@@ -235,7 +288,8 @@ Deno.serve(async (req) => {
 
     const { dores, tom_medio_midia } = calcularDores(dossie.dados_brutos);
     const oportunidade = calcularOportunidade(dores, dossie.dados_brutos);
-    const bairros_inferidos = inferirBairros(dossie.dados_brutos);
+    const top_locais_criticos = topLocaisCriticos(dossie.dados_brutos);
+    const bairros_inferidos = inferirBairros(dossie.dados_brutos, top_locais_criticos);
 
     const analise = {
       dores,
@@ -243,6 +297,7 @@ Deno.serve(async (req) => {
       oportunidade,
       tom_medio_midia,
       bairros_inferidos,
+      top_locais_criticos,
       gerado_em: new Date().toISOString(),
     };
 

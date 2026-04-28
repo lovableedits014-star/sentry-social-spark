@@ -82,6 +82,11 @@ function buildUserPrompt(dossie: any) {
       return `${d.area.toUpperCase()} — ${d.classificacao} (score ${d.pain_score}):\n${evs}`;
     }).join("\n\n");
 
+  const bairrosReais = (analise?.bairros_inferidos || []).join(", ");
+  const topLocais = (analise?.top_locais_criticos || []).slice(0, 6)
+    .map((l: any) => `   • ${l.bairro} (zona ${l.zona}, eleito teve ${l.pct_eleito_zona ?? "?"}%)`)
+    .join("\n");
+
   return `DOSSIÊ DA CIDADE
 Cidade: ${meta.municipio} / ${meta.uf}
 Região: ${ibge?.base?.regiao ?? "—"}
@@ -112,7 +117,10 @@ INSTRUÇÕES CRÍTICAS:
 - Cite o ano dos dados quando recente (não cite anos de 2010 ou anteriores como se fossem atuais)
 - Se um indicador NÃO tiver dado, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
-- O bairro_sugerido deve ser uma região plausível da cidade (ex: "região leste", "periferia norte")
+- BAIRROS REAIS onde o prefeito atual foi mais fraco em 2024 (use estes nomes EXATOS no roteiro):
+${topLocais || "(sem dados zonais)"}
+- Bairros candidatos para o roteiro_visita.bairro_sugerido: ${bairrosReais || "(use região genérica como 'periferia')"}
+- NUNCA invente nome de bairro. Se a lista acima estiver vazia, use "região periférica" genericamente.
 
 Gere o pacote completo de munição política para esta cidade.`;
 }
