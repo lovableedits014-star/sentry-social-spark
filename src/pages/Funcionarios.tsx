@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,14 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users2, Trophy, TrendingUp, UserPlus, Copy, CheckCircle2,
-  Clock, Crown, Medal, Award, Loader2, CalendarCheck, ClipboardList,
+  Clock, Crown, Medal, Award, Loader2, CalendarCheck, ClipboardList, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import AcoesExternasTab from "@/components/funcionarios/AcoesExternasTab";
 
 export default function Funcionarios() {
   const [copied, setCopied] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nome: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: client } = useQuery({
     queryKey: ["my-client"],
