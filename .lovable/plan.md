@@ -1,92 +1,94 @@
-## O que vamos construir
 
-Duas frentes complementares dentro de **Inteligência Eleitoral**:
+# Narrativa Política — Plano final aprovado
 
-### 1. Importador automático do TSE 2022 (todos cargos de MS)
-Uma Edge Function (`import-tse-results`) que baixa do repositório aberto do TSE (`https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/`) o ZIP oficial `votacao_candidato_munzona_2022.zip`, descompacta em memória, lê o CSV `votacao_candidato_munzona_2022_MS.csv` e popula `tse_votacao_zona` com `ano = 2022`. Cobre os 5 cargos: **Presidente, Governador, Senador, Deputado Federal, Deputado Estadual**.
+Com base nas suas 4 decisões, está tudo definido. Antes de implementar, recapitulo a versão final pra você confirmar.
 
-Botão "Importar dados 2022 (MS)" exibido apenas para Super-Admin numa nova seção da página.
+## Decisões consolidadas
 
-### 2. Nova aba "Composição de Chapa"
-Dentro de `/inteligencia-eleitoral`, ao lado das abas atuais (Prefeito 2024, Vereador 2024). Exibe candidatos consolidados de **2022 + 2024** com filtros poderosos.
+1. **Localização**: nova aba dentro de `/inteligencia-eleitoral` (ao lado de Prefeito 2024, Vereador 2024, Composição de Chapa, etc.)
+2. **Perfil do candidato**: editado dentro da própria aba (botão "Configurar Candidato" no topo, abre dialog)
+3. **Saída IA**: gera as 3 versões (popular/técnico/emocional) já no primeiro clique
+4. **Memória de campanha**: registrada e visível, sem alerta automático nessa primeira versão
+
+## Estrutura final da aba
 
 ```text
-┌─ Inteligência Eleitoral ──────────────────────────────┐
-│ [Prefeito 2024] [Vereador 2024] [Composição de Chapa] │  ← abas no topo
-├───────────────────────────────────────────────────────┤
-│ FILTROS                                               │
-│ Mín. votos: [____]  Ano: [2022+2024▾] Cargo: [▾]      │
-│ Partido: [▾]  UF: [MS▾]  Município: [▾]  Buscar: [_] │
-├───────────────────────────────────────────────────────┤
-│ Ordenar por: [Total votos ▾] [⇅]                      │
-├───────────────────────────────────────────────────────┤
-│ Nome              Partido Cargo       2022   2024  Σ  │
-│ Fulano da Silva   PP      Vereador     —   12.430 …   │
-│ Beltrano X.       PL      Dep.Estadual 8.7k    —  …   │
-│ ...                                                   │
-└───────────────────────────────────────────────────────┘
-                                     [Exportar Excel]
+┌─ Inteligência Eleitoral ────────────────────────────────────┐
+│ [Prefeito 24] [Vereador 24] [Chapa] ... [📣 Narrativa]     │ ← nova aba
+├─────────────────────────────────────────────────────────────┤
+│ Cidade: [Campo Grande/MS ▾]  [Configurar Candidato] [Gerar] │
+├─────────────────────────────────────────────────────────────┤
+│ 1. RAIO-X RELÂMPAGO                                         │
+│    Quem governa • Margem da última eleição • Rejeição local │
+├─────────────────────────────────────────────────────────────┤
+│ 2. MAPA DE DOR                                              │
+│    🔴 EXPLOSIVA   🟡 LATENTE   ⚪ SILENCIOSA                │
+│    cada card: número + fonte + ano + selo Impacto Digital   │
+│    + frase de ataque (3-camadas) + frase de proposta        │
+├─────────────────────────────────────────────────────────────┤
+│ 3. OPORTUNIDADE POLÍTICA                                    │
+│    🟢 Forte (alta dor + ninguém atua + alinha bandeira)    │
+│    🟡 Disputa  ⚪ Não prioritário                           │
+├─────────────────────────────────────────────────────────────┤
+│ 4. POSICIONAMENTO DO CANDIDATO                              │
+│    3 ângulos cruzando bandeiras × dores explosivas          │
+├─────────────────────────────────────────────────────────────┤
+│ 5. ROTEIRO ESTRATÉGICO (Onda 2)                             │
+│    Cada parada: local • objetivo • emoção • fala • imagem   │
+├─────────────────────────────────────────────────────────────┤
+│ 6. CONTEÚDO PRONTO                                          │
+│    Discurso 3min  [Popular] [Técnico] [Emocional]           │
+│    Reels 30s • 5 headlines • 3 ataques 3-camadas            │
+│    [Copiar] [PDF] [WhatsApp]                                │
+├─────────────────────────────────────────────────────────────┤
+│ MEMÓRIA DE CAMPANHA (lateral): últimas 5 cidades + temas    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Filtros (todos opcionais e combináveis)
+## Onda 1 — MVP arma de combate (entrega rápida)
 
-- **Mínimo de votos** — input numérico; filtra candidatos cuja soma dos votos (no escopo do filtro de ano) seja ≥ valor
-- **Ano** — `2022 + 2024 (todos)` | `Somente 2022` | `Somente 2024`
-- **Cargo** — multi-select (Prefeito, Vereador, Presidente, Governador, Senador, Dep. Federal, Dep. Estadual)
-- **Partido** — dropdown populado dinamicamente
-- **UF** — dropdown (hoje só MS, mas estrutura pronta)
-- **Município** — dropdown dependente da UF
-- **Busca livre** por nome (debounced)
+### Banco (1 migration)
+- `narrativa_perfil_candidato` (client_id PK, bandeiras text[], estilo, tom, biografia)
+- `narrativa_dossies` (client_id, codigo_ibge, payload jsonb, gerado_em, expires_at)
+- `narrativa_visitas_realizadas` (client_id, codigo_ibge, data_visita, temas_usados text[], discurso_id, observacoes)
+- RLS por `client_id` em todas; reuso total da `api_cache`
 
-## Ordenação
+### Edge Functions (3 nesta onda)
+1. **`narrativa-coleta`** — orquestra IBGE + TSE local + GDELT + DataSUS (CNES) + INEP/QEdu em paralelo, salva em `api_cache`
+2. **`narrativa-analise`** — calcula escores Dor + Oportunidade Política + Impacto Digital; monta JSON estruturado
+3. **`narrativa-gerar`** — recebe dossiê + perfil candidato + memória → gera 3 versões de discurso, Reels, headlines, ataques 3-camadas
 
-Cabeçalhos de coluna clicáveis + dropdown de ordenação rápida:
-- Total de votos (soma 2022+2024)
-- Votos em 2024
-- Votos em 2022
-- Nome (A→Z / Z→A)
-- Partido (A→Z / Z→A)
+### Frontend
+- Nova aba `<TabsContent value="narrativa">` em `InteligenciaEleitoral.tsx`
+- Componente principal `NarrativaPolitica.tsx`
+- Subcomponentes: `RaioXSection`, `MapaDorSection`, `OportunidadeSection`, `PosicionamentoSection`, `ConteudoSection`, `MemoriaCampanhaPanel`
+- `MunicaoCard` reutilizável (número + fonte + selo Impacto + frase ataque + frase proposta + copiar)
+- `PerfilCandidatoDialog` (botão no topo)
+- React Query com `staleTime: Infinity`
 
-## Cruzamento de candidatos entre anos
+### IA (Lovable AI Gateway, sem chave)
+- `google/gemini-2.5-pro` para Análise estratégica (Dor + Posicionamento)
+- `google/gemini-2.5-flash` para Conteúdo (3 versões + Reels + headlines)
 
-Como o TSE não usa um ID estável entre eleições, agrupamos por chave normalizada:
-`lower(unaccent(nome_completo)) + '|' + partido` (fallback: só nome). Quando o mesmo candidato aparece em 2022 e 2024 — mesmo em cargos diferentes — aparece numa linha só com colunas separadas por ano e a soma total.
+### Fontes nesta onda
+IBGE, TSE (já temos), GDELT (já temos), DataSUS/CNES, INEP/QEdu
 
-## Detalhes técnicos
+### Saídas
+3 discursos completos + Reels + 5 headlines + 3 ataques estruturados + PDF + WhatsApp
 
-**Banco**
-- Sem mudança de schema (já temos `ano, cargo, uf, municipio, partido, nome_completo, votos` em `tse_votacao_zona`).
-- Nova migração só adiciona índices: `(ano, cargo, partido)` e `(ano, uf, municipio)` para filtros rápidos.
-- Nova função SQL `get_chapa_candidates(p_uf, p_municipio, p_anos int[], p_cargos text[], p_partido, p_min_votos)` que retorna candidatos agregados por nome+partido com colunas `votos_2022`, `votos_2024`, `total`. Faz o agrupamento server-side para não puxar 100k linhas pro front.
+## Onda 2 (depois, quando pedir)
+- Seção 5 Roteiro Estratégico com locais reais por zona
+- Bairro Inferido (cruza zona TSE × CNES × INEP × GDELT)
+- SNIS, IPEA, Tesouro, Câmara/emendas
+- Cron "Cidade do Dia"
 
-**Edge Function `import-tse-results`** (~150 linhas)
-- Input: `{ ano: 2022, uf: "MS" }`
-- Baixa ZIP do TSE com `fetch` + descompacta com `jsr:@zip-js/zip-js`
-- Lê CSV (latin1, separador `;`), filtra colunas necessárias
-- Insere em lotes de 1.000 com `upsert` na unique key `(ano, turno, cargo, cod_municipio, zona, numero)`
-- Reporta progresso ao retornar `{ inserted, skipped, total }`
-- Restrita a Super-Admin via verificação de JWT
+## O que NÃO vamos fazer (compromisso firme)
+- Não inventar dado de bairro que não existe (qualquer inferência vem rotulada)
+- Não disparar nada automático no WhatsApp (sempre revisão manual)
+- Não usar mapa geográfico externo
+- Não criar 9 módulos — tudo em 1 aba
 
-**Frontend**
-- Nova aba `<TabsContent value="chapa">` em `InteligenciaEleitoral.tsx` (refatorando para `Tabs` se ainda não usar — já usa)
-- Componente `ComposicaoChapa.tsx` isolado
-- React Query com `staleTime: Infinity` (segue padrão do projeto)
-- Exportação Excel via `xlsx-js-style` (já importado na página)
+## Próximo passo
+Se aprovar este plano, eu começo pela Onda 1 inteira: schema + 3 edge functions + UI completa + integração com o IBGE/TSE/GDELT/DataSUS/INEP. Entrega funcional ponta a ponta.
 
-**Acesso**
-- Página existente já é restrita à equipe; nova aba herda o controle.
-- Botão "Importar 2022" só aparece para `lovableedits014@gmail.com` (Super-Admin).
-
-## Limitações honestas
-
-- O cruzamento entre anos é **heurístico por nome+partido**. Político que mudou de partido entre 2022 e 2024 vai aparecer em 2 linhas. Vou expor um botão "Mesclar manualmente" (fase 2) se virar problema.
-- Cada importação 2022 do MS = ~30k–50k linhas. A Edge Function tem limite de 60s, mas inserção em lotes paralelos resolve folgadamente.
-- Dados do TSE são públicos e abertos — sem necessidade de credenciais.
-
-## Entregáveis
-
-1. Migração SQL: índices + função `get_chapa_candidates`
-2. Edge Function `import-tse-results`
-3. Componente `src/components/inteligencia/ComposicaoChapa.tsx`
-4. Atualização de `src/pages/InteligenciaEleitoral.tsx` adicionando a aba e o botão de importação
-5. Botão de exportar Excel da chapa filtrada
+Pode aprovar?
