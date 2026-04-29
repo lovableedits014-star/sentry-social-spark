@@ -105,6 +105,44 @@ Deno.serve(async (req) => {
     const payload = await req.json().catch(() => ({}));
     console.log("[whatsapp-inbound-webhook] FULL PAYLOAD", clientId, JSON.stringify(payload));
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    // === Eventos de status da ponte (disconnected / connected / health_check) ===
+    // A ponte envia esses eventos quando a sessão WhatsApp cai ou volta.
+    // Refletimos no banco IMEDIATAMENTE para evitar envios "fantasma" (status
+    // OK no banco enquanto a sessão real está caída).
+    const eventName = String(payload?.event || payload?.type || "").toLowerCase();
+    const instanceId = payload?.instance_id || payload?.instanceId || payload?.data?.instance_id;
+
+    if (instanceId && (eventName === "disconnected" || eventName.includes("logout") || eventName.includes("banned"))) {
+      const { error: upErr } = await admin.from("whatsapp_instances").update({
+        status: "disconnected",
+        connected_since: null,
+        last_disconnected_at: new Date().toISOString(),
+      }).eq("id", instanceId);
+      if (upErr) console.error("[whatsapp-inbound-webhook] failed to mark disconnected:", upErr);
+      else console.log("[whatsapp-inbound-webhook] instance marked disconnected:", instanceId, "reason=", payload?.data?.reason);
+      return json({ ok: true, handled: "disconnected", instance_id: instanceId });
+    }
+
+    if (instanceId && (eventName === "connected" || eventName === "ready" || eventName === "open")) {
+      await admin.from("whatsapp_instances").update({
+        status: "connected",
+        connected_since: new Date().toISOString(),
+        last_health_check_at: new Date().toISOString(),
+      }).eq("id", instanceId);
+      return json({ ok: true, handled: "connected", instance_id: instanceId });
+    }
+
+    if (instanceId && eventName === "health_check") {
+      await admin.from("whatsapp_instances").update({
+        last_health_check_at: new Date().toISOString(),
+      }).eq("id", instanceId);
+      // não retorna — health_check pode coexistir com payload de mensagem
+    }
+
     if (!isInboundMessage(payload)) {
       console.log("[whatsapp-inbound-webhook] ignored not_inbound_message. event=", payload?.event, "type=", payload?.type);
       return json({ ok: true, ignored: "not_inbound_message", event: payload?.event ?? payload?.type ?? null });
@@ -115,10 +153,6 @@ Deno.serve(async (req) => {
       console.log("[whatsapp-inbound-webhook] ignored no_sender_phone. payload keys=", Object.keys(payload || {}));
       return json({ ok: true, ignored: "no_sender_phone" });
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const admin = createClient(supabaseUrl, serviceKey);
 
     const { data, error } = await admin.rpc("confirm_whatsapp_by_phone", {
       p_client_id: clientId,
