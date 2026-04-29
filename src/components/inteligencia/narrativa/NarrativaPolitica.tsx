@@ -812,28 +812,8 @@ const NarrativaPolitica = () => {
               )}
             </div>
 
-            {municipio && !tseChecking && tseStatus?.bloqueado && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 text-destructive p-3 text-xs space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  ⚠️ Dados zonais TSE indisponíveis para {municipio}/{uf}
-                </div>
-                <div className="text-destructive/90">
-                  {tseStatus.zonas === 0
-                    ? "Nenhum resultado por zona eleitoral foi importado para esta cidade."
-                    : `Zonas importadas (${tseStatus.zonas}), mas nenhum local tem bairro geocodado.`}
-                  {" "}Sem isso, o roteiro estratégico não pode ser gerado com bairros reais.
-                </div>
-                <div className="text-destructive/80">
-                  Peça ao Super-Admin para sincronizar em <b>Super-Admin → Sincronização TSE</b> (importar resultados {uf}/2024 e rodar geocoding).
-                </div>
-              </div>
-            )}
-
-            {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && tseStatus.avisoLeve && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-2 text-[11px]">
-                Apenas {tseStatus.pctBairro}% dos locais ({tseStatus.comBairro}/{tseStatus.locais}) têm bairro geocodado — o roteiro pode ficar curto. Considere rodar mais lotes de geocoding.
-              </div>
-            )}
+            {/* Avisos de dados zonais TSE removidos — não são mais obrigatórios desde a substituição
+                do roteiro estratégico pela seção "Curiosidades & Cultura Local". */}
 
             {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && (
               <details className="rounded-md border border-border bg-muted/30 text-xs">
