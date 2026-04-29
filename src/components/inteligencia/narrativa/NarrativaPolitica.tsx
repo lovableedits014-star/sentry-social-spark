@@ -1654,6 +1654,198 @@ const Stat = ({ label, value, sub }: { label: string; value: string | number; su
 );
 
 /* ----------------- Curiosidades & Cultura Local ----------------- */
+type BriefingMunicipio = {
+  visao_geral?: string;
+  ficha_rapida?: Record<string, string>;
+  simbolos?: string;
+  geografia_clima?: string;
+  municipios_vizinhos?: string[];
+  distritos_bairros?: string[];
+  economia_resumo?: string;
+  infraestrutura?: string;
+  politica_local?: string;
+  personalidades_notaveis?: { nome: string; por_que_importa: string }[];
+  pontos_turisticos?: string[];
+  festas_eventos?: string[];
+  dicas_abordagem?: string[];
+  evitar?: string[];
+};
+
+const FICHA_LABEL: Record<string, string> = {
+  gentilico: "Gentílico",
+  fundacao: "Fundação",
+  aniversario: "Aniversário",
+  area_km2: "Área (km²)",
+  altitude: "Altitude",
+  clima: "Clima",
+  populacao: "População",
+  regiao: "Região",
+  padroeiro: "Padroeiro(a)",
+  lema: "Lema",
+  site_oficial: "Site oficial",
+};
+
+const BriefingMunicipioView = ({ briefing }: { briefing?: BriefingMunicipio | null }) => {
+  if (!briefing || (!briefing.visao_geral && !briefing.ficha_rapida)) return null;
+
+  const ficha = briefing.ficha_rapida || {};
+  const fichaEntries = Object.entries(ficha).filter(([, v]) => v && String(v).trim().length > 0);
+
+  const Bloco = ({
+    icon: Icon,
+    titulo,
+    children,
+  }: { icon: any; titulo: string; children: React.ReactNode }) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+        <Icon className="w-3.5 h-3.5" />
+        {titulo}
+      </div>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+
+  const Lista = ({ items }: { items?: string[] }) => {
+    if (!items || items.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it, i) => (
+          <Badge key={i} variant="secondary" className="text-[11px] font-normal">{it}</Badge>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-primary" />
+          Briefing do Município
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Tudo que o candidato precisa saber sobre a cidade antes da visita — extraído da Wikipedia.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5 text-sm">
+        {briefing.visao_geral && (
+          <p className="leading-relaxed text-foreground/90 italic border-l-4 border-primary pl-3">
+            {briefing.visao_geral}
+          </p>
+        )}
+
+        {fichaEntries.length > 0 && (
+          <div>
+            <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Landmark className="w-3.5 h-3.5" /> Ficha rápida
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {fichaEntries.map(([k, v]) => (
+                <div key={k} className="rounded border bg-muted/30 px-2.5 py-1.5">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{FICHA_LABEL[k] || k}</div>
+                  <div className="text-sm font-medium leading-tight break-words">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-5">
+          {briefing.geografia_clima && (
+            <Bloco icon={MapIcon} titulo="Geografia & Clima">
+              <p className="text-foreground/90">{briefing.geografia_clima}</p>
+            </Bloco>
+          )}
+          {briefing.economia_resumo && (
+            <Bloco icon={Trophy} titulo="Economia">
+              <p className="text-foreground/90">{briefing.economia_resumo}</p>
+            </Bloco>
+          )}
+          {briefing.infraestrutura && (
+            <Bloco icon={MapPinned} titulo="Infraestrutura">
+              <p className="text-foreground/90">{briefing.infraestrutura}</p>
+            </Bloco>
+          )}
+          {briefing.politica_local && (
+            <Bloco icon={Megaphone} titulo="Política local">
+              <p className="text-foreground/90">{briefing.politica_local}</p>
+            </Bloco>
+          )}
+          {briefing.simbolos && (
+            <Bloco icon={Star} titulo="Símbolos">
+              <p className="text-foreground/90">{briefing.simbolos}</p>
+            </Bloco>
+          )}
+        </div>
+
+        {(briefing.municipios_vizinhos?.length || briefing.distritos_bairros?.length) && (
+          <div className="grid md:grid-cols-2 gap-5">
+            {briefing.municipios_vizinhos?.length ? (
+              <Bloco icon={MapPin} titulo="Municípios vizinhos">
+                <Lista items={briefing.municipios_vizinhos} />
+              </Bloco>
+            ) : null}
+            {briefing.distritos_bairros?.length ? (
+              <Bloco icon={MapIcon} titulo="Distritos / bairros principais">
+                <Lista items={briefing.distritos_bairros} />
+              </Bloco>
+            ) : null}
+          </div>
+        )}
+
+        {briefing.personalidades_notaveis?.length ? (
+          <Bloco icon={Users} titulo="Personalidades notáveis">
+            <ul className="space-y-1.5">
+              {briefing.personalidades_notaveis.map((p, i) => (
+                <li key={i} className="text-sm">
+                  <b>{p.nome}</b> — <span className="text-foreground/80">{p.por_que_importa}</span>
+                </li>
+              ))}
+            </ul>
+          </Bloco>
+        ) : null}
+
+        {(briefing.pontos_turisticos?.length || briefing.festas_eventos?.length) && (
+          <div className="grid md:grid-cols-2 gap-5">
+            {briefing.pontos_turisticos?.length ? (
+              <Bloco icon={Landmark} titulo="Pontos turísticos / patrimônio">
+                <Lista items={briefing.pontos_turisticos} />
+              </Bloco>
+            ) : null}
+            {briefing.festas_eventos?.length ? (
+              <Bloco icon={Music} titulo="Festas & eventos">
+                <Lista items={briefing.festas_eventos} />
+              </Bloco>
+            ) : null}
+          </div>
+        )}
+
+        {briefing.dicas_abordagem?.length ? (
+          <div className="rounded-md border-l-4 border-emerald-500 bg-emerald-500/5 p-3">
+            <div className="text-xs uppercase tracking-wide font-semibold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5" /> Dicas de abordagem (faça)
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-sm">
+              {briefing.dicas_abordagem.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+        ) : null}
+
+        {briefing.evitar?.length ? (
+          <div className="rounded-md border-l-4 border-destructive bg-destructive/5 p-3">
+            <div className="text-xs uppercase tracking-wide font-semibold text-destructive mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" /> Evite
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-sm">
+              {briefing.evitar.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};
+
 type Curiosidade = {
   categoria: string;
   titulo: string;
