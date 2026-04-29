@@ -394,6 +394,31 @@ Deno.serve(async (req) => {
       console.warn("ranking RPC falhou, seguindo sem comparativo estadual:", rkErr);
     }
 
+    // Busca contexto web em tempo real (Wikipedia + Google News + sites .gov.br)
+    // Sem persistência — apenas em memória para enriquecer este prompt.
+    let contextoWeb: any = null;
+    try {
+      const meta: any = dossie.dados_brutos?.meta || {};
+      if (meta?.municipio && meta?.uf) {
+        const webRes = await fetch(`${SUPA_URL}/functions/v1/municipio-contexto-web`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SUPA_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ municipio: meta.municipio, uf: meta.uf, max_news: 8 }),
+        });
+        if (webRes.ok) {
+          contextoWeb = await webRes.json();
+          console.log("contexto web ok:", contextoWeb?._stats);
+        } else {
+          console.warn("contexto web falhou:", webRes.status);
+        }
+      }
+    } catch (webErr) {
+      console.warn("contexto web erro (seguindo sem):", (webErr as Error).message);
+    }
+
     const aiRes = await fetch(AI_URL, {
       method: "POST",
       headers: {
@@ -404,7 +429,7 @@ Deno.serve(async (req) => {
         model: MODEL,
         messages: [
           { role: "system", content: buildSystemPrompt(perfil) },
-          { role: "user", content: buildUserPrompt(dossie, rankingMap) },
+          { role: "user", content: buildUserPrompt(dossie, rankingMap, contextoWeb) },
         ],
         tools: [TOOL_SCHEMA],
         tool_choice: { type: "function", function: { name: "gerar_pacote_narrativa" } },
