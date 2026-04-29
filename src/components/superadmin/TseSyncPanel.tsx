@@ -15,8 +15,35 @@ type SourceHealth = {
   ok: boolean; status: number | null; latency_ms: number | null; message: string;
   last_update: string | null; records: number | null;
 };
+type LocalImportRow = {
+  ano: number; turno: number; cargo: string; cod_municipio: number; municipio: string; uf: string;
+  zona: number; nr_local: number; nome_local: string | null; endereco: string | null;
+  numero: number; nome_candidato: string | null; votos: number; bairro: string | null;
+};
 
 const ANOS_ESPERADOS = [2018, 2020, 2022, 2024];
+const CSV_LOCAL_BATCH = 500;
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ";" && !inQuotes) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+const cleanCsvValue = (value: string | undefined) => (value || "").replace(/^"|"$/g, "").trim();
+const norm = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
 export default function TseSyncPanel() {
   const [loading, setLoading] = useState(true);
