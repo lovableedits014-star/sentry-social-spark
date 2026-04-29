@@ -142,8 +142,14 @@ export default function TseSyncPanel() {
         body: retryEmpty ? { retry_empty: true } : {},
       });
       if (error) throw error;
+      const d = (data as any) || {};
+      const processed = d.processed ?? d.processados ?? 0;
+      const updated = d.updated ?? 0;
+      const notFound = d.not_found ?? 0;
+      const failed = d.failed ?? 0;
+      const remaining = d.remaining ?? 0;
       toast.success("Geocoding executado", {
-        description: `${(data as any)?.processados ?? "?"} locais processados`,
+        description: `${processed} processados • ${updated} c/ bairro • ${notFound} sem match no OSM • ${failed} erro • ${remaining} restantes`,
       });
       await load();
     } catch (e: any) {
