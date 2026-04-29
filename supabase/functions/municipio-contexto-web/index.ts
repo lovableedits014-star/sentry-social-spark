@@ -376,9 +376,9 @@ Deno.serve(async (req) => {
     const queryOficiais = `${municipio} ${uf} site:gov.br`;
 
     // Busca em paralelo — todas independentes
-    const [wiki, wikiSecoes, googleNews, bingNews, oficiais] = await Promise.all([
+    const [wiki, wikiPagina, googleNews, bingNews, oficiais] = await Promise.all([
       fetchWikipediaResumo(municipio, uf),
-      fetchWikipediaSecoes(municipio, uf),
+      fetchWikipediaPaginaCompleta(municipio, uf),
       fetchGoogleNews(queryNoticias, max_news),
       fetchBingNews(`${municipio} ${uf} prefeitura`, Math.ceil(max_news / 2)),
       fetchGoogleNews(queryOficiais, 5),
@@ -395,12 +395,20 @@ Deno.serve(async (req) => {
       uf,
       gerado_em: NOW().toISOString(),
       wiki,
-      wiki_secoes: wikiSecoes,
+      wiki_pagina: wikiPagina,
+      // alias retrocompatível para clientes antigos
+      wiki_secoes: wikiPagina ? {
+        titulo_pagina: wikiPagina.titulo_pagina,
+        url: wikiPagina.url,
+        secoes: wikiPagina.secoes,
+      } : null,
       noticias,
       oficiais: oficiaisFiltrados,
       _stats: {
         wiki: wiki ? 1 : 0,
-        wiki_secoes: wikiSecoes ? Object.keys(wikiSecoes.secoes).length : 0,
+        wiki_secoes: wikiPagina ? Object.keys(wikiPagina.secoes).length : 0,
+        wiki_infobox: wikiPagina ? Object.keys(wikiPagina.infobox).length : 0,
+        wiki_imagens: wikiPagina ? wikiPagina.imagens.length : 0,
         noticias: noticias.length,
         oficiais: oficiaisFiltrados.length,
       },
