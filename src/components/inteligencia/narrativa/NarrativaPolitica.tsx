@@ -48,6 +48,14 @@ type Perfil = {
   publico_alvo: string | null;
   proposta_central: string | null;
   observacoes: string | null;
+  // NOVO: candidato real do TSE escolhido como referência das análises
+  ref_uf?: string | null;
+  ref_municipio?: string | null;
+  ref_cargo?: string | null;
+  ref_nome?: string | null;
+  ref_partido?: string | null;
+  ref_ano?: number | null;
+  ref_lado?: string | null; // 'proprio' | 'adversario'
 };
 
 const PAIN_COLORS: Record<string, string> = {
