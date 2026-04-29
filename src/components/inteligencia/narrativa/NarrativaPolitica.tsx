@@ -685,7 +685,8 @@ const NarrativaPolitica = () => {
   const { data: tseStatus, isFetching: tseChecking } = useQuery({
     queryKey: ["narrativa-tse-status", uf, municipio],
     enabled: !!uf && !!municipio,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0,
+    refetchOnMount: true,
     queryFn: async () => {
       const [zonaRes, localRes, bairroRes] = await Promise.all([
         supabase.from("tse_votacao_zona" as any)
@@ -716,15 +717,23 @@ const NarrativaPolitica = () => {
     enabled: !!uf && !!municipio && !!tseStatus && !tseStatus.bloqueado,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
-      // Pega bairros distintos com contagem de locais (proxy de relevância)
-      const { data } = await supabase
-        .from("tse_votacao_local" as any)
-        .select("bairro, nr_local")
-        .eq("uf", uf).eq("municipio", municipio)
-        .not("bairro", "is", null)
-        .limit(5000);
+      // Paginado — cidades grandes (Campo Grande = 65k locais) estouram qualquer limite fixo
+      const PAGE = 1000;
+      const rows: any[] = [];
+      for (let from = 0; from < 200000; from += PAGE) {
+        const { data, error } = await supabase
+          .from("tse_votacao_local" as any)
+          .select("bairro, nr_local")
+          .eq("uf", uf).eq("municipio", municipio)
+          .not("bairro", "is", null)
+          .range(from, from + PAGE - 1);
+        if (error) break;
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < PAGE) break;
+      }
       const map = new Map<string, Set<number>>();
-      for (const r of (data as any[]) || []) {
+      for (const r of rows) {
         const b = String(r.bairro || "").trim();
         if (!b) continue;
         const set = map.get(b) || new Set<number>();

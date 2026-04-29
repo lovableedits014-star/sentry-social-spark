@@ -175,14 +175,23 @@ async function fetchMediaEstadual(uf: string) {
 
 /* ----------------- TSE local (do nosso banco) ----------------- */
 async function fetchTseLocal(supa: any, uf: string, municipio: string) {
-  // Usa as views/funções já existentes
-  const { data: zonaRows } = await supa
-    .from("tse_votacao_zona")
-    .select("ano,cargo,partido,nome_completo,nome_urna,votos,zona,municipio,uf")
-    .eq("uf", uf)
-    .eq("municipio", municipio)
-    .in("ano", [2022, 2024])
-    .limit(2000);
+  // Busca paginada — cidades grandes (ex.: Campo Grande tem >6k linhas)
+  // estouravam o limite default e perdiam justamente Prefeito 2024.
+  const PAGE = 1000;
+  const zonaRows: any[] = [];
+  for (let from = 0; from < 20000; from += PAGE) {
+    const { data, error } = await supa
+      .from("tse_votacao_zona")
+      .select("ano,cargo,partido,nome_completo,nome_urna,votos,zona,municipio,uf")
+      .eq("uf", uf)
+      .eq("municipio", municipio)
+      .in("ano", [2022, 2024])
+      .range(from, from + PAGE - 1);
+    if (error) break;
+    if (!data || data.length === 0) break;
+    zonaRows.push(...data);
+    if (data.length < PAGE) break;
+  }
 
   if (!zonaRows || zonaRows.length === 0) {
     return { vazio: true };
