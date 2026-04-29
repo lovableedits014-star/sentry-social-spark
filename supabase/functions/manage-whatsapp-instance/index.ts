@@ -744,7 +744,10 @@ Deno.serve(async (req) => {
 
     if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
       const health = await syncInstanceHealth(adminClient, activeInstanceRow);
-      const currentStatus = health.status === "connected" || isConnectedStatus(activeInstanceRow.status) ? "connected" : health.status;
+      // Para envio, o estado ao vivo da ponte manda mais que o status salvo no banco.
+      // Antes, um status antigo "connected" podia mascarar um health check recém-falho
+      // e o envio seguia mesmo com a ponte dizendo "not connected".
+      const currentStatus = health.status;
       if (currentStatus !== "connected") {
         const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
         if (reconnect.status !== "connected") {
@@ -764,13 +767,13 @@ Deno.serve(async (req) => {
     // the fully-formed number (e.g. 5567992248348). Any normalization risks
     // dropping the 9th digit. Forward exactly what was received.
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = action === "send" ? normalizeBrazilPhoneForBridge(phone) : phone;
+    if (phone) proxyBody.phone = phone;
     if (message) proxyBody.message = message;
 
     // Envio de mídia (PDF, imagem, áudio etc.) — aceita action "send_media"
     if (action === "send_media") {
       // Normaliza o telefone como no envio de texto
-      if (phone) proxyBody.phone = normalizeBrazilPhoneForBridge(phone);
+      if (phone) proxyBody.phone = phone;
 
       // A bridge espera uma URL pública (`media_uri`/`media_url`), não base64.
       // Se vier base64 em `media`, fazemos upload para o bucket público
