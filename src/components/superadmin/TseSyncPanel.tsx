@@ -202,7 +202,16 @@ export default function TseSyncPanel() {
 
         const I = indexes!;
         scanned++;
+        // Fast-path: filtra por UF antes de qualquer processamento pesado.
+        // Evita parsear linha inteira de outros estados (CSV nacional ~300MB → só MS).
+        const ufAlvo = uf.toUpperCase();
+        const ufIdx = I.UF;
+        // Procura a sigla UF diretamente na linha bruta antes do split completo.
+        // Como SG_UF é coluna fixa de 2 letras entre aspas, basta um indexOf rápido.
+        if (ufAlvo && !line.includes(`"${ufAlvo}"`)) return;
         const cols = parseCsvLine(line);
+        // Validação estrita após parse (para evitar falso positivo de "MS" aparecendo em outro campo).
+        if (ufAlvo && cleanCsvValue(cols[ufIdx]).toUpperCase() !== ufAlvo) return;
         const munNome = cleanCsvValue(cols[I.MUN]);
         if (munFiltro && norm(munNome) !== munFiltro) return;
 
@@ -429,7 +438,7 @@ export default function TseSyncPanel() {
                  href={`https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${ano}.zip`}>
                 cdn.tse.jus.br/.../eleitorado_local_votacao_{ano}.zip
               </a>{" "}
-              extraia o arquivo <strong>.csv</strong> da UF e selecione aqui. O processamento fica em lotes pequenos, sem subir o ZIP gigante para a função.
+              extraia e selecione o <strong>.csv</strong> aqui. Pode ser o CSV nacional — o sistema filtra automaticamente apenas a UF <strong>{uf}</strong> antes de enviar (ignora os outros estados).
             </p>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
               <Input
