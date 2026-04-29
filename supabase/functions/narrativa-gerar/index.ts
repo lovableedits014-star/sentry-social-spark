@@ -12,7 +12,8 @@ const corsHeaders = {
  *  - 3 versões de discurso (popular / técnico / emocional)
  *  - 3 ataques 3-camadas (Tema -> Falha do gestor -> Solução do candidato)
  *  - 3 manchetes para reels/cards
- *  - 1 roteiro de visita estratégica (foco emocional + bairro sugerido)
+ *  - 1 roteiro de visita estratégica (foco emocional + bairro sugerido) — legado
+ *  - roteiro_estrategico: 4–6 paradas reais (local, objetivo, emoção, fala, imagem)
  *
  * Body: { dossie_id }
  */
@@ -83,9 +84,15 @@ function buildUserPrompt(dossie: any) {
     }).join("\n\n");
 
   const bairrosReais = (analise?.bairros_inferidos || []).join(", ");
-  const topLocais = (analise?.top_locais_criticos || []).slice(0, 6)
-    .map((l: any) => `   • ${l.bairro} (zona ${l.zona}, eleito teve ${l.pct_eleito_zona ?? "?"}%)`)
+  const topLocaisLista = (analise?.top_locais_criticos || []).slice(0, 8);
+  const topLocais = topLocaisLista
+    .map((l: any) => `   - ${l.bairro}${l.nome_local ? ` (${l.nome_local})` : ""} | zona ${l.zona} | eleito teve ${l.pct_eleito_zona ?? "?"}%`)
     .join("\n");
+  const doresPrioritarias = (analise?.dores || [])
+    .filter((d: any) => ["explosiva", "latente"].includes(String(d.classificacao || "").toLowerCase()))
+    .slice(0, 4)
+    .map((d: any) => `${d.area}: ${d.classificacao} (score ${d.pain_score})`)
+    .join(" | ");
 
   return `DOSSIÊ DA CIDADE
 Cidade: ${meta.municipio} / ${meta.uf}
@@ -121,6 +128,15 @@ INSTRUÇÕES CRÍTICAS:
 ${topLocais || "(sem dados zonais)"}
 - Bairros candidatos para o roteiro_visita.bairro_sugerido: ${bairrosReais || "(use região genérica como 'periferia')"}
 - NUNCA invente nome de bairro. Se a lista acima estiver vazia, use "região periférica" genericamente.
+
+ROTEIRO ESTRATÉGICO (obrigatório):
+- Gere de 4 a 6 paradas REAIS de campanha.
+- Cada parada DEVE usar um dos bairros/locais da lista "TOP CANDIDATOS LOCAIS" acima — NUNCA invente.
+- Cada parada cruza um local crítico com UMA dor prioritária (${doresPrioritarias || "use as dores disponíveis"}).
+- Distribua as paradas entre dores diferentes (não todas saúde, não todas educação).
+- "imagem_sugerida" deve ser concreta e fotografável (ex: "candidato sentado no meio-fio conversando com idoso na fila do posto", não "símbolo da esperança").
+- "fala_chave" é UMA frase curta (max 25 palavras) que o candidato fala olhando no olho.
+- "duracao_min" entre 30 e 90 minutos por parada.
 
 Gere o pacote completo de munição política para esta cidade.`;
 }
@@ -177,8 +193,30 @@ const TOOL_SCHEMA = {
           required: ["foco", "emocao_alvo", "bairro_sugerido", "primeira_frase", "mensagem_central", "chamada_acao"],
           additionalProperties: false,
         },
+        roteiro_estrategico: {
+          type: "array",
+          minItems: 4,
+          maxItems: 6,
+          description: "Agenda real de paradas de campanha — cada parada cruza um local crítico com uma dor.",
+          items: {
+            type: "object",
+            properties: {
+              ordem: { type: "number", description: "1, 2, 3..." },
+              bairro: { type: "string", description: "Bairro REAL da lista de top locais críticos." },
+              local: { type: "string", description: "Local concreto da parada (escola, UBS, praça, comércio)." },
+              area_dor: { type: "string", enum: ["saude", "educacao", "seguranca", "infra", "economia", "social"] },
+              objetivo: { type: "string", description: "O que o candidato vai conquistar nessa parada (uma frase)." },
+              emocao: { type: "string", description: "Emoção alvo: indignação, esperança, acolhimento, urgência, etc." },
+              fala_chave: { type: "string", description: "UMA frase curta (max 25 palavras) que o candidato vai dizer." },
+              imagem_sugerida: { type: "string", description: "Cena fotografável concreta para reels/foto." },
+              duracao_min: { type: "number", description: "Duração estimada da parada em minutos (30-90)." },
+            },
+            required: ["ordem", "bairro", "local", "area_dor", "objetivo", "emocao", "fala_chave", "imagem_sugerida", "duracao_min"],
+            additionalProperties: false,
+          },
+        },
       },
-      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "roteiro_visita"],
+      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "roteiro_visita", "roteiro_estrategico"],
       additionalProperties: false,
     },
   },
