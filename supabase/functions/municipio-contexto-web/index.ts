@@ -94,56 +94,206 @@ async function fetchWikipediaResumo(municipio: string, uf: string): Promise<{ ex
 }
 
 /**
- * Busca seções específicas da página Wikipedia (História, Cultura, Economia, etc.)
+ * Busca a maior quantidade possível de informação útil da Wikipedia para o município:
+ *  - Wikitext da página (para extrair Infobox: prefeito, área, altitude, gentílico, padroeiro, data fundação, símbolos, etc.)
+ *  - Seções do índice (História, Geografia, Cultura, Economia, Política, Saúde, Educação, Transporte, etc.)
+ *  - Lista de imagens (para futuros usos visuais)
  */
-async function fetchWikipediaSecoes(municipio: string, uf: string): Promise<{
+const SECOES_INTERESSE = [
+  // Identidade
+  "História", "Historia", "Etimologia", "Toponímia", "Toponimia", "Origem", "Formação",
+  "Símbolos", "Simbolos", "Bandeira", "Brasão",
+  // Geografia / ambiente
+  "Geografia", "Localização", "Localizacao", "Clima", "Hidrografia", "Relevo",
+  "Vegetação", "Vegetacao", "Fauna", "Flora", "Meio ambiente", "Geologia",
+  // População
+  "Demografia", "População", "Populacao",
+  // Subdivisões
+  "Subdivisões", "Subdivisoes", "Distritos", "Bairros", "Divisão administrativa", "Divisao administrativa",
+  // Política
+  "Política", "Politica", "Governo", "Administração", "Administracao", "Poder Executivo", "Poder Legislativo",
+  // Economia
+  "Economia", "Indústria", "Industria", "Comércio", "Comercio", "Agricultura", "Pecuária", "Pecuaria",
+  "Serviços", "Servicos", "Turismo", "Setor primário", "Setor secundário", "Setor terciário",
+  // Infraestrutura
+  "Infraestrutura", "Transporte", "Transportes", "Saúde", "Saude", "Educação", "Educacao",
+  "Comunicações", "Comunicacoes", "Energia", "Saneamento",
+  // Cultura
+  "Cultura", "Gastronomia", "Culinária", "Culinaria", "Festas", "Festas populares",
+  "Eventos", "Festividades", "Religião", "Religiao", "Festejos religiosos",
+  // Pessoas e patrimônio
+  "Personalidades", "Filhos ilustres", "Naturais", "Patrimônio", "Patrimonio",
+  "Pontos turísticos", "Atrações turísticas", "Museus", "Monumentos",
+  // Esporte / mídia
+  "Esportes", "Esporte", "Mídia", "Midia", "Imprensa",
+];
+
+async function fetchWikipediaPaginaCompleta(municipio: string, uf: string): Promise<{
   titulo_pagina: string;
   url: string;
   secoes: Record<string, string>;
+  infobox: Record<string, string>;
+  imagens: string[];
 } | null> {
   const candidatos = [`${municipio} (${uf})`, `${municipio}, ${uf}`, `${municipio}`];
-  const SECOES_INTERESSE = [
-    "História", "Historia", "Geografia", "Cultura", "Economia",
-    "Turismo", "Gastronomia", "Festas", "Festas populares", "Eventos",
-    "Personalidades", "Filhos ilustres", "Etimologia", "Toponímia",
-    "Toponimia", "Demografia", "Esportes", "Esporte",
-    "Patrimônio", "Patrimonio", "Pontos turísticos", "Religião", "Religiao",
-  ];
+
   for (const titulo of candidatos) {
     try {
-      const secUrl = `https://pt.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(titulo)}&prop=sections&format=json&origin=*`;
-      const secRes = await fetch(secUrl, { headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" } });
-      if (!secRes.ok) continue;
+      // 1) Lista de seções + wikitext da seção 0 (para infobox) + lista de imagens em paralelo
+      const baseUrl = `https://pt.wikipedia.org/w/api.php`;
+      const enc = encodeURIComponent(titulo);
+      const [secRes, sec0Res, imgRes] = await Promise.all([
+        fetch(`${baseUrl}?action=parse&page=${enc}&prop=sections&format=json&origin=*`, {
+          headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" },
+        }),
+        fetch(`${baseUrl}?action=parse&page=${enc}&section=0&prop=wikitext&format=json&origin=*`, {
+          headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" },
+        }),
+        fetch(`${baseUrl}?action=parse&page=${enc}&prop=images&format=json&origin=*`, {
+          headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" },
+        }),
+      ]);
+
+      if (!secRes.ok || !sec0Res.ok) continue;
       const secJson = await secRes.json();
+      const sec0Json = await sec0Res.json();
       const sections = secJson?.parse?.sections;
       const tituloReal = secJson?.parse?.title || titulo;
       if (!Array.isArray(sections) || sections.length === 0) continue;
+
+      // Infobox a partir do wikitext da seção 0 (introdução)
+      const wikitext0: string = sec0Json?.parse?.wikitext?.["*"] || "";
+      const infobox = extrairInfobox(wikitext0);
+
+      // Imagens (filtra ícones/comuns)
+      let imagens: string[] = [];
+      if (imgRes.ok) {
+        const imgJson = await imgRes.json();
+        const lista: string[] = imgJson?.parse?.images || [];
+        imagens = lista
+          .filter((n) =>
+            !/(commons-logo|wiktionary|wikiquote|disambig|edit-icon|info icon|question_book|gnome-edit|ambox|loudspeaker|symbol_support_vote|symbol_oppose_vote|red_pog|crystal|nuvola|wiki_letter|portal\.svg|smiley)/i.test(n),
+          )
+          .slice(0, 10);
+      }
+
+      // Seções relevantes (até 20, top-level e nível 2)
       const out: Record<string, string> = {};
-      const alvos = sections.filter((s: any) =>
-        (s.toclevel === 1 || s.toclevel === 2) &&
-        SECOES_INTERESSE.some((nome) => String(s.line || "").toLowerCase().includes(nome.toLowerCase())),
-      ).slice(0, 8);
+      const alvos = sections
+        .filter(
+          (s: any) =>
+            (s.toclevel === 1 || s.toclevel === 2) &&
+            SECOES_INTERESSE.some((nome) =>
+              String(s.line || "").toLowerCase().includes(nome.toLowerCase()),
+            ),
+        )
+        .slice(0, 20);
+
       const fetches = alvos.map(async (s: any) => {
         try {
-          const cUrl = `https://pt.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(titulo)}&section=${s.index}&prop=wikitext&format=json&origin=*`;
-          const cRes = await fetch(cUrl, { headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" } });
+          const cRes = await fetch(
+            `${baseUrl}?action=parse&page=${enc}&section=${s.index}&prop=wikitext&format=json&origin=*`,
+            { headers: { "User-Agent": "LovableAI-NarrativaPolitica/1.0" } },
+          );
           if (!cRes.ok) return;
           const cJson = await cRes.json();
           const wikitext: string = cJson?.parse?.wikitext?.["*"] || "";
-          const limpo = limparWikitext(wikitext).slice(0, 1200);
-          if (limpo.length > 80) out[s.line] = limpo;
+          const limpo = limparWikitext(wikitext).slice(0, 1500);
+          if (limpo.length > 60) out[s.line] = limpo;
         } catch { /* ignora seção */ }
       });
       await Promise.all(fetches);
-      if (Object.keys(out).length === 0) continue;
+
+      if (Object.keys(out).length === 0 && Object.keys(infobox).length === 0) continue;
+
       return {
         titulo_pagina: tituloReal,
         url: `https://pt.wikipedia.org/wiki/${encodeURIComponent(String(tituloReal).replace(/ /g, "_"))}`,
         secoes: out,
+        infobox,
+        imagens,
       };
     } catch { /* tenta próximo */ }
   }
   return null;
+}
+
+/**
+ * Extrai a infobox de município (template "Info/Município do Brasil" ou similares)
+ * do wikitext da seção 0. Retorna pares chave→valor já com wikitext limpo.
+ */
+function extrairInfobox(wt: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!wt) return out;
+
+  // Localiza o início de uma infobox
+  const startRe = /\{\{\s*(?:Info\/Munic[íi]pio do Brasil|Info\s+munic[íi]pio do Brasil|Infobox\s+(?:Brazilian|settlement|cidade)|Info\/Localidade)\b/i;
+  const m = startRe.exec(wt);
+  if (!m) return out;
+
+  // Extrai o bloco balanceado começando em m.index
+  let depth = 0;
+  let i = m.index;
+  let end = -1;
+  while (i < wt.length) {
+    if (wt.startsWith("{{", i)) { depth++; i += 2; continue; }
+    if (wt.startsWith("}}", i)) { depth--; i += 2; if (depth === 0) { end = i; break; } continue; }
+    i++;
+  }
+  if (end < 0) return out;
+  const bloco = wt.slice(m.index + 2, end - 2);
+
+  // Quebra por "|" no nível 0 (ignora pipes dentro de [[...]] ou {{...}})
+  const partes: string[] = [];
+  let buf = "";
+  let dCh = 0; // [[ depth
+  let dT = 0;  // {{ depth
+  for (let k = 0; k < bloco.length; k++) {
+    const c = bloco[k];
+    const d2 = bloco.substr(k, 2);
+    if (d2 === "[[") { dCh++; buf += d2; k++; continue; }
+    if (d2 === "]]") { dCh--; buf += d2; k++; continue; }
+    if (d2 === "{{") { dT++; buf += d2; k++; continue; }
+    if (d2 === "}}") { dT--; buf += d2; k++; continue; }
+    if (c === "|" && dCh === 0 && dT === 0) { partes.push(buf); buf = ""; continue; }
+    buf += c;
+  }
+  if (buf.trim()) partes.push(buf);
+  // descarta primeiro elemento (nome do template)
+  partes.shift();
+
+  // Pares chave=valor — campos de interesse
+  const CAMPOS_OK = new Set([
+    "nome_oficial", "nome", "apelido", "lema", "padroeiro",
+    "uf", "estado", "região", "regiao", "região_metropolitana", "regiao_metropolitana",
+    "mesorregião", "mesorregiao", "microrregião", "microrregiao",
+    "data_fundação", "data_fundacao", "fundação", "fundacao", "aniversário", "aniversario",
+    "prefeito", "prefeito_partido", "vice_prefeito", "vice_prefeito_partido",
+    "vereadores", "câmara", "camara",
+    "área", "area", "área_total_km2", "area_total_km2",
+    "altitude", "altitude_m",
+    "população", "populacao", "população_total", "populacao_total",
+    "população_urbana", "populacao_urbana", "população_rural", "populacao_rural",
+    "densidade", "densidade_demográfica", "densidade_demografica",
+    "clima", "fuso_horário", "fuso_horario",
+    "gentílico", "gentilico",
+    "idh", "idh_ano", "pib", "pib_ano", "pib_per_capita",
+    "distrito", "distritos", "limites", "limítrofes", "limitrofes", "municípios_limítrofes", "municipios_limitrofes",
+    "rios", "bacia",
+    "site", "url",
+    "imagem_brasão", "imagem_brasao", "imagem_bandeira", "imagem_mapa", "imagem",
+  ]);
+
+  for (const p of partes) {
+    const eq = p.indexOf("=");
+    if (eq < 0) continue;
+    const k = p.slice(0, eq).trim().toLowerCase().replace(/\s+/g, "_");
+    const vRaw = p.slice(eq + 1).trim();
+    if (!CAMPOS_OK.has(k)) continue;
+    const v = limparWikitext(vRaw).replace(/\s+/g, " ").trim().slice(0, 240);
+    if (v && v.length > 0 && !/^—|^\?+$/.test(v)) out[k] = v;
+  }
+  return out;
 }
 
 function limparWikitext(wt: string): string {
