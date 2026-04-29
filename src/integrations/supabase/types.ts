@@ -2081,6 +2081,211 @@ export type Database = {
           },
         ]
       }
+      midia_alvos_monitoramento: {
+        Row: {
+          ativo: boolean
+          client_id: string
+          created_at: string
+          id: string
+          termo: string
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          client_id: string
+          created_at?: string
+          id?: string
+          termo: string
+          tipo?: string
+        }
+        Update: {
+          ativo?: boolean
+          client_id?: string
+          created_at?: string
+          id?: string
+          termo?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "midia_alvos_monitoramento_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      midia_coleta_log: {
+        Row: {
+          client_id: string
+          creditos_firecrawl: number | null
+          erros: Json | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          noticias_analisadas: number | null
+          noticias_novas: number | null
+          portais_processados: number | null
+          status: string
+        }
+        Insert: {
+          client_id: string
+          creditos_firecrawl?: number | null
+          erros?: Json | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          noticias_analisadas?: number | null
+          noticias_novas?: number | null
+          portais_processados?: number | null
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          creditos_firecrawl?: number | null
+          erros?: Json | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          noticias_analisadas?: number | null
+          noticias_novas?: number | null
+          portais_processados?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "midia_coleta_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      midia_noticias: {
+        Row: {
+          alerta_critico: boolean
+          alvos_mencionados: string[] | null
+          client_id: string
+          conteudo_md: string | null
+          created_at: string
+          data_coleta: string
+          data_publicacao: string | null
+          id: string
+          portal_id: string | null
+          portal_nome: string | null
+          raw_metadata: Json | null
+          relevancia_politica: number | null
+          resumo: string | null
+          resumo_ia: string | null
+          sentimento: string | null
+          sentimento_score: number | null
+          tags_assunto: string[] | null
+          titulo: string
+          url: string
+        }
+        Insert: {
+          alerta_critico?: boolean
+          alvos_mencionados?: string[] | null
+          client_id: string
+          conteudo_md?: string | null
+          created_at?: string
+          data_coleta?: string
+          data_publicacao?: string | null
+          id?: string
+          portal_id?: string | null
+          portal_nome?: string | null
+          raw_metadata?: Json | null
+          relevancia_politica?: number | null
+          resumo?: string | null
+          resumo_ia?: string | null
+          sentimento?: string | null
+          sentimento_score?: number | null
+          tags_assunto?: string[] | null
+          titulo: string
+          url: string
+        }
+        Update: {
+          alerta_critico?: boolean
+          alvos_mencionados?: string[] | null
+          client_id?: string
+          conteudo_md?: string | null
+          created_at?: string
+          data_coleta?: string
+          data_publicacao?: string | null
+          id?: string
+          portal_id?: string | null
+          portal_nome?: string | null
+          raw_metadata?: Json | null
+          relevancia_politica?: number | null
+          resumo?: string | null
+          resumo_ia?: string | null
+          sentimento?: string | null
+          sentimento_score?: number | null
+          tags_assunto?: string[] | null
+          titulo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "midia_noticias_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "midia_noticias_portal_id_fkey"
+            columns: ["portal_id"]
+            isOneToOne: false
+            referencedRelation: "midia_portais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      midia_portais: {
+        Row: {
+          ativo: boolean
+          camada: string
+          created_at: string
+          id: string
+          municipio: string | null
+          nome: string
+          observacoes: string | null
+          ordem: number
+          uf: string | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          ativo?: boolean
+          camada?: string
+          created_at?: string
+          id?: string
+          municipio?: string | null
+          nome: string
+          observacoes?: string | null
+          ordem?: number
+          uf?: string | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          ativo?: boolean
+          camada?: string
+          created_at?: string
+          id?: string
+          municipio?: string | null
+          nome?: string
+          observacoes?: string | null
+          ordem?: number
+          uf?: string | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       narrativa_dossies: {
         Row: {
           analise: Json
