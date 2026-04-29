@@ -131,6 +131,21 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
     status = "connected";
   }
 
+  if (status === "connected") {
+    const { data: latestSendFailure } = await adminClient
+      .from("whatsapp_instance_send_log")
+      .select("success, error_message, sent_at")
+      .eq("instance_id", inst.id)
+      .gte("sent_at", new Date(Date.now() - 10 * 60_000).toISOString())
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latestError = String(latestSendFailure?.error_message || "").toLowerCase();
+    if (latestSendFailure && latestSendFailure.success === false && latestError.includes("instance") && latestError.includes("not connected")) {
+      status = "disconnected";
+    }
+  }
+
   const updates: any = {
     status,
     last_health_check_at: new Date().toISOString(),
@@ -171,6 +186,14 @@ async function markInstanceDisconnected(adminClient: any, instanceId: string) {
 }
 
 async function logDirectSend(adminClient: any, params: { instanceId: string; clientId: string; success: boolean; error?: string | null }) {
+  await adminClient.from("whatsapp_instance_send_log").insert({
+    instance_id: params.instanceId,
+    client_id: params.clientId,
+    dispatch_id: null,
+    success: params.success,
+    error_message: params.error || null,
+  });
+
   await adminClient.rpc("log_whatsapp_send", {
     p_instance_id: params.instanceId,
     p_client_id: params.clientId,
