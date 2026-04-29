@@ -137,7 +137,7 @@ function buildDossieMarkdown(dossie: any): string {
   if (c.briefing_municipio) {
     const b = c.briefing_municipio;
     lines.push("");
-    lines.push(`## Briefing do Município`);
+    lines.push(`## Informações Locais`);
     if (b.visao_geral) lines.push(b.visao_geral);
     const fr = b.ficha_rapida || {};
     const frEntries = Object.entries(fr).filter(([, v]) => v && String(v).trim());
@@ -534,7 +534,7 @@ function buildDossiePdf(dossie: any, download = true) {
   const brief: any = c.briefing_municipio;
   if (brief && (brief.visao_geral || brief.ficha_rapida)) {
     y += 12;
-    sectionTitle("Briefing do Município", C.success);
+    sectionTitle("Informações Locais", C.success);
     if (brief.visao_geral) paragraph(brief.visao_geral, { size: 10 });
 
     const fr = brief.ficha_rapida || {};
@@ -1661,7 +1661,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Briefing & Cultura</TabsTrigger>
+                <TabsTrigger value="visita">Informações Locais</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1815,7 +1815,7 @@ const BriefingMunicipioView = ({ briefing }: { briefing?: BriefingMunicipio | nu
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-primary" />
-          Briefing do Município
+          Informações Locais
         </CardTitle>
         <CardDescription className="text-xs">
           Tudo que o candidato precisa saber sobre a cidade antes da visita — extraído da Wikipedia.
