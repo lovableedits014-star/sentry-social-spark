@@ -33,6 +33,32 @@ export function normBairro(s: string): string {
     .trim();
 }
 
+function buildContextoWebBlock(ctx: any): string {
+  if (!ctx) return "";
+  const linhas: string[] = [];
+  linhas.push("CONTEXTO RECENTE DA WEB (busca em tempo real — Wikipedia, Google News, sites .gov.br):");
+  if (ctx.wiki?.extrato) {
+    linhas.push(`📖 Wikipedia: ${ctx.wiki.extrato}`);
+  }
+  const noticias = Array.isArray(ctx.noticias) ? ctx.noticias : [];
+  if (noticias.length) {
+    linhas.push(`\n📰 Notícias recentes (${noticias.length}, últimos 90 dias):`);
+    for (const n of noticias.slice(0, 8)) {
+      linhas.push(`  - [${n.data || "?"}] "${n.titulo}" (${n.fonte})${n.resumo ? ` — ${n.resumo.slice(0, 160)}` : ""}`);
+    }
+  }
+  const oficiais = Array.isArray(ctx.oficiais) ? ctx.oficiais : [];
+  if (oficiais.length) {
+    linhas.push(`\n🏛️ Fontes oficiais (.gov.br):`);
+    for (const o of oficiais.slice(0, 5)) {
+      linhas.push(`  - [${o.data || "?"}] "${o.titulo}" (${o.fonte})`);
+    }
+  }
+  if (linhas.length === 1) return ""; // só o cabeçalho — sem conteúdo útil
+  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
+  return linhas.join("\n") + "\n";
+}
+
 /**
  * Sanitiza o roteiro estratégico retornado pela IA:
  *  - descarta paradas sem bairro
