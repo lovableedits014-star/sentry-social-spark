@@ -19,6 +19,7 @@ import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeB
 import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
 import GdeltMonitor from "@/components/midia/GdeltMonitor";
 import NarrativaPolitica from "@/components/inteligencia/narrativa/NarrativaPolitica";
+import PulsoMidia from "@/components/midia/PulsoMidia";
 
 type CoverageRow = {
   ano: number;
@@ -156,7 +157,7 @@ const InteligenciaEleitoralInner = () => {
 
       {/* Tabs principais — 3 grupos */}
       <Tabs defaultValue="panorama" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-7 h-auto">
           <TabsTrigger value="panorama" className="flex items-center gap-2 py-2.5">
             <BarChart3 className="w-4 h-4" />
             <span>Panorama</span>
@@ -168,6 +169,10 @@ const InteligenciaEleitoralInner = () => {
           <TabsTrigger value="composicao" className="flex items-center gap-2 py-2.5">
             <FlaskConical className="w-4 h-4" />
             <span>Composição & Simulação</span>
+          </TabsTrigger>
+          <TabsTrigger value="pulso" className="flex items-center gap-2 py-2.5">
+            <Newspaper className="w-4 h-4" />
+            <span>Pulso da Mídia</span>
           </TabsTrigger>
           <TabsTrigger value="midia" className="flex items-center gap-2 py-2.5">
             <Newspaper className="w-4 h-4" />
@@ -275,6 +280,11 @@ const InteligenciaEleitoralInner = () => {
             defaultCountry="BR"
             defaultTimespan="7d"
           />
+        </TabsContent>
+
+        {/* PULSO DA MÍDIA — Firecrawl + IA */}
+        <TabsContent value="pulso" className="mt-4">
+          <PulsoMidia />
         </TabsContent>
 
         {/* NARRATIVA POLÍTICA */}
