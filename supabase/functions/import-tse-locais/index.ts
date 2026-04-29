@@ -4,7 +4,7 @@
 // Os votos por local vêm de outras fontes; aqui o objetivo é ter o universo de
 // locais para o geocoding de bairros funcionar em qualquer cidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { HttpReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { BlobReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
 configure({ useWebWorkers: false });
 
@@ -62,13 +62,19 @@ Deno.serve(async (req) => {
     }
 
     const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${anoNum}.zip`;
-    console.log("Abrindo ZIP:", zipUrl);
-
-    const reader = new ZipReader(new HttpReader(zipUrl, {
-      useRangeHeader: true,
-      preventHeadRequest: true,
-      headers: [["User-Agent", "SentrySocialSpark/1.0 (TSE locais importer)"]],
-    } as any));
+    console.log("Baixando ZIP:", zipUrl);
+    const zipResp = await fetch(zipUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; SentrySocialSpark/1.0)",
+        "Accept": "application/zip,*/*",
+      },
+    });
+    if (!zipResp.ok) {
+      return new Response(JSON.stringify({ error: `Falha ao baixar ZIP TSE: ${zipResp.status}` }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const zipBlob = await zipResp.blob();
+    console.log("ZIP baixado:", zipBlob.size, "bytes");
+    const reader = new ZipReader(new BlobReader(zipBlob));
     const entries = await reader.getEntries();
     const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
     if (!target) {
