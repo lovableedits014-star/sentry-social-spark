@@ -530,6 +530,59 @@ function buildDossiePdf(dossie: any, download = true) {
     }
   }
 
+  // BRIEFING DO MUNICÍPIO
+  const brief: any = c.briefing_municipio;
+  if (brief && (brief.visao_geral || brief.ficha_rapida)) {
+    y += 12;
+    sectionTitle("Briefing do Município", C.success);
+    if (brief.visao_geral) paragraph(brief.visao_geral, { size: 10 });
+
+    const fr = brief.ficha_rapida || {};
+    const frEntries = Object.entries(fr).filter(([, v]) => v && String(v).trim().length > 0);
+    if (frEntries.length) {
+      paragraph("Ficha rápida:", { size: 9, color: C.muted });
+      for (const [k, v] of frEntries) {
+        paragraph(`• ${(FICHA_LABEL_PDF[k] || k)}: ${v}`, { size: 9 });
+      }
+    }
+    const blocoTexto = (titulo: string, txt?: string) => {
+      if (!txt) return;
+      paragraph(titulo, { size: 9, color: C.muted });
+      paragraph(txt, { size: 9 });
+    };
+    blocoTexto("Geografia & clima:", brief.geografia_clima);
+    blocoTexto("Economia:", brief.economia_resumo);
+    blocoTexto("Infraestrutura:", brief.infraestrutura);
+    blocoTexto("Política local:", brief.politica_local);
+
+    if (Array.isArray(brief.municipios_vizinhos) && brief.municipios_vizinhos.length) {
+      paragraph(`Municípios vizinhos: ${brief.municipios_vizinhos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.distritos_bairros) && brief.distritos_bairros.length) {
+      paragraph(`Distritos/bairros: ${brief.distritos_bairros.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.personalidades_notaveis) && brief.personalidades_notaveis.length) {
+      paragraph("Personalidades:", { size: 9, color: C.muted });
+      for (const p of brief.personalidades_notaveis) {
+        paragraph(`• ${p.nome} — ${p.por_que_importa}`, { size: 9 });
+      }
+    }
+    if (Array.isArray(brief.pontos_turisticos) && brief.pontos_turisticos.length) {
+      paragraph(`Pontos turísticos: ${brief.pontos_turisticos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.festas_eventos) && brief.festas_eventos.length) {
+      paragraph(`Festas & eventos: ${brief.festas_eventos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.dicas_abordagem) && brief.dicas_abordagem.length) {
+      paragraph("Dicas de abordagem (faça):", { size: 9, color: C.success });
+      for (const d of brief.dicas_abordagem) paragraph(`✓ ${d}`, { size: 9 });
+    }
+    if (Array.isArray(brief.evitar) && brief.evitar.length) {
+      paragraph("Evitar:", { size: 9, color: C.danger });
+      for (const d of brief.evitar) paragraph(`✗ ${d}`, { size: 9 });
+    }
+  }
+
   // CURIOSIDADES & CULTURA LOCAL
   const curiosidades: any[] = Array.isArray(c.curiosidades_locais) ? c.curiosidades_locais : [];
   if (curiosidades.length > 0) {
