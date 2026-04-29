@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
-  AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned,
+  AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned, Star, Pencil, Check, X,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -128,38 +128,373 @@ function buildDossieMarkdown(dossie: any): string {
   return lines.join("\n");
 }
 
-// Gera o PDF do dossiê. Se `download=true`, dispara o download para o usuário.
-// Sempre devolve o documento jsPDF para reuso (ex: enviar como anexo no WhatsApp).
+// Gera o PDF do dossiê com layout profissional. Se `download=true`, baixa.
+// Sempre devolve o documento jsPDF para reuso (ex: enviar via WhatsApp).
 function buildDossiePdf(dossie: any, download = true) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const margin = 40;
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const maxW = pageW - margin * 2;
+  const margin = 48;
+  const contentW = pageW - margin * 2;
+
+  // Paleta (RGB)
+  const C = {
+    primary: [15, 23, 42] as [number, number, number],       // slate-900
+    accent:  [59, 130, 246] as [number, number, number],     // blue-500
+    danger:  [220, 38, 38] as [number, number, number],      // red-600
+    warn:    [234, 88, 12] as [number, number, number],      // orange-600
+    muted:   [100, 116, 139] as [number, number, number],    // slate-500
+    light:   [241, 245, 249] as [number, number, number],    // slate-100
+    border:  [226, 232, 240] as [number, number, number],    // slate-200
+    success: [22, 163, 74] as [number, number, number],      // green-600
+    text:    [30, 41, 59] as [number, number, number],       // slate-800
+    white:   [255, 255, 255] as [number, number, number],
+  };
+  const setFill = (c: number[]) => doc.setFillColor(c[0], c[1], c[2]);
+  const setStroke = (c: number[]) => doc.setDrawColor(c[0], c[1], c[2]);
+  const setText = (c: number[]) => doc.setTextColor(c[0], c[1], c[2]);
+
   let y = margin;
+  let pageNum = 1;
 
-  const md = buildDossieMarkdown(dossie);
-  const blocks = md.split("\n");
+  const a = dossie.analise || {};
+  const c = dossie.conteudos || {};
+  const ibge = dossie.dados_brutos?.ibge_municipios?.[0]?.dados || {};
+  const midia = dossie.dados_brutos?.midia_gdelt;
+  const cidade = dossie.municipio || "";
+  const uf = dossie.uf || "";
+  const dataGer = new Date(dossie.generated_at || dossie.created_at).toLocaleDateString("pt-BR", {
+    day: "2-digit", month: "long", year: "numeric"
+  });
 
-  for (const raw of blocks) {
-    let line = raw;
-    let size = 10;
-    let bold = false;
-    if (line.startsWith("# ")) { size = 18; bold = true; line = line.slice(2); }
-    else if (line.startsWith("## ")) { size = 14; bold = true; line = line.slice(3); }
-    else if (line.startsWith("### ")) { size = 12; bold = true; line = line.slice(4); }
-    doc.setFont("helvetica", bold ? "bold" : "normal");
+  // ---------- Helpers ----------
+  const drawHeader = () => {
+    if (pageNum === 1) return; // capa não tem cabeçalho
+    setFill(C.primary);
+    doc.rect(0, 0, pageW, 28, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(`DOSSIÊ ESTRATÉGICO · ${cidade.toUpperCase()}/${uf}`, margin, 18);
+    doc.setFont("helvetica", "normal");
+    doc.text(dataGer, pageW - margin, 18, { align: "right" });
+  };
+  const drawFooter = () => {
+    setText(C.muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Gerado pela plataforma de Inteligência Eleitoral", margin, pageH - 18);
+    doc.text(`Página ${pageNum}`, pageW - margin, pageH - 18, { align: "right" });
+  };
+  const newPage = () => {
+    drawFooter();
+    doc.addPage();
+    pageNum++;
+    drawHeader();
+    y = pageNum === 1 ? margin : 56;
+  };
+  const ensure = (h: number) => { if (y + h > pageH - 40) newPage(); };
+
+  const sectionTitle = (title: string, accent: number[] = C.accent) => {
+    ensure(38);
+    setFill(accent);
+    doc.rect(margin, y, 4, 18, "F");
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(title, margin + 12, y + 14);
+    y += 28;
+  };
+
+  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean } = {}) => {
+    const size = opts.size ?? 10;
+    setText(opts.color ?? C.text);
+    doc.setFont("helvetica", opts.bold ? "bold" : "normal");
     doc.setFontSize(size);
-    if (line.trim() === "") { y += size * 0.5; continue; }
-    const wrapped = doc.splitTextToSize(line, maxW);
+    const wrapped = doc.splitTextToSize(text, contentW);
     for (const w of wrapped) {
-      if (y + size + 4 > pageH - margin) { doc.addPage(); y = margin; }
+      ensure(size + 4);
       doc.text(w, margin, y);
       y += size + 4;
     }
+  };
+
+  const card = (title: string, value: string, sub: string, x: number, w: number, accent = C.accent) => {
+    const h = 56;
+    setFill(C.light);
+    setStroke(C.border);
+    doc.roundedRect(x, y, w, h, 4, 4, "FD");
+    // barra lateral
+    setFill(accent);
+    doc.rect(x, y, 3, h, "F");
+    setText(C.muted);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(title.toUpperCase(), x + 10, y + 14);
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    const vWrapped = doc.splitTextToSize(value, w - 20);
+    doc.text(vWrapped[0] || "—", x + 10, y + 32);
+    if (sub) {
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(sub, x + 10, y + 48);
+    }
+  };
+
+  const pill = (text: string, x: number, py: number, color: number[]): number => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    const tw = doc.getTextWidth(text) + 14;
+    setFill(color);
+    doc.roundedRect(x, py - 9, tw, 14, 7, 7, "F");
+    setText(C.white);
+    doc.text(text, x + 7, py);
+    return tw;
+  };
+
+  // ---------- CAPA ----------
+  setFill(C.primary);
+  doc.rect(0, 0, pageW, 220, "F");
+  setFill(C.accent);
+  doc.rect(0, 220, pageW, 4, "F");
+
+  setText(C.white);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("INTELIGÊNCIA ELEITORAL · DOSSIÊ ESTRATÉGICO", margin, 70);
+
+  doc.setFontSize(34);
+  const titleWrap = doc.splitTextToSize(`${cidade}`, contentW);
+  doc.text(titleWrap, margin, 120);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(16);
+  setText(C.light);
+  doc.text(`${uf} · ${dataGer}`, margin, 152);
+
+  // Resumo executivo na capa
+  const op = a.oportunidade || {};
+  const opNivel = String(op.nivel || "").toLowerCase();
+  const opColor = opNivel === "alta" ? C.success : opNivel === "media" || opNivel === "média" ? C.warn : C.muted;
+  setFill(C.white);
+  setStroke(C.border);
+  doc.roundedRect(margin, 250, contentW, 180, 6, 6, "FD");
+  setText(C.muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("RESUMO EXECUTIVO", margin + 16, 274);
+
+  setText(C.primary);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Oportunidade política:", margin + 16, 296);
+  pill((op.nivel || "—").toString().toUpperCase(), margin + 145, 296, opColor);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Score: ${op.oportunidade_score ?? "—"}`, margin + 16, 316);
+  doc.text(`Dor principal: ${op.dor_principal || "—"}`, margin + 16, 332);
+  doc.text(`Força do gestor atual: ${op.forca_gestor_atual ?? "—"}%`, margin + 16, 348);
+
+  // KPIs na capa
+  y = 380;
+  const kpiW = (contentW - 20) / 3;
+  const kpiX = margin;
+  // Reposiciono porque card usa `y` global
+  const yKpi = 380;
+  y = yKpi;
+  card("População", ibge?.populacao?.val ? Number(ibge.populacao.val).toLocaleString("pt-BR") : "—", ibge?.populacao?.ano ? `Estimativa ${ibge.populacao.ano}` : "", margin, kpiW, C.accent);
+  y = yKpi;
+  card("PIB per capita", ibge?.pib_per_capita?.val ? `R$ ${Number(ibge.pib_per_capita.val).toLocaleString("pt-BR")}` : "—", ibge?.pib_per_capita?.ano ? `${ibge.pib_per_capita.ano}` : "", margin + kpiW + 10, kpiW, C.success);
+  y = yKpi;
+  card("Tom da mídia", midia?.tom_medio != null ? Number(midia.tom_medio).toFixed(2) : "—", `${midia?.total ?? 0} artigos`, margin + (kpiW + 10) * 2, kpiW, C.warn);
+
+  drawFooter();
+
+  // ---------- PÁGINAS DE CONTEÚDO ----------
+  doc.addPage();
+  pageNum++;
+  drawHeader();
+  y = 56;
+
+  // MAPA DE DOR
+  if ((a.dores || []).length > 0) {
+    sectionTitle("Mapa de Dor", C.danger);
+    paragraph("Cada área foi classificada em Explosiva (pronta para campanha), Latente (vigiar) ou Silenciosa.", { size: 9, color: C.muted });
+    y += 6;
+
+    for (const d of a.dores) {
+      ensure(70);
+      const cls = String(d.classificacao || "").toLowerCase();
+      const color = cls === "explosiva" ? C.danger : cls === "latente" ? C.warn : C.muted;
+      setFill(C.light);
+      setStroke(C.border);
+      doc.roundedRect(margin, y, contentW, 24, 3, 3, "FD");
+      setFill(color);
+      doc.rect(margin, y, 3, 24, "F");
+      setText(C.primary);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      const areaName = (AREA_LABEL[d.area] || d.area || "—").toString().toUpperCase();
+      doc.text(areaName, margin + 12, y + 16);
+      pill(String(d.classificacao || "—").toUpperCase(), margin + 130, y + 16, color);
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Score: ${d.pain_score ?? "—"}`, pageW - margin - 60, y + 16);
+      y += 30;
+
+      for (const e of (d.evidencias || []).slice(0, 4)) {
+        const cmp = e.valor_estado != null
+          ? ` vs ${Number(e.valor_estado).toFixed(2)} (média ${uf}, ${e.delta_pct > 0 ? "+" : ""}${Number(e.delta_pct ?? 0).toFixed(1)}%)`
+          : "";
+        const txt = `• ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
+        const src = `   ${e.fonte || ""} · ${e.ano || ""}`;
+        paragraph(txt, { size: 9 });
+        paragraph(src, { size: 8, color: C.muted });
+      }
+      y += 6;
+    }
   }
 
-  if (download) doc.save(`dossie-${dossie.municipio}-${dossie.uf}.pdf`);
+  // TOP LOCAIS CRÍTICOS
+  const top = a.top_locais_criticos || [];
+  if (top.length > 0) {
+    y += 8;
+    sectionTitle("Top Locais Críticos", C.warn);
+    paragraph("Zonas onde o atual gestor teve desempenho mais fraco — prioridades para visita.", { size: 9, color: C.muted });
+    y += 6;
+
+    // Cabeçalho de tabela
+    ensure(24);
+    setFill(C.primary);
+    doc.rect(margin, y, contentW, 20, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("#", margin + 8, y + 14);
+    doc.text("BAIRRO / LOCAL", margin + 30, y + 14);
+    doc.text("ZONA", margin + 320, y + 14);
+    doc.text("% ELEITO", margin + 380, y + 14);
+    y += 20;
+
+    top.slice(0, 10).forEach((l: any, idx: number) => {
+      ensure(28);
+      if (idx % 2 === 0) {
+        setFill(C.light);
+        doc.rect(margin, y, contentW, 24, "F");
+      }
+      setText(C.text);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(String(l.rank ?? idx + 1), margin + 8, y + 15);
+      doc.setFont("helvetica", "bold");
+      const nome = `${l.bairro || "—"}${l.nome_local ? ` — ${l.nome_local}` : ""}`;
+      const truncated = doc.splitTextToSize(nome, 280)[0];
+      doc.text(truncated, margin + 30, y + 15);
+      doc.setFont("helvetica", "normal");
+      doc.text(String(l.zona ?? "—"), margin + 320, y + 15);
+      doc.text(`${l.pct_eleito_zona ?? "?"}%`, margin + 380, y + 15);
+      y += 24;
+    });
+  }
+
+  // DISCURSOS
+  if (c.discursos) {
+    y += 12;
+    sectionTitle("Discursos Recomendados", C.accent);
+    const labels: Record<string, string> = { popular: "Popular", tecnico: "Técnico", emocional: "Emocional" };
+    for (const k of ["popular", "tecnico", "emocional"]) {
+      if (!c.discursos[k]) continue;
+      ensure(40);
+      setText(C.accent);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(labels[k] || k, margin, y);
+      y += 14;
+      paragraph(c.discursos[k], { size: 10 });
+      y += 6;
+    }
+  }
+
+  // ATAQUES
+  if ((c.ataques_3_camadas || []).length > 0) {
+    y += 8;
+    sectionTitle("Estratégia de Ataques (3 camadas)", C.danger);
+    for (const at of c.ataques_3_camadas) {
+      ensure(70);
+      setFill(C.light);
+      setStroke(C.border);
+      doc.roundedRect(margin, y, contentW, 18, 3, 3, "FD");
+      setText(C.primary);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(at.tema || "—", margin + 8, y + 12);
+      y += 24;
+      paragraph(`Falha do gestor: ${at.falha_do_gestor || "—"}`, { size: 9 });
+      paragraph(`Solução proposta: ${at.solucao_proposta || "—"}`, { size: 9, color: C.success });
+      y += 6;
+    }
+  }
+
+  // MANCHETES
+  if ((c.manchetes_reels || []).length > 0) {
+    y += 8;
+    sectionTitle("Manchetes / Reels Sugeridos", C.accent);
+    for (const m of c.manchetes_reels) {
+      paragraph(`▸ ${m}`, { size: 10 });
+    }
+  }
+
+  // ROTEIRO DE VISITA
+  if (c.roteiro_visita) {
+    y += 12;
+    sectionTitle("Roteiro de Visita", C.success);
+    const r = c.roteiro_visita;
+    ensure(140);
+    setFill(C.light);
+    setStroke(C.border);
+    doc.roundedRect(margin, y, contentW, 120, 6, 6, "FD");
+    const inner = margin + 14;
+    let yi = y + 20;
+    const kv = (k: string, v: string) => {
+      setText(C.muted);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(k.toUpperCase(), inner, yi);
+      setText(C.primary);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const wrapped = doc.splitTextToSize(v || "—", contentW - 28);
+      doc.text(wrapped[0] || "—", inner, yi + 12);
+      yi += 28;
+    };
+    kv("Foco", r.foco || "—");
+    kv("Bairro sugerido", r.bairro_sugerido || "—");
+    kv("Mensagem central", r.mensagem_central || "—");
+    kv("Chamada para ação", r.chamada_acao || "—");
+    y += 130;
+
+    if (r.primeira_frase) {
+      ensure(40);
+      setFill(C.primary);
+      doc.roundedRect(margin, y, contentW, 38, 4, 4, "F");
+      setText(C.white);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("PRIMEIRA FRASE", margin + 12, y + 14);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(11);
+      const fr = doc.splitTextToSize(`"${r.primeira_frase}"`, contentW - 28);
+      doc.text(fr[0] || "", margin + 12, y + 30);
+      y += 48;
+    }
+  }
+
+  drawFooter();
+
+  if (download) doc.save(`dossie-${cidade}-${uf}.pdf`);
   return doc;
 }
 
@@ -473,6 +808,77 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState("");
   const [waSending, setWaSending] = useState(false);
+  // Número padrão salvo por cliente (localStorage). Permite "1 clique" para enviar.
+  const defaultPhoneKey = clientId ? `wa_default_phone:${clientId}` : "wa_default_phone:_anon_";
+  const [defaultPhone, setDefaultPhone] = useState<string>("");
+  const [editingDefault, setEditingDefault] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(defaultPhoneKey) || "";
+      setDefaultPhone(saved);
+      if (saved && !waPhone) setWaPhone(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultPhoneKey]);
+
+  // Quando abre o diálogo, pré-preenche com o padrão (se houver)
+  useEffect(() => {
+    if (waOpen && defaultPhone && !waPhone) setWaPhone(defaultPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waOpen]);
+
+  const formatPhoneDisplay = (digits: string): string => {
+    const d = digits.replace(/\D/g, "");
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 13 && d.startsWith("55")) return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
+    return d;
+  };
+
+  const saveAsDefault = () => {
+    const d = waPhone.replace(/\D/g, "");
+    if (d.length < 10) {
+      toast({ title: "Número inválido", description: "Informe DDD + número.", variant: "destructive" });
+      return;
+    }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      toast({ title: "Número padrão salvo", description: formatPhoneDisplay(d) });
+    } catch {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    }
+  };
+
+  const clearDefault = () => {
+    try {
+      localStorage.removeItem(defaultPhoneKey);
+      setDefaultPhone("");
+      toast({ title: "Número padrão removido" });
+    } catch {}
+  };
+
+  const startEditDefault = () => {
+    setEditPhoneValue(defaultPhone);
+    setEditingDefault(true);
+  };
+
+  const confirmEditDefault = () => {
+    const d = editPhoneValue.replace(/\D/g, "");
+    if (d.length < 10) {
+      toast({ title: "Número inválido", variant: "destructive" });
+      return;
+    }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      setWaPhone(d);
+      setEditingDefault(false);
+      toast({ title: "Padrão atualizado", description: formatPhoneDisplay(d) });
+    } catch {}
+  };
 
   const sendWhatsApp = async () => {
     if (!waPhone) {
@@ -570,22 +976,81 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Enviar dossiê via WhatsApp</DialogTitle></DialogHeader>
-              <div className="space-y-3">
+              <DialogHeader>
+                <DialogTitle>Enviar dossiê via WhatsApp</DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Número padrão salvo */}
+                {defaultPhone && !editingDefault && (
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Star className="w-4 h-4 text-primary fill-primary shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-xs text-muted-foreground">Número padrão salvo</div>
+                        <div className="font-semibold truncate">{formatPhoneDisplay(defaultPhone)}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" onClick={startEditDefault} title="Trocar número padrão">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={clearDefault} title="Remover padrão">
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edição inline do número padrão */}
+                {editingDefault && (
+                  <div className="rounded-md border border-primary/40 bg-primary/5 p-3 space-y-2">
+                    <Label className="text-xs">Trocar número padrão</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="ex: 67999999999"
+                        value={editPhoneValue}
+                        onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, ""))}
+                      />
+                      <Button size="sm" onClick={confirmEditDefault}>
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingDefault(false)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Campo de envio (pode usar padrão ou outro) */}
                 <div>
-                  <Label className="text-xs">Número (com DDD, só dígitos)</Label>
+                  <Label className="text-xs">
+                    {defaultPhone ? "Enviar para outro número (opcional)" : "Número (com DDD, só dígitos)"}
+                  </Label>
                   <Input
                     placeholder="ex: 67999999999"
                     value={waPhone}
                     onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, ""))}
                   />
+                  {waPhone && waPhone !== defaultPhone && (
+                    <button
+                      type="button"
+                      onClick={saveAsDefault}
+                      className="mt-1.5 text-xs text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      <Star className="w-3 h-3" />
+                      Salvar este como padrão
+                    </button>
+                  )}
                 </div>
+
                 <p className="text-xs text-muted-foreground">
                   O dossiê completo será enviado como <b>link clicável</b> para download do PDF, via uma instância saudável do pool. O link permanece disponível por <b>7 dias</b>.
                 </p>
               </div>
-              <DialogFooter>
-                <Button onClick={sendWhatsApp} disabled={waSending}>
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button onClick={sendWhatsApp} disabled={waSending || !waPhone}>
                   {waSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                   Enviar
                 </Button>
