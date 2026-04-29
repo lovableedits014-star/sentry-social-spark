@@ -56,6 +56,26 @@ export default function ContextoTerritorial() {
     },
   });
 
+  // Ranking estadual: agrupa estatísticas por código IBGE → indicador
+  const { data: rankingMap } = useQuery({
+    queryKey: ["municipios-ranking", ufFiltro],
+    staleTime: 60_000,
+    enabled: !!ufFiltro && (municipios?.length ?? 0) > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("municipios_ranking_uf" as any, {
+        p_uf: ufFiltro.toUpperCase(),
+      });
+      if (error) throw error;
+      const map: Record<string, Record<string, any>> = {};
+      for (const row of (data as any[]) || []) {
+        const k = String(row.codigo_ibge);
+        if (!map[k]) map[k] = {};
+        map[k][row.indicador_id] = row;
+      }
+      return map;
+    },
+  });
+
   const { data: ultimoLog } = useQuery({
     queryKey: ["municipios-sync-log-last"],
     refetchInterval: 5000,
@@ -92,10 +112,12 @@ export default function ContextoTerritorial() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-xs">
-          <strong>20 indicadores oficiais por município</strong> — IDH, Gini, mortalidade infantil,
-          IDEB, esgoto, água, pobreza, salário médio, PIB per capita e mais. Mesma fonte usada pela
-          Narrativa Política. Indicadores marcados como <em>desatualizados</em> não entram nos
-          discursos gerados por IA.
+          <strong>30+ indicadores oficiais por município</strong> — Atlas Brasil (IDH, renda,
+          longevidade, pobreza), INEP (IDEB, matrículas, docentes), DATASUS (mortalidade infantil,
+          CNES) e SNIS (esgoto, água canalizada). Filtre por UF para ver{" "}
+          <strong>posição no ranking estadual</strong> e{" "}
+          <strong>comparativo com a média do estado</strong> em cada indicador. Dados &gt;3 anos
+          ficam marcados e não entram na narrativa de IA.
         </AlertDescription>
       </Alert>
 
