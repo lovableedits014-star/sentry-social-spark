@@ -159,7 +159,10 @@ function buildDossiePdf(dossie: any, download = true) {
 
   const a = dossie.analise || {};
   const c = dossie.conteudos || {};
-  const ibge = dossie.dados_brutos?.ibge_municipios?.[0]?.dados || {};
+  // dados_brutos.ibge é o objeto canônico (mesmo usado no Raio-X da tela).
+  // Antes lia-se de `ibge_municipios[0].dados` — caminho que não existe na resposta atual,
+  // o que deixava População/PIB/Tom da mídia em branco na capa.
+  const ibge = dossie.dados_brutos?.ibge || dossie.dados_brutos?.ibge_municipios?.[0]?.dados || {};
   const midia = dossie.dados_brutos?.midia_gdelt;
   const cidade = dossie.municipio || "";
   const uf = dossie.uf || "";
