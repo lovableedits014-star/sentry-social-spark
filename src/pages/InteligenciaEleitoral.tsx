@@ -20,6 +20,7 @@ import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
 import GdeltMonitor from "@/components/midia/GdeltMonitor";
 import NarrativaPolitica from "@/components/inteligencia/narrativa/NarrativaPolitica";
 import PulsoMidia from "@/components/midia/PulsoMidia";
+import PulsoPolitico from "@/components/inteligencia/PulsoPolitico";
 
 type CoverageRow = {
   ano: number;
@@ -157,7 +158,7 @@ const InteligenciaEleitoralInner = () => {
 
       {/* Tabs principais — 3 grupos */}
       <Tabs defaultValue="panorama" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-8 h-auto">
           <TabsTrigger value="panorama" className="flex items-center gap-2 py-2.5">
             <BarChart3 className="w-4 h-4" />
             <span>Panorama</span>
@@ -173,6 +174,10 @@ const InteligenciaEleitoralInner = () => {
           <TabsTrigger value="pulso" className="flex items-center gap-2 py-2.5">
             <Newspaper className="w-4 h-4" />
             <span>Pulso da Mídia</span>
+          </TabsTrigger>
+          <TabsTrigger value="politico" className="flex items-center gap-2 py-2.5">
+            <Vote className="w-4 h-4" />
+            <span>Pulso Político</span>
           </TabsTrigger>
           <TabsTrigger value="midia" className="flex items-center gap-2 py-2.5">
             <Newspaper className="w-4 h-4" />
@@ -285,6 +290,22 @@ const InteligenciaEleitoralInner = () => {
         {/* PULSO DA MÍDIA — Firecrawl + IA */}
         <TabsContent value="pulso" className="mt-4">
           <PulsoMidia />
+        </TabsContent>
+
+        {/* PULSO POLÍTICO — Câmara/Senado + IBGE/DataSUS/INEP */}
+        <TabsContent value="politico" className="mt-4">
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Vote className="w-5 h-5 text-primary" /> Pulso Político
+              </CardTitle>
+              <CardDescription>
+                Munição de campanha em tempo real: atividade dos adversários (votações, projetos, presença em sessões — direto da
+                API oficial da Câmara e Senado) cruzada com indicadores socioeconômicos por município (IBGE/DataSUS/INEP).
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <PulsoPolitico />
         </TabsContent>
 
         {/* NARRATIVA POLÍTICA */}
