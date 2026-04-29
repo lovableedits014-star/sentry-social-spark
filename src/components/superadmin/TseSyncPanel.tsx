@@ -202,7 +202,16 @@ export default function TseSyncPanel() {
 
         const I = indexes!;
         scanned++;
+        // Fast-path: filtra por UF antes de qualquer processamento pesado.
+        // Evita parsear linha inteira de outros estados (CSV nacional ~300MB → só MS).
+        const ufAlvo = uf.toUpperCase();
+        const ufIdx = I.UF;
+        // Procura a sigla UF diretamente na linha bruta antes do split completo.
+        // Como SG_UF é coluna fixa de 2 letras entre aspas, basta um indexOf rápido.
+        if (ufAlvo && !line.includes(`"${ufAlvo}"`)) return;
         const cols = parseCsvLine(line);
+        // Validação estrita após parse (para evitar falso positivo de "MS" aparecendo em outro campo).
+        if (ufAlvo && cleanCsvValue(cols[ufIdx]).toUpperCase() !== ufAlvo) return;
         const munNome = cleanCsvValue(cols[I.MUN]);
         if (munFiltro && norm(munNome) !== munFiltro) return;
 
