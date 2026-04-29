@@ -134,6 +134,47 @@ function buildDossieMarkdown(dossie: any): string {
     for (const m of c.manchetes_reels) lines.push(`- ${m}`);
     lines.push("");
   }
+  if (c.briefing_municipio) {
+    const b = c.briefing_municipio;
+    lines.push("");
+    lines.push(`## Briefing do Município`);
+    if (b.visao_geral) lines.push(b.visao_geral);
+    const fr = b.ficha_rapida || {};
+    const frEntries = Object.entries(fr).filter(([, v]) => v && String(v).trim());
+    if (frEntries.length) {
+      lines.push("");
+      lines.push("### Ficha rápida");
+      for (const [k, v] of frEntries) lines.push(`- ${k}: ${v}`);
+    }
+    if (b.geografia_clima) { lines.push(""); lines.push(`### Geografia & clima`); lines.push(b.geografia_clima); }
+    if (b.economia_resumo) { lines.push(""); lines.push(`### Economia`); lines.push(b.economia_resumo); }
+    if (b.infraestrutura) { lines.push(""); lines.push(`### Infraestrutura`); lines.push(b.infraestrutura); }
+    if (b.politica_local) { lines.push(""); lines.push(`### Política local`); lines.push(b.politica_local); }
+    if (Array.isArray(b.municipios_vizinhos) && b.municipios_vizinhos.length) {
+      lines.push(""); lines.push(`### Municípios vizinhos`); lines.push(b.municipios_vizinhos.join(", "));
+    }
+    if (Array.isArray(b.distritos_bairros) && b.distritos_bairros.length) {
+      lines.push(""); lines.push(`### Distritos/bairros`); lines.push(b.distritos_bairros.join(", "));
+    }
+    if (Array.isArray(b.personalidades_notaveis) && b.personalidades_notaveis.length) {
+      lines.push(""); lines.push(`### Personalidades`);
+      for (const p of b.personalidades_notaveis) lines.push(`- ${p.nome} — ${p.por_que_importa}`);
+    }
+    if (Array.isArray(b.pontos_turisticos) && b.pontos_turisticos.length) {
+      lines.push(""); lines.push(`### Pontos turísticos`); lines.push(b.pontos_turisticos.join(", "));
+    }
+    if (Array.isArray(b.festas_eventos) && b.festas_eventos.length) {
+      lines.push(""); lines.push(`### Festas & eventos`); lines.push(b.festas_eventos.join(", "));
+    }
+    if (Array.isArray(b.dicas_abordagem) && b.dicas_abordagem.length) {
+      lines.push(""); lines.push(`### Dicas de abordagem`);
+      for (const d of b.dicas_abordagem) lines.push(`- ${d}`);
+    }
+    if (Array.isArray(b.evitar) && b.evitar.length) {
+      lines.push(""); lines.push(`### Evitar`);
+      for (const d of b.evitar) lines.push(`- ${d}`);
+    }
+  }
   if (Array.isArray(c.curiosidades_locais) && c.curiosidades_locais.length > 0) {
     lines.push("");
     lines.push(`## Curiosidades & Cultura Local`);
