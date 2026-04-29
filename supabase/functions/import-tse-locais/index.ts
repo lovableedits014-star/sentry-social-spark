@@ -177,10 +177,15 @@ Deno.serve(async (req) => {
       if (!line.trim()) continue;
       scanned++;
 
-      // Checa timeout periodicamente (a cada 1000 linhas pra não pesar)
-      if (scanned % 1000 === 0 && Date.now() - startedAt > MAX_RUNTIME_MS) {
-        timedOut = true;
-        break;
+      // Checa timeout periodicamente (a cada 2000 linhas pra não pesar)
+      if (scanned % 2000 === 0) {
+        if (Date.now() - startedAt > MAX_RUNTIME_MS) {
+          timedOut = true;
+          break;
+        }
+        if (scanned % 20000 === 0) {
+          console.log(`progresso: scanned=${scanned} matched=${matched} inserted=${inserted} buffer=${lines.length}`);
+        }
       }
 
       const cols = parseCsvLine(line);
