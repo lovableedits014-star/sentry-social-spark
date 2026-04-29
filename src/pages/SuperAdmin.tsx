@@ -12,6 +12,7 @@ import {
   CheckCircle2, Clock, LogOut, Link2
 } from "lucide-react";
 import UazapiConfigPanel from "@/components/superadmin/UazapiConfigPanel";
+import TseSyncPanel from "@/components/superadmin/TseSyncPanel";
 
 const SUPER_ADMIN_EMAIL = "lovableedits014@gmail.com";
 
@@ -291,6 +292,9 @@ export default function SuperAdmin() {
 
         {/* UAZAPI Configuration */}
         <UazapiConfigPanel />
+
+        {/* Sincronização TSE */}
+        <TseSyncPanel />
       </div>
     </div>
   );
