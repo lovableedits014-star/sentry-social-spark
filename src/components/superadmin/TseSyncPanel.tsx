@@ -5,11 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw, Download, MapPin, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, Download, MapPin, AlertTriangle, CheckCircle2, Activity, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type ZonaRow = { uf: string; ano: number; registros: number; zonas: number; municipios: number };
 type LocalRow = { uf: string; ano: number; locais: number; com_bairro: number; municipios: number };
+type SourceHealth = {
+  id: string; name: string; category: string; url: string;
+  ok: boolean; status: number | null; latency_ms: number | null; message: string;
+  last_update: string | null; records: number | null;
+};
 
 const ANOS_ESPERADOS = [2018, 2020, 2022, 2024];
 
@@ -21,11 +26,20 @@ export default function TseSyncPanel() {
   const [geocoding, setGeocoding] = useState(false);
   const [importingLocais, setImportingLocais] = useState(false);
   const [municipio, setMunicipio] = useState("");
-  const [zipFile, setZipFile] = useState<File | null>(null);
-  const [uploadingZip, setUploadingZip] = useState(false);
-  const [uploadedPath, setUploadedPath] = useState<string | null>(null);
+  // Upload — Locais
+  const [zipFileLocais, setZipFileLocais] = useState<File | null>(null);
+  const [uploadingLocais, setUploadingLocais] = useState(false);
+  const [uploadedPathLocais, setUploadedPathLocais] = useState<string | null>(null);
+  // Upload — Resultados (zonas)
+  const [zipFileResultados, setZipFileResultados] = useState<File | null>(null);
+  const [uploadingResultados, setUploadingResultados] = useState(false);
+  const [uploadedPathResultados, setUploadedPathResultados] = useState<string | null>(null);
   const [uf, setUf] = useState("MS");
   const [ano, setAno] = useState<number>(2024);
+  // Diagnóstico
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthChecked, setHealthChecked] = useState<string | null>(null);
+  const [healthSources, setHealthSources] = useState<SourceHealth[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -83,10 +97,11 @@ export default function TseSyncPanel() {
     setImporting(key);
     try {
       const { data, error } = await supabase.functions.invoke("import-tse-results", {
-        body: { uf, ano },
+        body: { uf, ano, storage_path: uploadedPathResultados || undefined },
       });
       if (error) throw error;
-      toast.success(`TSE ${uf}/${ano} importado`, { description: `${(data as any)?.inseridos ?? "?"} linhas processadas` });
+      const d = data as any;
+      toast.success(`TSE ${uf}/${ano} importado`, { description: `${d?.inserted ?? d?.inseridos ?? "?"} linhas processadas` });
       await load();
     } catch (e: any) {
       toast.error("Falha ao importar TSE", { description: e?.message || String(e) });
@@ -114,14 +129,14 @@ export default function TseSyncPanel() {
   };
 
   const importLocais = async () => {
-    if (!uploadedPath) {
+    if (!uploadedPathLocais) {
       toast.error("Envie o ZIP do TSE primeiro", { description: "Selecione e faça upload do arquivo abaixo." });
       return;
     }
     setImportingLocais(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-tse-locais", {
-        body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPath },
+        body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPathLocais },
       });
       if (error) throw error;
       const d = data as any;
@@ -136,25 +151,62 @@ export default function TseSyncPanel() {
     }
   };
 
-  const uploadZip = async () => {
-    if (!zipFile) return;
-    setUploadingZip(true);
+  const uploadZipLocais = async () => {
+    if (!zipFileLocais) return;
+    setUploadingLocais(true);
     try {
       const path = `eleitorado_local_votacao_${ano}_${Date.now()}.zip`;
       const { error } = await supabase.storage
         .from("tse-imports")
-        .upload(path, zipFile, { upsert: true, contentType: "application/zip" });
+        .upload(path, zipFileLocais, { upsert: true, contentType: "application/zip" });
       if (error) throw error;
-      setUploadedPath(path);
-      toast.success("ZIP enviado", { description: `${(zipFile.size / 1024 / 1024).toFixed(1)} MB — pronto para importar.` });
+      setUploadedPathLocais(path);
+      toast.success("ZIP enviado", { description: `${(zipFileLocais.size / 1024 / 1024).toFixed(1)} MB — pronto para importar.` });
     } catch (e: any) {
       toast.error("Falha ao enviar ZIP", { description: e?.message || String(e) });
     } finally {
-      setUploadingZip(false);
+      setUploadingLocais(false);
+    }
+  };
+
+  const uploadZipResultados = async () => {
+    if (!zipFileResultados) return;
+    setUploadingResultados(true);
+    try {
+      const path = `votacao_candidato_munzona_${ano}_${Date.now()}.zip`;
+      const { error } = await supabase.storage
+        .from("tse-imports")
+        .upload(path, zipFileResultados, { upsert: true, contentType: "application/zip" });
+      if (error) throw error;
+      setUploadedPathResultados(path);
+      toast.success("ZIP enviado", { description: `${(zipFileResultados.size / 1024 / 1024).toFixed(1)} MB — pronto para importar.` });
+    } catch (e: any) {
+      toast.error("Falha ao enviar ZIP", { description: e?.message || String(e) });
+    } finally {
+      setUploadingResultados(false);
+    }
+  };
+
+  const runHealthCheck = async () => {
+    setHealthLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("data-sources-health");
+      if (error) throw error;
+      const d = data as any;
+      setHealthSources(d?.sources || []);
+      setHealthChecked(d?.checked_at || new Date().toISOString());
+      const offline = (d?.sources || []).filter((s: SourceHealth) => !s.ok).length;
+      if (offline === 0) toast.success("Todas as fontes responderam OK");
+      else toast.warning(`${offline} fonte(s) com problema`, { description: "Veja os detalhes no painel." });
+    } catch (e: any) {
+      toast.error("Falha no diagnóstico", { description: e?.message || String(e) });
+    } finally {
+      setHealthLoading(false);
     }
   };
 
   return (
+    <div className="space-y-4">
     <Card className="bg-slate-800/60 border-slate-700">
       <CardHeader>
         <CardTitle className="text-white text-base flex items-center gap-2">
@@ -252,12 +304,43 @@ export default function TseSyncPanel() {
             </div>
           </div>
           <p className="text-[11px] text-slate-500">
-            Baixa os resultados oficiais por zona do TSE. Pode demorar alguns minutos. Após importar zonas de 2024, rode o geocoding abaixo para vincular cada local a um bairro real.
+            Tenta primeiro baixar do CDN do TSE; se a CDN bloquear (comum), envie o ZIP de <strong>resultados</strong> abaixo e a importação usará seu arquivo automaticamente.
           </p>
 
           <div className="border-t border-slate-700 pt-3 mt-3 space-y-2">
             <h5 className="text-white text-xs font-semibold flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5" /> Importar locais de votação (escolas/endereços)
+              <Download className="w-3.5 h-3.5" /> Upload manual — Resultados por zona (votacao_candidato_munzona)
+            </h5>
+            <p className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1.5">
+              ⚠️ Use quando o CDN do TSE bloquear nossa nuvem. Baixe no seu PC em{" "}
+              <a className="underline" target="_blank" rel="noreferrer"
+                 href={`https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_${ano}.zip`}>
+                cdn.tse.jus.br/.../votacao_candidato_munzona_{ano}.zip
+              </a>{" "}
+              e envie aqui:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <Input
+                type="file"
+                accept=".zip,application/zip"
+                onChange={(e) => { setZipFileResultados(e.target.files?.[0] || null); setUploadedPathResultados(null); }}
+                className="bg-slate-800 border-slate-600 text-white file:bg-slate-700 file:text-white file:border-0 file:mr-2 file:rounded"
+              />
+              <Button onClick={uploadZipResultados} disabled={!zipFileResultados || uploadingResultados} variant="secondary">
+                {uploadingResultados ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 rotate-180" />}
+                Enviar ZIP
+              </Button>
+            </div>
+            {uploadedPathResultados && (
+              <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> ZIP pronto: {uploadedPathResultados} — clique em "Importar TSE" acima.
+              </p>
+            )}
+          </div>
+
+          <div className="border-t border-slate-700 pt-3 mt-3 space-y-2">
+            <h5 className="text-white text-xs font-semibold flex items-center gap-2">
+              <MapPin className="w-3.5 h-3.5" /> Upload manual — Locais de votação (escolas/endereços)
             </h5>
             <p className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1.5">
               ⚠️ O CDN do TSE bloqueia downloads diretos da nossa nuvem. Baixe o ZIP no seu computador em{" "}
@@ -271,17 +354,17 @@ export default function TseSyncPanel() {
               <Input
                 type="file"
                 accept=".zip,application/zip"
-                onChange={(e) => { setZipFile(e.target.files?.[0] || null); setUploadedPath(null); }}
+                onChange={(e) => { setZipFileLocais(e.target.files?.[0] || null); setUploadedPathLocais(null); }}
                 className="bg-slate-800 border-slate-600 text-white file:bg-slate-700 file:text-white file:border-0 file:mr-2 file:rounded"
               />
-              <Button onClick={uploadZip} disabled={!zipFile || uploadingZip} variant="secondary">
-                {uploadingZip ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 rotate-180" />}
+              <Button onClick={uploadZipLocais} disabled={!zipFileLocais || uploadingLocais} variant="secondary">
+                {uploadingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 rotate-180" />}
                 Enviar ZIP
               </Button>
             </div>
-            {uploadedPath && (
+            {uploadedPathLocais && (
               <p className="text-[11px] text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> ZIP pronto: {uploadedPath}
+                <CheckCircle2 className="w-3 h-3" /> ZIP pronto: {uploadedPathLocais}
               </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
@@ -294,7 +377,7 @@ export default function TseSyncPanel() {
                   className="bg-slate-800 border-slate-600 text-white"
                 />
               </div>
-              <Button onClick={importLocais} disabled={importingLocais || !uploadedPath} variant="secondary">
+              <Button onClick={importLocais} disabled={importingLocais || !uploadedPathLocais} variant="secondary">
                 {importingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
                 Importar locais {uf}/{ano}
               </Button>
@@ -320,5 +403,78 @@ export default function TseSyncPanel() {
         </div>
       </CardContent>
     </Card>
+
+    {/* Painel de diagnóstico de fontes externas */}
+    <Card className="bg-slate-800/60 border-slate-700">
+      <CardHeader>
+        <CardTitle className="text-white text-base flex items-center gap-2">
+          <Activity className="w-4 h-4" /> Diagnóstico de Fontes de Dados
+        </CardTitle>
+        <CardDescription className="text-slate-400">
+          Testa em tempo real se cada API/CDN externa está respondendo, e mostra a última atualização salva no banco. Use quando algo "não atualizar" para descobrir se o problema é nosso ou da fonte.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-slate-500">
+            {healthChecked ? `Última verificação: ${new Date(healthChecked).toLocaleString("pt-BR")}` : "Nunca verificado nesta sessão."}
+          </p>
+          <Button onClick={runHealthCheck} disabled={healthLoading} size="sm" variant="secondary">
+            {healthLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Activity className="w-4 h-4 mr-2" />}
+            Rodar diagnóstico
+          </Button>
+        </div>
+
+        {healthSources.length === 0 ? (
+          <p className="text-slate-500 text-xs italic text-center py-4">
+            Clique em "Rodar diagnóstico" para verificar todas as fontes externas.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {healthSources.map((s) => (
+              <li key={s.id} className="bg-slate-900/40 border border-slate-700 rounded p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    {s.ok ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-white text-sm font-medium">{s.name}</span>
+                        <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">{s.category}</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate">{s.url}</p>
+                      <p className={`text-[11px] mt-1 ${s.ok ? "text-emerald-400" : "text-red-400"}`}>
+                        {s.message}
+                        {s.latency_ms != null && <span className="text-slate-500 ml-2">({s.latency_ms}ms)</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right text-[11px] shrink-0">
+                    {s.records != null && (
+                      <div className="text-slate-300 font-mono">{s.records.toLocaleString("pt-BR")} reg.</div>
+                    )}
+                    {s.last_update && (
+                      <div className="text-slate-500" title={new Date(s.last_update).toLocaleString("pt-BR")}>
+                        atualizado: {new Date(s.last_update).toLocaleDateString("pt-BR")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="text-[11px] text-slate-500 bg-slate-900/40 border border-slate-700 rounded p-2 space-y-1">
+          <p><strong className="text-slate-400">Como ler:</strong></p>
+          <p>• <strong className="text-emerald-400">API automática</strong>: o sistema busca sozinho quando precisa. Se está OK, não precisa fazer nada.</p>
+          <p>• <strong className="text-amber-400">Upload manual</strong>: o CDN do TSE bloqueia nossa nuvem — quando precisar atualizar, baixe o ZIP no seu PC e envie pelos campos acima.</p>
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   );
 }

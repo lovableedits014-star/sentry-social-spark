@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { HttpReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { HttpReader, BlobReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
 // Desliga workers (não funcionam bem em edge functions Deno)
 configure({ useWebWorkers: false });
@@ -63,18 +63,31 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Apenas o Super-Admin pode importar dados do TSE." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { ano = 2022, uf = "MS" } = await req.json().catch(() => ({}));
+    const { ano = 2022, uf = "MS", storage_path } = await req.json().catch(() => ({}));
     const anoNum = Number(ano);
     const ufStr = String(uf).toUpperCase();
     if (![2018, 2020, 2022, 2024].includes(anoNum)) {
       return new Response(JSON.stringify({ error: "Ano inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_${anoNum}.zip`;
-    console.log("Abrindo ZIP via HTTP range:", zipUrl);
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // HttpReader usa requisições Range para ler o ZIP sem baixar tudo em memória
-    const reader = new ZipReader(new HttpReader(zipUrl, { useRangeHeader: true, preventHeadRequest: false }));
+    // Estratégia 1: storage_path (upload manual) — usado quando o CDN do TSE bloqueia.
+    // Estratégia 2 (fallback): tenta direto do CDN com range requests.
+    let reader: any;
+    if (storage_path && typeof storage_path === "string") {
+      console.log("Lendo ZIP do Storage:", storage_path);
+      const { data: fileBlob, error: dlErr } = await admin.storage.from("tse-imports").download(storage_path);
+      if (dlErr || !fileBlob) {
+        return new Response(JSON.stringify({ error: `Falha ao ler ZIP do Storage: ${dlErr?.message || "arquivo não encontrado"}` }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      console.log("ZIP carregado:", fileBlob.size, "bytes");
+      reader = new ZipReader(new BlobReader(fileBlob));
+    } else {
+      const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_${anoNum}.zip`;
+      console.log("Abrindo ZIP via HTTP range:", zipUrl);
+      reader = new ZipReader(new HttpReader(zipUrl, { useRangeHeader: true, preventHeadRequest: false }));
+    }
     const entries = await reader.getEntries();
     console.log("Entries no ZIP:", entries.length);
     const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
@@ -117,8 +130,6 @@ Deno.serve(async (req) => {
     }
     const dataLines = lines.slice(1).filter((l) => l && l.trim().length > 0);
     console.log("Linhas a processar:", dataLines.length);
-
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Agrega votos por (cargo, cod_mun, zona, numero) — o CSV tem 1 linha por cargo total/transito; somamos
     type Row = {
