@@ -349,10 +349,11 @@ function buildDossiePdf(dossie: any, download = true) {
         const cmp = e.valor_estado != null
           ? ` vs ${Number(e.valor_estado).toFixed(2)} (média ${uf}, ${e.delta_pct > 0 ? "+" : ""}${Number(e.delta_pct ?? 0).toFixed(1)}%)`
           : "";
+        const tag = e.outdated ? "  [DESATUALIZADO]" : "";
         const txt = `• ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
-        const src = `   ${e.fonte || ""} · ${e.ano || ""}`;
+        const src = `   Fonte: ${e.fonte || "—"}${tag}`;
         paragraph(txt, { size: 9 });
-        paragraph(src, { size: 8, color: C.muted });
+        paragraph(src, { size: 8, color: e.outdated ? C.warn : C.muted });
       }
       y += 6;
     }
@@ -674,7 +675,7 @@ const NarrativaPolitica = () => {
                 onClick={() => runPipeline.mutate({ uf, municipio })}
               >
                 {runPipeline.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                Gerar dossiê político
+                Gerar / atualizar dossiê
               </Button>
               {runPipeline.isPending && (
                 <span className="text-xs text-muted-foreground">
@@ -682,6 +683,11 @@ const NarrativaPolitica = () => {
                 </span>
               )}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
+              ℹ️ Indicadores socioeconômicos vêm de fontes oficiais (IBGE, INEP, DataSUS, Tesouro). 
+              Alguns dados (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos órgãos. 
+              Indicadores mais antigos que 3 anos aparecem marcados como <b>desatualizado</b> — esse é o dado mais recente que existe oficialmente.
+            </p>
           </CardContent>
         </Card>
 
@@ -1118,7 +1124,15 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                             )}
                           </span>
                         )}
-                        <span className="ml-1 opacity-60">[{e.fonte}, {e.ano}]</span>
+                        <span className="ml-1 opacity-60">[{e.fonte}]</span>
+                        {e.outdated && (
+                          <span
+                            className="ml-1 inline-block px-1.5 py-0 text-[9px] uppercase font-bold rounded bg-amber-100 text-amber-800 border border-amber-300"
+                            title={`Dado oficial mais recente disponível (${e.idade_anos ?? "?"} anos). As fontes ainda não publicaram atualização.`}
+                          >
+                            desatualizado
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
