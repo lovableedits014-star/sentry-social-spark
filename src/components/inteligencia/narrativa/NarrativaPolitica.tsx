@@ -542,7 +542,7 @@ function buildDossiePdf(dossie: any, download = true) {
     if (frEntries.length) {
       paragraph("Ficha rápida:", { size: 9, color: C.muted });
       for (const [k, v] of frEntries) {
-        paragraph(`• ${(FICHA_LABEL_PDF[k] || k)}: ${v}`, { size: 9 });
+        paragraph(`• ${k}: ${v}`, { size: 9 });
       }
     }
     const blocoTexto = (titulo: string, txt?: string) => {
