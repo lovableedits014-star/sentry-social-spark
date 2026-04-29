@@ -260,6 +260,34 @@ Deno.serve(async (req) => {
       .eq("client_id", dossie.client_id)
       .maybeSingle();
 
+    // Validação prévia: precisa de bairros reais para gerar roteiro estratégico
+    const analise = dossie.analise || {};
+    const topLocais: any[] = Array.isArray(analise?.top_locais_criticos) ? analise.top_locais_criticos : [];
+    const bairrosInfer: string[] = Array.isArray(analise?.bairros_inferidos) ? analise.bairros_inferidos : [];
+    const bairrosValidos = new Set<string>();
+    for (const l of topLocais) {
+      if (l?.bairro && typeof l.bairro === "string") bairrosValidos.add(normBairro(l.bairro));
+    }
+    for (const b of bairrosInfer) {
+      if (typeof b === "string") bairrosValidos.add(normBairro(b));
+    }
+    if (bairrosValidos.size === 0) {
+      const msg = "Sem dados zonais TSE para esta cidade — não é possível gerar o roteiro estratégico. Sincronize os resultados TSE 2024 (zonas eleitorais) antes de regerar o dossiê.";
+      await supa.from("narrativa_dossies").update({ status: "erro", erro_msg: msg }).eq("id", dossie_id);
+      return new Response(JSON.stringify({ error: msg, code: "missing_zonal_data" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Lista de nomes de políticos que aparecem na lista TSE — proibido usar como bairro
+    const nomesPoliticos = new Set<string>();
+    const tseTop = dossie.dados_brutos?.tse_local?.top_por_cargo_ano || [];
+    for (const bloco of tseTop) {
+      for (const c of (bloco?.top || [])) {
+        if (c?.nome && typeof c.nome === "string") nomesPoliticos.add(normBairro(c.nome));
+      }
+    }
+
     await supa.from("narrativa_dossies").update({ status: "gerando" }).eq("id", dossie_id);
 
     const aiRes = await fetch(AI_URL, {
@@ -300,6 +328,30 @@ Deno.serve(async (req) => {
     const tcArgs = aiJson?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!tcArgs) throw new Error("IA não retornou tool_call estruturada");
     const conteudos = JSON.parse(tcArgs);
+
+    // Sanitização pós-IA: remove paradas que usaram nome de político como bairro
+    // ou bairro fora da lista permitida.
+    if (Array.isArray(conteudos.roteiro_estrategico)) {
+      const original = conteudos.roteiro_estrategico.length;
+      const filtradas = conteudos.roteiro_estrategico.filter((p: any) => {
+        const b = normBairro(p?.bairro || "");
+        if (!b) return false;
+        if (nomesPoliticos.has(b)) return false; // descarta nome de pessoa
+        // Aceita se bate com algum bairro válido (match exato ou substring relevante)
+        for (const valido of bairrosValidos) {
+          if (b === valido || b.includes(valido) || valido.includes(b)) return true;
+        }
+        return false;
+      });
+      conteudos.roteiro_estrategico = filtradas.map((p: any, i: number) => ({ ...p, ordem: i + 1 }));
+
+      if (filtradas.length === 0) {
+        // IA só retornou lixo — bloqueia salvando aviso, mantém demais conteúdos
+        conteudos._roteiro_warning = `IA gerou ${original} parada(s) com bairros inválidos (nomes de políticos ou inexistentes). Roteiro descartado — sincronize dados zonais TSE e regere.`;
+      } else if (filtradas.length < original) {
+        conteudos._roteiro_warning = `${original - filtradas.length} parada(s) descartada(s) por usar bairro inválido.`;
+      }
+    }
 
     await supa
       .from("narrativa_dossies")
