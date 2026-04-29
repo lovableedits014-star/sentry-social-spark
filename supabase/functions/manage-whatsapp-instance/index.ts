@@ -699,6 +699,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Instância WhatsApp não configurada. Crie uma instância primeiro." }, 400);
     }
 
+    if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
+      const health = await syncInstanceHealth(adminClient, activeInstanceRow);
+      if (health.status !== "connected") {
+        const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+        if (reconnect.status !== "connected") {
+          const error = "Instância WhatsApp desconectada. Reconecte o chip antes de enviar.";
+          await markInstanceDisconnected(adminClient, instance_id);
+          await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error });
+          return jsonResponse({ success: false, status: reconnect.status || health.status, error, health, reconnect });
+        }
+      }
+    }
+
     // Proxy all other actions to bridge with X-Api-Key
     // IMPORTANT: never transform `phone` here. The frontend already sends
     // the fully-formed number (e.g. 5567992248348). Any normalization risks
