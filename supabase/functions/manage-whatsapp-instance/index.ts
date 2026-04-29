@@ -23,6 +23,16 @@ const isQrPendingResponse = (data: any) => {
   return Boolean(data?.requires_reconnect) || (error.includes("qr") && error.includes("preserved"));
 };
 
+const isConnectedStatus = (status: unknown) => {
+  const s = String(status || "").toLowerCase();
+  return s === "connected" || s === "open";
+};
+
+const isExplicitOfflineStatus = (status: unknown) => {
+  const s = String(status || "").toLowerCase();
+  return ["disconnected", "offline", "closed", "logged_out", "logout", "banned"].includes(s);
+};
+
 const awaitingQrResponse = (message = "Instância criada. Aguardando geração do QR Code.") =>
   jsonResponse({
     success: true,
@@ -106,11 +116,20 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
   });
 
   const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-  const status = rawStatus === "connected" || rawStatus === "open"
+  const wasConnected = isConnectedStatus(inst.status);
+  let status = isConnectedStatus(rawStatus)
     ? "connected"
     : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr"
       ? "connecting"
-      : "disconnected";
+      : isExplicitOfflineStatus(rawStatus)
+        ? "disconnected"
+        : (inst.status || "disconnected");
+
+  // Health checks can briefly report "connecting" while the WhatsApp session is still usable.
+  // Preserve a previously connected chip unless the bridge explicitly confirms an offline/logout state.
+  if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus) && !isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+    status = "connected";
+  }
 
   const updates: any = {
     status,
@@ -120,7 +139,10 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
     || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
   if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
   if (status === "connected" && !inst.connected_since) updates.connected_since = new Date().toISOString();
-  if (status !== "connected") updates.connected_since = null;
+  if (status === "disconnected") {
+    updates.connected_since = null;
+    updates.last_disconnected_at = new Date().toISOString();
+  }
 
   await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
   return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
