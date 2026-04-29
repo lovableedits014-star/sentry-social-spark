@@ -750,7 +750,7 @@ Deno.serve(async (req) => {
         if (reconnect.status !== "connected") {
           const error = "Instância WhatsApp desconectada. Reconecte o chip antes de enviar.";
           const bridgeState = String(reconnect.details?.status || reconnect.details?.instance?.status || health.details?.status || health.details?.instance?.status || "").toLowerCase();
-          if (isExplicitOfflineStatus(bridgeState) || isInvalidApiKeyResponse(0, reconnect.details) || isInvalidApiKeyResponse(0, health.details)) {
+          if (isExplicitOfflineStatus(bridgeState)) {
             await markInstanceDisconnected(adminClient, instance_id);
           }
           await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error });
