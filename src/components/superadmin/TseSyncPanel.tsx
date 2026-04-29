@@ -19,6 +19,8 @@ export default function TseSyncPanel() {
   const [locais, setLocais] = useState<LocalRow[]>([]);
   const [importing, setImporting] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [importingLocais, setImportingLocais] = useState(false);
+  const [municipio, setMunicipio] = useState("");
   const [uf, setUf] = useState("MS");
   const [ano, setAno] = useState<number>(2024);
 
@@ -105,6 +107,25 @@ export default function TseSyncPanel() {
       toast.error("Falha no geocoding", { description: e?.message || String(e) });
     } finally {
       setGeocoding(false);
+    }
+  };
+
+  const importLocais = async () => {
+    setImportingLocais(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("import-tse-locais", {
+        body: { uf, ano, municipio: municipio.trim() || undefined },
+      });
+      if (error) throw error;
+      const d = data as any;
+      toast.success(`Locais TSE importados`, {
+        description: `${d?.inserted ?? "?"} locais (${d?.unique ?? "?"} únicos) — ${municipio || "todos os municípios"}/${uf}`,
+      });
+      await load();
+    } catch (e: any) {
+      toast.error("Falha ao importar locais", { description: e?.message || String(e) });
+    } finally {
+      setImportingLocais(false);
     }
   };
 
@@ -208,6 +229,30 @@ export default function TseSyncPanel() {
           <p className="text-[11px] text-slate-500">
             Baixa os resultados oficiais por zona do TSE. Pode demorar alguns minutos. Após importar zonas de 2024, rode o geocoding abaixo para vincular cada local a um bairro real.
           </p>
+
+          <div className="border-t border-slate-700 pt-3 mt-3 space-y-2">
+            <h5 className="text-white text-xs font-semibold flex items-center gap-2">
+              <MapPin className="w-3.5 h-3.5" /> Importar locais de votação (escolas/endereços)
+            </h5>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <div>
+                <Label className="text-xs text-slate-400">Município (opcional — vazio = toda a UF)</Label>
+                <Input
+                  placeholder="Ex.: ANGÉLICA"
+                  value={municipio}
+                  onChange={(e) => setMunicipio(e.target.value)}
+                  className="bg-slate-800 border-slate-600 text-white"
+                />
+              </div>
+              <Button onClick={importLocais} disabled={importingLocais} variant="secondary">
+                {importingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Importar locais {uf}/{ano}
+              </Button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Sem locais cadastrados, o geocoding não tem o que processar. Rode esta etapa para qualquer cidade nova antes de "Geocodar bairros".
+            </p>
+          </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="secondary" onClick={() => runGeocode(false)} disabled={geocoding}>
