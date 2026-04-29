@@ -340,9 +340,9 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const bridgeToken = Deno.env.get("WHATSAPP_BRIDGE_TOKEN");
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
-    });
+    const userClient = createClient(supabaseUrl, anonKey, authHeader ? {
+      global: { headers: { Authorization: authHeader } },
+    } : {});
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
 
     if ((authErr || !user) && !cronRequested) {
