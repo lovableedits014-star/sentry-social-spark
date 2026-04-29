@@ -1368,6 +1368,11 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
+                {conteudos._roteiro_warning && (
+                  <div className="p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs">
+                    ⚠️ {conteudos._roteiro_warning}
+                  </div>
+                )}
                 <RoteiroEstrategicoView
                   paradas={conteudos.roteiro_estrategico || []}
                   resumoVisita={conteudos.roteiro_visita}
