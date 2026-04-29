@@ -815,8 +815,9 @@ const NarrativaPolitica = () => {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                disabled={!municipio || runPipeline.isPending}
+                disabled={!municipio || runPipeline.isPending || tseChecking || !!tseStatus?.bloqueado}
                 onClick={() => runPipeline.mutate({ uf, municipio })}
+                title={tseStatus?.bloqueado ? "Sem dados zonais TSE para esta cidade" : undefined}
               >
                 {runPipeline.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
                 Gerar / atualizar dossiê
@@ -826,7 +827,36 @@ const NarrativaPolitica = () => {
                   Coletando IBGE, TSE e mídia… isso pode levar até 30s.
                 </span>
               )}
+              {!runPipeline.isPending && municipio && tseChecking && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Checando dados TSE…
+                </span>
+              )}
             </div>
+
+            {municipio && !tseChecking && tseStatus?.bloqueado && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 text-destructive p-3 text-xs space-y-1">
+                <div className="font-semibold flex items-center gap-1.5">
+                  ⚠️ Dados zonais TSE indisponíveis para {municipio}/{uf}
+                </div>
+                <div className="text-destructive/90">
+                  {tseStatus.zonas === 0
+                    ? "Nenhum resultado por zona eleitoral foi importado para esta cidade."
+                    : `Zonas importadas (${tseStatus.zonas}), mas nenhum local tem bairro geocodado.`}
+                  {" "}Sem isso, o roteiro estratégico não pode ser gerado com bairros reais.
+                </div>
+                <div className="text-destructive/80">
+                  Peça ao Super-Admin para sincronizar em <b>Super-Admin → Sincronização TSE</b> (importar resultados {uf}/2024 e rodar geocoding).
+                </div>
+              </div>
+            )}
+
+            {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && tseStatus.avisoLeve && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-2 text-[11px]">
+                Apenas {tseStatus.pctBairro}% dos locais ({tseStatus.comBairro}/{tseStatus.locais}) têm bairro geocodado — o roteiro pode ficar curto. Considere rodar mais lotes de geocoding.
+              </div>
+            )}
+
             <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
               ℹ️ Todos os indicadores são <b>oficiais</b> (IBGE, INEP, DataSUS, Tesouro Nacional). 
               Alguns (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos próprios órgãos competentes. 
