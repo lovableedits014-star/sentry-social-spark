@@ -174,7 +174,18 @@ async function fetchMediaEstadual(uf: string) {
 }
 
 /* ----------------- TSE local (do nosso banco) ----------------- */
-async function fetchTseLocal(supa: any, uf: string, municipio: string) {
+/**
+ * Busca dados TSE da cidade.
+ * @param refCandidato Candidato de referência escolhido pelo usuário.
+ *   Quando informado, calcula pct desse candidato (em qualquer cargo) por zona.
+ *   Quando ausente, usa o vencedor 2024 do cargo Prefeito (comportamento legado).
+ */
+async function fetchTseLocal(
+  supa: any,
+  uf: string,
+  municipio: string,
+  refCandidato?: { nome?: string | null; cargo?: string | null; ano?: number | null } | null,
+) {
   // Busca paginada — cidades grandes (ex.: Campo Grande tem >6k linhas)
   // estouravam o limite default e perdiam justamente Prefeito 2024.
   const PAGE = 1000;
@@ -230,22 +241,42 @@ async function fetchTseLocal(supa: any, uf: string, municipio: string) {
     .slice(0, 8)
     .map(([partido, votos]) => ({ partido, votos }));
 
-  // Performance do prefeito eleito 2024 POR ZONA — base do "Top locais críticos"
-  const prefeito2024 = (zonaRows as any[]).filter(
-    (r) => r.ano === 2024 && /prefeito/i.test(r.cargo) && r.zona != null,
-  );
-  const eleito2024Key = (() => {
-    const pref = top.find((b) => b.ano === 2024 && /prefeito/i.test(b.cargo));
-    return pref?.top?.[0]?.nome || null;
-  })();
+  // Performance do CANDIDATO DE REFERÊNCIA por zona — base do "Top locais críticos".
+  // Se o usuário escolheu um candidato no perfil, usa ele (qualquer cargo).
+  // Caso contrário, cai no comportamento legado: vencedor de Prefeito 2024.
+  const norm = (s: string | null | undefined) =>
+    String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-  // Soma por zona: votos do eleito vs total da zona
+  let refAno: number;
+  let refCargoRegex: RegExp;
+  let refNome: string | null;
+  let refOrigem: "manual" | "auto-prefeito-2024";
+
+  if (refCandidato?.nome && refCandidato?.cargo) {
+    refAno = Number(refCandidato.ano) || 2024;
+    refCargoRegex = new RegExp(`^${refCandidato.cargo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    refNome = refCandidato.nome;
+    refOrigem = "manual";
+  } else {
+    refAno = 2024;
+    refCargoRegex = /prefeito/i;
+    const pref = top.find((b) => b.ano === 2024 && /prefeito/i.test(b.cargo));
+    refNome = pref?.top?.[0]?.nome || null;
+    refOrigem = "auto-prefeito-2024";
+  }
+
+  const refRows = (zonaRows as any[]).filter(
+    (r) => r.ano === refAno && refCargoRegex.test(r.cargo) && r.zona != null,
+  );
+  const refNomeNorm = norm(refNome);
+
+  // Soma por zona: votos do candidato de referência vs total daquela zona naquele cargo/ano
   const porZona = new Map<number, { votos_eleito: number; votos_total: number }>();
-  for (const r of prefeito2024) {
+  for (const r of refRows) {
     const z = Number(r.zona);
     const cur = porZona.get(z) || { votos_eleito: 0, votos_total: 0 };
     cur.votos_total += Number(r.votos || 0);
-    if (eleito2024Key && (r.nome_completo === eleito2024Key || r.nome_urna === eleito2024Key)) {
+    if (refNomeNorm && (norm(r.nome_completo) === refNomeNorm || norm(r.nome_urna) === refNomeNorm)) {
       cur.votos_eleito += Number(r.votos || 0);
     }
     porZona.set(z, cur);
@@ -292,7 +323,13 @@ async function fetchTseLocal(supa: any, uf: string, municipio: string) {
     total_registros: zonaRows.length,
     top_por_cargo_ano: top,
     partidos_dominantes: partidosOrdenados,
-    eleito_prefeito_2024: eleito2024Key,
+    eleito_prefeito_2024: refOrigem === "auto-prefeito-2024" ? refNome : null,
+    candidato_referencia: {
+      nome: refNome,
+      cargo: refCandidato?.cargo || "Prefeito",
+      ano: refAno,
+      origem: refOrigem,
+    },
     desempenho_zonas,
     locais_criticos: locaisCriticos,
   };
