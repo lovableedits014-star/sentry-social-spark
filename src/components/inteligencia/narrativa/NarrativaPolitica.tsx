@@ -489,105 +489,49 @@ function buildDossiePdf(dossie: any, download = true) {
     }
   }
 
-  // ROTEIRO DE VISITA
-  // Roteiro estratégico (paradas) — versão Onda 2
-  const paradas: any[] = Array.isArray(c.roteiro_estrategico) ? [...c.roteiro_estrategico].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) : [];
-  if (paradas.length > 0) {
+  // CURIOSIDADES & CULTURA LOCAL
+  const curiosidades: any[] = Array.isArray(c.curiosidades_locais) ? c.curiosidades_locais : [];
+  if (curiosidades.length > 0) {
     y += 12;
-    sectionTitle("Roteiro Estratégico — Agenda de Campanha", C.success);
-    const totalMin = paradas.reduce((s, p) => s + (Number(p.duracao_min) || 0), 0);
-    paragraph(`${paradas.length} paradas · ~${Math.floor(totalMin / 60)}h ${totalMin % 60}min de campanha.`, { size: 9, color: C.muted });
+    sectionTitle("Curiosidades & Cultura Local", C.success);
+    paragraph(
+      `${curiosidades.length} fatos sobre a cidade — use para chegar conhecendo o lugar (cultura, história, personalidades, gastronomia).`,
+      { size: 9, color: C.muted },
+    );
     y += 4;
 
-    for (const p of paradas) {
-      ensure(110);
-      // cabeçalho da parada
+    for (const k of curiosidades) {
+      ensure(80);
+      // cabeçalho da curiosidade
       setFill(C.primary);
       doc.roundedRect(margin, y, contentW, 22, 3, 3, "F");
       setText(C.white);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(`PARADA ${p.ordem || "?"} · ${(p.bairro || "—").toUpperCase()}`, margin + 10, y + 14);
+      doc.setFontSize(10);
+      doc.text(String(k.titulo || "—").toUpperCase(), margin + 10, y + 14);
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`${p.duracao_min || "?"}min`, pageW - margin - 10, y + 14, { align: "right" });
+      doc.setFontSize(8);
+      doc.text(String(k.categoria || "").toUpperCase(), pageW - margin - 10, y + 14, { align: "right" });
       y += 28;
 
-      // local + área
-      setText(C.muted);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const localTxt = `${p.local || "—"}  |  ${(AREA_LABEL[p.area_dor] || p.area_dor || "—")}  |  Emoção: ${p.emocao || "—"}`;
-      doc.text(doc.splitTextToSize(localTxt, contentW), margin, y);
-      y += 14;
+      // fato
+      paragraph(k.fato || "—", { size: 9 });
 
-      // objetivo
-      paragraph(`Objetivo: ${p.objetivo || "—"}`, { size: 9 });
-
-      // fala-chave (destaque)
-      ensure(40);
-      setFill([239, 246, 255]); // azul muito claro
+      // uso político (destaque)
+      ensure(36);
+      setFill([239, 246, 255]);
       setStroke(C.accent);
-      doc.roundedRect(margin, y, contentW, 32, 3, 3, "FD");
+      doc.roundedRect(margin, y, contentW, 30, 3, 3, "FD");
       setText(C.accent);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text("FALA-CHAVE", margin + 8, y + 12);
+      doc.setFontSize(7);
+      doc.text("COMO USAR NA CAMPANHA", margin + 8, y + 11);
       setText(C.primary);
       doc.setFont("helvetica", "italic");
-      doc.setFontSize(10);
-      const falaWrap = doc.splitTextToSize(`"${p.fala_chave || "—"}"`, contentW - 16);
-      doc.text(falaWrap[0] || "", margin + 8, y + 26);
-      y += 38;
-
-      // imagem sugerida
-      paragraph(`Foto sugerida: ${p.imagem_sugerida || "—"}`, { size: 8, color: C.muted });
-      y += 8;
-    }
-  }
-
-  // ROTEIRO DE VISITA (síntese — legado)
-  if (c.roteiro_visita && paradas.length === 0) {
-    y += 12;
-    sectionTitle("Roteiro de Visita", C.success);
-    const r = c.roteiro_visita;
-    ensure(140);
-    setFill(C.light);
-    setStroke(C.border);
-    doc.roundedRect(margin, y, contentW, 120, 6, 6, "FD");
-    const inner = margin + 14;
-    let yi = y + 20;
-    const kv = (k: string, v: string) => {
-      setText(C.muted);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(k.toUpperCase(), inner, yi);
-      setText(C.primary);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const wrapped = doc.splitTextToSize(v || "—", contentW - 28);
-      doc.text(wrapped[0] || "—", inner, yi + 12);
-      yi += 28;
-    };
-    kv("Foco", r.foco || "—");
-    kv("Bairro sugerido", r.bairro_sugerido || "—");
-    kv("Mensagem central", r.mensagem_central || "—");
-    kv("Chamada para ação", r.chamada_acao || "—");
-    y += 130;
-
-    if (r.primeira_frase) {
-      ensure(40);
-      setFill(C.primary);
-      doc.roundedRect(margin, y, contentW, 38, 4, 4, "F");
-      setText(C.white);
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text("PRIMEIRA FRASE", margin + 12, y + 14);
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(11);
-      const fr = doc.splitTextToSize(`"${r.primeira_frase}"`, contentW - 28);
-      doc.text(fr[0] || "", margin + 12, y + 30);
-      y += 48;
+      const usoWrap = doc.splitTextToSize(String(k.uso_politico || "—"), contentW - 16);
+      doc.text(usoWrap[0] || "", margin + 8, y + 24);
+      y += 38;
     }
   }
 
