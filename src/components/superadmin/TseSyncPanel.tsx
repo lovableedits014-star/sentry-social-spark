@@ -53,10 +53,8 @@ export default function TseSyncPanel() {
   const [geocoding, setGeocoding] = useState(false);
   const [importingLocais, setImportingLocais] = useState(false);
   const [municipio, setMunicipio] = useState("");
-  // Upload — Locais
-  const [zipFileLocais, setZipFileLocais] = useState<File | null>(null);
-  const [uploadingLocais, setUploadingLocais] = useState(false);
-  const [uploadedPathLocais, setUploadedPathLocais] = useState<string | null>(null);
+  // Importação local — Locais
+  const [csvFileLocais, setCsvFileLocais] = useState<File | null>(null);
   // Upload — Resultados (zonas)
   const [zipFileResultados, setZipFileResultados] = useState<File | null>(null);
   const [uploadingResultados, setUploadingResultados] = useState(false);
@@ -156,28 +154,19 @@ export default function TseSyncPanel() {
   };
 
   const importLocais = async () => {
-    if (!zipFileLocais) {
+    if (!csvFileLocais) {
       toast.error("Selecione o CSV da UF", { description: "Extraia o ZIP do TSE no seu computador e selecione o arquivo .csv da UF." });
       return;
     }
     setImportingLocais(true);
     try {
-      const text = await zipFileLocais.text();
-      const allLines = text.split(/\r?\n/);
-      const headerLine = allLines.shift();
-      if (!headerLine) throw new Error("CSV vazio.");
-
-      const header = parseCsvLine(headerLine).map((h) => cleanCsvValue(h).toUpperCase());
-      const idx = (name: string) => header.indexOf(name);
-      const I = {
-        UF: idx("SG_UF"), COD_MUN: idx("CD_MUNICIPIO"), MUN: idx("NM_MUNICIPIO"), ZONA: idx("NR_ZONA"),
-        LOCAL: idx("NR_LOCAL_VOTACAO"), NOME: idx("NM_LOCAL_VOTACAO"), END: idx("DS_ENDERECO"), BAIRRO: idx("NM_BAIRRO"),
-      };
-      const missing = Object.entries(I).filter(([, v]) => v === -1).map(([k]) => k);
-      if (missing.length) throw new Error(`CSV de locais inválido. Colunas ausentes: ${missing.join(", ")}`);
-
+      const decoder = new TextDecoder("iso-8859-1");
+      const reader = csvFileLocais.stream().getReader();
       const munFiltro = municipio.trim() ? norm(municipio) : null;
       const batch = new Map<string, LocalImportRow>();
+      let buffer = "";
+      let headerParsed = false;
+      let indexes: Record<"UF" | "COD_MUN" | "MUN" | "ZONA" | "LOCAL" | "NOME" | "END" | "BAIRRO", number> | null = null;
       let totalInserted = 0;
       let scanned = 0;
       let matched = 0;
@@ -196,17 +185,31 @@ export default function TseSyncPanel() {
         totalInserted += (data as any)?.inserted ?? rows.length;
       };
 
-      for (const line of allLines) {
-        if (!line.trim()) continue;
+      const processLine = async (line: string) => {
+        if (!line.trim()) return;
+        if (!headerParsed) {
+          const header = parseCsvLine(line).map((h) => cleanCsvValue(h).toUpperCase());
+          const idx = (name: string) => header.indexOf(name);
+          indexes = {
+            UF: idx("SG_UF"), COD_MUN: idx("CD_MUNICIPIO"), MUN: idx("NM_MUNICIPIO"), ZONA: idx("NR_ZONA"),
+            LOCAL: idx("NR_LOCAL_VOTACAO"), NOME: idx("NM_LOCAL_VOTACAO"), END: idx("DS_ENDERECO"), BAIRRO: idx("NM_BAIRRO"),
+          };
+          const missing = Object.entries(indexes).filter(([, v]) => v === -1).map(([k]) => k);
+          if (missing.length) throw new Error(`CSV de locais inválido. Colunas ausentes: ${missing.join(", ")}`);
+          headerParsed = true;
+          return;
+        }
+
+        const I = indexes!;
         scanned++;
         const cols = parseCsvLine(line);
         const munNome = cleanCsvValue(cols[I.MUN]);
-        if (munFiltro && norm(munNome) !== munFiltro) continue;
+        if (munFiltro && norm(munNome) !== munFiltro) return;
 
         const codMunicipio = Number.parseInt(cleanCsvValue(cols[I.COD_MUN]), 10);
         const zona = Number.parseInt(cleanCsvValue(cols[I.ZONA]), 10);
         const nrLocal = Number.parseInt(cleanCsvValue(cols[I.LOCAL]), 10);
-        if (!codMunicipio || !zona || !nrLocal) continue;
+        if (!codMunicipio || !zona || !nrLocal) return;
 
         const bairroRaw = cleanCsvValue(cols[I.BAIRRO]);
         const bairro = !bairroRaw || /^(SEM INFORMA|NAO INFORMA|N\/?I|N\/?D)/i.test(bairroRaw) ? null : bairroRaw;
@@ -220,12 +223,23 @@ export default function TseSyncPanel() {
         });
         matched++;
 
-        if (batch.size >= CSV_LOCAL_BATCH) {
-          await flush();
-        }
+        if (batch.size >= CSV_LOCAL_BATCH) await flush();
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/?
+/);
+        buffer = lines.pop() || "";
+        for (const line of lines) await processLine(line);
       }
+      buffer += decoder.decode();
+      if (buffer) await processLine(buffer);
       await flush();
 
+      if (!headerParsed) throw new Error("CSV vazio.");
       toast.success("Locais TSE importados", {
         description: `${totalInserted.toLocaleString("pt-BR")} locais gravados de ${matched.toLocaleString("pt-BR")} encontrados (${scanned.toLocaleString("pt-BR")} linhas lidas).`,
       });
