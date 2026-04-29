@@ -2159,6 +2159,13 @@ export type Database = {
           partido: string | null
           proposta_central: string | null
           publico_alvo: string | null
+          ref_ano: number | null
+          ref_cargo: string | null
+          ref_lado: string | null
+          ref_municipio: string | null
+          ref_nome: string | null
+          ref_partido: string | null
+          ref_uf: string | null
           tom_voz: string | null
           updated_at: string
         }
@@ -2174,6 +2181,13 @@ export type Database = {
           partido?: string | null
           proposta_central?: string | null
           publico_alvo?: string | null
+          ref_ano?: number | null
+          ref_cargo?: string | null
+          ref_lado?: string | null
+          ref_municipio?: string | null
+          ref_nome?: string | null
+          ref_partido?: string | null
+          ref_uf?: string | null
           tom_voz?: string | null
           updated_at?: string
         }
@@ -2189,6 +2203,13 @@ export type Database = {
           partido?: string | null
           proposta_central?: string | null
           publico_alvo?: string | null
+          ref_ano?: number | null
+          ref_cargo?: string | null
+          ref_lado?: string | null
+          ref_municipio?: string | null
+          ref_nome?: string | null
+          ref_partido?: string | null
+          ref_uf?: string | null
           tom_voz?: string | null
           updated_at?: string
         }
