@@ -363,13 +363,26 @@ Deno.serve(async (req) => {
       if (!isAuthenticatedUser && !validKeepalive) {
         return jsonResponse({ success: false, error: "Unauthorized keepalive" }, 401);
       }
+      let allowedClientId: string | null = null;
+      if (isAuthenticatedUser) {
+        const requestedClientId = typeof client_id === "string" ? client_id : null;
+        if (!requestedClientId) return jsonResponse({ success: false, error: "client_id obrigatório" }, 400);
+        const { data: ownedClient } = await adminClient
+          .from("clients")
+          .select("id")
+          .eq("id", requestedClientId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!ownedClient) return jsonResponse({ success: false, error: "Cliente não autorizado" }, 403);
+        allowedClientId = ownedClient.id;
+      }
       let query = adminClient
         .from("whatsapp_instances")
         .select("id, bridge_api_key, status, connected_since, is_active")
         .eq("is_active", true)
         .not("bridge_api_key", "is", null)
         .limit(50);
-      if (isAuthenticatedUser && client_id) query = query.eq("client_id", client_id);
+      if (isAuthenticatedUser && allowedClientId) query = query.eq("client_id", allowedClientId);
       const { data: rows, error } = await query;
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
       const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
