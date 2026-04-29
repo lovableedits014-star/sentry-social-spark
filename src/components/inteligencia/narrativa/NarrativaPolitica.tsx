@@ -357,7 +357,7 @@ function buildDossiePdf(dossie: any, download = true) {
         const cmp = e.valor_estado != null
           ? ` vs ${Number(e.valor_estado).toFixed(2)} (média ${uf}, ${e.delta_pct > 0 ? "+" : ""}${Number(e.delta_pct ?? 0).toFixed(1)}%)`
           : "";
-        const txt = `• ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
+        const txt = `- ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
         const anoFonte = e.ano ? ` · Última atualização oficial: ${e.ano}` : "";
         const src = `   Fonte: ${e.fonte || "—"}${anoFonte}`;
         paragraph(txt, { size: 9 });
@@ -448,11 +448,26 @@ function buildDossiePdf(dossie: any, download = true) {
   }
 
   // MANCHETES
+  // IMPORTANTE: a fonte Helvetica padrão do jsPDF NÃO tem glifos para
+  // caracteres unicode "decorativos" (▸ ▶ • → etc). Quando usados, o jsPDF
+  // renderiza lixo (ex.: "%¸") E calcula a largura errada — por isso o texto
+  // vazava pela margem direita. Usamos ">" puro (ASCII) para manter o layout
+  // correto e o wrap do splitTextToSize confiável.
   if ((c.manchetes_reels || []).length > 0) {
     y += 8;
     sectionTitle("Manchetes / Reels Sugeridos", C.accent);
     for (const m of c.manchetes_reels) {
-      paragraph(`▸ ${m}`, { size: 10 });
+      // Indenta a continuação visualmente reservando o "> " como prefixo do bloco.
+      const linhas = doc.splitTextToSize(`> ${m}`, contentW);
+      setText(C.text);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      for (const ln of linhas) {
+        ensure(14);
+        doc.text(ln, margin, y);
+        y += 14;
+      }
+      y += 2;
     }
   }
 
