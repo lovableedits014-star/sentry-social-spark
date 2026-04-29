@@ -178,17 +178,28 @@ function calcularDores(dadosBrutos: any) {
 }
 
 function calcularOportunidade(dores: any[], dadosBrutos: any) {
-  // Identifica a "força" do prefeito atual a partir de candidatos top 2024 cargo prefeito
+  // Identifica a "força" do CANDIDATO DE REFERÊNCIA (escolhido pelo usuário, ou
+  // o vencedor de Prefeito 2024 como fallback). Usado para medir oportunidade.
   const tse = dadosBrutos?.tse_local;
   let forca_gestor: number | null = null;
   if (tse && !tse.vazio) {
-    const prefeito2024 = (tse.top_por_cargo_ano || []).find(
-      (b: any) => b.ano === 2024 && /prefeito/i.test(b.cargo),
+    const ref = tse.candidato_referencia || null;
+    const refAno = ref?.ano || 2024;
+    const refCargoRegex = ref?.cargo
+      ? new RegExp(`^${String(ref.cargo).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+      : /prefeito/i;
+    const norm = (s: any) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const refNomeNorm = norm(ref?.nome);
+
+    const bloco = (tse.top_por_cargo_ano || []).find(
+      (b: any) => b.ano === refAno && refCargoRegex.test(b.cargo),
     );
-    if (prefeito2024 && prefeito2024.top.length > 0) {
-      const eleito = prefeito2024.top[0];
-      const total = prefeito2024.top.reduce((s: number, c: any) => s + c.votos, 0);
-      forca_gestor = total > 0 ? Math.round((eleito.votos / total) * 100) : null;
+    if (bloco && bloco.top.length > 0) {
+      const total = bloco.top.reduce((s: number, c: any) => s + c.votos, 0);
+      // Prefere encontrar o candidato escolhido na lista; se não achar (votação muito
+      // diluída em vereador, p.ex.), cai no top1 como antes.
+      const alvo = (refNomeNorm && bloco.top.find((c: any) => norm(c.nome) === refNomeNorm)) || bloco.top[0];
+      forca_gestor = total > 0 ? Math.round((alvo.votos / total) * 100) : null;
     }
   }
 
@@ -219,6 +230,11 @@ function topLocaisCriticos(dadosBrutos: any) {
   const locais: any[] = tse.locais_criticos || [];
   if (locais.length === 0) return [];
 
+  // Rótulo do candidato a usar nas mensagens (ex.: "João da Silva")
+  const refNome = tse.candidato_referencia?.nome
+    || tse.eleito_prefeito_2024
+    || "candidato escolhido";
+
   // Agrupa por bairro (quando existe) — pega o local "âncora" por bairro
   const porBairro = new Map<string, any>();
   const semBairro: any[] = [];
@@ -248,8 +264,8 @@ function topLocaisCriticos(dadosBrutos: any) {
       endereco: l.endereco,
       pct_eleito_zona: l.pct_eleito_zona,
       motivo: l.pct_eleito_zona != null
-        ? `Prefeito eleito teve só ${l.pct_eleito_zona}% dos votos nesta zona — abaixo da média municipal`
-        : "Zona sem dado consolidado de desempenho do incumbente",
+        ? `${refNome} teve ${l.pct_eleito_zona}% dos votos nesta zona`
+        : `Zona sem dado consolidado de desempenho de ${refNome}`,
     }));
 
   return ranked;
