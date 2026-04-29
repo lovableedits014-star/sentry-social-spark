@@ -188,12 +188,20 @@ async function tryReconnectInstance(adminClient: any, inst: any) {
     body: { action: "reconnect" },
   });
   const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-  const status = rawStatus === "connected" || rawStatus === "open" ? "connected" : "connecting";
+  const wasConnected = isConnectedStatus(inst.status);
+  let status = isConnectedStatus(rawStatus) ? "connected" : isExplicitOfflineStatus(rawStatus) ? "disconnected" : "connecting";
+  if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus) && !isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+    status = "connected";
+  }
   const updates: any = { status, last_health_check_at: new Date().toISOString() };
   const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
     || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
   if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
   if (status === "connected") updates.connected_since = new Date().toISOString();
+  if (status === "disconnected") {
+    updates.connected_since = null;
+    updates.last_disconnected_at = new Date().toISOString();
+  }
   await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
   return { id: inst.id, reconnected: status === "connected", status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
 }
