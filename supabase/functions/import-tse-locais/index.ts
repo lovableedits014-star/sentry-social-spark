@@ -4,7 +4,7 @@
 // Os votos por local vêm de outras fontes; aqui o objetivo é ter o universo de
 // locais para o geocoding de bairros funcionar em qualquer cidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BlobReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { BlobReader, ZipReader, Uint8ArrayWriter, TextWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
 configure({ useWebWorkers: false });
 
@@ -35,8 +35,11 @@ function parseCsvLine(line: string): string[] {
 const decodeLatin1 = (b: Uint8Array) => new TextDecoder("iso-8859-1").decode(b);
 const norm = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
+const MAX_RUNTIME_MS = 50_000; // dentro do limite da edge function
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const startedAt = Date.now();
   try {
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -53,10 +56,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Apenas o Super-Admin pode importar locais TSE." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { ano = 2024, uf = "MS", municipio, storage_path } = await req.json().catch(() => ({}));
+    const { ano = 2024, uf = "MS", municipio, storage_path, resume_after } = await req.json().catch(() => ({}));
     const anoNum = Number(ano);
     const ufStr = String(uf).toUpperCase();
     const munFiltro = municipio ? norm(String(municipio)) : null;
+    const resumeAfter = typeof resume_after === "number" ? resume_after : 0;
     if (![2018, 2020, 2022, 2024].includes(anoNum)) {
       return new Response(JSON.stringify({ error: "Ano inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -78,16 +82,32 @@ Deno.serve(async (req) => {
       await reader.close();
       return new Response(JSON.stringify({ error: `CSV da UF ${ufStr} não encontrado`, files: entries.map((e: any) => e.filename) }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    console.log("Extraindo:", target.filename, target.uncompressedSize, "bytes");
-    const buf: Uint8Array = await target.getData!(new Uint8ArrayWriter());
+    console.log("Extraindo:", target.filename, target.uncompressedSize, "bytes (stream)");
+    // Decodifica como texto direto pelo zip.js — evita criar Uint8Array gigante
+    const text: string = await target.getData!(new TextWriter("iso-8859-1"));
     await reader.close();
-    const text = decodeLatin1(buf);
+    console.log("Texto extraído:", text.length, "chars");
 
-    const lines = text.split(/\r?\n/);
-    if (lines.length < 2) {
+    // Itera linha-a-linha SEM split() — split de string gigante explode memória
+    let lineStart = 0;
+    let headerCols: string[] | null = null;
+    let lineNum = 0;
+
+    const getNextLine = (): string | null => {
+      if (lineStart >= text.length) return null;
+      let nl = text.indexOf("\n", lineStart);
+      if (nl === -1) nl = text.length;
+      const line = text.substring(lineStart, nl).replace(/\r$/, "");
+      lineStart = nl + 1;
+      return line;
+    };
+
+    const headerLine = getNextLine();
+    if (!headerLine) {
       return new Response(JSON.stringify({ error: "CSV vazio" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const header = parseCsvLine(lines[0]).map((h) => h.trim().toUpperCase().replace(/^"|"$/g, ""));
+    headerCols = parseCsvLine(headerLine).map((h) => h.trim().toUpperCase().replace(/^"|"$/g, ""));
+    const header = headerCols;
     const idx = (n: string) => header.indexOf(n);
     const I = {
       UF: idx("SG_UF"),
@@ -107,9 +127,34 @@ Deno.serve(async (req) => {
     type Row = { ano: number; turno: number; cargo: string; cod_municipio: number; municipio: string; uf: string; zona: number; nr_local: number; nome_local: string | null; endereco: string | null; numero: number; nome_candidato: string | null; votos: number; bairro: string | null };
     const map = new Map<string, Row>();
     let scanned = 0; let matched = 0;
-    for (const line of lines.slice(1)) {
+    let inserted = 0; let failed = 0;
+    let timedOut = false;
+    const BATCH = 500;
+
+    const flush = async () => {
+      if (map.size === 0) return;
+      const slice = Array.from(map.values());
+      map.clear();
+      const { error } = await admin
+        .from("tse_votacao_local")
+        .upsert(slice, { onConflict: "ano,turno,cargo,cod_municipio,zona,nr_local,numero" });
+      if (error) { console.error("Erro lote", error.message); failed += slice.length; }
+      else inserted += slice.length;
+    };
+
+    let line: string | null;
+    while ((line = getNextLine()) !== null) {
+      lineNum++;
+      if (lineNum <= resumeAfter) continue;
       if (!line.trim()) continue;
       scanned++;
+
+      // Checa timeout periodicamente (a cada 1000 linhas pra não pesar)
+      if (scanned % 1000 === 0 && Date.now() - startedAt > MAX_RUNTIME_MS) {
+        timedOut = true;
+        break;
+      }
+
       const cols = parseCsvLine(line);
       const munNome = (cols[I.MUN] || "").replace(/"/g, "").trim();
       if (munFiltro && norm(munNome) !== munFiltro) continue;
@@ -117,12 +162,9 @@ Deno.serve(async (req) => {
       const zona = parseInt((cols[I.ZONA] || "0").replace(/"/g, ""), 10);
       const nr_local = parseInt((cols[I.LOCAL] || "0").replace(/"/g, ""), 10);
       if (!cod_mun || !zona || !nr_local) continue;
-      // Marcador: importamos como "cadastro" — cargo='CADASTRO', turno=0, numero=0, votos=0.
-      // Isso garante uniqueness sem colidir com linhas de votação reais (cargo='Prefeito' etc).
       const key = `${cod_mun}|${zona}|${nr_local}`;
       if (map.has(key)) continue;
       const bairroRaw = (cols[I.BAIRRO] || "").replace(/"/g, "").trim();
-      // Padroniza placeholders TSE como vazios
       const bairroNorm = !bairroRaw || /^(SEM INFORMA|NAO INFORMA|N\/?I|N\/?D)/i.test(bairroRaw) ? null : bairroRaw;
       map.set(key, {
         ano: anoNum,
@@ -141,21 +183,24 @@ Deno.serve(async (req) => {
         bairro: bairroNorm,
       });
       matched++;
-    }
-    console.log(`scanned=${scanned} matched=${matched} unique=${map.size}`);
 
-    const all = Array.from(map.values());
-    const BATCH = 1000; let inserted = 0; let failed = 0;
-    for (let i = 0; i < all.length; i += BATCH) {
-      const slice = all.slice(i, i + BATCH);
-      const { error } = await admin
-        .from("tse_votacao_local")
-        .upsert(slice, { onConflict: "ano,turno,cargo,cod_municipio,zona,nr_local,numero" });
-      if (error) { console.error("Erro lote", i, error.message); failed += slice.length; }
-      else inserted += slice.length;
+      // Flush incremental para liberar memória
+      if (map.size >= BATCH) {
+        await flush();
+      }
     }
 
-    return new Response(JSON.stringify({ ok: true, ano: anoNum, uf: ufStr, municipio: municipio || null, scanned, matched, unique: map.size, inserted, failed }),
+    // Flush final
+    await flush();
+    console.log(`scanned=${scanned} matched=${matched} inserted=${inserted} timedOut=${timedOut} lastLine=${lineNum}`);
+
+    return new Response(JSON.stringify({
+      ok: true, ano: anoNum, uf: ufStr, municipio: municipio || null,
+      scanned, matched, inserted, failed,
+      timed_out: timedOut,
+      last_line: lineNum,
+      hint: timedOut ? `Lote parcial — chame novamente com resume_after=${lineNum} para continuar.` : "Importação concluída.",
+    }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Erro fatal:", err);
