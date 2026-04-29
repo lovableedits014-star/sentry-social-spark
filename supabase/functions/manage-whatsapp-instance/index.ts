@@ -801,6 +801,18 @@ Deno.serve(async (req) => {
       body: proxyBody,
     });
 
+    if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
+      const failure = getSendFailure(bridgeRes.status, bridgeData);
+      if (failure) {
+        if (isInstanceDisconnectedError(bridgeRes.status, bridgeData)) {
+          await markInstanceDisconnected(adminClient, instance_id);
+        }
+        await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
+        return jsonResponse({ success: false, error: failure, details: sanitizeBridgeData(bridgeData) });
+      }
+      await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: true });
+    }
+
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
       const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
