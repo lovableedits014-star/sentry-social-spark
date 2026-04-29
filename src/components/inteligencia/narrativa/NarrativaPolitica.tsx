@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
   AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned, Star, Pencil, Check, X,
-  Route, Clock, Camera, MessageSquareQuote,
+  BookOpen, Landmark, Utensils, Music, Trophy, Church, Map as MapIcon, Lightbulb, Quote,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -134,26 +134,13 @@ function buildDossieMarkdown(dossie: any): string {
     for (const m of c.manchetes_reels) lines.push(`- ${m}`);
     lines.push("");
   }
-  if (c.roteiro_visita) {
-    lines.push(`## Roteiro de visita`);
-    lines.push(`- Foco: ${c.roteiro_visita.foco}`);
-    lines.push(`- Emoção: ${c.roteiro_visita.emocao_alvo}`);
-    lines.push(`- Bairro: ${c.roteiro_visita.bairro_sugerido}`);
-    lines.push(`- Primeira frase: "${c.roteiro_visita.primeira_frase}"`);
-    lines.push(`- Mensagem central: ${c.roteiro_visita.mensagem_central}`);
-    lines.push(`- Chamada: ${c.roteiro_visita.chamada_acao}`);
-  }
-  if (Array.isArray(c.roteiro_estrategico) && c.roteiro_estrategico.length > 0) {
+  if (Array.isArray(c.curiosidades_locais) && c.curiosidades_locais.length > 0) {
     lines.push("");
-    lines.push(`## Roteiro estratégico (paradas)`);
-    const ordenadas = [...c.roteiro_estrategico].sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
-    for (const p of ordenadas) {
-      lines.push(`### Parada ${p.ordem} — ${p.bairro} (${p.duracao_min}min)`);
-      lines.push(`- Local: ${p.local}`);
-      lines.push(`- Área de dor: ${p.area_dor} | Emoção: ${p.emocao}`);
-      lines.push(`- Objetivo: ${p.objetivo}`);
-      lines.push(`- Fala-chave: "${p.fala_chave}"`);
-      lines.push(`- Foto: ${p.imagem_sugerida}`);
+    lines.push(`## Curiosidades & Cultura Local`);
+    for (const k of c.curiosidades_locais) {
+      lines.push(`### ${k.titulo} (${k.categoria})`);
+      lines.push(`- ${k.fato}`);
+      lines.push(`- Como usar: ${k.uso_politico}`);
     }
   }
   return lines.join("\n");
@@ -502,105 +489,49 @@ function buildDossiePdf(dossie: any, download = true) {
     }
   }
 
-  // ROTEIRO DE VISITA
-  // Roteiro estratégico (paradas) — versão Onda 2
-  const paradas: any[] = Array.isArray(c.roteiro_estrategico) ? [...c.roteiro_estrategico].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) : [];
-  if (paradas.length > 0) {
+  // CURIOSIDADES & CULTURA LOCAL
+  const curiosidades: any[] = Array.isArray(c.curiosidades_locais) ? c.curiosidades_locais : [];
+  if (curiosidades.length > 0) {
     y += 12;
-    sectionTitle("Roteiro Estratégico — Agenda de Campanha", C.success);
-    const totalMin = paradas.reduce((s, p) => s + (Number(p.duracao_min) || 0), 0);
-    paragraph(`${paradas.length} paradas · ~${Math.floor(totalMin / 60)}h ${totalMin % 60}min de campanha.`, { size: 9, color: C.muted });
+    sectionTitle("Curiosidades & Cultura Local", C.success);
+    paragraph(
+      `${curiosidades.length} fatos sobre a cidade — use para chegar conhecendo o lugar (cultura, história, personalidades, gastronomia).`,
+      { size: 9, color: C.muted },
+    );
     y += 4;
 
-    for (const p of paradas) {
-      ensure(110);
-      // cabeçalho da parada
+    for (const k of curiosidades) {
+      ensure(80);
+      // cabeçalho da curiosidade
       setFill(C.primary);
       doc.roundedRect(margin, y, contentW, 22, 3, 3, "F");
       setText(C.white);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(`PARADA ${p.ordem || "?"} · ${(p.bairro || "—").toUpperCase()}`, margin + 10, y + 14);
+      doc.setFontSize(10);
+      doc.text(String(k.titulo || "—").toUpperCase(), margin + 10, y + 14);
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`${p.duracao_min || "?"}min`, pageW - margin - 10, y + 14, { align: "right" });
+      doc.setFontSize(8);
+      doc.text(String(k.categoria || "").toUpperCase(), pageW - margin - 10, y + 14, { align: "right" });
       y += 28;
 
-      // local + área
-      setText(C.muted);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const localTxt = `${p.local || "—"}  |  ${(AREA_LABEL[p.area_dor] || p.area_dor || "—")}  |  Emoção: ${p.emocao || "—"}`;
-      doc.text(doc.splitTextToSize(localTxt, contentW), margin, y);
-      y += 14;
+      // fato
+      paragraph(k.fato || "—", { size: 9 });
 
-      // objetivo
-      paragraph(`Objetivo: ${p.objetivo || "—"}`, { size: 9 });
-
-      // fala-chave (destaque)
-      ensure(40);
-      setFill([239, 246, 255]); // azul muito claro
+      // uso político (destaque)
+      ensure(36);
+      setFill([239, 246, 255]);
       setStroke(C.accent);
-      doc.roundedRect(margin, y, contentW, 32, 3, 3, "FD");
+      doc.roundedRect(margin, y, contentW, 30, 3, 3, "FD");
       setText(C.accent);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text("FALA-CHAVE", margin + 8, y + 12);
+      doc.setFontSize(7);
+      doc.text("COMO USAR NA CAMPANHA", margin + 8, y + 11);
       setText(C.primary);
       doc.setFont("helvetica", "italic");
-      doc.setFontSize(10);
-      const falaWrap = doc.splitTextToSize(`"${p.fala_chave || "—"}"`, contentW - 16);
-      doc.text(falaWrap[0] || "", margin + 8, y + 26);
-      y += 38;
-
-      // imagem sugerida
-      paragraph(`Foto sugerida: ${p.imagem_sugerida || "—"}`, { size: 8, color: C.muted });
-      y += 8;
-    }
-  }
-
-  // ROTEIRO DE VISITA (síntese — legado)
-  if (c.roteiro_visita && paradas.length === 0) {
-    y += 12;
-    sectionTitle("Roteiro de Visita", C.success);
-    const r = c.roteiro_visita;
-    ensure(140);
-    setFill(C.light);
-    setStroke(C.border);
-    doc.roundedRect(margin, y, contentW, 120, 6, 6, "FD");
-    const inner = margin + 14;
-    let yi = y + 20;
-    const kv = (k: string, v: string) => {
-      setText(C.muted);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(k.toUpperCase(), inner, yi);
-      setText(C.primary);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const wrapped = doc.splitTextToSize(v || "—", contentW - 28);
-      doc.text(wrapped[0] || "—", inner, yi + 12);
-      yi += 28;
-    };
-    kv("Foco", r.foco || "—");
-    kv("Bairro sugerido", r.bairro_sugerido || "—");
-    kv("Mensagem central", r.mensagem_central || "—");
-    kv("Chamada para ação", r.chamada_acao || "—");
-    y += 130;
-
-    if (r.primeira_frase) {
-      ensure(40);
-      setFill(C.primary);
-      doc.roundedRect(margin, y, contentW, 38, 4, 4, "F");
-      setText(C.white);
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text("PRIMEIRA FRASE", margin + 12, y + 14);
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(11);
-      const fr = doc.splitTextToSize(`"${r.primeira_frase}"`, contentW - 28);
-      doc.text(fr[0] || "", margin + 12, y + 30);
-      y += 48;
+      const usoWrap = doc.splitTextToSize(String(k.uso_politico || "—"), contentW - 16);
+      doc.text(usoWrap[0] || "", margin + 8, y + 24);
+      y += 38;
     }
   }
 
@@ -713,7 +644,10 @@ const NarrativaPolitica = () => {
       const pctBairro = locais > 0 ? Math.round((comBairro / locais) * 100) : 0;
       return {
         zonas, locais, comBairro, pctBairro,
-        bloqueado: zonas === 0 || comBairro === 0,
+        // Dados zonais TSE não são mais obrigatórios (o roteiro estratégico foi removido em favor de Curiosidades & Cultura).
+        // Mantemos como informativo apenas.
+        bloqueado: false,
+        semDados: zonas === 0 || comBairro === 0,
         avisoLeve: zonas > 0 && comBairro > 0 && pctBairro < 40,
       };
     },
@@ -878,28 +812,8 @@ const NarrativaPolitica = () => {
               )}
             </div>
 
-            {municipio && !tseChecking && tseStatus?.bloqueado && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 text-destructive p-3 text-xs space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  ⚠️ Dados zonais TSE indisponíveis para {municipio}/{uf}
-                </div>
-                <div className="text-destructive/90">
-                  {tseStatus.zonas === 0
-                    ? "Nenhum resultado por zona eleitoral foi importado para esta cidade."
-                    : `Zonas importadas (${tseStatus.zonas}), mas nenhum local tem bairro geocodado.`}
-                  {" "}Sem isso, o roteiro estratégico não pode ser gerado com bairros reais.
-                </div>
-                <div className="text-destructive/80">
-                  Peça ao Super-Admin para sincronizar em <b>Super-Admin → Sincronização TSE</b> (importar resultados {uf}/2024 e rodar geocoding).
-                </div>
-              </div>
-            )}
-
-            {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && tseStatus.avisoLeve && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-2 text-[11px]">
-                Apenas {tseStatus.pctBairro}% dos locais ({tseStatus.comBairro}/{tseStatus.locais}) têm bairro geocodado — o roteiro pode ficar curto. Considere rodar mais lotes de geocoding.
-              </div>
-            )}
+            {/* Avisos de dados zonais TSE removidos — não são mais obrigatórios desde a substituição
+                do roteiro estratégico pela seção "Curiosidades & Cultura Local". */}
 
             {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && (
               <details className="rounded-md border border-border bg-muted/30 text-xs">
@@ -1653,7 +1567,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Roteiro estratégico</TabsTrigger>
+                <TabsTrigger value="visita">Curiosidades & Cultura</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1696,15 +1610,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
-                {conteudos._roteiro_warning && (
-                  <div className="p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs">
-                    ⚠️ {conteudos._roteiro_warning}
-                  </div>
-                )}
-                <RoteiroEstrategicoView
-                  paradas={conteudos.roteiro_estrategico || []}
-                  resumoVisita={conteudos.roteiro_visita}
-                />
+                <CuriosidadesView curiosidades={conteudos.curiosidades_locais || []} />
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -1746,145 +1652,115 @@ const Stat = ({ label, value, sub }: { label: string; value: string | number; su
   </div>
 );
 
-/* ----------------- Roteiro Estratégico ----------------- */
-type ParadaRoteiro = {
-  ordem: number;
-  bairro: string;
-  local: string;
-  area_dor: string;
-  objetivo: string;
-  emocao: string;
-  fala_chave: string;
-  imagem_sugerida: string;
-  duracao_min: number;
+/* ----------------- Curiosidades & Cultura Local ----------------- */
+type Curiosidade = {
+  categoria: string;
+  titulo: string;
+  fato: string;
+  uso_politico: string;
 };
 
-const RoteiroEstrategicoView = ({
-  paradas,
-  resumoVisita,
-}: {
-  paradas: ParadaRoteiro[];
-  resumoVisita?: any;
-}) => {
-  const total = paradas.reduce((s, p) => s + (Number(p.duracao_min) || 0), 0);
-  const horas = Math.floor(total / 60);
-  const min = total % 60;
-  const duracaoLabel = total > 0 ? `${horas > 0 ? `${horas}h ` : ""}${min}min` : "—";
+const CAT_LABEL: Record<string, string> = {
+  historia: "História",
+  cultura: "Cultura",
+  economia: "Economia",
+  geografia: "Geografia",
+  personalidades: "Personalidades",
+  gastronomia: "Gastronomia",
+  religiao: "Religião",
+  esporte: "Esporte",
+  curiosidade: "Curiosidade",
+  etimologia: "Etimologia",
+};
 
-  const copiarRoteiro = () => {
-    const linhas = paradas
-      .sort((a, b) => a.ordem - b.ordem)
-      .map((p) =>
-        `Parada ${p.ordem} · ${p.bairro} (${p.local}) — ${p.duracao_min}min\n` +
-        `Dor: ${AREA_LABEL[p.area_dor] || p.area_dor} · Emoção: ${p.emocao}\n` +
-        `Objetivo: ${p.objetivo}\n` +
-        `Fala-chave: "${p.fala_chave}"\n` +
-        `Foto: ${p.imagem_sugerida}`,
-      )
-      .join("\n\n");
-    copyText(linhas);
-  };
+const CAT_ICON: Record<string, any> = {
+  historia: Landmark,
+  cultura: Music,
+  economia: Trophy,
+  geografia: MapIcon,
+  personalidades: Users,
+  gastronomia: Utensils,
+  religiao: Church,
+  esporte: Trophy,
+  curiosidade: Lightbulb,
+  etimologia: BookOpen,
+};
 
-  if (!paradas || paradas.length === 0) {
-    // Fallback para dossiês antigos sem roteiro_estrategico
-    if (!resumoVisita) {
-      return (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground text-center">
-            Roteiro estratégico não disponível para este dossiê. Gere novamente para criar a agenda de paradas.
-          </CardContent>
-        </Card>
-      );
-    }
+const CAT_COLOR: Record<string, string> = {
+  historia: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
+  cultura: "bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-400",
+  economia: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
+  geografia: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-400",
+  personalidades: "bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-400",
+  gastronomia: "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+  religiao: "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-400",
+  esporte: "bg-lime-500/10 text-lime-700 border-lime-500/30 dark:text-lime-400",
+  curiosidade: "bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-400",
+  etimologia: "bg-slate-500/10 text-slate-700 border-slate-500/30 dark:text-slate-400",
+};
+
+const CuriosidadesView = ({ curiosidades }: { curiosidades: Curiosidade[] }) => {
+  if (!curiosidades || curiosidades.length === 0) {
     return (
       <Card>
-        <CardContent className="pt-4 text-sm space-y-2">
-          <div><b>Foco:</b> {resumoVisita.foco}</div>
-          <div><b>Emoção alvo:</b> {resumoVisita.emocao_alvo}</div>
-          <div><b>Bairro sugerido:</b> {resumoVisita.bairro_sugerido}</div>
-          <Separator />
-          <div><b>Primeira frase:</b> "{resumoVisita.primeira_frase}"</div>
-          <div><b>Mensagem central:</b> {resumoVisita.mensagem_central}</div>
-          <div><b>Chamada para ação:</b> {resumoVisita.chamada_acao}</div>
+        <CardContent className="p-6 text-sm text-muted-foreground text-center">
+          Nenhuma curiosidade gerada para este dossiê. Gere novamente para que a IA monte um resumo cultural e histórico da cidade a partir da Wikipedia.
         </CardContent>
       </Card>
     );
   }
 
-  const ordenadas = [...paradas].sort((a, b) => a.ordem - b.ordem);
+  const copiarTudo = () => {
+    const linhas = curiosidades
+      .map((c) => `${CAT_LABEL[c.categoria] || c.categoria} · ${c.titulo}\n${c.fato}\n→ ${c.uso_politico}`)
+      .join("\n\n");
+    copyText(linhas);
+  };
 
   return (
     <div className="space-y-3">
-      {/* Resumo + ações */}
       <Card className="bg-muted/30">
         <CardContent className="pt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <Route className="w-4 h-4 text-primary" />
-              <b>{paradas.length}</b> paradas
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-primary" />
-              ~{duracaoLabel} de campanha
-            </div>
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" />
+            <span>
+              <b>{curiosidades.length}</b> fatos sobre a cidade —{" "}
+              <span className="text-muted-foreground">use para chegar conhecendo o lugar</span>
+            </span>
           </div>
-          <Button size="sm" variant="outline" onClick={copiarRoteiro}>
-            <Copy className="w-3 h-3 mr-1.5" /> Copiar roteiro inteiro
+          <Button size="sm" variant="outline" onClick={copiarTudo}>
+            <Copy className="w-3 h-3 mr-1.5" /> Copiar tudo
           </Button>
         </CardContent>
       </Card>
 
-      {/* Linha do tempo de paradas */}
-      <div className="relative pl-8 space-y-3 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
-        {ordenadas.map((p) => {
-          const areaCls = AREA_COLOR_CLASS[p.area_dor] || "bg-muted text-muted-foreground border-border";
+      <div className="grid gap-3 md:grid-cols-2">
+        {curiosidades.map((c, i) => {
+          const Icon = CAT_ICON[c.categoria] || Lightbulb;
+          const cls = CAT_COLOR[c.categoria] || "bg-muted text-muted-foreground border-border";
           return (
-            <Card key={p.ordem} className="relative">
-              {/* Bolinha da timeline */}
-              <div className="absolute -left-[26px] top-4 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold border-4 border-background">
-                {p.ordem}
-              </div>
+            <Card key={i} className="flex flex-col">
               <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary shrink-0" />
-                      {p.bairro}
-                    </CardTitle>
-                    <CardDescription className="text-xs mt-0.5">{p.local}</CardDescription>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`p-1.5 rounded border ${cls}`}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                    <CardTitle className="text-sm leading-tight">{c.titulo}</CardTitle>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="outline" className={`text-[10px] ${areaCls}`}>
-                      {AREA_LABEL[p.area_dor] || p.area_dor}
-                    </Badge>
-                    <Badge variant="secondary" className="text-[10px] gap-1">
-                      <Clock className="w-3 h-3" /> {p.duracao_min}min
-                    </Badge>
-                  </div>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${cls}`}>
+                    {CAT_LABEL[c.categoria] || c.categoria}
+                  </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="text-sm space-y-2.5 pt-0">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Objetivo</div>
-                  <div>{p.objetivo}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Emoção alvo</div>
-                  <div className="italic">{p.emocao}</div>
-                </div>
-                <div className="rounded-md border-l-4 border-primary bg-primary/5 p-2.5 flex gap-2">
-                  <MessageSquareQuote className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="text-[10px] uppercase tracking-wide text-primary font-semibold mb-0.5">Fala-chave</div>
-                    <div className="italic">"{p.fala_chave}"</div>
+              <CardContent className="text-sm space-y-2.5 pt-0 flex-1 flex flex-col">
+                <p className="text-foreground/90">{c.fato}</p>
+                <div className="mt-auto rounded-md border-l-4 border-primary bg-primary/5 p-2.5 flex gap-2">
+                  <Quote className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <div className="flex-1 text-xs">
+                    <div className="text-[10px] uppercase tracking-wide text-primary font-semibold mb-0.5">Como usar na campanha</div>
+                    <div className="italic">{c.uso_politico}</div>
                   </div>
-                  <Button size="sm" variant="ghost" className="shrink-0 h-7" onClick={() => copyText(p.fala_chave)}>
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                </div>
-                <div className="flex gap-2 text-xs text-muted-foreground">
-                  <Camera className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span><b className="text-foreground">Foto/reels sugerido:</b> {p.imagem_sugerida}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1892,19 +1768,9 @@ const RoteiroEstrategicoView = ({
         })}
       </div>
 
-      {/* Resumo da visita (legado) — mostra abaixo se existir */}
-      {resumoVisita && (
-        <Card className="border-dashed">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-wide">Síntese da campanha</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1.5 pt-0">
-            <div><b>Foco geral:</b> {resumoVisita.foco}</div>
-            <div><b>Mensagem central:</b> {resumoVisita.mensagem_central}</div>
-            <div><b>Chamada para ação:</b> {resumoVisita.chamada_acao}</div>
-          </CardContent>
-        </Card>
-      )}
+      <p className="text-[11px] text-muted-foreground text-center">
+        Fatos extraídos em tempo real da Wikipedia (seções História, Cultura, Economia, Personalidades…). A IA reescreve em linguagem direta.
+      </p>
     </div>
   );
 };

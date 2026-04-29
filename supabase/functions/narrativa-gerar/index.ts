@@ -40,6 +40,17 @@ function buildContextoWebBlock(ctx: any): string {
   if (ctx.wiki?.extrato) {
     linhas.push(`📖 Wikipedia: ${ctx.wiki.extrato}`);
   }
+  // Seções ricas da Wikipedia (História, Cultura, Economia, Personalidades, etc.)
+  const secoes = ctx?.wiki_secoes?.secoes;
+  if (secoes && typeof secoes === "object") {
+    const entradas = Object.entries(secoes).slice(0, 8);
+    if (entradas.length) {
+      linhas.push(`\n📚 Páginas de conhecimento local (Wikipedia — ${ctx.wiki_secoes.titulo_pagina}):`);
+      for (const [titulo, conteudo] of entradas) {
+        linhas.push(`\n  ▸ ${titulo}:\n  ${String(conteudo).slice(0, 700)}`);
+      }
+    }
+  }
   const noticias = Array.isArray(ctx.noticias) ? ctx.noticias : [];
   if (noticias.length) {
     linhas.push(`\n📰 Notícias recentes (${noticias.length}, últimos 90 dias):`);
@@ -55,7 +66,7 @@ function buildContextoWebBlock(ctx: any): string {
     }
   }
   if (linhas.length === 1) return ""; // só o cabeçalho — sem conteúdo útil
-  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
+  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques, e para gerar CURIOSIDADES & CULTURA LOCAL com base nos textos da Wikipedia acima. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
   return linhas.join("\n") + "\n";
 }
 
@@ -191,8 +202,7 @@ ${buildContextoWebBlock(contextoWeb)}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
-TOP CANDIDATOS LOCAIS — APENAS CONTEXTO POLÍTICO (NÃO USAR COMO BAIRRO!):
-Esta lista contém NOMES DE POLÍTICOS (pessoas) que ganharam eleições na cidade — serve só como referência de quem está no jogo. NUNCA, em hipótese alguma, use esses nomes no campo "bairro" do roteiro estratégico — bairro é um LUGAR, não uma pessoa.
+TOP CANDIDATOS LOCAIS — apenas contexto político:
 ${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
   `- ${b.ano} ${b.cargo}: ${b.top.slice(0, 3).map((c: any) => `${c.nome} (${c.partido}) ${c.votos} votos`).join(" | ")}`,
 ).join("\n") || "(sem dados)"}
@@ -216,27 +226,19 @@ INSTRUÇÕES CRÍTICAS:
 - NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
-BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
+CURIOSIDADES & CULTURA LOCAL (obrigatório)
 ========================================
-ÚNICA fonte permitida para o campo "bairro" do roteiro estratégico. Cada item abaixo é um BAIRRO/LOCAL geográfico (não pessoa):
-${topLocais || "(sem dados zonais)"}
+Gere 5 a 10 fatos REAIS sobre a cidade para o candidato chegar conhecendo o lugar — história, cultura, economia, gastronomia, personalidades famosas, festas tradicionais, etimologia do nome, geografia, esportes, religião.
 
-Bairros adicionais válidos (use também): ${bairrosReais || "(nenhum)"}
+REGRAS:
+1. Use SOMENTE informações do bloco "CONTEXTO RECENTE DA WEB" (Wikipedia + páginas de conhecimento local) acima. NUNCA invente.
+2. Se o contexto web não trouxer informação para uma categoria, NÃO crie esse item — prefira menos itens com fontes reais.
+3. "fato" deve ser uma síntese clara em 1-3 frases — NÃO copie wikitext bruto, reescreva em português direto.
+4. "uso_politico" é uma sugestão CURTA e prática de como o candidato pode citar isso (ex: "Mencione o time local na abertura da fala em bairros operários" ou "Cite o nome do santo padroeiro ao falar com a comunidade católica").
+5. Distribua entre categorias diferentes (não 8 fatos só de história).
+6. Foque em coisas que MOSTRAM RESPEITO PELA CIDADE: pratos típicos, datas comemorativas, personalidades queridas, lendas, conquistas esportivas, marcos arquitetônicos.
 
-REGRAS RÍGIDAS PARA O CAMPO "bairro":
-1. Use APENAS nomes da lista de bairros acima — copie exatamente como está escrito.
-2. PROIBIDO usar nome de pessoa (político, candidato) como bairro.
-3. PROIBIDO inventar bairro que não está na lista.
-4. Bairro = lugar geográfico (ex: "Coronel Antonino", "Centro", "Vila Nasser"). Pessoa = NÃO é bairro.
-
-ROTEIRO ESTRATÉGICO (obrigatório):
-- Gere de 4 a 6 paradas REAIS de campanha.
-- Cada parada DEVE usar um dos bairros da lista "BAIRROS REAIS DISPONÍVEIS" acima — NUNCA invente, NUNCA use nome de político.
-- Cada parada cruza um local crítico com UMA dor prioritária (${doresPrioritarias || "use as dores disponíveis"}).
-- Distribua as paradas entre dores diferentes (não todas saúde, não todas educação).
-- "imagem_sugerida" deve ser concreta e fotografável (ex: "candidato sentado no meio-fio conversando com idoso na fila do posto", não "símbolo da esperança").
-- "fala_chave" é UMA frase curta (max 25 palavras) que o candidato fala olhando no olho.
-- "duracao_min" entre 30 e 90 minutos por parada.
+Para referência (NÃO use no roteiro): top locais críticos = ${topLocais ? "ver acima" : "(sem dados)"}; dores prioritárias = ${doresPrioritarias || "—"}.
 
 Gere o pacote completo de munição política para esta cidade.`;
 }
@@ -280,43 +282,29 @@ const TOOL_SCHEMA = {
           maxItems: 5,
           items: { type: "string", description: "Frase curta tipo manchete (max 80 chars)." },
         },
-        roteiro_visita: {
-          type: "object",
-          properties: {
-            foco: { type: "string", description: "Tema central da visita." },
-            emocao_alvo: { type: "string", description: "Emoção que queremos despertar." },
-            bairro_sugerido: { type: "string", description: "Bairro/região onde a dor é mais forte." },
-            primeira_frase: { type: "string", description: "Como o candidato deve abrir a fala." },
-            mensagem_central: { type: "string" },
-            chamada_acao: { type: "string" },
-          },
-          required: ["foco", "emocao_alvo", "bairro_sugerido", "primeira_frase", "mensagem_central", "chamada_acao"],
-          additionalProperties: false,
-        },
-        roteiro_estrategico: {
+        curiosidades_locais: {
           type: "array",
-          minItems: 4,
-          maxItems: 6,
-          description: "Agenda real de paradas de campanha — cada parada cruza um local crítico com uma dor.",
+          minItems: 5,
+          maxItems: 10,
+          description: "Resumo cultural, histórico e curiosidades da cidade para o candidato chegar conhecendo o lugar. Baseado nos textos da Wikipedia (seções História, Cultura, Economia, Personalidades, Gastronomia, etc.) presentes em CONTEXTO RECENTE DA WEB.",
           items: {
             type: "object",
             properties: {
-              ordem: { type: "number", description: "1, 2, 3..." },
-              bairro: { type: "string", description: "Bairro REAL da lista de top locais críticos." },
-              local: { type: "string", description: "Local concreto da parada (escola, UBS, praça, comércio)." },
-              area_dor: { type: "string", enum: ["saude", "educacao", "seguranca", "infra", "economia", "social"] },
-              objetivo: { type: "string", description: "O que o candidato vai conquistar nessa parada (uma frase)." },
-              emocao: { type: "string", description: "Emoção alvo: indignação, esperança, acolhimento, urgência, etc." },
-              fala_chave: { type: "string", description: "UMA frase curta (max 25 palavras) que o candidato vai dizer." },
-              imagem_sugerida: { type: "string", description: "Cena fotografável concreta para reels/foto." },
-              duracao_min: { type: "number", description: "Duração estimada da parada em minutos (30-90)." },
+              categoria: {
+                type: "string",
+                enum: ["historia", "cultura", "economia", "geografia", "personalidades", "gastronomia", "religiao", "esporte", "curiosidade", "etimologia"],
+                description: "Categoria do fato.",
+              },
+              titulo: { type: "string", description: "Título curto da curiosidade (max 80 chars)." },
+              fato: { type: "string", description: "1-3 frases descrevendo o fato real (sempre baseado em fonte do contexto web). Max 400 chars." },
+              uso_politico: { type: "string", description: "UMA dica curta de como o candidato pode mencionar isso em fala/conversa para mostrar que conhece a cidade. Max 200 chars." },
             },
-            required: ["ordem", "bairro", "local", "area_dor", "objetivo", "emocao", "fala_chave", "imagem_sugerida", "duracao_min"],
+            required: ["categoria", "titulo", "fato", "uso_politico"],
             additionalProperties: false,
           },
         },
       },
-      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "roteiro_visita", "roteiro_estrategico"],
+      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "curiosidades_locais"],
       additionalProperties: false,
     },
   },
@@ -348,34 +336,6 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("client_id", dossie.client_id)
       .maybeSingle();
-
-    // Validação prévia: precisa de bairros reais para gerar roteiro estratégico
-    const analise = dossie.analise || {};
-    const topLocais: any[] = Array.isArray(analise?.top_locais_criticos) ? analise.top_locais_criticos : [];
-    const bairrosInfer: string[] = Array.isArray(analise?.bairros_inferidos) ? analise.bairros_inferidos : [];
-    const bairrosValidos = new Set<string>();
-    for (const l of topLocais) {
-      if (l?.bairro && typeof l.bairro === "string") bairrosValidos.add(normBairro(l.bairro));
-    }
-    for (const b of bairrosInfer) {
-      if (typeof b === "string") bairrosValidos.add(normBairro(b));
-    }
-    if (bairrosValidos.size === 0) {
-      const msg = "Sem dados zonais TSE para esta cidade — não é possível gerar o roteiro estratégico. Sincronize os resultados TSE 2024 (zonas eleitorais) antes de regerar o dossiê.";
-      await supa.from("narrativa_dossies").update({ status: "erro", erro_msg: msg }).eq("id", dossie_id);
-      return new Response(JSON.stringify({ error: msg, code: "missing_zonal_data" }), {
-        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Lista de nomes de políticos que aparecem na lista TSE — proibido usar como bairro
-    const nomesPoliticos = new Set<string>();
-    const tseTop = dossie.dados_brutos?.tse_local?.top_por_cargo_ano || [];
-    for (const bloco of tseTop) {
-      for (const c of (bloco?.top || [])) {
-        if (c?.nome && typeof c.nome === "string") nomesPoliticos.add(normBairro(c.nome));
-      }
-    }
 
     await supa.from("narrativa_dossies").update({ status: "gerando" }).eq("id", dossie_id);
 
@@ -460,23 +420,7 @@ Deno.serve(async (req) => {
     if (!tcArgs) throw new Error("IA não retornou tool_call estruturada");
     const conteudos = JSON.parse(tcArgs);
 
-    // Sanitização pós-IA: remove paradas que usaram nome de político como bairro
-    // ou bairro fora da lista permitida.
-    if (Array.isArray(conteudos.roteiro_estrategico)) {
-      const { paradas, descartadas, total: original } = sanitizeRoteiro(
-        conteudos.roteiro_estrategico,
-        bairrosValidos,
-        nomesPoliticos,
-      );
-      conteudos.roteiro_estrategico = paradas;
-
-      if (paradas.length === 0) {
-        // IA só retornou lixo — bloqueia salvando aviso, mantém demais conteúdos
-        conteudos._roteiro_warning = `IA gerou ${original} parada(s) com bairros inválidos (nomes de políticos ou inexistentes). Roteiro descartado — sincronize dados zonais TSE e regere.`;
-      } else if (descartadas > 0) {
-        conteudos._roteiro_warning = `${descartadas} parada(s) descartada(s) por usar bairro inválido.`;
-      }
-    }
+    // (Sanitização de roteiro estratégico removida — feature substituída por curiosidades_locais.)
 
     await supa
       .from("narrativa_dossies")
