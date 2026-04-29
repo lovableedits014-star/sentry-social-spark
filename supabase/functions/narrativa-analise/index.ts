@@ -150,6 +150,8 @@ function calcularDores(dadosBrutos: any) {
         valor_estado: estadoVal,
         delta_pct: deltaPct,
         pain_local: Math.round(painLocal),
+        outdated: (cidade as any).outdated === true,
+        idade_anos: (cidade as any).idade_anos ?? null,
       });
     }
 
