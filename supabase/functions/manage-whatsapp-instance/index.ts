@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .not("bridge_api_key", "is", null)
         .limit(50);
-      if (isAuthenticatedUser && resolvedClientId) query = query.eq("client_id", resolvedClientId);
+      if (isAuthenticatedUser && client_id) query = query.eq("client_id", client_id);
       const { data: rows, error } = await query;
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
       const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
