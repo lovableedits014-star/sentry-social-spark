@@ -1,0 +1,75 @@
+# Project Memory
+
+## Core
+- Multi-tenant SaaS isolated by `clientId` (UUID). Team managed manually (no email invites). Super-admin: `lovableedits014@gmail.com`.
+- Central CRM Entity: "Pessoa". All interactions, engagements, and territory data map back to this.
+- Performance/Caching: Use React Query with `staleTime: Infinity` on dashboards. Prefer manual sync over auto-reloads.
+- FORBIDDEN: External map APIs (Google Maps/Mapbox) — use data charts/panels for territory mapping instead.
+- FORBIDDEN: TikTok. Support only Facebook and Instagram. Visual identity settings for portals are also removed.
+- UX Preferences: Use native `<input type="date" />`, add descriptive tooltips/captions to complex metrics.
+- WhatsApp Bridge API MUST proxy via `manage-whatsapp-instance` Edge Function (pass JSON format).
+
+## Memories
+- [Visão Geral do Projeto](mem://projeto/visao-geral) — Plataforma de moderação IA, CRM e mobilização via WhatsApp Bridge
+- [Respostas IA](mem://funcionalidades/respostas-ia) — Prompt personalizado via Edge Function para tom da IA
+- [Moderação de Comentários](mem://funcionalidades/moderacao-comentarios) — Lógica de erros da API Meta (#100 e #1446036) e bloqueios manuais
+- [Portal do Apoiador](mem://funcionalidades/portal-apoiador) — Check-in, missões fixadas e edição de localidade pelo usuário
+- [Missões de Engajamento](mem://funcionalidades/missoes-engajamento) — Seleção visual multiplataforma e disparos de alerta WhatsApp
+- [Sincronização Meta](mem://tecnico/sincronizacao-meta) — Buscas paralelas e upsert anti-conflito de postagens
+- [Performance Edge Functions](mem://tecnico/performance-edge-functions) — Lotes e MAX_RUNTIME_MS (60s limit) para evitar timeout
+- [PWA Redirecionamento](mem://tecnico/pwa-redirecionamento-startup) — Fix de `localStorage` e cookies iOS para a rota `/pwa-start`
+- [Distinção de Acessos](mem://interface/distincao-acesso-fluxos) — Temas visuais isolados para admin vs portal do apoiador
+- [Controle de Acesso SaaS](mem://funcionalidades/controle-acesso-saas) — Restrição `invitation-only` e atalho para Super-Admin
+- [Landing Page de Vendas](mem://funcionalidades/landing-page-vendas) — Sem cadastro público; fluxo via CTA de demonstração WhatsApp
+- [Integração Avatar Social](mem://tecnico/integracao-avatar-social) — `type=large` na Graph API para fotos do Facebook em alta resolução
+- [Configuração Padrão Engajamento](mem://tecnico/configuracao-padrao-engajamento) — Trigger de BD para popular pontuações padrão
+- [Resiliência de Timers](mem://tecnico/resiliencia-sincronizacao-timers) — Reset do cronômetro interno da Edge Function em warm starts
+- [Backfill de Engajamento](mem://tecnico/sincronizacao-backfill-engajamento) — Detecção e processamento de comentários órfãos no banco
+- [Tratamento Bloqueios Meta](mem://tecnico/tratamento-bloqueios-api-meta) — Captura de Rate Limit (códigos 32 e 368) convertidos em avisos
+- [Fluxo Vinculação Apoiador](mem://tecnico/fluxo-vinculacao-portal-apoiador) — RPC service role bypassando RLS para vincular contas
+- [Vinculação de Perfis](mem://tecnico/vinculacao-perfis-apoiadores) — Mapeamento via chave composta e username case-insensitive
+- [Ordenação Comentários Recentes](mem://interface/ordenacao-comentarios-recentes) — Fluxo global cronológico (até 3.000 registros) sem limite de idade do post
+- [Automação Vinculação Engajamento](mem://tecnico/automacao-vinculacao-engajamento) — Trigger automático `trigger_auto_engagement_action`
+- [Criação Missões em Lote](mem://funcionalidades/criacao-missoes-lote) — Inserção em batch de seleções mistas Facebook/Instagram
+- [Dashboard Gestão Crise](mem://interface/dashboard-gestao-crise) — Destaque imediato para comentários negativos e sync manual
+- [Análise Sentimento Político](mem://tecnico/analise-sentimento-politico) — Estratégia 'Neutral is Rare' e mapeamento estrito de emojis
+- [Performance Contagem Dados](mem://tecnico/performance-contagem-dados) — Uso de `{ count: 'exact', head: true }` para estatísticas
+- [Performance Caching Frontend](mem://tecnico/performance-caching-frontend) — `staleTime: Infinity` para evitar re-renders na navegação
+- [Identidade Visual Portal](mem://interface/identidade-visual-portal-removida) — Sem personalização de logo; UI simplificada
+- [Cálculo Índice IED](mem://funcionalidades/indice-eleitorabilidade-ied) — Fórmula 30% Sentimento, 25% Crescimento, 25% Engajamento, 20% Check-ins
+- [Insights de Moderação](mem://funcionalidades/insights-moderacao-comentarios) — Badges de frequência e atalho de 'Apoiadores Passivos'
+- [Otimização Listas Comentários](mem://tecnico/otimizacao-ui-listas-comentarios) — Isolamento de estado de edição e React.memo em itens da lista
+- [Diretriz Autoexplicativa](mem://style/diretriz-autoexplicativa) — Tooltips obrigatórios e descrições claras para métricas complexas
+- [Carga Inicial Comentários](mem://tecnico/performance-carga-inicial-comentarios) — Limite inicial de 6 postagens para inicialização rápida
+- [Sincronismo Respostas Externas](mem://tecnico/sincronismo-respostas-externas) — Trigger `trg_auto_mark_parent_responded` e badge na UI
+- [Reações Facebook API](mem://funcionalidades/reacoes-facebook) — Auto-curtir em comentários processados (apenas FB por restrição da Meta)
+- [Visualização Territorial Arquitetura](mem://tecnico/visualizacao-territorial-arquitetura) — Exclusão de mapas geográficos em favor de painéis de dados
+- [Classificação de Sentimento UI](mem://funcionalidades/classificacao-sentimento) — Atualização otimista com delay de 3 segundos antes da ocultação
+- [Gestão Fluxo Moderação](mem://funcionalidades/gestao-fluxo-moderacao) — Categorias de triagem: Pendentes, Ignorados, Todos
+- [Organização Dashboard](mem://interface/dashboard-organizacao) — 4 seções principais: Redes Sociais, Base Política, Operacional, Sistema
+- [Arquitetura SaaS Multitenancy](mem://tecnico/arquitetura-saas-multitenancy) — `clientId` UUID para isolamento de dados via RLS no Supabase
+- [Gestão de Equipe e Permissões](mem://funcionalidades/gestao-equipe-permissoes) — Perfis cumulativos (ex: Gestor Social) sem sistema de invite
+- [Evolução CRM Político](mem://projeto/evolucao-crm-politico) — Arquitetura baseada em "Pessoa" como entidade integradora central
+- [CRM Base Política](mem://funcionalidades/crm-base-politica) — Buscas unificadas combinando dados biográficos, territoriais e métricas
+- [Schema CRM Pessoas](mem://tecnico/schema-crm-pessoas) — Tipagem com enums: `tipo_pessoa`, `nivel_apoio`, `origem_contato`
+- [Entrada Datas Nativa](mem://interface/entrada-datas-nativa) — Obrigatoriedade do `<Input type="date" />` para agilizar digitação de anos
+- [Captura Redes Sociais Guiada](mem://interface/captura-redes-sociais-guiada) — Instruções visuais de cópia, foco em FB/IG (TikTok removido)
+- [Ponte CRM Engajamento](mem://tecnico/ponte-crm-engajamento-automatica) — Trigger automático `trg_ensure_pessoa_supporter`
+- [Confirmação de Lead WhatsApp](mem://funcionalidades/whatsapp-confirmacao-lead) — Fluxo manual de opt-in real na flag `whatsapp_confirmado`
+- [Registro Público Atômico](mem://tecnico/rpc-registro-publico-atomico) — Função DB `register_pessoa_public` para inserções contornando RLS
+- [Contratos Operacionais](mem://funcionalidades/contratos-operacionais) — Variáveis dinâmicas para geração de documentos
+- [Portal Contratado Gating](mem://funcionalidades/portal-contratado-gating) — Liberação condicional baseada em contrato assinado e confirmação WhatsApp
+- [Central de Telemarketing](mem://funcionalidades/central-telemarketing) — Bypass RLS em fila unificada operando com a role 'anon'
+- [WhatsApp Aniversário Automático](mem://funcionalidades/whatsapp-aniversario-automatico) — Disparos via cron job diário às 08:00 (UTC-3)
+- [Gestão de Funcionários](mem://funcionalidades/gestao-funcionarios) — Identificação vinculada ao telefone e selos de distinção UI
+- [Detector Crise IA Visual](mem://funcionalidades/detector-crise-ia-visual) — Gráficos sparkline, word clouds e resumo de inteligência artificial
+- [Deduplicação Recrutamento](mem://tecnico/recrutamento-consolidacao-deduplicacao) — Mecanismo de deduplicação por nome case-insensitive no painel
+- [Centralização Lógica Temas](mem://tecnico/centralizacao-logica-temas) — Normalização unificada em `src/lib/theme-definitions.ts`
+- [Contexto Instrucional Dashboard](mem://interface/contexto-instrucional) — Uso obrigatório de cabeçalhos explicativos em abas de gestão
+- [Ponte WhatsApp API](mem://tecnico/ponte-whatsapp-api) — Proxy obrigatório `manage-whatsapp-instance` para requisições seguras em JSON
+- [Disparos WhatsApp Políticas](mem://funcionalidades/whatsapp-disparos-ponte) — Níveis de agressividade (Conservador, Moderado, Agressivo) anti-banimento
+- [Limiares Severidade Crise](mem://regras-negocio/limiares-severidade-crise) — Métricas rígidas de disparo: Crítico >=200%, Aviso >=100%
+- [Conexão WhatsApp Self-Service](mem://funcionalidades/whatsapp-conexao-self-service) — Fluxo de QR Code Base64 com polling de 4s
+- [Vinculação Usuário Portal](mem://tecnico/portal-vinculacao-usuario) — Mapeamento obrigatório de `user_id` da `auth.users`
+- [Organização Inteligência Eleitoral](mem://interface/inteligencia-eleitoral-organizacao) — 5 abas: Panorama, Candidatos&Chapa, Inteligência Política, Hiperlocal CG/MS, Narrativa (Pulso Mídia/GDELT removidos)
+- [Contexto Territorial e Narrativa](mem://tecnico/contexto-territorial-narrativa) — Coletor unificado IBGE 20 indicadores + filtro narrativa ≤3 anos
