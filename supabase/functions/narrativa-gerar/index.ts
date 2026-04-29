@@ -238,6 +238,21 @@ INSTRUÇÕES CRÍTICAS:
 - NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
+BRIEFING DO MUNICÍPIO (obrigatório)
+========================================
+Preencha "briefing_municipio" como um dossiê executivo. Use TUDO que estiver no CONTEXTO RECENTE DA WEB acima — infobox + seções (Geografia, Economia, Política, Saúde, Educação, Transporte, Cultura, Personalidades, Patrimônio, etc.).
+
+REGRAS:
+1. SOMENTE dados do contexto web. Se um campo não tiver fonte, deixe vazio (string ""), NÃO invente.
+2. "visao_geral" deve ser uma síntese viva (2-4 frases): identidade da cidade, vocação econômica e peso regional.
+3. "ficha_rapida" puxe direto da infobox (gentílico, fundação, área, altitude, clima, padroeiro, lema, site).
+4. "municipios_vizinhos" e "distritos_bairros": liste o que o texto menciona — nada além.
+5. "politica_local": prefeito atual + partido (infobox) e qualquer pista de força política mencionada.
+6. "personalidades_notaveis": nomes citados na seção Personalidades/Filhos ilustres com 1 frase explicando quem é.
+7. "dicas_abordagem" (3-6 itens) é prático: como o candidato deve se comportar, o que dizer/fazer para mostrar respeito local. Baseie-se em Cultura, Religião, Gastronomia, Esportes.
+8. "evitar": só inclua se o texto sugerir rivalidades, polêmicas ou erros típicos. Caso contrário, deixe array vazio.
+
+========================================
 CURIOSIDADES & CULTURA LOCAL (obrigatório)
 ========================================
 Gere 5 a 10 fatos REAIS sobre a cidade para o candidato chegar conhecendo o lugar — história, cultura, economia, gastronomia, personalidades famosas, festas tradicionais, etimologia do nome, geografia, esportes, religião.
