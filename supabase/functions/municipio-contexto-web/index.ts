@@ -157,7 +157,10 @@ Deno.serve(async (req) => {
     ]);
 
     const noticias = dedupNoticias([...googleNews, ...bingNews], max_news);
-    const oficiaisFiltrados = oficiais.filter((n) => /\.gov\.br/i.test(n.link || "")).slice(0, 5);
+    // Google News encapsula a URL real; .gov.br aparece no título/fonte/resumo.
+    const oficiaisFiltrados = oficiais
+      .filter((n) => /\.gov\.br/i.test(`${n.link} ${n.fonte} ${n.titulo} ${n.resumo}`))
+      .slice(0, 5);
 
     return new Response(JSON.stringify({
       municipio,
