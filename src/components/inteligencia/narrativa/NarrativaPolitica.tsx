@@ -1738,145 +1738,115 @@ const Stat = ({ label, value, sub }: { label: string; value: string | number; su
   </div>
 );
 
-/* ----------------- Roteiro Estratégico ----------------- */
-type ParadaRoteiro = {
-  ordem: number;
-  bairro: string;
-  local: string;
-  area_dor: string;
-  objetivo: string;
-  emocao: string;
-  fala_chave: string;
-  imagem_sugerida: string;
-  duracao_min: number;
+/* ----------------- Curiosidades & Cultura Local ----------------- */
+type Curiosidade = {
+  categoria: string;
+  titulo: string;
+  fato: string;
+  uso_politico: string;
 };
 
-const RoteiroEstrategicoView = ({
-  paradas,
-  resumoVisita,
-}: {
-  paradas: ParadaRoteiro[];
-  resumoVisita?: any;
-}) => {
-  const total = paradas.reduce((s, p) => s + (Number(p.duracao_min) || 0), 0);
-  const horas = Math.floor(total / 60);
-  const min = total % 60;
-  const duracaoLabel = total > 0 ? `${horas > 0 ? `${horas}h ` : ""}${min}min` : "—";
+const CAT_LABEL: Record<string, string> = {
+  historia: "História",
+  cultura: "Cultura",
+  economia: "Economia",
+  geografia: "Geografia",
+  personalidades: "Personalidades",
+  gastronomia: "Gastronomia",
+  religiao: "Religião",
+  esporte: "Esporte",
+  curiosidade: "Curiosidade",
+  etimologia: "Etimologia",
+};
 
-  const copiarRoteiro = () => {
-    const linhas = paradas
-      .sort((a, b) => a.ordem - b.ordem)
-      .map((p) =>
-        `Parada ${p.ordem} · ${p.bairro} (${p.local}) — ${p.duracao_min}min\n` +
-        `Dor: ${AREA_LABEL[p.area_dor] || p.area_dor} · Emoção: ${p.emocao}\n` +
-        `Objetivo: ${p.objetivo}\n` +
-        `Fala-chave: "${p.fala_chave}"\n` +
-        `Foto: ${p.imagem_sugerida}`,
-      )
-      .join("\n\n");
-    copyText(linhas);
-  };
+const CAT_ICON: Record<string, any> = {
+  historia: Landmark,
+  cultura: Music,
+  economia: Trophy,
+  geografia: MapIcon,
+  personalidades: Users,
+  gastronomia: Utensils,
+  religiao: Church,
+  esporte: Trophy,
+  curiosidade: Lightbulb,
+  etimologia: BookOpen,
+};
 
-  if (!paradas || paradas.length === 0) {
-    // Fallback para dossiês antigos sem roteiro_estrategico
-    if (!resumoVisita) {
-      return (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground text-center">
-            Roteiro estratégico não disponível para este dossiê. Gere novamente para criar a agenda de paradas.
-          </CardContent>
-        </Card>
-      );
-    }
+const CAT_COLOR: Record<string, string> = {
+  historia: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
+  cultura: "bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-400",
+  economia: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
+  geografia: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-400",
+  personalidades: "bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-400",
+  gastronomia: "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+  religiao: "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-400",
+  esporte: "bg-lime-500/10 text-lime-700 border-lime-500/30 dark:text-lime-400",
+  curiosidade: "bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-400",
+  etimologia: "bg-slate-500/10 text-slate-700 border-slate-500/30 dark:text-slate-400",
+};
+
+const CuriosidadesView = ({ curiosidades }: { curiosidades: Curiosidade[] }) => {
+  if (!curiosidades || curiosidades.length === 0) {
     return (
       <Card>
-        <CardContent className="pt-4 text-sm space-y-2">
-          <div><b>Foco:</b> {resumoVisita.foco}</div>
-          <div><b>Emoção alvo:</b> {resumoVisita.emocao_alvo}</div>
-          <div><b>Bairro sugerido:</b> {resumoVisita.bairro_sugerido}</div>
-          <Separator />
-          <div><b>Primeira frase:</b> "{resumoVisita.primeira_frase}"</div>
-          <div><b>Mensagem central:</b> {resumoVisita.mensagem_central}</div>
-          <div><b>Chamada para ação:</b> {resumoVisita.chamada_acao}</div>
+        <CardContent className="p-6 text-sm text-muted-foreground text-center">
+          Nenhuma curiosidade gerada para este dossiê. Gere novamente para que a IA monte um resumo cultural e histórico da cidade a partir da Wikipedia.
         </CardContent>
       </Card>
     );
   }
 
-  const ordenadas = [...paradas].sort((a, b) => a.ordem - b.ordem);
+  const copiarTudo = () => {
+    const linhas = curiosidades
+      .map((c) => `${CAT_LABEL[c.categoria] || c.categoria} · ${c.titulo}\n${c.fato}\n→ ${c.uso_politico}`)
+      .join("\n\n");
+    copyText(linhas);
+  };
 
   return (
     <div className="space-y-3">
-      {/* Resumo + ações */}
       <Card className="bg-muted/30">
         <CardContent className="pt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <Route className="w-4 h-4 text-primary" />
-              <b>{paradas.length}</b> paradas
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-primary" />
-              ~{duracaoLabel} de campanha
-            </div>
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" />
+            <span>
+              <b>{curiosidades.length}</b> fatos sobre a cidade —{" "}
+              <span className="text-muted-foreground">use para chegar conhecendo o lugar</span>
+            </span>
           </div>
-          <Button size="sm" variant="outline" onClick={copiarRoteiro}>
-            <Copy className="w-3 h-3 mr-1.5" /> Copiar roteiro inteiro
+          <Button size="sm" variant="outline" onClick={copiarTudo}>
+            <Copy className="w-3 h-3 mr-1.5" /> Copiar tudo
           </Button>
         </CardContent>
       </Card>
 
-      {/* Linha do tempo de paradas */}
-      <div className="relative pl-8 space-y-3 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
-        {ordenadas.map((p) => {
-          const areaCls = AREA_COLOR_CLASS[p.area_dor] || "bg-muted text-muted-foreground border-border";
+      <div className="grid gap-3 md:grid-cols-2">
+        {curiosidades.map((c, i) => {
+          const Icon = CAT_ICON[c.categoria] || Lightbulb;
+          const cls = CAT_COLOR[c.categoria] || "bg-muted text-muted-foreground border-border";
           return (
-            <Card key={p.ordem} className="relative">
-              {/* Bolinha da timeline */}
-              <div className="absolute -left-[26px] top-4 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold border-4 border-background">
-                {p.ordem}
-              </div>
+            <Card key={i} className="flex flex-col">
               <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary shrink-0" />
-                      {p.bairro}
-                    </CardTitle>
-                    <CardDescription className="text-xs mt-0.5">{p.local}</CardDescription>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`p-1.5 rounded border ${cls}`}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                    <CardTitle className="text-sm leading-tight">{c.titulo}</CardTitle>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="outline" className={`text-[10px] ${areaCls}`}>
-                      {AREA_LABEL[p.area_dor] || p.area_dor}
-                    </Badge>
-                    <Badge variant="secondary" className="text-[10px] gap-1">
-                      <Clock className="w-3 h-3" /> {p.duracao_min}min
-                    </Badge>
-                  </div>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${cls}`}>
+                    {CAT_LABEL[c.categoria] || c.categoria}
+                  </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="text-sm space-y-2.5 pt-0">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Objetivo</div>
-                  <div>{p.objetivo}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Emoção alvo</div>
-                  <div className="italic">{p.emocao}</div>
-                </div>
-                <div className="rounded-md border-l-4 border-primary bg-primary/5 p-2.5 flex gap-2">
-                  <MessageSquareQuote className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="text-[10px] uppercase tracking-wide text-primary font-semibold mb-0.5">Fala-chave</div>
-                    <div className="italic">"{p.fala_chave}"</div>
+              <CardContent className="text-sm space-y-2.5 pt-0 flex-1 flex flex-col">
+                <p className="text-foreground/90">{c.fato}</p>
+                <div className="mt-auto rounded-md border-l-4 border-primary bg-primary/5 p-2.5 flex gap-2">
+                  <Quote className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <div className="flex-1 text-xs">
+                    <div className="text-[10px] uppercase tracking-wide text-primary font-semibold mb-0.5">Como usar na campanha</div>
+                    <div className="italic">{c.uso_politico}</div>
                   </div>
-                  <Button size="sm" variant="ghost" className="shrink-0 h-7" onClick={() => copyText(p.fala_chave)}>
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                </div>
-                <div className="flex gap-2 text-xs text-muted-foreground">
-                  <Camera className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span><b className="text-foreground">Foto/reels sugerido:</b> {p.imagem_sugerida}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1884,19 +1854,9 @@ const RoteiroEstrategicoView = ({
         })}
       </div>
 
-      {/* Resumo da visita (legado) — mostra abaixo se existir */}
-      {resumoVisita && (
-        <Card className="border-dashed">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-wide">Síntese da campanha</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1.5 pt-0">
-            <div><b>Foco geral:</b> {resumoVisita.foco}</div>
-            <div><b>Mensagem central:</b> {resumoVisita.mensagem_central}</div>
-            <div><b>Chamada para ação:</b> {resumoVisita.chamada_acao}</div>
-          </CardContent>
-        </Card>
-      )}
+      <p className="text-[11px] text-muted-foreground text-center">
+        Fatos extraídos em tempo real da Wikipedia (seções História, Cultura, Economia, Personalidades…). A IA reescreve em linguagem direta.
+      </p>
     </div>
   );
 };
