@@ -126,6 +126,38 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
   return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
 }
 
+function isInstanceDisconnectedError(status: number, data: any): boolean {
+  if (status === 401) return true;
+  const msg = String(data?.error || data?.message || "").toLowerCase();
+  return msg.includes("instance") && (msg.includes("disconnect") || msg.includes("not connected") || msg.includes("offline"));
+}
+
+function getSendFailure(status: number, data: any): string | null {
+  if (status < 200 || status >= 300) return data?.error || data?.message || `Erro na ponte WhatsApp (status ${status})`;
+  if (data?.success === false) return data?.error || data?.message || "Ponte recusou o envio";
+  if (data?.delivered === false) return data?.error || data?.message || "Mensagem não entregue pelo WhatsApp";
+  const hasDeliverySignal = data?.success === true || data?.delivered === true || Boolean(data?.messageId || data?.message_id || data?.id || data?.key?.id);
+  return hasDeliverySignal ? null : (data?.error || data?.message || "Ponte não confirmou entrega da mensagem");
+}
+
+async function markInstanceDisconnected(adminClient: any, instanceId: string) {
+  await adminClient.from("whatsapp_instances").update({
+    status: "disconnected",
+    connected_since: null,
+    last_disconnected_at: new Date().toISOString(),
+  }).eq("id", instanceId);
+}
+
+async function logDirectSend(adminClient: any, params: { instanceId: string; clientId: string; success: boolean; error?: string | null }) {
+  await adminClient.rpc("log_whatsapp_send", {
+    p_instance_id: params.instanceId,
+    p_client_id: params.clientId,
+    p_dispatch_id: null,
+    p_success: params.success,
+    p_error_message: params.error || null,
+  });
+}
+
 async function tryReconnectInstance(adminClient: any, inst: any) {
   if (!inst?.bridge_api_key) return { id: inst?.id, reconnected: false, reason: "missing_api_key" };
   const { bridgeRes, bridgeData } = await fetchBridgeAction({
