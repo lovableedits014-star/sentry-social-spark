@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import {
   RefreshCw, Info, MapPin, Search, ChevronDown, AlertTriangle, Heart, GraduationCap,
-  DollarSign, Users, Building2, Droplets, TreePine,
+  DollarSign, Users, Building2, Droplets, TrendingUp, TrendingDown, Minus, Trophy,
 } from "lucide-react";
 
 const fmt = (n: number | null | undefined, casas = 2) =>
