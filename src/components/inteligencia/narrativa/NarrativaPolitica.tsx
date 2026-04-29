@@ -209,15 +209,20 @@ function buildDossiePdf(dossie: any, download = true) {
     y += 28;
   };
 
-  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean } = {}) => {
+  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean; maxWidth?: number } = {}) => {
     const size = opts.size ?? 10;
     setText(opts.color ?? C.text);
     doc.setFont("helvetica", opts.bold ? "bold" : "normal");
     doc.setFontSize(size);
-    const wrapped = doc.splitTextToSize(text, contentW);
-    for (const w of wrapped) {
+    // Insere oportunidades de quebra dentro de hashtags/URLs/tokens longos
+    // (jsPDF.splitTextToSize só quebra em espaços; sem isso, hashtags como
+    // "#CampoGrandeMerece" estouram a margem direita do PDF).
+    const safe = (text || "").replace(/(\S{24,})/g, (m) => m.replace(/(.{18})/g, "$1 "));
+    const w = opts.maxWidth ?? contentW;
+    const wrapped = doc.splitTextToSize(safe, w);
+    for (const line of wrapped) {
       ensure(size + 4);
-      doc.text(w, margin, y);
+      doc.text(line, margin, y);
       y += size + 4;
     }
   };
