@@ -358,15 +358,19 @@ Deno.serve(async (req) => {
         .select("value")
         .eq("key", "whatsapp_keepalive_token")
         .maybeSingle();
-      if (!tokenConfig?.value || keepaliveToken !== tokenConfig.value) {
+      const isAuthenticatedUser = Boolean(user);
+      const validKeepalive = Boolean(tokenConfig?.value && keepaliveToken === tokenConfig.value);
+      if (!isAuthenticatedUser && !validKeepalive) {
         return jsonResponse({ success: false, error: "Unauthorized keepalive" }, 401);
       }
-      const { data: rows, error } = await adminClient
+      let query = adminClient
         .from("whatsapp_instances")
         .select("id, bridge_api_key, status, connected_since, is_active")
         .eq("is_active", true)
         .not("bridge_api_key", "is", null)
         .limit(50);
+      if (isAuthenticatedUser && resolvedClientId) query = query.eq("client_id", resolvedClientId);
+      const { data: rows, error } = await query;
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
       const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
         const health = await syncInstanceHealth(adminClient, inst);
