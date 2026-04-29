@@ -1567,7 +1567,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Curiosidades & Cultura</TabsTrigger>
+                <TabsTrigger value="visita">Briefing & Cultura</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1610,6 +1610,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
+                <BriefingMunicipioView briefing={conteudos.briefing_municipio} />
                 <CuriosidadesView curiosidades={conteudos.curiosidades_locais || []} />
               </TabsContent>
             </Tabs>
