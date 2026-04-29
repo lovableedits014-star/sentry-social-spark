@@ -861,7 +861,10 @@ Deno.serve(async (req) => {
               return jsonResponse(retry.bridgeData);
             }
           }
-          await markInstanceDisconnected(adminClient, instance_id);
+          const bridgeState = String(reconnect.details?.status || reconnect.details?.instance?.status || bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+          if (isExplicitOfflineStatus(bridgeState) || isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+            await markInstanceDisconnected(adminClient, instance_id);
+          }
         }
         await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
         return jsonResponse({ success: false, error: failure, details: sanitizeBridgeData(bridgeData) });
@@ -872,15 +875,19 @@ Deno.serve(async (req) => {
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
       const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-      const status = rawStatus === "connected" || rawStatus === "open" ? "connected"
+      const wasConnected = isConnectedStatus(activeInstanceRow.status);
+      let status = isConnectedStatus(rawStatus) ? "connected"
         : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr" ? "connecting"
-        : "disconnected";
+        : isExplicitOfflineStatus(rawStatus) ? "disconnected"
+        : (activeInstanceRow.status || "disconnected");
+      if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus)) status = "connected";
       const updates: any = { status, last_health_check_at: new Date().toISOString() };
       if (status === "connected" && !activeInstanceRow.connected_since) {
         updates.connected_since = new Date().toISOString();
       }
-      if (status !== "connected") {
+      if (status === "disconnected") {
         updates.connected_since = null;
+        updates.last_disconnected_at = new Date().toISOString();
       }
       // Sincroniza telefone sempre que a bridge informar (mesmo em connecting)
       const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
