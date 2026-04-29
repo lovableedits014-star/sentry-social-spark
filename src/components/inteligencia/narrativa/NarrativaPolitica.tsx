@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
   AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned, Star, Pencil, Check, X,
-  Route, Clock, Camera, MessageSquareQuote,
+  Route, Clock, Camera, MessageSquareQuote, BookOpen, Landmark, Utensils, Music, Trophy, Church, Map as MapIcon, Lightbulb, Quote,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -1653,7 +1653,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Roteiro estratégico</TabsTrigger>
+                <TabsTrigger value="visita">Curiosidades & Cultura</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1696,15 +1696,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
-                {conteudos._roteiro_warning && (
-                  <div className="p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs">
-                    ⚠️ {conteudos._roteiro_warning}
-                  </div>
-                )}
-                <RoteiroEstrategicoView
-                  paradas={conteudos.roteiro_estrategico || []}
-                  resumoVisita={conteudos.roteiro_visita}
-                />
+                <CuriosidadesView curiosidades={conteudos.curiosidades_locais || []} />
               </TabsContent>
             </Tabs>
           </CardContent>
