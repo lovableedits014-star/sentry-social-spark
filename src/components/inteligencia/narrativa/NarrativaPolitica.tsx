@@ -697,7 +697,19 @@ const NarrativaPolitica = () => {
       if (r2.error) throw r2.error;
       // 3) gerar
       const r3 = await supabase.functions.invoke("narrativa-gerar", { body: { dossie_id } });
-      if (r3.error) throw r3.error;
+      if (r3.error) {
+        const ctx: any = (r3.error as any)?.context;
+        let msg = (r3.error as any)?.message || "Falha ao gerar dossiê";
+        try {
+          const body = ctx && typeof ctx.json === "function" ? await ctx.json() : null;
+          if (body?.code === "missing_zonal_data") {
+            msg = body.error;
+          } else if (body?.error) {
+            msg = body.error;
+          }
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
       return dossie_id;
     },
     onSuccess: () => {
@@ -1356,6 +1368,11 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
+                {conteudos._roteiro_warning && (
+                  <div className="p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs">
+                    ⚠️ {conteudos._roteiro_warning}
+                  </div>
+                )}
                 <RoteiroEstrategicoView
                   paradas={conteudos.roteiro_estrategico || []}
                   resumoVisita={conteudos.roteiro_visita}

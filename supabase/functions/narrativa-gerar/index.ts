@@ -24,6 +24,15 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 
+function normBairro(s: string): string {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildSystemPrompt(perfil: any) {
   const bandeiras = Array.isArray(perfil?.bandeiras) ? perfil.bandeiras.join(", ") : "";
   return `Você é um estrategista político brasileiro especializado em discursos de campanha territorial.
@@ -105,7 +114,8 @@ ${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
-TOP CANDIDATOS LOCAIS (TSE):
+TOP CANDIDATOS LOCAIS — APENAS CONTEXTO POLÍTICO (NÃO USAR COMO BAIRRO!):
+Esta lista contém NOMES DE POLÍTICOS (pessoas) que ganharam eleições na cidade — serve só como referência de quem está no jogo. NUNCA, em hipótese alguma, use esses nomes no campo "bairro" do roteiro estratégico — bairro é um LUGAR, não uma pessoa.
 ${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
   `- ${b.ano} ${b.cargo}: ${b.top.slice(0, 3).map((c: any) => `${c.nome} (${c.partido}) ${c.votos} votos`).join(" | ")}`,
 ).join("\n") || "(sem dados)"}
@@ -124,14 +134,24 @@ INSTRUÇÕES CRÍTICAS:
 - Cite o ano dos dados quando recente (não cite anos de 2010 ou anteriores como se fossem atuais)
 - Se um indicador NÃO tiver dado, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
-- BAIRROS REAIS onde o prefeito atual foi mais fraco em 2024 (use estes nomes EXATOS no roteiro):
+
+========================================
+BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
+========================================
+ÚNICA fonte permitida para o campo "bairro" do roteiro estratégico. Cada item abaixo é um BAIRRO/LOCAL geográfico (não pessoa):
 ${topLocais || "(sem dados zonais)"}
-- Bairros candidatos para o roteiro_visita.bairro_sugerido: ${bairrosReais || "(use região genérica como 'periferia')"}
-- NUNCA invente nome de bairro. Se a lista acima estiver vazia, use "região periférica" genericamente.
+
+Bairros adicionais válidos (use também): ${bairrosReais || "(nenhum)"}
+
+REGRAS RÍGIDAS PARA O CAMPO "bairro":
+1. Use APENAS nomes da lista de bairros acima — copie exatamente como está escrito.
+2. PROIBIDO usar nome de pessoa (político, candidato) como bairro.
+3. PROIBIDO inventar bairro que não está na lista.
+4. Bairro = lugar geográfico (ex: "Coronel Antonino", "Centro", "Vila Nasser"). Pessoa = NÃO é bairro.
 
 ROTEIRO ESTRATÉGICO (obrigatório):
 - Gere de 4 a 6 paradas REAIS de campanha.
-- Cada parada DEVE usar um dos bairros/locais da lista "TOP CANDIDATOS LOCAIS" acima — NUNCA invente.
+- Cada parada DEVE usar um dos bairros da lista "BAIRROS REAIS DISPONÍVEIS" acima — NUNCA invente, NUNCA use nome de político.
 - Cada parada cruza um local crítico com UMA dor prioritária (${doresPrioritarias || "use as dores disponíveis"}).
 - Distribua as paradas entre dores diferentes (não todas saúde, não todas educação).
 - "imagem_sugerida" deve ser concreta e fotografável (ex: "candidato sentado no meio-fio conversando com idoso na fila do posto", não "símbolo da esperança").
@@ -249,6 +269,34 @@ Deno.serve(async (req) => {
       .eq("client_id", dossie.client_id)
       .maybeSingle();
 
+    // Validação prévia: precisa de bairros reais para gerar roteiro estratégico
+    const analise = dossie.analise || {};
+    const topLocais: any[] = Array.isArray(analise?.top_locais_criticos) ? analise.top_locais_criticos : [];
+    const bairrosInfer: string[] = Array.isArray(analise?.bairros_inferidos) ? analise.bairros_inferidos : [];
+    const bairrosValidos = new Set<string>();
+    for (const l of topLocais) {
+      if (l?.bairro && typeof l.bairro === "string") bairrosValidos.add(normBairro(l.bairro));
+    }
+    for (const b of bairrosInfer) {
+      if (typeof b === "string") bairrosValidos.add(normBairro(b));
+    }
+    if (bairrosValidos.size === 0) {
+      const msg = "Sem dados zonais TSE para esta cidade — não é possível gerar o roteiro estratégico. Sincronize os resultados TSE 2024 (zonas eleitorais) antes de regerar o dossiê.";
+      await supa.from("narrativa_dossies").update({ status: "erro", erro_msg: msg }).eq("id", dossie_id);
+      return new Response(JSON.stringify({ error: msg, code: "missing_zonal_data" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Lista de nomes de políticos que aparecem na lista TSE — proibido usar como bairro
+    const nomesPoliticos = new Set<string>();
+    const tseTop = dossie.dados_brutos?.tse_local?.top_por_cargo_ano || [];
+    for (const bloco of tseTop) {
+      for (const c of (bloco?.top || [])) {
+        if (c?.nome && typeof c.nome === "string") nomesPoliticos.add(normBairro(c.nome));
+      }
+    }
+
     await supa.from("narrativa_dossies").update({ status: "gerando" }).eq("id", dossie_id);
 
     const aiRes = await fetch(AI_URL, {
@@ -289,6 +337,30 @@ Deno.serve(async (req) => {
     const tcArgs = aiJson?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!tcArgs) throw new Error("IA não retornou tool_call estruturada");
     const conteudos = JSON.parse(tcArgs);
+
+    // Sanitização pós-IA: remove paradas que usaram nome de político como bairro
+    // ou bairro fora da lista permitida.
+    if (Array.isArray(conteudos.roteiro_estrategico)) {
+      const original = conteudos.roteiro_estrategico.length;
+      const filtradas = conteudos.roteiro_estrategico.filter((p: any) => {
+        const b = normBairro(p?.bairro || "");
+        if (!b) return false;
+        if (nomesPoliticos.has(b)) return false; // descarta nome de pessoa
+        // Aceita se bate com algum bairro válido (match exato ou substring relevante)
+        for (const valido of bairrosValidos) {
+          if (b === valido || b.includes(valido) || valido.includes(b)) return true;
+        }
+        return false;
+      });
+      conteudos.roteiro_estrategico = filtradas.map((p: any, i: number) => ({ ...p, ordem: i + 1 }));
+
+      if (filtradas.length === 0) {
+        // IA só retornou lixo — bloqueia salvando aviso, mantém demais conteúdos
+        conteudos._roteiro_warning = `IA gerou ${original} parada(s) com bairros inválidos (nomes de políticos ou inexistentes). Roteiro descartado — sincronize dados zonais TSE e regere.`;
+      } else if (filtradas.length < original) {
+        conteudos._roteiro_warning = `${original - filtradas.length} parada(s) descartada(s) por usar bairro inválido.`;
+      }
+    }
 
     await supa
       .from("narrativa_dossies")
