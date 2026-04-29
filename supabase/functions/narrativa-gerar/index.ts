@@ -24,13 +24,46 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 
-function normBairro(s: string): string {
+export function normBairro(s: string): string {
   return String(s || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Sanitiza o roteiro estratégico retornado pela IA:
+ *  - descarta paradas sem bairro
+ *  - descarta paradas cujo "bairro" bate com nome de político (lista TSE)
+ *  - descarta paradas com bairro fora da lista de bairros válidos
+ *  - renumera o campo `ordem` sequencialmente (1..N) nas paradas remanescentes
+ *
+ * `bairrosValidos` e `nomesPoliticos` devem conter strings já normalizadas
+ * via `normBairro`.
+ */
+export function sanitizeRoteiro(
+  roteiro: any[],
+  bairrosValidos: Set<string>,
+  nomesPoliticos: Set<string>,
+): { paradas: any[]; descartadas: number; total: number } {
+  const total = Array.isArray(roteiro) ? roteiro.length : 0;
+  if (!Array.isArray(roteiro)) return { paradas: [], descartadas: 0, total: 0 };
+
+  const filtradas = roteiro.filter((p: any) => {
+    const b = normBairro(p?.bairro || "");
+    if (!b) return false;
+    if (nomesPoliticos.has(b)) return false;
+    for (const valido of bairrosValidos) {
+      if (!valido) continue;
+      if (b === valido || b.includes(valido) || valido.includes(b)) return true;
+    }
+    return false;
+  });
+
+  const paradas = filtradas.map((p: any, i: number) => ({ ...p, ordem: i + 1 }));
+  return { paradas, descartadas: total - paradas.length, total };
 }
 
 function buildSystemPrompt(perfil: any) {
@@ -341,24 +374,18 @@ Deno.serve(async (req) => {
     // Sanitização pós-IA: remove paradas que usaram nome de político como bairro
     // ou bairro fora da lista permitida.
     if (Array.isArray(conteudos.roteiro_estrategico)) {
-      const original = conteudos.roteiro_estrategico.length;
-      const filtradas = conteudos.roteiro_estrategico.filter((p: any) => {
-        const b = normBairro(p?.bairro || "");
-        if (!b) return false;
-        if (nomesPoliticos.has(b)) return false; // descarta nome de pessoa
-        // Aceita se bate com algum bairro válido (match exato ou substring relevante)
-        for (const valido of bairrosValidos) {
-          if (b === valido || b.includes(valido) || valido.includes(b)) return true;
-        }
-        return false;
-      });
-      conteudos.roteiro_estrategico = filtradas.map((p: any, i: number) => ({ ...p, ordem: i + 1 }));
+      const { paradas, descartadas, total: original } = sanitizeRoteiro(
+        conteudos.roteiro_estrategico,
+        bairrosValidos,
+        nomesPoliticos,
+      );
+      conteudos.roteiro_estrategico = paradas;
 
-      if (filtradas.length === 0) {
+      if (paradas.length === 0) {
         // IA só retornou lixo — bloqueia salvando aviso, mantém demais conteúdos
         conteudos._roteiro_warning = `IA gerou ${original} parada(s) com bairros inválidos (nomes de políticos ou inexistentes). Roteiro descartado — sincronize dados zonais TSE e regere.`;
-      } else if (filtradas.length < original) {
-        conteudos._roteiro_warning = `${original - filtradas.length} parada(s) descartada(s) por usar bairro inválido.`;
+      } else if (descartadas > 0) {
+        conteudos._roteiro_warning = `${descartadas} parada(s) descartada(s) por usar bairro inválido.`;
       }
     }
 
