@@ -2373,6 +2373,7 @@ export type Database = {
           ideb_ensino_medio: number | null
           idh: number | null
           idh_ano: number | null
+          indicadores: Json | null
           leitos_sus_total: number | null
           mortalidade_infantil: number | null
           nome: string
@@ -2398,6 +2399,7 @@ export type Database = {
           ideb_ensino_medio?: number | null
           idh?: number | null
           idh_ano?: number | null
+          indicadores?: Json | null
           leitos_sus_total?: number | null
           mortalidade_infantil?: number | null
           nome: string
@@ -2423,6 +2425,7 @@ export type Database = {
           ideb_ensino_medio?: number | null
           idh?: number | null
           idh_ano?: number | null
+          indicadores?: Json | null
           leitos_sus_total?: number | null
           mortalidade_infantil?: number | null
           nome?: string

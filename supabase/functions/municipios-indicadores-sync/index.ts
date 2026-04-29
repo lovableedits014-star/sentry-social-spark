@@ -1,10 +1,7 @@
 // Edge Function: municipios-indicadores-sync
-// Coleta indicadores socioeconômicos dos municípios usando APIs públicas:
-// - IBGE (Servidor de Mapas/Cidades) para PIB, população
-// - DataSUS via TabNet/Ministério (mortalidade infantil, cobertura SUS)
-// - INEP (IDEB) - planilhas oficiais
+// Coleta TODOS os 20 indicadores do Painel IBGE Cidades para cada município.
+// Mesma fonte usada pelo narrativa-coleta — uma única fonte de verdade.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -12,81 +9,108 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const IBGE_BASE = "https://servicodados.ibge.gov.br/api/v1";
-const IBGE_NOMES = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios";
-const IBGE_AGREGADOS = "https://servicodados.ibge.gov.br/api/v3/agregados";
-
 const MAX_RUNTIME_MS = 55_000;
-const startedAt = Date.now();
-const timeLeft = () => MAX_RUNTIME_MS - (Date.now() - startedAt);
 
-async function fetchJson(url: string): Promise<any> {
-  const r = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
-  return r.json();
+type IndicadorMeta = {
+  id: number;
+  label: string;
+  area: "saude" | "educacao" | "infra" | "economia" | "social" | "demografia";
+  unidade: string;
+  higher_is_worse: boolean;
+  fonte_orgao: string;
+};
+
+const INDICADORES: IndicadorMeta[] = [
+  { id: 29167, label: "Área territorial",        area: "demografia", unidade: "km²",                        higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 29168, label: "Densidade demográfica",   area: "demografia", unidade: "hab/km²",                    higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 29171, label: "População estimada",      area: "demografia", unidade: "pessoas",                    higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 30255, label: "IDH-M",                   area: "social",     unidade: "índice 0-1",                 higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30246, label: "Incidência da pobreza",   area: "social",     unidade: "%",                          higher_is_worse: true,  fonte_orgao: "IBGE" },
+  { id: 30252, label: "Índice de Gini",          area: "social",     unidade: "índice 0-1",                 higher_is_worse: true,  fonte_orgao: "IBGE" },
+  { id: 30279, label: "Mortalidade infantil",    area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte_orgao: "DataSUS/IBGE" },
+  { id: 60022, label: "Mortalidade infantil 2",  area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte_orgao: "DataSUS" },
+  { id: 60030, label: "Esgoto adequado",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60029, label: "Arborização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60031, label: "Urbanização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60041, label: "IDEB anos iniciais",      area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte_orgao: "INEP" },
+  { id: 60042, label: "IDEB anos finais",        area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte_orgao: "INEP" },
+  { id: 60045, label: "Escolarização 6-14 anos", area: "educacao",   unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60038, label: "Salário médio mensal",    area: "economia",   unidade: "salários mínimos",           higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60036, label: "População ocupada",       area: "economia",   unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60047, label: "PIB per capita",          area: "economia",   unidade: "R$",                         higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60048, label: "% receita transferências federais", area: "economia", unidade: "%",                  higher_is_worse: true,  fonte_orgao: "Tesouro Nacional" },
+  { id: 60037, label: "Água canalizada",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 30277, label: "Pessoas pobres (renda <½ SM)", area: "social", unidade: "%",                        higher_is_worse: true,  fonte_orgao: "Atlas/IPEA" },
+];
+const IND_IDS = INDICADORES.map((i) => i.id).join("|");
+
+async function safeFetchJson(url: string, timeoutMs = 12000): Promise<any> {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: ctl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
-/**
- * Busca metadados básicos de um município (nome, UF) pelo código IBGE.
- */
 async function getMunicipioBasico(codigoIbge: number): Promise<{ nome: string; uf: string } | null> {
-  try {
-    const data = await fetchJson(`${IBGE_NOMES}/${codigoIbge}`);
-    return {
-      nome: data.nome,
-      uf: data.microrregiao?.mesorregiao?.UF?.sigla ?? data["regiao-imediata"]?.["regiao-intermediaria"]?.UF?.sigla ?? "",
+  const data = await safeFetchJson(`https://servicodados.ibge.gov.br/api/v1/localidades/municipios/${codigoIbge}`);
+  if (!data) return null;
+  return {
+    nome: data.nome,
+    uf: data.microrregiao?.mesorregiao?.UF?.sigla ?? "",
+  };
+}
+
+/**
+ * Busca todos os indicadores do Painel IBGE Cidades de uma vez para um município.
+ * Retorna um map { id_indicador: { valor, ano, label, ..., outdated, idade_anos } }.
+ */
+async function fetchPainelIndicadores(codigoIbge: number) {
+  const url = `https://servicodados.ibge.gov.br/api/v1/pesquisas/indicadores/${IND_IDS}/resultados/${codigoIbge}`;
+  const json: any = await safeFetchJson(url, 15000);
+  if (!Array.isArray(json)) return { map: {}, count: 0 };
+
+  const out: Record<string, any> = {};
+  const anoAtual = new Date().getFullYear();
+  let count = 0;
+
+  for (const meta of INDICADORES) {
+    const found = json.find((x: any) => Number(x?.id) === meta.id);
+    if (!found) continue;
+    const res = found.res?.[0]?.res || {};
+    const entries = Object.entries(res)
+      .map(([ano, v]: [string, any]) => ({ ano: Number(ano), v: typeof v === "string" && v !== "-" ? Number(v) : (v as number) }))
+      .filter((e) => Number.isFinite(e.v) && !Number.isNaN(e.v))
+      .sort((a, b) => b.ano - a.ano);
+    if (!entries.length) continue;
+    const anoMaisRecente = entries[0].ano;
+    const idade = anoAtual - anoMaisRecente;
+    out[String(meta.id)] = {
+      id: meta.id,
+      label: meta.label,
+      area: meta.area,
+      unidade: meta.unidade,
+      fonte: `${meta.fonte_orgao} ${anoMaisRecente}`,
+      ano: anoMaisRecente,
+      valor: entries[0].v,
+      higher_is_worse: meta.higher_is_worse,
+      outdated: idade > 3,
+      idade_anos: idade,
     };
-  } catch {
-    return null;
+    count++;
   }
+  return { map: out, count };
 }
 
-/**
- * Busca população estimada (agregado 6579 — Estimativas Populacionais).
- */
-async function getPopulacao(codigoIbge: number): Promise<{ populacao: number; ano: number } | null> {
-  try {
-    const url = `${IBGE_AGREGADOS}/6579/periodos/-1/variaveis/9324?localidades=N6[${codigoIbge}]`;
-    const data = await fetchJson(url);
-    const serie = data?.[0]?.resultados?.[0]?.series?.[0]?.serie;
-    if (!serie) return null;
-    const ano = parseInt(Object.keys(serie)[0], 10);
-    const populacao = parseInt(serie[ano] as string, 10);
-    if (isNaN(populacao)) return null;
-    return { populacao, ano };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * PIB municipal — agregado 5938 (PIB dos Municípios).
- * Variável 37 = PIB a preços correntes (mil R$); variável 6575 = PIB per capita (R$).
- */
-async function getPib(codigoIbge: number): Promise<{ pibTotal: number | null; pibPerCapita: number | null; ano: number | null }> {
-  try {
-    const url = `${IBGE_AGREGADOS}/5938/periodos/-1/variaveis/37|6575?localidades=N6[${codigoIbge}]`;
-    const data = await fetchJson(url);
-    let pibTotal: number | null = null;
-    let pibPerCapita: number | null = null;
-    let ano: number | null = null;
-    for (const v of data || []) {
-      const serie = v?.resultados?.[0]?.series?.[0]?.serie;
-      if (!serie) continue;
-      const k = Object.keys(serie)[0];
-      ano = parseInt(k, 10);
-      const val = parseFloat(serie[k]);
-      if (v.variavel?.toLowerCase().includes("per capita")) pibPerCapita = val;
-      else pibTotal = val * 1000; // vem em mil R$
-    }
-    return { pibTotal, pibPerCapita, ano };
-  } catch {
-    return { pibTotal: null, pibPerCapita: null, ano: null };
-  }
-}
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const startedAt = Date.now();
+  const timeLeft = () => MAX_RUNTIME_MS - (Date.now() - startedAt);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -100,11 +124,8 @@ serve(async (req) => {
     if (codigos_ibge?.length) {
       alvos = codigos_ibge;
     } else if (uf) {
-      // Pega todos os municípios da UF
-      const data = await fetchJson(`${IBGE_NOMES}?providers=&UF=${uf}`);
-      // fallback: a API certa é /estados/{UF}/municipios
-      const data2 = await fetchJson(
-        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
+      const data2 = await safeFetchJson(
+        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf.toUpperCase()}/municipios`,
       );
       alvos = (data2 || []).map((m: any) => m.id);
     } else {
@@ -114,28 +135,47 @@ serve(async (req) => {
     }
 
     let processados = 0;
+    let totalIndicadores = 0;
     const erros: string[] = [];
     const t0 = Date.now();
 
     for (const codigo of alvos) {
-      if (timeLeft() < 4000) {
-        erros.push(`timeout após ${processados} municípios`);
+      if (timeLeft() < 5000) {
+        erros.push(`timeout após ${processados} municípios — rode novamente para continuar`);
         break;
       }
       try {
         const basico = await getMunicipioBasico(codigo);
         if (!basico) continue;
-        const [pop, pib] = await Promise.all([getPopulacao(codigo), getPib(codigo)]);
+        const painel = await fetchPainelIndicadores(codigo);
+
+        // Extrai campos legados (top-level) a partir do JSONB
+        const popVal = painel.map["29171"]?.valor ?? null;
+        const popAno = painel.map["29171"]?.ano ?? null;
+        const pibPc = painel.map["60047"]?.valor ?? null;
+        const pibAno = painel.map["60047"]?.ano ?? null;
+        const idhVal = painel.map["30255"]?.valor ?? null;
+        const idhAno = painel.map["30255"]?.ano ?? null;
+        const mortInf = painel.map["30279"]?.valor ?? painel.map["60022"]?.valor ?? null;
+        const idebIni = painel.map["60041"]?.valor ?? null;
+        const idebFin = painel.map["60042"]?.valor ?? null;
+        const idebAno = painel.map["60041"]?.ano ?? painel.map["60042"]?.ano ?? null;
 
         const row: any = {
           codigo_ibge: codigo,
           nome: basico.nome,
           uf: basico.uf,
-          populacao: pop?.populacao ?? null,
-          populacao_ano: pop?.ano ?? null,
-          pib_total: pib.pibTotal,
-          pib_per_capita: pib.pibPerCapita,
-          pib_ano: pib.ano,
+          populacao: popVal != null ? Math.round(popVal) : null,
+          populacao_ano: popAno,
+          pib_per_capita: pibPc,
+          pib_ano: pibAno,
+          idh: idhVal,
+          idh_ano: idhAno,
+          mortalidade_infantil: mortInf,
+          ideb_anos_iniciais: idebIni,
+          ideb_anos_finais: idebFin,
+          ideb_ano: idebAno,
+          indicadores: painel.map,
           ultima_atualizacao: new Date().toISOString(),
         };
 
@@ -144,20 +184,28 @@ serve(async (req) => {
           .upsert(row, { onConflict: "codigo_ibge" });
         if (error) throw error;
         processados++;
+        totalIndicadores += painel.count;
       } catch (e) {
         erros.push(`${codigo}: ${e instanceof Error ? e.message : e}`);
       }
     }
 
     await supabase.from("municipios_sync_log").insert({
-      fonte: "ibge",
+      fonte: "ibge_painel",
       municipios_processados: processados,
       status: erros.length > 0 ? (processados > 0 ? "partial" : "error") : "success",
       erro_mensagem: erros.length > 0 ? erros.slice(0, 5).join(" | ") : null,
       duracao_ms: Date.now() - t0,
     });
 
-    return new Response(JSON.stringify({ ok: true, processados, total_alvos: alvos.length, erros: erros.slice(0, 10) }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      processados,
+      total_alvos: alvos.length,
+      indicadores_coletados: totalIndicadores,
+      media_indicadores_por_municipio: processados > 0 ? Math.round(totalIndicadores / processados) : 0,
+      erros: erros.slice(0, 10),
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

@@ -98,10 +98,18 @@ function buildUserPrompt(dossie: any) {
   const indicadoresEstado = ibge?.indicadores_estado || {};
 
   // Lista compacta de indicadores reais com comparação ao estado
+  // FILTRO: descarta dados com mais de 3 anos — narrativa só usa material fresco.
+  const ANO_LIMITE = new Date().getFullYear() - 3;
+  const indicadoresIgnorados: string[] = [];
   const linhasIndicadores: string[] = [];
   for (const [id, data] of Object.entries(indicadores)) {
     const d: any = data;
     if (!d) continue;
+    // Pula indicadores antigos demais (Censo 2010, IDH 2010, etc.)
+    if (d.ano && d.ano < ANO_LIMITE) {
+      indicadoresIgnorados.push(`${d.label} (${d.ano})`);
+      continue;
+    }
     const e: any = indicadoresEstado[id];
     const partes = [`- ${d.label}: ${d.valor} ${d.unidade} (${d.ano}, ${d.fonte})`];
     if (e && Number.isFinite(e.valor)) {
@@ -141,8 +149,9 @@ Cidade: ${meta.municipio} / ${meta.uf}
 Região: ${ibge?.base?.regiao ?? "—"}
 Microrregião: ${ibge?.base?.microrregiao ?? "—"}
 
-INDICADORES MUNICIPAIS REAIS (com comparação ao estado de ${meta.uf}):
+INDICADORES MUNICIPAIS RECENTES (≤3 anos, com comparação ao estado de ${meta.uf}):
 ${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
+${indicadoresIgnorados.length ? `\n(Descartados por serem antigos demais: ${indicadoresIgnorados.join(", ")})` : ""}
 
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
@@ -164,8 +173,9 @@ Oportunidade política: ${analise?.oportunidade?.nivel} (score ${analise?.oportu
 INSTRUÇÕES CRÍTICAS:
 - USE OS NÚMEROS REAIS acima nos discursos (ex: "esgoto chega a só 58% das casas, contra 70% da média do estado")
 - Quando houver delta vs estado, EXPLORE o contraste — é arma política poderosa
-- Cite o ano dos dados quando recente (não cite anos de 2010 ou anteriores como se fossem atuais)
-- Se um indicador NÃO tiver dado, NÃO invente — fale do que tem
+- SEMPRE cite o ano do dado entre parênteses (ex: "PIB per capita R$ 35.000 em 2021")
+- PROIBIDO mencionar dados de censos antigos (2010 ou anteriores) — eles foram filtrados desta lista de propósito
+- Se um indicador NÃO tiver dado recente, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
 
 ========================================
