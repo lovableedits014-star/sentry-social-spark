@@ -1646,11 +1646,30 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <MapPinned className="w-4 h-4 text-primary" /> Top 10 locais críticos
+              <MapPinned className="w-4 h-4 text-primary" />
+              {(() => {
+                const ref = dossie.dados_brutos?.tse_local?.candidato_referencia;
+                const lado = (dossie as any)?.lado_ref;
+                if (ref?.origem === "manual") {
+                  return <>Top 10 locais — <span className="text-primary">{ref.nome}</span></>;
+                }
+                return <>Top 10 locais críticos</>;
+              })()}
             </CardTitle>
             <CardDescription className="text-xs">
-              Bairros/escolas das zonas TSE onde o prefeito eleito em 2024 teve <b>menor desempenho</b> —
-              esses são os pontos de maior oportunidade política para visita e mobilização.
+              {(() => {
+                const ref = dossie.dados_brutos?.tse_local?.candidato_referencia;
+                if (ref?.origem === "manual") {
+                  return <>
+                    Bairros/escolas das zonas TSE onde <b>{ref.nome}</b> ({ref.cargo} {ref.ano}) teve <b>menor desempenho</b>.
+                    {" "}São os pontos de <b>maior oportunidade</b> de crescimento (se for seu candidato) ou de <b>conquista</b> (se for adversário).
+                  </>;
+                }
+                return <>
+                  Bairros/escolas das zonas TSE onde o <b>prefeito eleito em 2024</b> teve menor desempenho —
+                  esses são os pontos de maior oportunidade política. <em>(Dica: escolha um candidato no painel "Candidato de referência" para análise personalizada.)</em>
+                </>;
+              })()}
             </CardDescription>
           </CardHeader>
           <CardContent>
