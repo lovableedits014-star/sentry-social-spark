@@ -808,6 +808,77 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState("");
   const [waSending, setWaSending] = useState(false);
+  // Número padrão salvo por cliente (localStorage). Permite "1 clique" para enviar.
+  const defaultPhoneKey = clientId ? `wa_default_phone:${clientId}` : "wa_default_phone:_anon_";
+  const [defaultPhone, setDefaultPhone] = useState<string>("");
+  const [editingDefault, setEditingDefault] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(defaultPhoneKey) || "";
+      setDefaultPhone(saved);
+      if (saved && !waPhone) setWaPhone(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultPhoneKey]);
+
+  // Quando abre o diálogo, pré-preenche com o padrão (se houver)
+  useEffect(() => {
+    if (waOpen && defaultPhone && !waPhone) setWaPhone(defaultPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waOpen]);
+
+  const formatPhoneDisplay = (digits: string): string => {
+    const d = digits.replace(/\D/g, "");
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 13 && d.startsWith("55")) return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
+    return d;
+  };
+
+  const saveAsDefault = () => {
+    const d = waPhone.replace(/\D/g, "");
+    if (d.length < 10) {
+      toast({ title: "Número inválido", description: "Informe DDD + número.", variant: "destructive" });
+      return;
+    }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      toast({ title: "Número padrão salvo", description: formatPhoneDisplay(d) });
+    } catch {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    }
+  };
+
+  const clearDefault = () => {
+    try {
+      localStorage.removeItem(defaultPhoneKey);
+      setDefaultPhone("");
+      toast({ title: "Número padrão removido" });
+    } catch {}
+  };
+
+  const startEditDefault = () => {
+    setEditPhoneValue(defaultPhone);
+    setEditingDefault(true);
+  };
+
+  const confirmEditDefault = () => {
+    const d = editPhoneValue.replace(/\D/g, "");
+    if (d.length < 10) {
+      toast({ title: "Número inválido", variant: "destructive" });
+      return;
+    }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      setWaPhone(d);
+      setEditingDefault(false);
+      toast({ title: "Padrão atualizado", description: formatPhoneDisplay(d) });
+    } catch {}
+  };
 
   const sendWhatsApp = async () => {
     if (!waPhone) {
