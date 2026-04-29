@@ -998,69 +998,281 @@ const NarrativaPolitica = () => {
 };
 
 /* ----------------- Perfil ----------------- */
-const PerfilCard = ({ perfil, onSave }: { perfil: Perfil | null; onSave: (p: Partial<Perfil>) => void }) => {
+const CARGOS_TSE = ["Prefeito", "Vereador", "Deputado Estadual", "Deputado Federal", "Senador", "Governador"] as const;
+
+const PerfilCard = ({
+  perfil,
+  onSave,
+  ufAtual,
+  municipioAtual,
+}: {
+  perfil: Perfil | null;
+  onSave: (p: Partial<Perfil>) => void;
+  ufAtual: string;
+  municipioAtual: string;
+}) => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Perfil>>({
     nome_candidato: "", cargo_pretendido: "", partido: "",
     bandeiras: [], tom_voz: "popular", estilo_discurso: "",
     publico_alvo: "", proposta_central: "", observacoes: "",
+    ref_uf: null, ref_municipio: null, ref_cargo: "Prefeito", ref_nome: null,
+    ref_partido: null, ref_ano: 2024, ref_lado: "proprio",
   });
   useEffect(() => { if (perfil) setForm(perfil); }, [perfil]);
+
+  // Quando o usuário abrir o dialog, sugere a cidade atual se ainda não tem ref
+  useEffect(() => {
+    if (open && !form.ref_uf && ufAtual) {
+      setForm((f) => ({ ...f, ref_uf: ufAtual, ref_municipio: municipioAtual || null }));
+    }
+  }, [open]);
+
+  const refUf = form.ref_uf || ufAtual;
+  const refMun = form.ref_municipio || municipioAtual;
+  const refCargo = form.ref_cargo || "Prefeito";
+  const refAno = form.ref_ano || (refCargo === "Prefeito" || refCargo === "Vereador" ? 2024 : 2022);
+
+  // Lista de candidatos do TSE para o cargo + cidade (ou estado, p/ deputado/senador/gov)
+  const { data: candidatos, isFetching: candLoading } = useQuery({
+    queryKey: ["narrativa-tse-candidatos", refUf, refMun, refCargo, refAno],
+    enabled: open && !!refUf && !!refCargo,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // Cargos municipais: filtra por município. Cargos estaduais/federais: por UF.
+      const ehMunicipal = refCargo === "Prefeito" || refCargo === "Vereador";
+      let q: any = supabase
+        .from("tse_votacao_zona" as any)
+        .select("nome_completo, nome_urna, partido, votos")
+        .eq("uf", refUf)
+        .eq("cargo", refCargo)
+        .eq("ano", refAno)
+        .not("nome_completo", "is", null);
+      if (ehMunicipal && refMun) q = q.eq("municipio", refMun);
+      // pagina pra dar conta
+      const PAGE = 1000;
+      const all: any[] = [];
+      for (let from = 0; from < 50000; from += PAGE) {
+        const { data, error } = await q.range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < PAGE) break;
+      }
+      // agrega votos por candidato
+      const map = new Map<string, { nome: string; partido: string; votos: number }>();
+      for (const r of all) {
+        const nome = r.nome_completo || r.nome_urna;
+        if (!nome) continue;
+        const key = `${nome}|${r.partido || ""}`;
+        const cur = map.get(key) || { nome, partido: r.partido || "", votos: 0 };
+        cur.votos += Number(r.votos || 0);
+        map.set(key, cur);
+      }
+      return Array.from(map.values()).sort((a, b) => b.votos - a.votos);
+    },
+  });
+
+  const [busca, setBusca] = useState("");
+  const candidatosFiltrados = useMemo(() => {
+    const list = candidatos || [];
+    if (!busca.trim()) return list.slice(0, 80);
+    const q = busca.toLowerCase();
+    return list.filter((c) => c.nome.toLowerCase().includes(q) || (c.partido || "").toLowerCase().includes(q)).slice(0, 80);
+  }, [candidatos, busca]);
 
   const bandeirasStr = (form.bandeiras || []).join(", ");
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2"><Settings className="w-4 h-4" /> Perfil do candidato</CardTitle>
-        <CardDescription className="text-xs">Define o tom e bandeiras usados pela IA.</CardDescription>
+        <CardTitle className="text-sm flex items-center gap-2"><Settings className="w-4 h-4" /> Candidato de referência</CardTitle>
+        <CardDescription className="text-xs">Toda análise (locais críticos, IED, oportunidade) gira em torno deste candidato.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="text-xs space-y-1">
-          <div><b>{perfil?.nome_candidato || "—"}</b> · {perfil?.cargo_pretendido || "—"}</div>
-          <div className="text-muted-foreground">Tom: {perfil?.tom_voz || "—"}</div>
-          <div className="text-muted-foreground">Bandeiras: {(perfil?.bandeiras || []).join(", ") || "—"}</div>
-        </div>
+        {perfil?.ref_nome ? (
+          <div className="text-xs space-y-1">
+            <div className="font-semibold text-sm flex items-center gap-1.5">
+              {perfil.ref_lado === "adversario" ? "🎯" : "⭐"} {perfil.ref_nome}
+              {perfil.ref_partido && <Badge variant="outline" className="text-[10px]">{perfil.ref_partido}</Badge>}
+            </div>
+            <div className="text-muted-foreground">
+              {perfil.ref_cargo} · {perfil.ref_municipio || perfil.ref_uf} · {perfil.ref_ano}
+            </div>
+            <div className="text-muted-foreground text-[11px]">
+              {perfil.ref_lado === "adversario"
+                ? "Adversário — análise foca onde ele é fraco (oportunidade de conquista)"
+                : "Candidato próprio/aliado — análise foca onde precisa crescer e onde defender"}
+            </div>
+            {perfil?.tom_voz && (
+              <div className="text-muted-foreground pt-1 border-t mt-1">
+                Tom da IA: <b>{perfil.tom_voz}</b>
+                {(perfil.bandeiras || []).length > 0 && <> · {(perfil.bandeiras || []).slice(0, 3).join(", ")}</>}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>Nenhum candidato escolhido ainda.</div>
+            <div className="text-[11px]">
+              Por enquanto a análise usa <b>o vencedor da prefeitura 2024</b> como referência automática.
+            </div>
+          </div>
+        )}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="mt-3 w-full">Editar perfil</Button>
+            <Button variant="outline" size="sm" className="mt-3 w-full">
+              {perfil?.ref_nome ? "Trocar candidato / editar perfil" : "Escolher candidato"}
+            </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Perfil do candidato</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label className="text-xs">Nome</Label>
-                  <Input value={form.nome_candidato || ""} onChange={(e) => setForm({ ...form, nome_candidato: e.target.value })} /></div>
-                <div><Label className="text-xs">Cargo pretendido</Label>
-                  <Input value={form.cargo_pretendido || ""} onChange={(e) => setForm({ ...form, cargo_pretendido: e.target.value })} /></div>
-                <div><Label className="text-xs">Partido</Label>
-                  <Input value={form.partido || ""} onChange={(e) => setForm({ ...form, partido: e.target.value })} /></div>
-                <div><Label className="text-xs">Tom de voz</Label>
-                  <Select value={form.tom_voz || "popular"} onValueChange={(v) => setForm({ ...form, tom_voz: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="popular">Popular</SelectItem>
-                      <SelectItem value="tecnico">Técnico</SelectItem>
-                      <SelectItem value="emocional">Emocional</SelectItem>
-                      <SelectItem value="combativo">Combativo</SelectItem>
-                    </SelectContent>
-                  </Select>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Candidato de referência e perfil de IA</DialogTitle>
+              <CardDescription className="text-xs pt-1">
+                Escolha qual candidato real do TSE será o "centro" das análises. Pode ser você, um aliado, ou um adversário que você quer atacar.
+              </CardDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* SEÇÃO 1: SELETOR TSE */}
+              <div className="rounded-md border p-3 space-y-3 bg-muted/30">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5" /> Buscar candidato no TSE
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-xs">UF</Label>
+                    <Input value={refUf} onChange={(e) => setForm({ ...form, ref_uf: e.target.value.toUpperCase().slice(0, 2) })} maxLength={2} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Município (apenas para Prefeito/Vereador)</Label>
+                    <Input value={refMun || ""} onChange={(e) => setForm({ ...form, ref_municipio: e.target.value })} placeholder="Ex: Campo Grande" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cargo</Label>
+                    <Select
+                      value={refCargo}
+                      onValueChange={(v) => setForm({ ...form, ref_cargo: v, ref_ano: v === "Prefeito" || v === "Vereador" ? 2024 : 2022, ref_nome: null, ref_partido: null })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CARGOS_TSE.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Ano</Label>
+                    <Select value={String(refAno)} onValueChange={(v) => setForm({ ...form, ref_ano: Number(v), ref_nome: null, ref_partido: null })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2024">2024 (municipal)</SelectItem>
+                        <SelectItem value="2022">2022 (estadual/federal)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Este candidato é</Label>
+                    <Select value={form.ref_lado || "proprio"} onValueChange={(v) => setForm({ ...form, ref_lado: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="proprio">⭐ Meu candidato / aliado</SelectItem>
+                        <SelectItem value="adversario">🎯 Adversário</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Buscar pelo nome ou partido</Label>
+                  <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Digite parte do nome ou sigla do partido..." />
+                </div>
+
+                <div className="rounded-md border bg-background max-h-64 overflow-y-auto">
+                  {candLoading ? (
+                    <div className="p-3 text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Carregando candidatos do TSE…
+                    </div>
+                  ) : candidatosFiltrados.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground">
+                      Nenhum candidato encontrado para {refCargo} em {refMun || refUf} ({refAno}).
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {candidatosFiltrados.map((c) => {
+                        const selecionado = (form.ref_nome || "").toLowerCase() === c.nome.toLowerCase();
+                        return (
+                          <button
+                            key={`${c.nome}-${c.partido}`}
+                            type="button"
+                            onClick={() => setForm({ ...form, ref_nome: c.nome, ref_partido: c.partido })}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/50 flex items-center justify-between gap-2 ${selecionado ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium truncate">{c.nome}</div>
+                              <div className="text-muted-foreground text-[10px]">{c.partido || "sem partido"}</div>
+                            </div>
+                            <Badge variant="secondary" className="text-[10px] tabular-nums">
+                              {c.votos.toLocaleString("pt-BR")} votos
+                            </Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {form.ref_nome && (
+                  <div className="text-[11px] rounded-md border border-primary/30 bg-primary/5 p-2">
+                    Selecionado: <b>{form.ref_nome}</b> {form.ref_partido && <>({form.ref_partido})</>} — {refCargo} {refAno}
+                  </div>
+                )}
+              </div>
+
+              {/* SEÇÃO 2: TOM DA IA */}
+              <div className="rounded-md border p-3 space-y-3">
+                <div className="text-xs font-semibold">🎤 Tom e estilo da IA (usado nos discursos gerados)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Tom de voz</Label>
+                    <Select value={form.tom_voz || "popular"} onValueChange={(v) => setForm({ ...form, tom_voz: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="popular">Popular</SelectItem>
+                        <SelectItem value="tecnico">Técnico</SelectItem>
+                        <SelectItem value="emocional">Emocional</SelectItem>
+                        <SelectItem value="combativo">Combativo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Estilo de discurso</Label>
+                    <Input value={form.estilo_discurso || ""} onChange={(e) => setForm({ ...form, estilo_discurso: e.target.value })} placeholder="Ex: direto, esperançoso..." />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Bandeiras (separadas por vírgula)</Label>
+                  <Input value={bandeirasStr}
+                    onChange={(e) => setForm({ ...form, bandeiras: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                    placeholder="Ex: saúde, segurança, emprego" />
+                </div>
+                <div>
+                  <Label className="text-xs">Proposta central</Label>
+                  <Textarea rows={2} value={form.proposta_central || ""} onChange={(e) => setForm({ ...form, proposta_central: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Público-alvo</Label>
+                  <Input value={form.publico_alvo || ""} onChange={(e) => setForm({ ...form, publico_alvo: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Observações</Label>
+                  <Textarea rows={2} value={form.observacoes || ""} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
                 </div>
               </div>
-              <div><Label className="text-xs">Bandeiras (separadas por vírgula)</Label>
-                <Input value={bandeirasStr}
-                  onChange={(e) => setForm({ ...form, bandeiras: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
-              </div>
-              <div><Label className="text-xs">Proposta central</Label>
-                <Textarea rows={2} value={form.proposta_central || ""} onChange={(e) => setForm({ ...form, proposta_central: e.target.value })} /></div>
-              <div><Label className="text-xs">Estilo de discurso</Label>
-                <Input value={form.estilo_discurso || ""} onChange={(e) => setForm({ ...form, estilo_discurso: e.target.value })} /></div>
-              <div><Label className="text-xs">Público-alvo</Label>
-                <Input value={form.publico_alvo || ""} onChange={(e) => setForm({ ...form, publico_alvo: e.target.value })} /></div>
-              <div><Label className="text-xs">Observações</Label>
-                <Textarea rows={2} value={form.observacoes || ""} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} /></div>
             </div>
+
             <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={() => { onSave(form); setOpen(false); }}>Salvar</Button>
             </DialogFooter>
           </DialogContent>
