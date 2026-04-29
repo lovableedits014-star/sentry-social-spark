@@ -157,6 +157,80 @@ export type Database = {
           },
         ]
       }
+      adversarios_politicos: {
+        Row: {
+          ativo: boolean
+          cargo: string | null
+          client_id: string
+          created_at: string
+          foto_url: string | null
+          id: string
+          id_assembleia_estadual: string | null
+          id_camara_federal: number | null
+          id_senado_federal: number | null
+          legislatura_atual: number | null
+          municipio: string | null
+          nivel: Database["public"]["Enums"]["nivel_parlamentar"]
+          nome: string
+          nome_parlamentar: string | null
+          observacoes: string | null
+          partido: string | null
+          uf: string | null
+          updated_at: string
+          url_camara_municipal: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          cargo?: string | null
+          client_id: string
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          id_assembleia_estadual?: string | null
+          id_camara_federal?: number | null
+          id_senado_federal?: number | null
+          legislatura_atual?: number | null
+          municipio?: string | null
+          nivel: Database["public"]["Enums"]["nivel_parlamentar"]
+          nome: string
+          nome_parlamentar?: string | null
+          observacoes?: string | null
+          partido?: string | null
+          uf?: string | null
+          updated_at?: string
+          url_camara_municipal?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          cargo?: string | null
+          client_id?: string
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          id_assembleia_estadual?: string | null
+          id_camara_federal?: number | null
+          id_senado_federal?: number | null
+          legislatura_atual?: number | null
+          municipio?: string | null
+          nivel?: Database["public"]["Enums"]["nivel_parlamentar"]
+          nome?: string
+          nome_parlamentar?: string | null
+          observacoes?: string | null
+          partido?: string | null
+          uf?: string | null
+          updated_at?: string
+          url_camara_municipal?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adversarios_politicos_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas: {
         Row: {
           client_id: string
@@ -2286,6 +2360,114 @@ export type Database = {
         }
         Relationships: []
       }
+      municipios_indicadores: {
+        Row: {
+          cobertura_sus_pct: number | null
+          codigo_ibge: number
+          created_at: string
+          datasus_ano: number | null
+          id: string
+          ideb_ano: number | null
+          ideb_anos_finais: number | null
+          ideb_anos_iniciais: number | null
+          ideb_ensino_medio: number | null
+          idh: number | null
+          idh_ano: number | null
+          leitos_sus_total: number | null
+          mortalidade_infantil: number | null
+          nome: string
+          num_escolas: number | null
+          pib_ano: number | null
+          pib_per_capita: number | null
+          pib_total: number | null
+          populacao: number | null
+          populacao_ano: number | null
+          renda_media: number | null
+          uf: string
+          ultima_atualizacao: string
+        }
+        Insert: {
+          cobertura_sus_pct?: number | null
+          codigo_ibge: number
+          created_at?: string
+          datasus_ano?: number | null
+          id?: string
+          ideb_ano?: number | null
+          ideb_anos_finais?: number | null
+          ideb_anos_iniciais?: number | null
+          ideb_ensino_medio?: number | null
+          idh?: number | null
+          idh_ano?: number | null
+          leitos_sus_total?: number | null
+          mortalidade_infantil?: number | null
+          nome: string
+          num_escolas?: number | null
+          pib_ano?: number | null
+          pib_per_capita?: number | null
+          pib_total?: number | null
+          populacao?: number | null
+          populacao_ano?: number | null
+          renda_media?: number | null
+          uf: string
+          ultima_atualizacao?: string
+        }
+        Update: {
+          cobertura_sus_pct?: number | null
+          codigo_ibge?: number
+          created_at?: string
+          datasus_ano?: number | null
+          id?: string
+          ideb_ano?: number | null
+          ideb_anos_finais?: number | null
+          ideb_anos_iniciais?: number | null
+          ideb_ensino_medio?: number | null
+          idh?: number | null
+          idh_ano?: number | null
+          leitos_sus_total?: number | null
+          mortalidade_infantil?: number | null
+          nome?: string
+          num_escolas?: number | null
+          pib_ano?: number | null
+          pib_per_capita?: number | null
+          pib_total?: number | null
+          populacao?: number | null
+          populacao_ano?: number | null
+          renda_media?: number | null
+          uf?: string
+          ultima_atualizacao?: string
+        }
+        Relationships: []
+      }
+      municipios_sync_log: {
+        Row: {
+          created_at: string
+          duracao_ms: number | null
+          erro_mensagem: string | null
+          fonte: string
+          id: string
+          municipios_processados: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          fonte: string
+          id?: string
+          municipios_processados?: number | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          fonte?: string
+          id?: string
+          municipios_processados?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
       narrativa_dossies: {
         Row: {
           analise: Json
@@ -2487,6 +2669,243 @@ export type Database = {
             columns: ["dossie_id"]
             isOneToOne: false
             referencedRelation: "narrativa_dossies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parlamentar_presenca: {
+        Row: {
+          adversario_id: string
+          client_id: string
+          created_at: string
+          data_sessao: string
+          id: string
+          id_externo: string | null
+          justificada: boolean
+          legislatura: number | null
+          motivo_ausencia: string | null
+          presente: boolean
+          tipo_sessao: string | null
+        }
+        Insert: {
+          adversario_id: string
+          client_id: string
+          created_at?: string
+          data_sessao: string
+          id?: string
+          id_externo?: string | null
+          justificada?: boolean
+          legislatura?: number | null
+          motivo_ausencia?: string | null
+          presente: boolean
+          tipo_sessao?: string | null
+        }
+        Update: {
+          adversario_id?: string
+          client_id?: string
+          created_at?: string
+          data_sessao?: string
+          id?: string
+          id_externo?: string | null
+          justificada?: boolean
+          legislatura?: number | null
+          motivo_ausencia?: string | null
+          presente?: boolean
+          tipo_sessao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parlamentar_presenca_adversario_id_fkey"
+            columns: ["adversario_id"]
+            isOneToOne: false
+            referencedRelation: "adversarios_politicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parlamentar_presenca_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parlamentar_proposicoes: {
+        Row: {
+          adversario_id: string
+          ano: number | null
+          client_id: string
+          created_at: string
+          data_apresentacao: string | null
+          ementa: string | null
+          id: string
+          id_externo: string | null
+          numero: string | null
+          situacao: string | null
+          tema: string | null
+          tipo: string
+          url_detalhes: string | null
+        }
+        Insert: {
+          adversario_id: string
+          ano?: number | null
+          client_id: string
+          created_at?: string
+          data_apresentacao?: string | null
+          ementa?: string | null
+          id?: string
+          id_externo?: string | null
+          numero?: string | null
+          situacao?: string | null
+          tema?: string | null
+          tipo: string
+          url_detalhes?: string | null
+        }
+        Update: {
+          adversario_id?: string
+          ano?: number | null
+          client_id?: string
+          created_at?: string
+          data_apresentacao?: string | null
+          ementa?: string | null
+          id?: string
+          id_externo?: string | null
+          numero?: string | null
+          situacao?: string | null
+          tema?: string | null
+          tipo?: string
+          url_detalhes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parlamentar_proposicoes_adversario_id_fkey"
+            columns: ["adversario_id"]
+            isOneToOne: false
+            referencedRelation: "adversarios_politicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parlamentar_proposicoes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parlamentar_sync_log: {
+        Row: {
+          adversario_id: string | null
+          client_id: string
+          created_at: string
+          duracao_ms: number | null
+          erro_mensagem: string | null
+          fonte: string
+          id: string
+          registros_atualizados: number | null
+          registros_inseridos: number | null
+          status: string
+          tipo_dado: string
+        }
+        Insert: {
+          adversario_id?: string | null
+          client_id: string
+          created_at?: string
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          fonte: string
+          id?: string
+          registros_atualizados?: number | null
+          registros_inseridos?: number | null
+          status: string
+          tipo_dado: string
+        }
+        Update: {
+          adversario_id?: string | null
+          client_id?: string
+          created_at?: string
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          fonte?: string
+          id?: string
+          registros_atualizados?: number | null
+          registros_inseridos?: number | null
+          status?: string
+          tipo_dado?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parlamentar_sync_log_adversario_id_fkey"
+            columns: ["adversario_id"]
+            isOneToOne: false
+            referencedRelation: "adversarios_politicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parlamentar_sync_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parlamentar_votacoes: {
+        Row: {
+          adversario_id: string
+          client_id: string
+          created_at: string
+          data_votacao: string
+          id: string
+          id_externo: string | null
+          proposicao_codigo: string | null
+          proposicao_ementa: string | null
+          resultado_geral: string | null
+          tema: string | null
+          url_detalhes: string | null
+          voto: string
+        }
+        Insert: {
+          adversario_id: string
+          client_id: string
+          created_at?: string
+          data_votacao: string
+          id?: string
+          id_externo?: string | null
+          proposicao_codigo?: string | null
+          proposicao_ementa?: string | null
+          resultado_geral?: string | null
+          tema?: string | null
+          url_detalhes?: string | null
+          voto: string
+        }
+        Update: {
+          adversario_id?: string
+          client_id?: string
+          created_at?: string
+          data_votacao?: string
+          id?: string
+          id_externo?: string | null
+          proposicao_codigo?: string | null
+          proposicao_ementa?: string | null
+          resultado_geral?: string | null
+          tema?: string | null
+          url_detalhes?: string | null
+          voto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parlamentar_votacoes_adversario_id_fkey"
+            columns: ["adversario_id"]
+            isOneToOne: false
+            referencedRelation: "adversarios_politicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parlamentar_votacoes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -4439,6 +4858,11 @@ export type Database = {
         | "apoiador"
         | "militante"
         | "opositor"
+      nivel_parlamentar:
+        | "federal_deputado"
+        | "federal_senador"
+        | "estadual_deputado"
+        | "municipal_vereador"
       origem_contato:
         | "rede_social"
         | "formulario"
@@ -4607,6 +5031,12 @@ export const Constants = {
         "apoiador",
         "militante",
         "opositor",
+      ],
+      nivel_parlamentar: [
+        "federal_deputado",
+        "federal_senador",
+        "estadual_deputado",
+        "municipal_vereador",
       ],
       origem_contato: [
         "rede_social",
