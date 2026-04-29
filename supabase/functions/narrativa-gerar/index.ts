@@ -40,6 +40,17 @@ function buildContextoWebBlock(ctx: any): string {
   if (ctx.wiki?.extrato) {
     linhas.push(`📖 Wikipedia: ${ctx.wiki.extrato}`);
   }
+  // Seções ricas da Wikipedia (História, Cultura, Economia, Personalidades, etc.)
+  const secoes = ctx?.wiki_secoes?.secoes;
+  if (secoes && typeof secoes === "object") {
+    const entradas = Object.entries(secoes).slice(0, 8);
+    if (entradas.length) {
+      linhas.push(`\n📚 Páginas de conhecimento local (Wikipedia — ${ctx.wiki_secoes.titulo_pagina}):`);
+      for (const [titulo, conteudo] of entradas) {
+        linhas.push(`\n  ▸ ${titulo}:\n  ${String(conteudo).slice(0, 700)}`);
+      }
+    }
+  }
   const noticias = Array.isArray(ctx.noticias) ? ctx.noticias : [];
   if (noticias.length) {
     linhas.push(`\n📰 Notícias recentes (${noticias.length}, últimos 90 dias):`);
@@ -55,7 +66,7 @@ function buildContextoWebBlock(ctx: any): string {
     }
   }
   if (linhas.length === 1) return ""; // só o cabeçalho — sem conteúdo útil
-  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
+  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques, e para gerar CURIOSIDADES & CULTURA LOCAL com base nos textos da Wikipedia acima. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
   return linhas.join("\n") + "\n";
 }
 
