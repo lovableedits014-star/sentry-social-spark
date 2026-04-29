@@ -39,32 +39,30 @@ type IndicadorMeta = {
   area: "saude" | "educacao" | "infra" | "economia" | "social" | "demografia";
   unidade: string;
   higher_is_worse: boolean;
-  fonte: string;
+  fonte_orgao: string;
 };
 
 const INDICADORES: IndicadorMeta[] = [
-  { id: 29167, label: "Área territorial",        area: "demografia", unidade: "km²",                        higher_is_worse: false, fonte: "IBGE 2025" },
-  { id: 29168, label: "Densidade demográfica",   area: "demografia", unidade: "hab/km²",                    higher_is_worse: false, fonte: "Censo 2010" },
-  { id: 29171, label: "População estimada",      area: "demografia", unidade: "pessoas",                    higher_is_worse: false, fonte: "IBGE 2025" },
-  { id: 30255, label: "IDH-M",                   area: "social",     unidade: "índice 0-1",                 higher_is_worse: false, fonte: "Atlas Brasil 2010" },
-  { id: 30246, label: "Incidência da pobreza",   area: "social",     unidade: "%",                          higher_is_worse: true,  fonte: "IBGE 2003" },
-  { id: 30252, label: "Índice de Gini",          area: "social",     unidade: "índice 0-1",                 higher_is_worse: true,  fonte: "IBGE 2003" },
-  { id: 30279, label: "Mortalidade infantil",    area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte: "DataSUS via IBGE" },
-  { id: 60022, label: "Mortalidade infantil 2",  area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte: "DataSUS" },
-  { id: 60030, label: "Esgoto adequado",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2022" },
-  { id: 60029, label: "Arborização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2010" },
-  { id: 60031, label: "Urbanização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte: "Censo 2010" },
-  { id: 60041, label: "IDEB anos iniciais",      area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte: "INEP 2023" },
-  { id: 60042, label: "IDEB anos finais",        area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte: "INEP 2023" },
-  { id: 60045, label: "Escolarização 6-14 anos", area: "educacao",   unidade: "%",                          higher_is_worse: false, fonte: "Censo 2022" },
-  { id: 60038, label: "Salário médio mensal",    area: "economia",   unidade: "salários mínimos",           higher_is_worse: false, fonte: "IBGE 2022" },
-  { id: 60036, label: "População ocupada",       area: "economia",   unidade: "%",                          higher_is_worse: false, fonte: "IBGE 2022" },
-  { id: 60047, label: "PIB per capita",          area: "economia",   unidade: "R$",                         higher_is_worse: false, fonte: "IBGE 2022" },
-  { id: 60048, label: "% receita de transferências federais", area: "economia", unidade: "%",               higher_is_worse: true,  fonte: "Tesouro 2024" },
-  // SNIS / Saneamento adicional
-  { id: 60037, label: "Pessoas em domicílios com água canalizada", area: "infra", unidade: "%",            higher_is_worse: false, fonte: "Censo 2010" },
-  // IPEA / vulnerabilidade
-  { id: 30277, label: "Pessoas pobres (renda <½ SM)", area: "social", unidade: "%",                       higher_is_worse: true,  fonte: "Atlas/IPEA 2010" },
+  { id: 29167, label: "Área territorial",        area: "demografia", unidade: "km²",                        higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 29168, label: "Densidade demográfica",   area: "demografia", unidade: "hab/km²",                    higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 29171, label: "População estimada",      area: "demografia", unidade: "pessoas",                    higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 30255, label: "IDH-M",                   area: "social",     unidade: "índice 0-1",                 higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30246, label: "Incidência da pobreza",   area: "social",     unidade: "%",                          higher_is_worse: true,  fonte_orgao: "IBGE" },
+  { id: 30252, label: "Índice de Gini",          area: "social",     unidade: "índice 0-1",                 higher_is_worse: true,  fonte_orgao: "IBGE" },
+  { id: 30279, label: "Mortalidade infantil",    area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte_orgao: "DataSUS/IBGE" },
+  { id: 60022, label: "Mortalidade infantil 2",  area: "saude",      unidade: "óbitos/1000 nasc.",          higher_is_worse: true,  fonte_orgao: "DataSUS" },
+  { id: 60030, label: "Esgoto adequado",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60029, label: "Arborização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60031, label: "Urbanização vias",        area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60041, label: "IDEB anos iniciais",      area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte_orgao: "INEP" },
+  { id: 60042, label: "IDEB anos finais",        area: "educacao",   unidade: "índice 0-10",                higher_is_worse: false, fonte_orgao: "INEP" },
+  { id: 60045, label: "Escolarização 6-14 anos", area: "educacao",   unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 60038, label: "Salário médio mensal",    area: "economia",   unidade: "salários mínimos",           higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60036, label: "População ocupada",       area: "economia",   unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60047, label: "PIB per capita",          area: "economia",   unidade: "R$",                         higher_is_worse: false, fonte_orgao: "IBGE" },
+  { id: 60048, label: "% receita de transferências federais", area: "economia", unidade: "%",               higher_is_worse: true,  fonte_orgao: "Tesouro Nacional" },
+  { id: 60037, label: "Pessoas em domicílios com água canalizada", area: "infra", unidade: "%",            higher_is_worse: false, fonte_orgao: "IBGE Censo" },
+  { id: 30277, label: "Pessoas pobres (renda <½ SM)", area: "social", unidade: "%",                       higher_is_worse: true,  fonte_orgao: "Atlas/IPEA" },
 ];
 
 const IND_IDS = INDICADORES.map((i) => i.id).join("|");
@@ -128,6 +126,7 @@ async function fetchPainelIndicadores(localidadeCode: number | string) {
 
   const out: Record<string, { id: number; label: string; area: string; unidade: string; fonte: string; ano: number; valor: number; higher_is_worse: boolean } | null> = {};
 
+  const anoAtual = new Date().getFullYear();
   for (const meta of INDICADORES) {
     const found = json.find((x: any) => Number(x?.id) === meta.id);
     if (!found) { out[String(meta.id)] = null; continue; }
@@ -138,16 +137,22 @@ async function fetchPainelIndicadores(localidadeCode: number | string) {
       .filter((e) => Number.isFinite(e.v) && !Number.isNaN(e.v))
       .sort((a, b) => b.ano - a.ano);
     if (!entries.length) { out[String(meta.id)] = null; continue; }
+    const anoMaisRecente = entries[0].ano;
+    const idade = anoAtual - anoMaisRecente;
     out[String(meta.id)] = {
       id: meta.id,
       label: meta.label,
       area: meta.area,
       unidade: meta.unidade,
-      fonte: meta.fonte,
-      ano: entries[0].ano,
+      // Fonte agora reflete o ANO REAL retornado pela API (não mais hardcoded)
+      fonte: `${meta.fonte_orgao} ${anoMaisRecente}`,
+      ano: anoMaisRecente,
       valor: entries[0].v,
       higher_is_worse: meta.higher_is_worse,
-    };
+      // Marca dados com mais de 3 anos como "desatualizados"
+      outdated: idade > 3,
+      idade_anos: idade,
+    } as any;
   }
   return out;
 }
