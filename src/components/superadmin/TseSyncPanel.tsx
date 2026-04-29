@@ -156,62 +156,84 @@ export default function TseSyncPanel() {
   };
 
   const importLocais = async () => {
-    if (!uploadedPathLocais) {
-      toast.error("Envie o ZIP do TSE primeiro", { description: "Selecione e faça upload do arquivo abaixo." });
+    if (!zipFileLocais) {
+      toast.error("Selecione o CSV da UF", { description: "Extraia o ZIP do TSE no seu computador e selecione o arquivo .csv da UF." });
       return;
     }
     setImportingLocais(true);
     try {
+      const text = await zipFileLocais.text();
+      const allLines = text.split(/\r?\n/);
+      const headerLine = allLines.shift();
+      if (!headerLine) throw new Error("CSV vazio.");
+
+      const header = parseCsvLine(headerLine).map((h) => cleanCsvValue(h).toUpperCase());
+      const idx = (name: string) => header.indexOf(name);
+      const I = {
+        UF: idx("SG_UF"), COD_MUN: idx("CD_MUNICIPIO"), MUN: idx("NM_MUNICIPIO"), ZONA: idx("NR_ZONA"),
+        LOCAL: idx("NR_LOCAL_VOTACAO"), NOME: idx("NM_LOCAL_VOTACAO"), END: idx("DS_ENDERECO"), BAIRRO: idx("NM_BAIRRO"),
+      };
+      const missing = Object.entries(I).filter(([, v]) => v === -1).map(([k]) => k);
+      if (missing.length) throw new Error(`CSV de locais inválido. Colunas ausentes: ${missing.join(", ")}`);
+
+      const munFiltro = municipio.trim() ? norm(municipio) : null;
+      const batch = new Map<string, LocalImportRow>();
       let totalInserted = 0;
-      let resumeAfter = 0;
-      let lap = 0;
-      // Loop de retomada automática enquanto a edge function indicar timeout
-      // (cada chamada processa ~50s; o ZIP completo da UF pode exigir 2-3 leituras)
-      while (true) {
-        lap++;
-        if (lap > 8) {
-          toast.warning("Importação muito longa", { description: "Pare aqui e refine o filtro de município." });
-          break;
-        }
-        toast.info(`Processando lote ${lap}...`, { description: resumeAfter > 0 ? `Retomando da linha ${resumeAfter.toLocaleString("pt-BR")}` : "Iniciando" });
+      let scanned = 0;
+      let matched = 0;
+      let batchNo = 0;
+
+      const flush = async () => {
+        if (batch.size === 0) return;
+        batchNo++;
+        const rows = Array.from(batch.values());
+        batch.clear();
+        toast.info(`Enviando lote ${batchNo}...`, { description: `${matched.toLocaleString("pt-BR")} locais preparados` });
         const { data, error } = await supabase.functions.invoke("import-tse-locais", {
-          body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPathLocais, resume_after: resumeAfter },
+          body: { uf, ano, rows },
         });
         if (error) throw error;
-        const d = data as any;
-        totalInserted += d?.inserted ?? 0;
-        if (d?.timed_out && d?.last_line) {
-          resumeAfter = d.last_line;
-          continue;
-        }
-        toast.success(`Locais TSE importados`, {
-          description: `${totalInserted.toLocaleString("pt-BR")} locais — ${municipio || "todos os municípios"}/${uf} (${lap} lote${lap > 1 ? "s" : ""})`,
+        totalInserted += (data as any)?.inserted ?? rows.length;
+      };
+
+      for (const line of allLines) {
+        if (!line.trim()) continue;
+        scanned++;
+        const cols = parseCsvLine(line);
+        const munNome = cleanCsvValue(cols[I.MUN]);
+        if (munFiltro && norm(munNome) !== munFiltro) continue;
+
+        const codMunicipio = Number.parseInt(cleanCsvValue(cols[I.COD_MUN]), 10);
+        const zona = Number.parseInt(cleanCsvValue(cols[I.ZONA]), 10);
+        const nrLocal = Number.parseInt(cleanCsvValue(cols[I.LOCAL]), 10);
+        if (!codMunicipio || !zona || !nrLocal) continue;
+
+        const bairroRaw = cleanCsvValue(cols[I.BAIRRO]);
+        const bairro = !bairroRaw || /^(SEM INFORMA|NAO INFORMA|N\/?I|N\/?D)/i.test(bairroRaw) ? null : bairroRaw;
+        const key = `${codMunicipio}|${zona}|${nrLocal}`;
+        batch.set(key, {
+          ano, turno: 0, cargo: "CADASTRO", cod_municipio: codMunicipio, municipio: munNome,
+          uf: cleanCsvValue(cols[I.UF]) || uf, zona, nr_local: nrLocal,
+          nome_local: cleanCsvValue(cols[I.NOME]) || null,
+          endereco: cleanCsvValue(cols[I.END]) || null,
+          numero: 0, nome_candidato: null, votos: 0, bairro,
         });
-        break;
+        matched++;
+
+        if (batch.size >= CSV_LOCAL_BATCH) {
+          await flush();
+        }
       }
+      await flush();
+
+      toast.success("Locais TSE importados", {
+        description: `${totalInserted.toLocaleString("pt-BR")} locais gravados de ${matched.toLocaleString("pt-BR")} encontrados (${scanned.toLocaleString("pt-BR")} linhas lidas).`,
+      });
       await load();
     } catch (e: any) {
       toast.error("Falha ao importar locais", { description: e?.message || String(e) });
     } finally {
       setImportingLocais(false);
-    }
-  };
-
-  const uploadZipLocais = async () => {
-    if (!zipFileLocais) return;
-    setUploadingLocais(true);
-    try {
-      const path = `eleitorado_local_votacao_${ano}_${Date.now()}.zip`;
-      const { error } = await supabase.storage
-        .from("tse-imports")
-        .upload(path, zipFileLocais, { upsert: true, contentType: "application/zip" });
-      if (error) throw error;
-      setUploadedPathLocais(path);
-      toast.success("ZIP enviado", { description: `${(zipFileLocais.size / 1024 / 1024).toFixed(1)} MB — pronto para importar.` });
-    } catch (e: any) {
-      toast.error("Falha ao enviar ZIP", { description: e?.message || String(e) });
-    } finally {
-      setUploadingLocais(false);
     }
   };
 
