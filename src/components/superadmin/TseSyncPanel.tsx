@@ -425,28 +425,25 @@ export default function TseSyncPanel() {
               <MapPin className="w-3.5 h-3.5" /> Upload manual — Locais de votação (escolas/endereços)
             </h5>
             <p className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1.5">
-              ⚠️ O CDN do TSE bloqueia downloads diretos da nossa nuvem. Baixe o ZIP no seu computador em{" "}
+              ⚠️ Nova rota anti-travamento: baixe o ZIP no seu computador em{" "}
               <a className="underline" target="_blank" rel="noreferrer"
                  href={`https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${ano}.zip`}>
                 cdn.tse.jus.br/.../eleitorado_local_votacao_{ano}.zip
               </a>{" "}
-              e envie aqui:
+              extraia o arquivo <strong>.csv</strong> da UF e selecione aqui. O processamento fica em lotes pequenos, sem subir o ZIP gigante para a função.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
               <Input
                 type="file"
-                accept=".zip,application/zip"
-                onChange={(e) => { setZipFileLocais(e.target.files?.[0] || null); setUploadedPathLocais(null); }}
+                accept=".csv,text/csv"
+                onChange={(e) => setCsvFileLocais(e.target.files?.[0] || null)}
                 className="bg-slate-800 border-slate-600 text-white file:bg-slate-700 file:text-white file:border-0 file:mr-2 file:rounded"
               />
-              <Button onClick={uploadZipLocais} disabled={!zipFileLocais || uploadingLocais} variant="secondary">
-                {uploadingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 rotate-180" />}
-                Enviar ZIP
-              </Button>
+              <Badge variant="outline" className="h-10 border-slate-600 text-slate-300 justify-center px-3">CSV local</Badge>
             </div>
-            {uploadedPathLocais && (
+            {csvFileLocais && (
               <p className="text-[11px] text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> ZIP pronto: {uploadedPathLocais}
+                <CheckCircle2 className="w-3 h-3" /> CSV pronto: {csvFileLocais.name} ({(csvFileLocais.size / 1024 / 1024).toFixed(1)} MB)
               </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
@@ -459,13 +456,13 @@ export default function TseSyncPanel() {
                   className="bg-slate-800 border-slate-600 text-white"
                 />
               </div>
-              <Button onClick={importLocais} disabled={importingLocais || !uploadedPathLocais} variant="secondary">
+              <Button onClick={importLocais} disabled={importingLocais || !csvFileLocais} variant="secondary">
                 {importingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
                 Importar locais {uf}/{ano}
               </Button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Sem locais cadastrados, o geocoding não tem o que processar. Rode esta etapa para qualquer cidade nova antes de "Geocodar bairros".
+              Sem locais cadastrados, o geocoding não tem o que processar. Para MS/2024, selecione o CSV eleitorado_local_votacao_2024_MS.csv extraído do ZIP.
             </p>
           </div>
 
