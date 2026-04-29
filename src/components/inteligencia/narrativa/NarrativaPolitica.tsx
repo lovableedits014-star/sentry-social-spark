@@ -135,6 +135,19 @@ function buildDossieMarkdown(dossie: any): string {
     lines.push(`- Mensagem central: ${c.roteiro_visita.mensagem_central}`);
     lines.push(`- Chamada: ${c.roteiro_visita.chamada_acao}`);
   }
+  if (Array.isArray(c.roteiro_estrategico) && c.roteiro_estrategico.length > 0) {
+    lines.push("");
+    lines.push(`## Roteiro estratégico (paradas)`);
+    const ordenadas = [...c.roteiro_estrategico].sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
+    for (const p of ordenadas) {
+      lines.push(`### Parada ${p.ordem} — ${p.bairro} (${p.duracao_min}min)`);
+      lines.push(`- Local: ${p.local}`);
+      lines.push(`- Área de dor: ${p.area_dor} | Emoção: ${p.emocao}`);
+      lines.push(`- Objetivo: ${p.objetivo}`);
+      lines.push(`- Fala-chave: "${p.fala_chave}"`);
+      lines.push(`- Foto: ${p.imagem_sugerida}`);
+    }
+  }
   return lines.join("\n");
 }
 
