@@ -812,17 +812,20 @@ Deno.serve(async (req) => {
     }
 
     // Proxy all other actions to bridge with X-Api-Key
-    // IMPORTANT: never transform `phone` here. The frontend already sends
-    // the fully-formed number (e.g. 5567992248348). Any normalization risks
-    // dropping the 9th digit. Forward exactly what was received.
+    // IMPORTANT: a ponte WhatsApp usada aqui (formato Brasil) só aceita
+    // o número SEM o 9º dígito (ex.: 556792248348). O frontend envia o
+    // número humano completo (5567992248348) — então normalizamos AQUI
+    // antes de chamar a bridge. Sem isso, mensagens são "aceitas" mas
+    // nunca chegam ao destinatário.
     const proxyBody: any = { action };
-    if (phone) proxyBody.phone = phone;
+    const normalizedPhone = phone ? normalizeBrazilPhoneForBridge(String(phone)) : "";
+    if (normalizedPhone) proxyBody.phone = normalizedPhone;
     if (message) proxyBody.message = message;
 
     // Envio de mídia (PDF, imagem, áudio etc.) — aceita action "send_media"
     if (action === "send_media") {
-      // Normaliza o telefone como no envio de texto
-      if (phone) proxyBody.phone = phone;
+      // Mesma normalização do envio de texto
+      if (normalizedPhone) proxyBody.phone = normalizedPhone;
 
       // A bridge espera uma URL pública (`media_uri`/`media_url`), não base64.
       // Se vier base64 em `media`, fazemos upload para o bucket público
