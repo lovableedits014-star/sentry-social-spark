@@ -857,6 +857,7 @@ Deno.serve(async (req) => {
         if (isInstanceDisconnectedError(bridgeRes.status, bridgeData)) {
           const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
           if (reconnect.status === "connected") {
+            await sleep(1500);
             const retry = await fetchBridgeAction({ action, apiKey: clientApiKey, body: proxyBody, retries: 1 });
             const retryFailure = getSendFailure(retry.bridgeRes.status, retry.bridgeData);
             if (!retryFailure) {
@@ -865,9 +866,10 @@ Deno.serve(async (req) => {
             }
           }
           const bridgeState = String(reconnect.details?.status || reconnect.details?.instance?.status || bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-          if (isExplicitOfflineStatus(bridgeState) || isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
-            await markInstanceDisconnected(adminClient, instance_id);
-          }
+          // Se o ENVIO real diz "Instance not connected", ele é a prova mais forte.
+          // Mesmo que o endpoint de status/reconnect diga "connected", não podemos
+          // manter a tela como OK enquanto o socket de envio está recusando entrega.
+          await markInstanceDisconnected(adminClient, instance_id);
         }
         await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
         return jsonResponse({ success: false, error: failure, details: sanitizeBridgeData(bridgeData) });
