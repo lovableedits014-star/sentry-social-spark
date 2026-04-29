@@ -159,7 +159,10 @@ function buildDossiePdf(dossie: any, download = true) {
 
   const a = dossie.analise || {};
   const c = dossie.conteudos || {};
-  const ibge = dossie.dados_brutos?.ibge_municipios?.[0]?.dados || {};
+  // dados_brutos.ibge é o objeto canônico (mesmo usado no Raio-X da tela).
+  // Antes lia-se de `ibge_municipios[0].dados` — caminho que não existe na resposta atual,
+  // o que deixava População/PIB/Tom da mídia em branco na capa.
+  const ibge = dossie.dados_brutos?.ibge || dossie.dados_brutos?.ibge_municipios?.[0]?.dados || {};
   const midia = dossie.dados_brutos?.midia_gdelt;
   const cidade = dossie.municipio || "";
   const uf = dossie.uf || "";
@@ -206,15 +209,20 @@ function buildDossiePdf(dossie: any, download = true) {
     y += 28;
   };
 
-  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean } = {}) => {
+  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean; maxWidth?: number } = {}) => {
     const size = opts.size ?? 10;
     setText(opts.color ?? C.text);
     doc.setFont("helvetica", opts.bold ? "bold" : "normal");
     doc.setFontSize(size);
-    const wrapped = doc.splitTextToSize(text, contentW);
-    for (const w of wrapped) {
+    // Insere oportunidades de quebra dentro de hashtags/URLs/tokens longos
+    // (jsPDF.splitTextToSize só quebra em espaços; sem isso, hashtags como
+    // "#CampoGrandeMerece" estouram a margem direita do PDF).
+    const safe = (text || "").replace(/(\S{24,})/g, (m) => m.replace(/(.{18})/g, "$1 "));
+    const w = opts.maxWidth ?? contentW;
+    const wrapped = doc.splitTextToSize(safe, w);
+    for (const line of wrapped) {
       ensure(size + 4);
-      doc.text(w, margin, y);
+      doc.text(line, margin, y);
       y += size + 4;
     }
   };
@@ -349,9 +357,9 @@ function buildDossiePdf(dossie: any, download = true) {
         const cmp = e.valor_estado != null
           ? ` vs ${Number(e.valor_estado).toFixed(2)} (média ${uf}, ${e.delta_pct > 0 ? "+" : ""}${Number(e.delta_pct ?? 0).toFixed(1)}%)`
           : "";
-        const tag = e.outdated ? "  [DESATUALIZADO]" : "";
         const txt = `• ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
-        const src = `   Fonte: ${e.fonte || "—"}${tag}`;
+        const anoFonte = e.ano ? ` · Última atualização oficial: ${e.ano}` : "";
+        const src = `   Fonte: ${e.fonte || "—"}${anoFonte}`;
         paragraph(txt, { size: 9 });
         paragraph(src, { size: 8, color: e.outdated ? C.warn : C.muted });
       }
@@ -684,9 +692,9 @@ const NarrativaPolitica = () => {
               )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-              ℹ️ Indicadores socioeconômicos vêm de fontes oficiais (IBGE, INEP, DataSUS, Tesouro). 
-              Alguns dados (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos órgãos. 
-              Indicadores mais antigos que 3 anos aparecem marcados como <b>desatualizado</b> — esse é o dado mais recente que existe oficialmente.
+              ℹ️ Todos os indicadores são <b>oficiais</b> (IBGE, INEP, DataSUS, Tesouro Nacional). 
+              Alguns (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos próprios órgãos competentes. 
+              Por isso cada linha mostra o ano da <b>última atualização oficial</b> publicada — esse é o dado mais recente que existe.
             </p>
           </CardContent>
         </Card>
@@ -1125,12 +1133,16 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                           </span>
                         )}
                         <span className="ml-1 opacity-60">[{e.fonte}]</span>
-                        {e.outdated && (
+                        {e.ano && (
                           <span
-                            className="ml-1 inline-block px-1.5 py-0 text-[9px] uppercase font-bold rounded bg-amber-100 text-amber-800 border border-amber-300"
-                            title={`Dado oficial mais recente disponível (${e.idade_anos ?? "?"} anos). As fontes ainda não publicaram atualização.`}
+                            className="ml-1 text-[10px] text-muted-foreground italic"
+                            title={
+                              e.outdated
+                                ? `Esta é a última atualização publicada oficialmente. O órgão competente ainda não divulgou dado mais recente (${e.idade_anos ?? "?"} anos).`
+                                : "Última atualização oficial publicada pelo órgão competente."
+                            }
                           >
-                            desatualizado
+                            · última atualização oficial: <b className={e.outdated ? "text-amber-700 dark:text-amber-500" : "text-foreground"}>{e.ano}</b>
                           </span>
                         )}
                       </li>
