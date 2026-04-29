@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Vote, BarChart3, Users, LayoutGrid, Map as MapIcon, GitCompare,
-  Building2, Trophy, MapPin, Database, FlaskConical, Network, Target, Newspaper, Megaphone,
+  Vote, BarChart3, Users, Map as MapIcon, Building2, Trophy, MapPin, Database,
+  FlaskConical, Network, Target, Megaphone, LayoutGrid,
 } from "lucide-react";
 import ComposicaoChapa from "@/components/inteligencia/ComposicaoChapa";
 import CompararCandidatos from "@/components/inteligencia/CompararCandidatos";
@@ -17,36 +17,24 @@ import CampoGrandeAnalise from "@/components/inteligencia/cg/CampoGrandeAnalise"
 import { EleitoralFiltersProvider, useEleitoralFilters } from "@/components/inteligencia/_shared/EleitoralFiltersContext";
 import EleitoralScopeBar from "@/components/inteligencia/_shared/EleitoralScopeBar";
 import MunicipioContextoIBGE from "@/components/ibge/MunicipioContextoIBGE";
-import GdeltMonitor from "@/components/midia/GdeltMonitor";
 import NarrativaPolitica from "@/components/inteligencia/narrativa/NarrativaPolitica";
-import PulsoMidia from "@/components/midia/PulsoMidia";
 import PulsoPolitico from "@/components/inteligencia/PulsoPolitico";
 
-type CoverageRow = {
-  ano: number;
-  ufs: number;
-  municipios: number;
-  candidatos: number;
-  votos: number;
-};
-
+type CoverageRow = { ano: number; ufs: number; municipios: number; candidatos: number; votos: number };
 const fmt = (n: number) => n.toLocaleString("pt-BR");
 
 const InteligenciaEleitoralInner = () => {
   const f = useEleitoralFilters();
 
-  // KPIs contextuais — cobertura global do dataset TSE
+  // KPIs contextuais — cobertura global do dataset TSE (paginação manual: limite 1000/req)
   const { data: coverage } = useQuery<CoverageRow[]>({
     queryKey: ["tse-coverage-global", f.uf, f.municipio, f.anoMode, f.cargo],
     staleTime: Infinity,
     queryFn: async () => {
-      // Paginação manual: o Supabase limita a 1000 linhas por requisição.
-      // Sem isso o "Total de votos" ficava truncado (ex: MS retornava só ~584k).
       const PAGE = 1000;
+      const MAX_ROWS = 200000;
       let from = 0;
       const all: any[] = [];
-      // Hard cap de segurança (200k linhas = 200 requisições)
-      const MAX_ROWS = 200000;
       while (from < MAX_ROWS) {
         let q: any = supabase
           .from("tse_votacao_zona" as any)
@@ -63,9 +51,8 @@ const InteligenciaEleitoralInner = () => {
         if (rows.length < PAGE) break;
         from += PAGE;
       }
-      const data = all;
       const byAno = new Map<number, { ufs: Set<string>; munis: Set<number>; cands: Set<string>; votos: number }>();
-      (data as any[] || []).forEach((r) => {
+      all.forEach((r) => {
         if (!byAno.has(r.ano)) byAno.set(r.ano, { ufs: new Set(), munis: new Set(), cands: new Set(), votos: 0 });
         const b = byAno.get(r.ano)!;
         if (r.uf) b.ufs.add(r.uf);
@@ -103,13 +90,13 @@ const InteligenciaEleitoralInner = () => {
             Inteligência Eleitoral
           </h1>
           <p className="text-muted-foreground mt-1 max-w-2xl">
-            Analise resultados oficiais do TSE de qualquer município e cargo. Compare candidatos,
-            mapeie partidos, monte chapas estratégicas e identifique oportunidades territoriais.
+            Histórico oficial do TSE + atividade parlamentar dos adversários + indicadores socioeconômicos.
+            Tudo num lugar só pra você decidir onde investir energia de campanha.
           </p>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge variant="secondary" className="gap-1">
               <Database className="w-3 h-3" />
-              Dataset TSE {anosCobertos.length > 0 ? anosCobertos.join(" + ") : "—"}
+              TSE {anosCobertos.length > 0 ? anosCobertos.join(" + ") : "—"}
             </Badge>
             {coverage?.map((c) => (
               <Badge key={c.ano} variant="outline" className="text-xs">
@@ -120,15 +107,15 @@ const InteligenciaEleitoralInner = () => {
         </div>
       </div>
 
-      {/* Barra de escopo global (filtros + breadcrumb) */}
+      {/* Filtros globais (UF, município, cargo, ano) */}
       <EleitoralScopeBar />
 
-      {/* Contexto socioeconômico IBGE — só quando UF + município específicos */}
+      {/* Contexto IBGE quando município definido — auto-conexão entre Panorama e Pulso Político */}
       {f.uf !== "__all__" && f.municipio !== "__all__" && (
         <MunicipioContextoIBGE nome={f.municipio} uf={f.uf} />
       )}
 
-      {/* KPIs contextuais — reagem ao escopo */}
+      {/* KPIs contextuais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -156,32 +143,20 @@ const InteligenciaEleitoralInner = () => {
         </Card>
       </div>
 
-      {/* Tabs principais — 3 grupos */}
+      {/* Navegação principal — 5 abas (era 8) */}
       <Tabs defaultValue="panorama" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-8 h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 h-auto">
           <TabsTrigger value="panorama" className="flex items-center gap-2 py-2.5">
             <BarChart3 className="w-4 h-4" />
             <span>Panorama</span>
           </TabsTrigger>
           <TabsTrigger value="candidatos" className="flex items-center gap-2 py-2.5">
             <Users className="w-4 h-4" />
-            <span>Candidatos</span>
-          </TabsTrigger>
-          <TabsTrigger value="composicao" className="flex items-center gap-2 py-2.5">
-            <FlaskConical className="w-4 h-4" />
-            <span>Composição & Simulação</span>
-          </TabsTrigger>
-          <TabsTrigger value="pulso" className="flex items-center gap-2 py-2.5">
-            <Newspaper className="w-4 h-4" />
-            <span>Pulso da Mídia</span>
+            <span>Candidatos & Chapa</span>
           </TabsTrigger>
           <TabsTrigger value="politico" className="flex items-center gap-2 py-2.5">
             <Vote className="w-4 h-4" />
-            <span>Pulso Político</span>
-          </TabsTrigger>
-          <TabsTrigger value="midia" className="flex items-center gap-2 py-2.5">
-            <Newspaper className="w-4 h-4" />
-            <span>Mídia (GDELT)</span>
+            <span>Inteligência Política</span>
           </TabsTrigger>
           <TabsTrigger value="hiperlocal" className="flex items-center gap-2 py-2.5">
             <Building2 className="w-4 h-4" />
@@ -189,11 +164,11 @@ const InteligenciaEleitoralInner = () => {
           </TabsTrigger>
           <TabsTrigger value="narrativa" className="flex items-center gap-2 py-2.5">
             <Megaphone className="w-4 h-4" />
-            <span>Narrativa Política</span>
+            <span>Narrativa</span>
           </TabsTrigger>
         </TabsList>
 
-        {/* PANORAMA — visão macro */}
+        {/* PANORAMA — votos por município + partidos */}
         <TabsContent value="panorama" className="mt-4">
           <Card className="mb-4">
             <CardHeader className="pb-3">
@@ -201,7 +176,8 @@ const InteligenciaEleitoralInner = () => {
                 <BarChart3 className="w-5 h-5 text-primary" /> Panorama eleitoral
               </CardTitle>
               <CardDescription>
-                Visão macro: como votos se distribuem por município, partido e ano. Use para entender o cenário antes de mergulhar em candidatos individuais.
+                Como os votos se distribuem no território (mapa de calor) e como partidos se moveram entre 2022 e 2024.
+                Use os filtros no topo para focar em UF/município/cargo.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -215,41 +191,48 @@ const InteligenciaEleitoralInner = () => {
           </Tabs>
         </TabsContent>
 
-        {/* CANDIDATOS — visão individual */}
+        {/* CANDIDATOS & CHAPA — análise individual + composição + simulador (3 sub-abas, era 2 abas separadas) */}
         <TabsContent value="candidatos" className="mt-4">
           <Card className="mb-4">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" /> Análise de candidatos
+                <Users className="w-5 h-5 text-primary" /> Candidatos & Chapa
               </CardTitle>
               <CardDescription>
-                Compare desempenho lado a lado entre dois ou mais candidatos, em qualquer cargo e ano disponível.
+                Compare candidatos lado a lado, identifique talentos cruzando 2022 + 2024, ou monte uma chapa hipotética
+                e veja sua cobertura territorial.
               </CardDescription>
             </CardHeader>
           </Card>
-          <CompararCandidatos />
+          <Tabs defaultValue="comparar" className="w-full">
+            <TabsList>
+              <TabsTrigger value="comparar" className="gap-1.5"><Users className="w-3.5 h-3.5" /> Comparar candidatos</TabsTrigger>
+              <TabsTrigger value="composicao" className="gap-1.5"><LayoutGrid className="w-3.5 h-3.5" /> Composição (2022 + 2024)</TabsTrigger>
+              <TabsTrigger value="simulador" className="gap-1.5"><Target className="w-3.5 h-3.5" /> Simulador de chapa</TabsTrigger>
+            </TabsList>
+            <TabsContent value="comparar" className="mt-4"><CompararCandidatos /></TabsContent>
+            <TabsContent value="composicao" className="mt-4"><ComposicaoChapa /></TabsContent>
+            <TabsContent value="simulador" className="mt-4"><SimuladorChapa /></TabsContent>
+          </Tabs>
         </TabsContent>
 
-        {/* COMPOSIÇÃO & SIMULAÇÃO — ferramentas estratégicas */}
-        <TabsContent value="composicao" className="mt-4">
+        {/* INTELIGÊNCIA POLÍTICA — Câmara/Senado + IBGE/DataSUS/INEP */}
+        <TabsContent value="politico" className="mt-4">
           <Card className="mb-4">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <FlaskConical className="w-5 h-5 text-primary" /> Composição & Simulação de chapa
+                <Vote className="w-5 h-5 text-primary" /> Inteligência Política
               </CardTitle>
               <CardDescription>
-                Ferramentas estratégicas: cruze candidatos entre 2022 e 2024 para identificar talentos, ou monte uma chapa hipotética e veja sua cobertura territorial.
+                <strong>Munição em tempo real:</strong> votações, projetos e presença dos adversários (API oficial Câmara/Senado)
+                cruzados com indicadores socioeconômicos por município (IBGE).
+                {f.municipio !== "__all__" && (
+                  <> · Foco atual: <Badge variant="outline" className="ml-1">{f.municipio}/{f.uf}</Badge></>
+                )}
               </CardDescription>
             </CardHeader>
           </Card>
-          <Tabs defaultValue="composicao-chapa" className="w-full">
-            <TabsList>
-              <TabsTrigger value="composicao-chapa" className="gap-1.5"><LayoutGrid className="w-3.5 h-3.5" /> Composição (2022 + 2024)</TabsTrigger>
-              <TabsTrigger value="simulador" className="gap-1.5"><Target className="w-3.5 h-3.5" /> Simulador de chapa</TabsTrigger>
-            </TabsList>
-            <TabsContent value="composicao-chapa" className="mt-4"><ComposicaoChapa /></TabsContent>
-            <TabsContent value="simulador" className="mt-4"><SimuladorChapa /></TabsContent>
-          </Tabs>
+          <PulsoPolitico />
         </TabsContent>
 
         {/* HIPERLOCAL — Campo Grande only */}
@@ -267,55 +250,24 @@ const InteligenciaEleitoralInner = () => {
           <CampoGrandeAnalise />
         </TabsContent>
 
-        {/* MÍDIA — GDELT */}
-        <TabsContent value="midia" className="mt-4">
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Newspaper className="w-5 h-5 text-primary" /> Cobertura de mídia em tempo real
-              </CardTitle>
-              <CardDescription>
-                Monitore como temas e figuras políticas estão sendo cobertos pela imprensa nas últimas horas/dias.
-                Volume, tom (positivo/negativo) e principais fontes — via GDELT Project.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <GdeltMonitor
-            defaultQuery={f.municipio !== "__all__" ? f.municipio : ""}
-            defaultCountry="BR"
-            defaultTimespan="7d"
-          />
-        </TabsContent>
-
-        {/* PULSO DA MÍDIA — Firecrawl + IA */}
-        <TabsContent value="pulso" className="mt-4">
-          <PulsoMidia />
-        </TabsContent>
-
-        {/* PULSO POLÍTICO — Câmara/Senado + IBGE/DataSUS/INEP */}
-        <TabsContent value="politico" className="mt-4">
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Vote className="w-5 h-5 text-primary" /> Pulso Político
-              </CardTitle>
-              <CardDescription>
-                Munição de campanha em tempo real: atividade dos adversários (votações, projetos, presença em sessões — direto da
-                API oficial da Câmara e Senado) cruzada com indicadores socioeconômicos por município (IBGE/DataSUS/INEP).
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <PulsoPolitico />
-        </TabsContent>
-
         {/* NARRATIVA POLÍTICA */}
         <TabsContent value="narrativa" className="mt-4">
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-primary" /> Narrativa Política
+              </CardTitle>
+              <CardDescription>
+                Geração de narrativas e mensagens-chave a partir dos dados acima. Use depois de explorar Panorama e Inteligência Política.
+              </CardDescription>
+            </CardHeader>
+          </Card>
           <NarrativaPolitica />
         </TabsContent>
       </Tabs>
 
       <p className="text-xs text-muted-foreground text-center pt-4">
-        Fonte: TSE — Tribunal Superior Eleitoral. Eleições 2022 e 2024.
+        Fontes: TSE (Tribunal Superior Eleitoral) · Câmara dos Deputados · Senado Federal · IBGE.
       </p>
     </div>
   );
