@@ -4,9 +4,7 @@
 // Os votos por local vêm de outras fontes; aqui o objetivo é ter o universo de
 // locais para o geocoding de bairros funcionar em qualquer cidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BlobReader, ZipReader, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
-
-configure({ useWebWorkers: false });
+import { Unzip, UnzipInflate } from "https://esm.sh/fflate@0.8.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,50 +73,89 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: `Falha ao ler ZIP do Storage: ${dlErr?.message || "arquivo não encontrado"}` }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     console.log("ZIP carregado:", fileBlob.size, "bytes");
-    const reader = new ZipReader(new BlobReader(fileBlob));
-    const entries = await reader.getEntries();
-    const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
-    if (!target) {
-      await reader.close();
-      return new Response(JSON.stringify({ error: `CSV da UF ${ufStr} não encontrado`, files: entries.map((e: any) => e.filename) }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    console.log("Extraindo:", target.filename, target.uncompressedSize, "bytes (streaming real)");
 
-    // ===== STREAMING REAL =====
-    // Em vez de descomprimir tudo na RAM (TextWriter/Uint8ArrayWriter explodem com 300MB+),
-    // usamos um WritableStream customizado que recebe chunks descomprimidos do zip.js,
-    // decodifica latin1 incrementalmente e quebra em linhas.
+    // ===== STREAMING via fflate =====
+    // O zip.js carrega buffers gigantes mesmo em modo "stream" — fflate.Unzip processa
+    // chunks brutos do ZIP (incluindo deflate) sem materializar nada grande na RAM.
     const decoder = new TextDecoder("iso-8859-1");
     let lineBuffer = "";
-    const lines: string[] = [];      // fila de linhas prontas para consumo
+    const lines: string[] = [];
     let producerDone = false;
+    let producerError: Error | null = null;
+    let targetFilename: string | null = null;
 
-    const writable = new WritableStream<Uint8Array>({
-      write(chunk) {
-        lineBuffer += decoder.decode(chunk, { stream: true });
-        let nl: number;
-        while ((nl = lineBuffer.indexOf("\n")) !== -1) {
-          const ln = lineBuffer.substring(0, nl).replace(/\r$/, "");
-          lineBuffer = lineBuffer.substring(nl + 1);
-          lines.push(ln);
+    const unzipper = new Unzip((file) => {
+      // Só processamos o CSV da UF — ignora outros arquivos
+      if (!file.name.toUpperCase().includes(`_${ufStr}.CSV`)) return;
+      targetFilename = file.name;
+      console.log("Extraindo:", file.name, "(stream fflate)");
+      file.ondata = (err, chunk, final) => {
+        if (err) { producerError = err; producerDone = true; return; }
+        if (chunk && chunk.length) {
+          lineBuffer += decoder.decode(chunk, { stream: !final });
+          let nl: number;
+          while ((nl = lineBuffer.indexOf("\n")) !== -1) {
+            lines.push(lineBuffer.substring(0, nl).replace(/\r$/, ""));
+            lineBuffer = lineBuffer.substring(nl + 1);
+          }
         }
-      },
-      close() {
-        lineBuffer += decoder.decode();
-        if (lineBuffer.length) {
-          lines.push(lineBuffer.replace(/\r$/, ""));
-          lineBuffer = "";
+        if (final) {
+          if (lineBuffer.length) {
+            lines.push(lineBuffer.replace(/\r$/, ""));
+            lineBuffer = "";
+          }
+          producerDone = true;
         }
-        producerDone = true;
-      },
+      };
+      file.start();
     });
+    unzipper.register(UnzipInflate);
 
-    // Inicia descompressão em paralelo (não aguarda terminar — vamos consumindo as linhas)
-    const extractionPromise = target.getData!(writable).then(() => { producerDone = true; });
+    // Alimenta o unzipper com chunks do blob (8MB por vez) — não materializa o ZIP inteiro
+    const CHUNK = 8 * 1024 * 1024;
+    const blobStream = fileBlob.stream();
+    const reader = blobStream.getReader();
+    let zipDone = false;
+    const feedZip = async () => {
+      try {
+        // Acumula em buffer próprio para passar pedaços controlados ao Unzip
+        let pending = new Uint8Array(0);
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          // Concatena com pendente
+          const merged = new Uint8Array(pending.length + value.length);
+          merged.set(pending, 0);
+          merged.set(value, pending.length);
+          pending = merged;
+          while (pending.length >= CHUNK) {
+            unzipper.push(pending.subarray(0, CHUNK), false);
+            pending = pending.slice(CHUNK);
+            // cede o event loop para o consumidor de linhas processar
+            await new Promise((r) => setTimeout(r, 0));
+          }
+        }
+        if (pending.length) unzipper.push(pending, true);
+        else unzipper.push(new Uint8Array(0), true);
+      } catch (e) {
+        producerError = e as Error;
+      } finally {
+        zipDone = true;
+        // se nenhum file callback marcou done, força
+        if (!targetFilename) producerDone = true;
+      }
+    };
+    const extractionPromise = feedZip();
 
     // Aguarda chegar pelo menos a primeira linha (header)
-    while (lines.length === 0 && !producerDone) {
-      await new Promise((r) => setTimeout(r, 5));
+    while (lines.length === 0 && !producerDone && !producerError) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    if (producerError) {
+      return new Response(JSON.stringify({ error: `Erro ao descomprimir ZIP: ${producerError.message}` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (!targetFilename && producerDone) {
+      return new Response(JSON.stringify({ error: `CSV da UF ${ufStr} não encontrado no ZIP` }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let lineNum = 0;
@@ -168,7 +205,8 @@ Deno.serve(async (req) => {
     while (true) {
       if (lines.length === 0) {
         if (producerDone) break;
-        await new Promise((r) => setTimeout(r, 5));
+        if (producerError) break;
+        await new Promise((r) => setTimeout(r, 10));
         continue;
       }
       const line = lines.shift()!;
@@ -227,7 +265,7 @@ Deno.serve(async (req) => {
     await flush();
     // Garante que o stream finalizou (ou capturamos erro de descompressão)
     try { await extractionPromise; } catch (e) { console.error("Erro descompressão:", (e as any)?.message); }
-    try { await reader.close(); } catch { /* ignore */ }
+    try { reader.cancel(); } catch { /* ignore */ }
     console.log(`scanned=${scanned} matched=${matched} inserted=${inserted} timedOut=${timedOut} lastLine=${lineNum}`);
 
     return new Response(JSON.stringify({
