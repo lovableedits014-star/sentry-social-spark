@@ -134,6 +134,47 @@ function buildDossieMarkdown(dossie: any): string {
     for (const m of c.manchetes_reels) lines.push(`- ${m}`);
     lines.push("");
   }
+  if (c.briefing_municipio) {
+    const b = c.briefing_municipio;
+    lines.push("");
+    lines.push(`## Briefing do Município`);
+    if (b.visao_geral) lines.push(b.visao_geral);
+    const fr = b.ficha_rapida || {};
+    const frEntries = Object.entries(fr).filter(([, v]) => v && String(v).trim());
+    if (frEntries.length) {
+      lines.push("");
+      lines.push("### Ficha rápida");
+      for (const [k, v] of frEntries) lines.push(`- ${k}: ${v}`);
+    }
+    if (b.geografia_clima) { lines.push(""); lines.push(`### Geografia & clima`); lines.push(b.geografia_clima); }
+    if (b.economia_resumo) { lines.push(""); lines.push(`### Economia`); lines.push(b.economia_resumo); }
+    if (b.infraestrutura) { lines.push(""); lines.push(`### Infraestrutura`); lines.push(b.infraestrutura); }
+    if (b.politica_local) { lines.push(""); lines.push(`### Política local`); lines.push(b.politica_local); }
+    if (Array.isArray(b.municipios_vizinhos) && b.municipios_vizinhos.length) {
+      lines.push(""); lines.push(`### Municípios vizinhos`); lines.push(b.municipios_vizinhos.join(", "));
+    }
+    if (Array.isArray(b.distritos_bairros) && b.distritos_bairros.length) {
+      lines.push(""); lines.push(`### Distritos/bairros`); lines.push(b.distritos_bairros.join(", "));
+    }
+    if (Array.isArray(b.personalidades_notaveis) && b.personalidades_notaveis.length) {
+      lines.push(""); lines.push(`### Personalidades`);
+      for (const p of b.personalidades_notaveis) lines.push(`- ${p.nome} — ${p.por_que_importa}`);
+    }
+    if (Array.isArray(b.pontos_turisticos) && b.pontos_turisticos.length) {
+      lines.push(""); lines.push(`### Pontos turísticos`); lines.push(b.pontos_turisticos.join(", "));
+    }
+    if (Array.isArray(b.festas_eventos) && b.festas_eventos.length) {
+      lines.push(""); lines.push(`### Festas & eventos`); lines.push(b.festas_eventos.join(", "));
+    }
+    if (Array.isArray(b.dicas_abordagem) && b.dicas_abordagem.length) {
+      lines.push(""); lines.push(`### Dicas de abordagem`);
+      for (const d of b.dicas_abordagem) lines.push(`- ${d}`);
+    }
+    if (Array.isArray(b.evitar) && b.evitar.length) {
+      lines.push(""); lines.push(`### Evitar`);
+      for (const d of b.evitar) lines.push(`- ${d}`);
+    }
+  }
   if (Array.isArray(c.curiosidades_locais) && c.curiosidades_locais.length > 0) {
     lines.push("");
     lines.push(`## Curiosidades & Cultura Local`);
@@ -486,6 +527,59 @@ function buildDossiePdf(dossie: any, download = true) {
         y += 14;
       }
       y += 2;
+    }
+  }
+
+  // BRIEFING DO MUNICÍPIO
+  const brief: any = c.briefing_municipio;
+  if (brief && (brief.visao_geral || brief.ficha_rapida)) {
+    y += 12;
+    sectionTitle("Briefing do Município", C.success);
+    if (brief.visao_geral) paragraph(brief.visao_geral, { size: 10 });
+
+    const fr = brief.ficha_rapida || {};
+    const frEntries = Object.entries(fr).filter(([, v]) => v && String(v).trim().length > 0);
+    if (frEntries.length) {
+      paragraph("Ficha rápida:", { size: 9, color: C.muted });
+      for (const [k, v] of frEntries) {
+        paragraph(`• ${k}: ${v}`, { size: 9 });
+      }
+    }
+    const blocoTexto = (titulo: string, txt?: string) => {
+      if (!txt) return;
+      paragraph(titulo, { size: 9, color: C.muted });
+      paragraph(txt, { size: 9 });
+    };
+    blocoTexto("Geografia & clima:", brief.geografia_clima);
+    blocoTexto("Economia:", brief.economia_resumo);
+    blocoTexto("Infraestrutura:", brief.infraestrutura);
+    blocoTexto("Política local:", brief.politica_local);
+
+    if (Array.isArray(brief.municipios_vizinhos) && brief.municipios_vizinhos.length) {
+      paragraph(`Municípios vizinhos: ${brief.municipios_vizinhos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.distritos_bairros) && brief.distritos_bairros.length) {
+      paragraph(`Distritos/bairros: ${brief.distritos_bairros.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.personalidades_notaveis) && brief.personalidades_notaveis.length) {
+      paragraph("Personalidades:", { size: 9, color: C.muted });
+      for (const p of brief.personalidades_notaveis) {
+        paragraph(`• ${p.nome} — ${p.por_que_importa}`, { size: 9 });
+      }
+    }
+    if (Array.isArray(brief.pontos_turisticos) && brief.pontos_turisticos.length) {
+      paragraph(`Pontos turísticos: ${brief.pontos_turisticos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.festas_eventos) && brief.festas_eventos.length) {
+      paragraph(`Festas & eventos: ${brief.festas_eventos.join(", ")}`, { size: 9 });
+    }
+    if (Array.isArray(brief.dicas_abordagem) && brief.dicas_abordagem.length) {
+      paragraph("Dicas de abordagem (faça):", { size: 9, color: C.success });
+      for (const d of brief.dicas_abordagem) paragraph(`✓ ${d}`, { size: 9 });
+    }
+    if (Array.isArray(brief.evitar) && brief.evitar.length) {
+      paragraph("Evitar:", { size: 9, color: C.danger });
+      for (const d of brief.evitar) paragraph(`✗ ${d}`, { size: 9 });
     }
   }
 
@@ -1567,7 +1661,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Curiosidades & Cultura</TabsTrigger>
+                <TabsTrigger value="visita">Briefing & Cultura</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1610,6 +1704,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
               </TabsContent>
 
               <TabsContent value="visita" className="mt-4 space-y-4">
+                <BriefingMunicipioView briefing={conteudos.briefing_municipio} />
                 <CuriosidadesView curiosidades={conteudos.curiosidades_locais || []} />
               </TabsContent>
             </Tabs>
@@ -1653,6 +1748,198 @@ const Stat = ({ label, value, sub }: { label: string; value: string | number; su
 );
 
 /* ----------------- Curiosidades & Cultura Local ----------------- */
+type BriefingMunicipio = {
+  visao_geral?: string;
+  ficha_rapida?: Record<string, string>;
+  simbolos?: string;
+  geografia_clima?: string;
+  municipios_vizinhos?: string[];
+  distritos_bairros?: string[];
+  economia_resumo?: string;
+  infraestrutura?: string;
+  politica_local?: string;
+  personalidades_notaveis?: { nome: string; por_que_importa: string }[];
+  pontos_turisticos?: string[];
+  festas_eventos?: string[];
+  dicas_abordagem?: string[];
+  evitar?: string[];
+};
+
+const FICHA_LABEL: Record<string, string> = {
+  gentilico: "Gentílico",
+  fundacao: "Fundação",
+  aniversario: "Aniversário",
+  area_km2: "Área (km²)",
+  altitude: "Altitude",
+  clima: "Clima",
+  populacao: "População",
+  regiao: "Região",
+  padroeiro: "Padroeiro(a)",
+  lema: "Lema",
+  site_oficial: "Site oficial",
+};
+
+const BriefingMunicipioView = ({ briefing }: { briefing?: BriefingMunicipio | null }) => {
+  if (!briefing || (!briefing.visao_geral && !briefing.ficha_rapida)) return null;
+
+  const ficha = briefing.ficha_rapida || {};
+  const fichaEntries = Object.entries(ficha).filter(([, v]) => v && String(v).trim().length > 0);
+
+  const Bloco = ({
+    icon: Icon,
+    titulo,
+    children,
+  }: { icon: any; titulo: string; children: React.ReactNode }) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+        <Icon className="w-3.5 h-3.5" />
+        {titulo}
+      </div>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+
+  const Lista = ({ items }: { items?: string[] }) => {
+    if (!items || items.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it, i) => (
+          <Badge key={i} variant="secondary" className="text-[11px] font-normal">{it}</Badge>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-primary" />
+          Briefing do Município
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Tudo que o candidato precisa saber sobre a cidade antes da visita — extraído da Wikipedia.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5 text-sm">
+        {briefing.visao_geral && (
+          <p className="leading-relaxed text-foreground/90 italic border-l-4 border-primary pl-3">
+            {briefing.visao_geral}
+          </p>
+        )}
+
+        {fichaEntries.length > 0 && (
+          <div>
+            <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Landmark className="w-3.5 h-3.5" /> Ficha rápida
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {fichaEntries.map(([k, v]) => (
+                <div key={k} className="rounded border bg-muted/30 px-2.5 py-1.5">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{FICHA_LABEL[k] || k}</div>
+                  <div className="text-sm font-medium leading-tight break-words">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-5">
+          {briefing.geografia_clima && (
+            <Bloco icon={MapIcon} titulo="Geografia & Clima">
+              <p className="text-foreground/90">{briefing.geografia_clima}</p>
+            </Bloco>
+          )}
+          {briefing.economia_resumo && (
+            <Bloco icon={Trophy} titulo="Economia">
+              <p className="text-foreground/90">{briefing.economia_resumo}</p>
+            </Bloco>
+          )}
+          {briefing.infraestrutura && (
+            <Bloco icon={MapPinned} titulo="Infraestrutura">
+              <p className="text-foreground/90">{briefing.infraestrutura}</p>
+            </Bloco>
+          )}
+          {briefing.politica_local && (
+            <Bloco icon={Megaphone} titulo="Política local">
+              <p className="text-foreground/90">{briefing.politica_local}</p>
+            </Bloco>
+          )}
+          {briefing.simbolos && (
+            <Bloco icon={Star} titulo="Símbolos">
+              <p className="text-foreground/90">{briefing.simbolos}</p>
+            </Bloco>
+          )}
+        </div>
+
+        {(briefing.municipios_vizinhos?.length || briefing.distritos_bairros?.length) && (
+          <div className="grid md:grid-cols-2 gap-5">
+            {briefing.municipios_vizinhos?.length ? (
+              <Bloco icon={MapPin} titulo="Municípios vizinhos">
+                <Lista items={briefing.municipios_vizinhos} />
+              </Bloco>
+            ) : null}
+            {briefing.distritos_bairros?.length ? (
+              <Bloco icon={MapIcon} titulo="Distritos / bairros principais">
+                <Lista items={briefing.distritos_bairros} />
+              </Bloco>
+            ) : null}
+          </div>
+        )}
+
+        {briefing.personalidades_notaveis?.length ? (
+          <Bloco icon={Users} titulo="Personalidades notáveis">
+            <ul className="space-y-1.5">
+              {briefing.personalidades_notaveis.map((p, i) => (
+                <li key={i} className="text-sm">
+                  <b>{p.nome}</b> — <span className="text-foreground/80">{p.por_que_importa}</span>
+                </li>
+              ))}
+            </ul>
+          </Bloco>
+        ) : null}
+
+        {(briefing.pontos_turisticos?.length || briefing.festas_eventos?.length) && (
+          <div className="grid md:grid-cols-2 gap-5">
+            {briefing.pontos_turisticos?.length ? (
+              <Bloco icon={Landmark} titulo="Pontos turísticos / patrimônio">
+                <Lista items={briefing.pontos_turisticos} />
+              </Bloco>
+            ) : null}
+            {briefing.festas_eventos?.length ? (
+              <Bloco icon={Music} titulo="Festas & eventos">
+                <Lista items={briefing.festas_eventos} />
+              </Bloco>
+            ) : null}
+          </div>
+        )}
+
+        {briefing.dicas_abordagem?.length ? (
+          <div className="rounded-md border-l-4 border-emerald-500 bg-emerald-500/5 p-3">
+            <div className="text-xs uppercase tracking-wide font-semibold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5" /> Dicas de abordagem (faça)
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-sm">
+              {briefing.dicas_abordagem.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+        ) : null}
+
+        {briefing.evitar?.length ? (
+          <div className="rounded-md border-l-4 border-destructive bg-destructive/5 p-3">
+            <div className="text-xs uppercase tracking-wide font-semibold text-destructive mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" /> Evite
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-sm">
+              {briefing.evitar.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};
+
 type Curiosidade = {
   categoria: string;
   titulo: string;

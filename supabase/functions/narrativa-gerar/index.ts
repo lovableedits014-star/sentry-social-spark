@@ -40,14 +40,26 @@ function buildContextoWebBlock(ctx: any): string {
   if (ctx.wiki?.extrato) {
     linhas.push(`📖 Wikipedia: ${ctx.wiki.extrato}`);
   }
-  // Seções ricas da Wikipedia (História, Cultura, Economia, Personalidades, etc.)
-  const secoes = ctx?.wiki_secoes?.secoes;
-  if (secoes && typeof secoes === "object") {
-    const entradas = Object.entries(secoes).slice(0, 8);
+  // Infobox da Wikipedia (prefeito, área, altitude, gentílico, padroeiro, símbolos, etc.)
+  const infobox = ctx?.wiki_pagina?.infobox || ctx?.wiki_secoes?.infobox;
+  if (infobox && typeof infobox === "object") {
+    const entradas = Object.entries(infobox);
     if (entradas.length) {
-      linhas.push(`\n📚 Páginas de conhecimento local (Wikipedia — ${ctx.wiki_secoes.titulo_pagina}):`);
+      linhas.push(`\n🏛️ Ficha técnica do município (Wikipedia infobox):`);
+      for (const [k, v] of entradas) {
+        linhas.push(`  • ${k}: ${v}`);
+      }
+    }
+  }
+  // Seções ricas da Wikipedia (até 20 — todas as áreas relevantes)
+  const wikiPagina = ctx?.wiki_pagina || ctx?.wiki_secoes;
+  const secoes = wikiPagina?.secoes;
+  if (secoes && typeof secoes === "object") {
+    const entradas = Object.entries(secoes);
+    if (entradas.length) {
+      linhas.push(`\n📚 Conteúdo enciclopédico (Wikipedia — ${wikiPagina.titulo_pagina}):`);
       for (const [titulo, conteudo] of entradas) {
-        linhas.push(`\n  ▸ ${titulo}:\n  ${String(conteudo).slice(0, 700)}`);
+        linhas.push(`\n  ▸ ${titulo}:\n  ${String(conteudo).slice(0, 900)}`);
       }
     }
   }
@@ -66,7 +78,7 @@ function buildContextoWebBlock(ctx: any): string {
     }
   }
   if (linhas.length === 1) return ""; // só o cabeçalho — sem conteúdo útil
-  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques, e para gerar CURIOSIDADES & CULTURA LOCAL com base nos textos da Wikipedia acima. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
+  linhas.push("\nUSE este contexto para: (1) citar acontecimentos REAIS e RECENTES nos discursos e ataques; (2) preencher o BRIEFING DO MUNICÍPIO com dados estruturados; (3) gerar CURIOSIDADES & CULTURA LOCAL. Tudo baseado nos textos acima — proibido inventar.\n");
   return linhas.join("\n") + "\n";
 }
 
@@ -226,6 +238,21 @@ INSTRUÇÕES CRÍTICAS:
 - NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
+BRIEFING DO MUNICÍPIO (obrigatório)
+========================================
+Preencha "briefing_municipio" como um dossiê executivo. Use TUDO que estiver no CONTEXTO RECENTE DA WEB acima — infobox + seções (Geografia, Economia, Política, Saúde, Educação, Transporte, Cultura, Personalidades, Patrimônio, etc.).
+
+REGRAS:
+1. SOMENTE dados do contexto web. Se um campo não tiver fonte, deixe vazio (string ""), NÃO invente.
+2. "visao_geral" deve ser uma síntese viva (2-4 frases): identidade da cidade, vocação econômica e peso regional.
+3. "ficha_rapida" puxe direto da infobox (gentílico, fundação, área, altitude, clima, padroeiro, lema, site).
+4. "municipios_vizinhos" e "distritos_bairros": liste o que o texto menciona — nada além.
+5. "politica_local": prefeito atual + partido (infobox) e qualquer pista de força política mencionada.
+6. "personalidades_notaveis": nomes citados na seção Personalidades/Filhos ilustres com 1 frase explicando quem é.
+7. "dicas_abordagem" (3-6 itens) é prático: como o candidato deve se comportar, o que dizer/fazer para mostrar respeito local. Baseie-se em Cultura, Religião, Gastronomia, Esportes.
+8. "evitar": só inclua se o texto sugerir rivalidades, polêmicas ou erros típicos. Caso contrário, deixe array vazio.
+
+========================================
 CURIOSIDADES & CULTURA LOCAL (obrigatório)
 ========================================
 Gere 5 a 10 fatos REAIS sobre a cidade para o candidato chegar conhecendo o lugar — história, cultura, economia, gastronomia, personalidades famosas, festas tradicionais, etimologia do nome, geografia, esportes, religião.
@@ -303,8 +330,90 @@ const TOOL_SCHEMA = {
             additionalProperties: false,
           },
         },
+        briefing_municipio: {
+          type: "object",
+          description: "Briefing executivo estruturado do município — preenchido SOMENTE com dados extraídos do CONTEXTO RECENTE DA WEB (Wikipedia infobox + seções). Cada campo opcional: deixe vazio se a informação não estiver no contexto.",
+          properties: {
+            visao_geral: { type: "string", description: "Resumo de 2-4 frases sobre a cidade: identidade, vocação econômica, peso na região." },
+            ficha_rapida: {
+              type: "object",
+              description: "Dados objetivos prontos para o candidato decorar.",
+              properties: {
+                gentilico: { type: "string" },
+                fundacao: { type: "string", description: "Data ou ano de fundação." },
+                aniversario: { type: "string" },
+                area_km2: { type: "string" },
+                altitude: { type: "string" },
+                clima: { type: "string" },
+                populacao: { type: "string" },
+                regiao: { type: "string", description: "Mesorregião / microrregião / região metropolitana." },
+                padroeiro: { type: "string" },
+                lema: { type: "string" },
+                site_oficial: { type: "string" },
+              },
+              additionalProperties: false,
+            },
+            simbolos: { type: "string", description: "Bandeira, brasão, hino — se mencionados." },
+            geografia_clima: { type: "string", description: "Relevo, hidrografia (rios principais), clima, vegetação." },
+            municipios_vizinhos: {
+              type: "array",
+              maxItems: 12,
+              items: { type: "string" },
+              description: "Lista de municípios limítrofes citados na infobox/seção Geografia.",
+            },
+            distritos_bairros: {
+              type: "array",
+              maxItems: 15,
+              items: { type: "string" },
+              description: "Distritos ou bairros principais citados na Wikipedia.",
+            },
+            economia_resumo: { type: "string", description: "Setores que sustentam a cidade (agro, indústria, comércio, serviços). Cite atividades específicas se mencionadas." },
+            infraestrutura: { type: "string", description: "Saúde, educação, transporte, energia, saneamento — só o que constar no texto." },
+            politica_local: { type: "string", description: "Prefeito atual e partido (da infobox), composição da câmara, força partidária — se constar." },
+            personalidades_notaveis: {
+              type: "array",
+              maxItems: 8,
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string" },
+                  por_que_importa: { type: "string", description: "Uma frase curta sobre quem é/foi a pessoa." },
+                },
+                required: ["nome", "por_que_importa"],
+                additionalProperties: false,
+              },
+            },
+            pontos_turisticos: {
+              type: "array",
+              maxItems: 8,
+              items: { type: "string" },
+              description: "Patrimônios, monumentos, museus, atrativos naturais.",
+            },
+            festas_eventos: {
+              type: "array",
+              maxItems: 8,
+              items: { type: "string" },
+              description: "Festas tradicionais, religiosas, eventos anuais.",
+            },
+            dicas_abordagem: {
+              type: "array",
+              minItems: 3,
+              maxItems: 6,
+              items: { type: "string" },
+              description: "Dicas práticas de protocolo cultural ao chegar na cidade (ex: 'chame o povo de pantaneiro', 'cumprimente sempre o padre na visita à igreja matriz', 'aceite tereré em qualquer reunião'). Use o que estiver na seção Cultura/Religião/Gastronomia.",
+            },
+            evitar: {
+              type: "array",
+              maxItems: 5,
+              items: { type: "string" },
+              description: "Erros comuns a evitar (ex: 'não confunda o gentílico com a cidade vizinha', 'não chame o time rival', 'evite citar adversário histórico'). Só inclua se houver pista clara no contexto.",
+            },
+          },
+          required: ["visao_geral", "ficha_rapida", "dicas_abordagem"],
+          additionalProperties: false,
+        },
       },
-      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "curiosidades_locais"],
+      required: ["discursos", "ataques_3_camadas", "manchetes_reels", "curiosidades_locais", "briefing_municipio"],
       additionalProperties: false,
     },
   },
