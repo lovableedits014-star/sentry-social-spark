@@ -21,6 +21,9 @@ export default function TseSyncPanel() {
   const [geocoding, setGeocoding] = useState(false);
   const [importingLocais, setImportingLocais] = useState(false);
   const [municipio, setMunicipio] = useState("");
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [uploadingZip, setUploadingZip] = useState(false);
+  const [uploadedPath, setUploadedPath] = useState<string | null>(null);
   const [uf, setUf] = useState("MS");
   const [ano, setAno] = useState<number>(2024);
 
@@ -111,10 +114,14 @@ export default function TseSyncPanel() {
   };
 
   const importLocais = async () => {
+    if (!uploadedPath) {
+      toast.error("Envie o ZIP do TSE primeiro", { description: "Selecione e faça upload do arquivo abaixo." });
+      return;
+    }
     setImportingLocais(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-tse-locais", {
-        body: { uf, ano, municipio: municipio.trim() || undefined },
+        body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPath },
       });
       if (error) throw error;
       const d = data as any;
@@ -126,6 +133,24 @@ export default function TseSyncPanel() {
       toast.error("Falha ao importar locais", { description: e?.message || String(e) });
     } finally {
       setImportingLocais(false);
+    }
+  };
+
+  const uploadZip = async () => {
+    if (!zipFile) return;
+    setUploadingZip(true);
+    try {
+      const path = `eleitorado_local_votacao_${ano}_${Date.now()}.zip`;
+      const { error } = await supabase.storage
+        .from("tse-imports")
+        .upload(path, zipFile, { upsert: true, contentType: "application/zip" });
+      if (error) throw error;
+      setUploadedPath(path);
+      toast.success("ZIP enviado", { description: `${(zipFile.size / 1024 / 1024).toFixed(1)} MB — pronto para importar.` });
+    } catch (e: any) {
+      toast.error("Falha ao enviar ZIP", { description: e?.message || String(e) });
+    } finally {
+      setUploadingZip(false);
     }
   };
 
@@ -234,6 +259,31 @@ export default function TseSyncPanel() {
             <h5 className="text-white text-xs font-semibold flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5" /> Importar locais de votação (escolas/endereços)
             </h5>
+            <p className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1.5">
+              ⚠️ O CDN do TSE bloqueia downloads diretos da nossa nuvem. Baixe o ZIP no seu computador em{" "}
+              <a className="underline" target="_blank" rel="noreferrer"
+                 href={`https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${ano}.zip`}>
+                cdn.tse.jus.br/.../eleitorado_local_votacao_{ano}.zip
+              </a>{" "}
+              e envie aqui:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <Input
+                type="file"
+                accept=".zip,application/zip"
+                onChange={(e) => { setZipFile(e.target.files?.[0] || null); setUploadedPath(null); }}
+                className="bg-slate-800 border-slate-600 text-white file:bg-slate-700 file:text-white file:border-0 file:mr-2 file:rounded"
+              />
+              <Button onClick={uploadZip} disabled={!zipFile || uploadingZip} variant="secondary">
+                {uploadingZip ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 rotate-180" />}
+                Enviar ZIP
+              </Button>
+            </div>
+            {uploadedPath && (
+              <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> ZIP pronto: {uploadedPath}
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
               <div>
                 <Label className="text-xs text-slate-400">Município (opcional — vazio = toda a UF)</Label>
@@ -244,7 +294,7 @@ export default function TseSyncPanel() {
                   className="bg-slate-800 border-slate-600 text-white"
                 />
               </div>
-              <Button onClick={importLocais} disabled={importingLocais} variant="secondary">
+              <Button onClick={importLocais} disabled={importingLocais || !uploadedPath} variant="secondary">
                 {importingLocais ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
                 Importar locais {uf}/{ano}
               </Button>

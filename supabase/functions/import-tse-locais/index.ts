@@ -4,7 +4,7 @@
 // Os votos por local vêm de outras fontes; aqui o objetivo é ter o universo de
 // locais para o geocoding de bairros funcionar em qualquer cidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { HttpReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { BlobReader, ZipReader, Uint8ArrayWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
 configure({ useWebWorkers: false });
 
@@ -53,17 +53,25 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Apenas o Super-Admin pode importar locais TSE." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { ano = 2024, uf = "MS", municipio } = await req.json().catch(() => ({}));
+    const { ano = 2024, uf = "MS", municipio, storage_path } = await req.json().catch(() => ({}));
     const anoNum = Number(ano);
     const ufStr = String(uf).toUpperCase();
     const munFiltro = municipio ? norm(String(municipio)) : null;
     if (![2018, 2020, 2022, 2024].includes(anoNum)) {
       return new Response(JSON.stringify({ error: "Ano inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    if (!storage_path || typeof storage_path !== "string") {
+      return new Response(JSON.stringify({ error: "Faltou 'storage_path' (caminho do ZIP no bucket tse-imports)." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-    const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${anoNum}.zip`;
-    console.log("Abrindo ZIP via Range:", zipUrl);
-    const reader = new ZipReader(new HttpReader(zipUrl, { useRangeHeader: true, preventHeadRequest: false }));
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+    console.log("Baixando do Storage:", storage_path);
+    const { data: fileBlob, error: dlErr } = await admin.storage.from("tse-imports").download(storage_path);
+    if (dlErr || !fileBlob) {
+      return new Response(JSON.stringify({ error: `Falha ao ler ZIP do Storage: ${dlErr?.message || "arquivo não encontrado"}` }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    console.log("ZIP carregado:", fileBlob.size, "bytes");
+    const reader = new ZipReader(new BlobReader(fileBlob));
     const entries = await reader.getEntries();
     const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
     if (!target) {
@@ -136,7 +144,6 @@ Deno.serve(async (req) => {
     }
     console.log(`scanned=${scanned} matched=${matched} unique=${map.size}`);
 
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     const all = Array.from(map.values());
     const BATCH = 1000; let inserted = 0; let failed = 0;
     for (let i = 0; i < all.length; i += BATCH) {
