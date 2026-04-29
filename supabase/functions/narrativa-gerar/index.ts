@@ -202,8 +202,7 @@ ${buildContextoWebBlock(contextoWeb)}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
-TOP CANDIDATOS LOCAIS — APENAS CONTEXTO POLÍTICO (NÃO USAR COMO BAIRRO!):
-Esta lista contém NOMES DE POLÍTICOS (pessoas) que ganharam eleições na cidade — serve só como referência de quem está no jogo. NUNCA, em hipótese alguma, use esses nomes no campo "bairro" do roteiro estratégico — bairro é um LUGAR, não uma pessoa.
+TOP CANDIDATOS LOCAIS — apenas contexto político:
 ${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
   `- ${b.ano} ${b.cargo}: ${b.top.slice(0, 3).map((c: any) => `${c.nome} (${c.partido}) ${c.votos} votos`).join(" | ")}`,
 ).join("\n") || "(sem dados)"}
@@ -227,27 +226,19 @@ INSTRUÇÕES CRÍTICAS:
 - NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
-BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
+CURIOSIDADES & CULTURA LOCAL (obrigatório)
 ========================================
-ÚNICA fonte permitida para o campo "bairro" do roteiro estratégico. Cada item abaixo é um BAIRRO/LOCAL geográfico (não pessoa):
-${topLocais || "(sem dados zonais)"}
+Gere 5 a 10 fatos REAIS sobre a cidade para o candidato chegar conhecendo o lugar — história, cultura, economia, gastronomia, personalidades famosas, festas tradicionais, etimologia do nome, geografia, esportes, religião.
 
-Bairros adicionais válidos (use também): ${bairrosReais || "(nenhum)"}
+REGRAS:
+1. Use SOMENTE informações do bloco "CONTEXTO RECENTE DA WEB" (Wikipedia + páginas de conhecimento local) acima. NUNCA invente.
+2. Se o contexto web não trouxer informação para uma categoria, NÃO crie esse item — prefira menos itens com fontes reais.
+3. "fato" deve ser uma síntese clara em 1-3 frases — NÃO copie wikitext bruto, reescreva em português direto.
+4. "uso_politico" é uma sugestão CURTA e prática de como o candidato pode citar isso (ex: "Mencione o time local na abertura da fala em bairros operários" ou "Cite o nome do santo padroeiro ao falar com a comunidade católica").
+5. Distribua entre categorias diferentes (não 8 fatos só de história).
+6. Foque em coisas que MOSTRAM RESPEITO PELA CIDADE: pratos típicos, datas comemorativas, personalidades queridas, lendas, conquistas esportivas, marcos arquitetônicos.
 
-REGRAS RÍGIDAS PARA O CAMPO "bairro":
-1. Use APENAS nomes da lista de bairros acima — copie exatamente como está escrito.
-2. PROIBIDO usar nome de pessoa (político, candidato) como bairro.
-3. PROIBIDO inventar bairro que não está na lista.
-4. Bairro = lugar geográfico (ex: "Coronel Antonino", "Centro", "Vila Nasser"). Pessoa = NÃO é bairro.
-
-ROTEIRO ESTRATÉGICO (obrigatório):
-- Gere de 4 a 6 paradas REAIS de campanha.
-- Cada parada DEVE usar um dos bairros da lista "BAIRROS REAIS DISPONÍVEIS" acima — NUNCA invente, NUNCA use nome de político.
-- Cada parada cruza um local crítico com UMA dor prioritária (${doresPrioritarias || "use as dores disponíveis"}).
-- Distribua as paradas entre dores diferentes (não todas saúde, não todas educação).
-- "imagem_sugerida" deve ser concreta e fotografável (ex: "candidato sentado no meio-fio conversando com idoso na fila do posto", não "símbolo da esperança").
-- "fala_chave" é UMA frase curta (max 25 palavras) que o candidato fala olhando no olho.
-- "duracao_min" entre 30 e 90 minutos por parada.
+Para referência (NÃO use no roteiro): top locais críticos = ${topLocais ? "ver acima" : "(sem dados)"}; dores prioritárias = ${doresPrioritarias || "—"}.
 
 Gere o pacote completo de munição política para esta cidade.`;
 }
