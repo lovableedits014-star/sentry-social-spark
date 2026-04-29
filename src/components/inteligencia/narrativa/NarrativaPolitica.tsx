@@ -482,7 +482,64 @@ function buildDossiePdf(dossie: any, download = true) {
   }
 
   // ROTEIRO DE VISITA
-  if (c.roteiro_visita) {
+  // Roteiro estratégico (paradas) — versão Onda 2
+  const paradas: any[] = Array.isArray(c.roteiro_estrategico) ? [...c.roteiro_estrategico].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) : [];
+  if (paradas.length > 0) {
+    y += 12;
+    sectionTitle("Roteiro Estratégico — Agenda de Campanha", C.success);
+    const totalMin = paradas.reduce((s, p) => s + (Number(p.duracao_min) || 0), 0);
+    paragraph(`${paradas.length} paradas · ~${Math.floor(totalMin / 60)}h ${totalMin % 60}min de campanha.`, { size: 9, color: C.muted });
+    y += 4;
+
+    for (const p of paradas) {
+      ensure(110);
+      // cabeçalho da parada
+      setFill(C.primary);
+      doc.roundedRect(margin, y, contentW, 22, 3, 3, "F");
+      setText(C.white);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`PARADA ${p.ordem || "?"} · ${(p.bairro || "—").toUpperCase()}`, margin + 10, y + 14);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`${p.duracao_min || "?"}min`, pageW - margin - 10, y + 14, { align: "right" });
+      y += 28;
+
+      // local + área
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const localTxt = `${p.local || "—"}  |  ${(AREA_LABEL[p.area_dor] || p.area_dor || "—")}  |  Emoção: ${p.emocao || "—"}`;
+      doc.text(doc.splitTextToSize(localTxt, contentW), margin, y);
+      y += 14;
+
+      // objetivo
+      paragraph(`Objetivo: ${p.objetivo || "—"}`, { size: 9 });
+
+      // fala-chave (destaque)
+      ensure(40);
+      setFill([239, 246, 255]); // azul muito claro
+      setStroke(C.accent);
+      doc.roundedRect(margin, y, contentW, 32, 3, 3, "FD");
+      setText(C.accent);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text("FALA-CHAVE", margin + 8, y + 12);
+      setText(C.primary);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      const falaWrap = doc.splitTextToSize(`"${p.fala_chave || "—"}"`, contentW - 16);
+      doc.text(falaWrap[0] || "", margin + 8, y + 26);
+      y += 38;
+
+      // imagem sugerida
+      paragraph(`Foto sugerida: ${p.imagem_sugerida || "—"}`, { size: 8, color: C.muted });
+      y += 8;
+    }
+  }
+
+  // ROTEIRO DE VISITA (síntese — legado)
+  if (c.roteiro_visita && paradas.length === 0) {
     y += 12;
     sectionTitle("Roteiro de Visita", C.success);
     const r = c.roteiro_visita;
