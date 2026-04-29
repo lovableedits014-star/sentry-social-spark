@@ -438,7 +438,7 @@ export default function TseSyncPanel() {
                  href={`https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${ano}.zip`}>
                 cdn.tse.jus.br/.../eleitorado_local_votacao_{ano}.zip
               </a>{" "}
-              extraia o arquivo <strong>.csv</strong> da UF e selecione aqui. O processamento fica em lotes pequenos, sem subir o ZIP gigante para a função.
+              extraia e selecione o <strong>.csv</strong> aqui. Pode ser o CSV nacional — o sistema filtra automaticamente apenas a UF <strong>{uf}</strong> antes de enviar (ignora os outros estados).
             </p>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
               <Input
