@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
   AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned, Star, Pencil, Check, X,
-  Clock, BookOpen, Landmark, Utensils, Music, Trophy, Church, Map as MapIcon, Lightbulb, Quote,
+  BookOpen, Landmark, Utensils, Music, Trophy, Church, Map as MapIcon, Lightbulb, Quote,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
