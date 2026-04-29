@@ -105,7 +105,8 @@ ${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
-TOP CANDIDATOS LOCAIS (TSE):
+TOP CANDIDATOS LOCAIS — APENAS CONTEXTO POLÍTICO (NÃO USAR COMO BAIRRO!):
+Esta lista contém NOMES DE POLÍTICOS (pessoas) que ganharam eleições na cidade — serve só como referência de quem está no jogo. NUNCA, em hipótese alguma, use esses nomes no campo "bairro" do roteiro estratégico — bairro é um LUGAR, não uma pessoa.
 ${(tse?.top_por_cargo_ano || []).slice(0, 4).map((b: any) =>
   `- ${b.ano} ${b.cargo}: ${b.top.slice(0, 3).map((c: any) => `${c.nome} (${c.partido}) ${c.votos} votos`).join(" | ")}`,
 ).join("\n") || "(sem dados)"}
@@ -124,14 +125,24 @@ INSTRUÇÕES CRÍTICAS:
 - Cite o ano dos dados quando recente (não cite anos de 2010 ou anteriores como se fossem atuais)
 - Se um indicador NÃO tiver dado, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
-- BAIRROS REAIS onde o prefeito atual foi mais fraco em 2024 (use estes nomes EXATOS no roteiro):
+
+========================================
+BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
+========================================
+ÚNICA fonte permitida para o campo "bairro" do roteiro estratégico. Cada item abaixo é um BAIRRO/LOCAL geográfico (não pessoa):
 ${topLocais || "(sem dados zonais)"}
-- Bairros candidatos para o roteiro_visita.bairro_sugerido: ${bairrosReais || "(use região genérica como 'periferia')"}
-- NUNCA invente nome de bairro. Se a lista acima estiver vazia, use "região periférica" genericamente.
+
+Bairros adicionais válidos (use também): ${bairrosReais || "(nenhum)"}
+
+REGRAS RÍGIDAS PARA O CAMPO "bairro":
+1. Use APENAS nomes da lista de bairros acima — copie exatamente como está escrito.
+2. PROIBIDO usar nome de pessoa (político, candidato) como bairro.
+3. PROIBIDO inventar bairro que não está na lista.
+4. Bairro = lugar geográfico (ex: "Coronel Antonino", "Centro", "Vila Nasser"). Pessoa = NÃO é bairro.
 
 ROTEIRO ESTRATÉGICO (obrigatório):
 - Gere de 4 a 6 paradas REAIS de campanha.
-- Cada parada DEVE usar um dos bairros/locais da lista "TOP CANDIDATOS LOCAIS" acima — NUNCA invente.
+- Cada parada DEVE usar um dos bairros da lista "BAIRROS REAIS DISPONÍVEIS" acima — NUNCA invente, NUNCA use nome de político.
 - Cada parada cruza um local crítico com UMA dor prioritária (${doresPrioritarias || "use as dores disponíveis"}).
 - Distribua as paradas entre dores diferentes (não todas saúde, não todas educação).
 - "imagem_sugerida" deve ser concreta e fotografável (ex: "candidato sentado no meio-fio conversando com idoso na fila do posto", não "símbolo da esperança").
