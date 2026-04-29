@@ -710,6 +710,33 @@ const NarrativaPolitica = () => {
     },
   });
 
+  // Bairros válidos detectados (lista única para auditoria)
+  const { data: bairrosValidos, isFetching: bairrosLoading } = useQuery({
+    queryKey: ["narrativa-bairros-validos", uf, municipio],
+    enabled: !!uf && !!municipio && !!tseStatus && !tseStatus.bloqueado,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      // Pega bairros distintos com contagem de locais (proxy de relevância)
+      const { data } = await supabase
+        .from("tse_votacao_local" as any)
+        .select("bairro, nr_local")
+        .eq("uf", uf).eq("municipio", municipio)
+        .not("bairro", "is", null)
+        .limit(5000);
+      const map = new Map<string, Set<number>>();
+      for (const r of (data as any[]) || []) {
+        const b = String(r.bairro || "").trim();
+        if (!b) continue;
+        const set = map.get(b) || new Set<number>();
+        set.add(Number(r.nr_local));
+        map.set(b, set);
+      }
+      return [...map.entries()]
+        .map(([bairro, set]) => ({ bairro, locais: set.size }))
+        .sort((a, b) => b.locais - a.locais || a.bairro.localeCompare(b.bairro));
+    },
+  });
+
   // Pipeline: coleta -> analise -> gerar
   const runPipeline = useMutation({
     mutationFn: async ({ uf, municipio }: { uf: string; municipio: string }) => {
