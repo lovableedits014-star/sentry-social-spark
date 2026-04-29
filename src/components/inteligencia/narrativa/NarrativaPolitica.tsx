@@ -1133,12 +1133,16 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                           </span>
                         )}
                         <span className="ml-1 opacity-60">[{e.fonte}]</span>
-                        {e.outdated && (
+                        {e.ano && (
                           <span
-                            className="ml-1 inline-block px-1.5 py-0 text-[9px] uppercase font-bold rounded bg-amber-100 text-amber-800 border border-amber-300"
-                            title={`Dado oficial mais recente disponível (${e.idade_anos ?? "?"} anos). As fontes ainda não publicaram atualização.`}
+                            className="ml-1 text-[10px] text-muted-foreground italic"
+                            title={
+                              e.outdated
+                                ? `Esta é a última atualização publicada oficialmente. O órgão competente ainda não divulgou dado mais recente (${e.idade_anos ?? "?"} anos).`
+                                : "Última atualização oficial publicada pelo órgão competente."
+                            }
                           >
-                            desatualizado
+                            · última atualização oficial: <b className={e.outdated ? "text-amber-700 dark:text-amber-500" : "text-foreground"}>{e.ano}</b>
                           </span>
                         )}
                       </li>
