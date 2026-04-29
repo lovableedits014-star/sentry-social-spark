@@ -357,7 +357,7 @@ function buildDossiePdf(dossie: any, download = true) {
         const cmp = e.valor_estado != null
           ? ` vs ${Number(e.valor_estado).toFixed(2)} (média ${uf}, ${e.delta_pct > 0 ? "+" : ""}${Number(e.delta_pct ?? 0).toFixed(1)}%)`
           : "";
-        const txt = `• ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
+        const txt = `- ${e.titulo}: ${e.valor_cidade} ${e.unidade || ""}${cmp}`;
         const anoFonte = e.ano ? ` · Última atualização oficial: ${e.ano}` : "";
         const src = `   Fonte: ${e.fonte || "—"}${anoFonte}`;
         paragraph(txt, { size: 9 });
