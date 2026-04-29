@@ -173,8 +173,17 @@ function getSendFailure(status: number, data: any): string | null {
   if (status < 200 || status >= 300) return data?.error || data?.message || `Erro na ponte WhatsApp (status ${status})`;
   if (data?.success === false) return data?.error || data?.message || "Ponte recusou o envio";
   if (data?.delivered === false) return data?.error || data?.message || "Mensagem não entregue pelo WhatsApp";
-  const hasDeliverySignal = data?.success === true || data?.delivered === true || Boolean(data?.messageId || data?.message_id || data?.id || data?.key?.id);
-  return hasDeliverySignal ? null : (data?.error || data?.message || "Ponte não confirmou entrega da mensagem");
+  // Prova forte de entrega: a ponte/WhatsApp DEVE retornar um identificador único
+  // da mensagem (messageId / id / key.id) ou um campo `delivered:true` explícito.
+  // `success:true` sozinho NÃO é suficiente — vimos casos onde a ponte responde
+  // "ok" mesmo com a sessão WhatsApp caída, e a mensagem nunca é entregue.
+  const messageId = data?.messageId || data?.message_id || data?.id
+    || data?.key?.id || data?.data?.id || data?.data?.key?.id
+    || data?.result?.id || data?.result?.key?.id;
+  if (messageId) return null;
+  if (data?.delivered === true) return null;
+  return data?.error || data?.message
+    || "Ponte não retornou ID da mensagem — possivelmente a sessão WhatsApp caiu durante o envio. Tente reconectar.";
 }
 
 async function markInstanceDisconnected(adminClient: any, instanceId: string) {
@@ -771,7 +780,19 @@ Deno.serve(async (req) => {
       // Antes, um status antigo "connected" podia mascarar um health check recém-falho
       // e o envio seguia mesmo com a ponte dizendo "not connected".
       const currentStatus = health.status;
-      if (currentStatus !== "connected") {
+      // Releitura do estado mais recente do banco — o webhook pode ter acabado
+      // de marcar como "disconnected" (vps_reported_disconnected) entre o
+      // syncInstanceHealth e este ponto.
+      const { data: freshRow } = await adminClient
+        .from("whatsapp_instances")
+        .select("status, last_disconnected_at, connected_since")
+        .eq("id", instance_id)
+        .maybeSingle();
+      const lastDisc = freshRow?.last_disconnected_at ? new Date(freshRow.last_disconnected_at).getTime() : 0;
+      const recentlyDropped = lastDisc > 0 && (Date.now() - lastDisc) < 90_000;
+      const dbDisconnected = freshRow?.status === "disconnected";
+
+      if (currentStatus !== "connected" || dbDisconnected || recentlyDropped) {
         const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
         if (reconnect.status !== "connected") {
           const error = "Instância WhatsApp desconectada. Reconecte o chip antes de enviar.";
@@ -781,6 +802,11 @@ Deno.serve(async (req) => {
           }
           await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error });
           return jsonResponse({ success: false, status: reconnect.status || health.status, error, health, reconnect });
+        }
+        // Reconexão bem-sucedida: aguarda 2s para o socket WhatsApp estabilizar
+        // antes de tentar enviar (envios imediatos pós-reconnect costumam falhar).
+        if (recentlyDropped || dbDisconnected) {
+          await sleep(2000);
         }
       }
     }
