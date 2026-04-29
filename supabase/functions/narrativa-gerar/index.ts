@@ -88,7 +88,7 @@ REGRAS OBRIGATÓRIAS:
 - Saída deve ser estritamente um JSON válido seguindo o schema do tool.`;
 }
 
-function buildUserPrompt(dossie: any, ranking?: Record<string, any>) {
+function buildUserPrompt(dossie: any, ranking?: Record<string, any>, contextoWeb?: any) {
   const meta = dossie.dados_brutos?.meta || {};
   const ibge = dossie.dados_brutos?.ibge || {};
   const tse = dossie.dados_brutos?.tse_local || {};
@@ -161,6 +161,7 @@ INDICADORES MUNICIPAIS RECENTES (≤3 anos, com comparação ao estado de ${meta
 ${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
 ${indicadoresIgnorados.length ? `\n(Descartados por serem antigos demais: ${indicadoresIgnorados.join(", ")})` : ""}
 
+${buildContextoWebBlock(contextoWeb)}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
