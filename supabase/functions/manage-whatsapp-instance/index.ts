@@ -328,8 +328,11 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    const body = await req.json();
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
+    const cronRequested = action === "health_check_all";
+    if (!authHeader && !cronRequested) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -338,15 +341,12 @@ Deno.serve(async (req) => {
     const bridgeToken = Deno.env.get("WHATSAPP_BRIDGE_TOKEN");
 
     const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
     });
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
-    const cronRequested = action === "health_check_all";
 
     if ((authErr || !user) && !cronRequested) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);
