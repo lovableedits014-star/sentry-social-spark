@@ -134,26 +134,13 @@ function buildDossieMarkdown(dossie: any): string {
     for (const m of c.manchetes_reels) lines.push(`- ${m}`);
     lines.push("");
   }
-  if (c.roteiro_visita) {
-    lines.push(`## Roteiro de visita`);
-    lines.push(`- Foco: ${c.roteiro_visita.foco}`);
-    lines.push(`- Emoção: ${c.roteiro_visita.emocao_alvo}`);
-    lines.push(`- Bairro: ${c.roteiro_visita.bairro_sugerido}`);
-    lines.push(`- Primeira frase: "${c.roteiro_visita.primeira_frase}"`);
-    lines.push(`- Mensagem central: ${c.roteiro_visita.mensagem_central}`);
-    lines.push(`- Chamada: ${c.roteiro_visita.chamada_acao}`);
-  }
-  if (Array.isArray(c.roteiro_estrategico) && c.roteiro_estrategico.length > 0) {
+  if (Array.isArray(c.curiosidades_locais) && c.curiosidades_locais.length > 0) {
     lines.push("");
-    lines.push(`## Roteiro estratégico (paradas)`);
-    const ordenadas = [...c.roteiro_estrategico].sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
-    for (const p of ordenadas) {
-      lines.push(`### Parada ${p.ordem} — ${p.bairro} (${p.duracao_min}min)`);
-      lines.push(`- Local: ${p.local}`);
-      lines.push(`- Área de dor: ${p.area_dor} | Emoção: ${p.emocao}`);
-      lines.push(`- Objetivo: ${p.objetivo}`);
-      lines.push(`- Fala-chave: "${p.fala_chave}"`);
-      lines.push(`- Foto: ${p.imagem_sugerida}`);
+    lines.push(`## Curiosidades & Cultura Local`);
+    for (const k of c.curiosidades_locais) {
+      lines.push(`### ${k.titulo} (${k.categoria})`);
+      lines.push(`- ${k.fato}`);
+      lines.push(`- Como usar: ${k.uso_politico}`);
     }
   }
   return lines.join("\n");
