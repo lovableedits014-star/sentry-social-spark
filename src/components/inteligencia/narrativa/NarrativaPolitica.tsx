@@ -710,6 +710,33 @@ const NarrativaPolitica = () => {
     },
   });
 
+  // Bairros válidos detectados (lista única para auditoria)
+  const { data: bairrosValidos, isFetching: bairrosLoading } = useQuery({
+    queryKey: ["narrativa-bairros-validos", uf, municipio],
+    enabled: !!uf && !!municipio && !!tseStatus && !tseStatus.bloqueado,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      // Pega bairros distintos com contagem de locais (proxy de relevância)
+      const { data } = await supabase
+        .from("tse_votacao_local" as any)
+        .select("bairro, nr_local")
+        .eq("uf", uf).eq("municipio", municipio)
+        .not("bairro", "is", null)
+        .limit(5000);
+      const map = new Map<string, Set<number>>();
+      for (const r of (data as any[]) || []) {
+        const b = String(r.bairro || "").trim();
+        if (!b) continue;
+        const set = map.get(b) || new Set<number>();
+        set.add(Number(r.nr_local));
+        map.set(b, set);
+      }
+      return [...map.entries()]
+        .map(([bairro, set]) => ({ bairro, locais: set.size }))
+        .sort((a, b) => b.locais - a.locais || a.bairro.localeCompare(b.bairro));
+    },
+  });
+
   // Pipeline: coleta -> analise -> gerar
   const runPipeline = useMutation({
     mutationFn: async ({ uf, municipio }: { uf: string; municipio: string }) => {
@@ -855,6 +882,51 @@ const NarrativaPolitica = () => {
               <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-2 text-[11px]">
                 Apenas {tseStatus.pctBairro}% dos locais ({tseStatus.comBairro}/{tseStatus.locais}) têm bairro geocodado — o roteiro pode ficar curto. Considere rodar mais lotes de geocoding.
               </div>
+            )}
+
+            {municipio && !tseChecking && tseStatus && !tseStatus.bloqueado && (
+              <details className="rounded-md border border-border bg-muted/30 text-xs">
+                <summary className="cursor-pointer px-3 py-2 font-medium flex items-center justify-between hover:bg-muted/50">
+                  <span>
+                    🗺️ Bairros válidos detectados em {municipio}/{uf}
+                    {bairrosValidos && (
+                      <span className="ml-2 text-muted-foreground">({bairrosValidos.length} únicos)</span>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">clique para auditar</span>
+                </summary>
+                <div className="px-3 py-2 border-t border-border/50">
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    Esta é a lista exata de bairros que a IA pode usar como parada do roteiro estratégico. Qualquer nome fora desta lista será descartado pela validação. A coluna "locais" mostra quantos locais de votação a TSE registra naquele bairro.
+                  </p>
+                  {bairrosLoading ? (
+                    <div className="text-muted-foreground flex items-center gap-1.5 py-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Carregando bairros…
+                    </div>
+                  ) : !bairrosValidos || bairrosValidos.length === 0 ? (
+                    <p className="text-muted-foreground py-2">Nenhum bairro detectado.</p>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto rounded border border-border/50 bg-background/50">
+                      <table className="w-full text-[11px]">
+                        <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                          <tr className="text-left">
+                            <th className="px-2 py-1 font-medium">Bairro</th>
+                            <th className="px-2 py-1 font-medium text-right w-16">Locais</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bairrosValidos.map((b) => (
+                            <tr key={b.bairro} className="border-t border-border/30 hover:bg-muted/30">
+                              <td className="px-2 py-1">{b.bairro}</td>
+                              <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{b.locais}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </details>
             )}
 
             <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
