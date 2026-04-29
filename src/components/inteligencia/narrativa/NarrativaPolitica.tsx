@@ -575,11 +575,13 @@ function buildDossiePdf(dossie: any, download = true) {
     }
     if (Array.isArray(brief.dicas_abordagem) && brief.dicas_abordagem.length) {
       paragraph("Dicas de abordagem (faça):", { size: 9, color: C.success });
-      for (const d of brief.dicas_abordagem) paragraph(`✓ ${d}`, { size: 9 });
+      // ASCII-only: Helvetica padrão do jsPDF não tem glifo para ✓/✗ — usar
+      // marcadores ASCII evita largura errada e texto vazando pela margem.
+      for (const d of brief.dicas_abordagem) paragraph(`[OK] ${d}`, { size: 9, color: C.success });
     }
     if (Array.isArray(brief.evitar) && brief.evitar.length) {
       paragraph("Evitar:", { size: 9, color: C.danger });
-      for (const d of brief.evitar) paragraph(`✗ ${d}`, { size: 9 });
+      for (const d of brief.evitar) paragraph(`[X] ${d}`, { size: 9, color: C.danger });
     }
   }
 
@@ -611,11 +613,19 @@ function buildDossiePdf(dossie: any, download = true) {
       // fato
       paragraph(k.fato || "—", { size: 9 });
 
-      // uso político (destaque)
-      ensure(36);
+      // uso político (destaque) — caixa com altura dinâmica para não cortar texto
+      const usoTxt = String(k.uso_politico || "—");
+      // mesma normalização de tokens longos usada em paragraph()
+      const usoSafe = usoTxt.replace(/(\S{24,})/g, (m) => m.replace(/(.{18})/g, "$1 "));
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      const usoWrap = doc.splitTextToSize(usoSafe, contentW - 16);
+      const lineH = 12;
+      const boxH = 16 /* header */ + usoWrap.length * lineH + 8 /* padding */;
+      ensure(boxH + 6);
       setFill([239, 246, 255]);
       setStroke(C.accent);
-      doc.roundedRect(margin, y, contentW, 30, 3, 3, "FD");
+      doc.roundedRect(margin, y, contentW, boxH, 3, 3, "FD");
       setText(C.accent);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7);
@@ -623,9 +633,12 @@ function buildDossiePdf(dossie: any, download = true) {
       setText(C.primary);
       doc.setFont("helvetica", "italic");
       doc.setFontSize(9);
-      const usoWrap = doc.splitTextToSize(String(k.uso_politico || "—"), contentW - 16);
-      doc.text(usoWrap[0] || "", margin + 8, y + 24);
-      y += 38;
+      let uy = y + 22;
+      for (const ln of usoWrap) {
+        doc.text(ln, margin + 8, uy);
+        uy += lineH;
+      }
+      y += boxH + 8;
     }
   }
 
