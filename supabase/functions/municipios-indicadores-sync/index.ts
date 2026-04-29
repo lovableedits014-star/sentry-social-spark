@@ -42,7 +42,30 @@ const INDICADORES: IndicadorMeta[] = [
   { id: 60037, label: "Água canalizada",         area: "infra",      unidade: "%",                          higher_is_worse: false, fonte_orgao: "IBGE Censo" },
   { id: 30277, label: "Pessoas pobres (renda <½ SM)", area: "social", unidade: "%",                        higher_is_worse: true,  fonte_orgao: "Atlas/IPEA" },
 ];
-const IND_IDS = INDICADORES.map((i) => i.id).join("|");
+
+// IDs adicionais derivados de Atlas Brasil, INEP, DATASUS, SNIS via Painel IBGE Cidades.
+// Comentados quando o Painel não expõe — fica como documentação de roadmap.
+const INDICADORES_EXTRA: IndicadorMeta[] = [
+  // Atlas Brasil (PNUD) — dimensões do IDH-M
+  { id: 30256, label: "IDH-M Renda",             area: "social",   unidade: "índice 0-1", higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30257, label: "IDH-M Longevidade",       area: "saude",    unidade: "índice 0-1", higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30258, label: "IDH-M Educação",          area: "educacao", unidade: "índice 0-1", higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30270, label: "Renda per capita",        area: "economia", unidade: "R$",         higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30276, label: "Expectativa de vida",     area: "saude",    unidade: "anos",       higher_is_worse: false, fonte_orgao: "Atlas Brasil" },
+  { id: 30278, label: "Crianças extremamente pobres", area: "social", unidade: "%",       higher_is_worse: true,  fonte_orgao: "Atlas Brasil" },
+  // INEP / Censo Escolar
+  { id: 60040, label: "Matrículas ensino fundamental", area: "educacao", unidade: "alunos", higher_is_worse: false, fonte_orgao: "INEP Censo Escolar" },
+  { id: 60043, label: "Docentes ensino fundamental",   area: "educacao", unidade: "professores", higher_is_worse: false, fonte_orgao: "INEP Censo Escolar" },
+  { id: 60044, label: "Escolas ensino fundamental",    area: "educacao", unidade: "escolas",     higher_is_worse: false, fonte_orgao: "INEP Censo Escolar" },
+  // DATASUS / Ministério da Saúde
+  { id: 60028, label: "Estabelecimentos de saúde SUS", area: "saude", unidade: "estabelecimentos", higher_is_worse: false, fonte_orgao: "DATASUS CNES" },
+  // Vínculo: território/economia adicional
+  { id: 60046, label: "Bioma predominante",      area: "demografia", unidade: "",          higher_is_worse: false, fonte_orgao: "IBGE" },
+];
+
+const INDICADORES_TODOS = [...INDICADORES, ...INDICADORES_EXTRA];
+const INDICADORES_BY_ID = new Map(INDICADORES_TODOS.map((i) => [i.id, i]));
+const IND_IDS = INDICADORES_TODOS.map((i) => i.id).join("|");
 
 async function safeFetchJson(url: string, timeoutMs = 12000): Promise<any> {
   try {
@@ -79,7 +102,7 @@ async function fetchPainelIndicadores(codigoIbge: number) {
   const anoAtual = new Date().getFullYear();
   let count = 0;
 
-  for (const meta of INDICADORES) {
+  for (const meta of INDICADORES_TODOS) {
     const found = json.find((x: any) => Number(x?.id) === meta.id);
     if (!found) continue;
     const res = found.res?.[0]?.res || {};
@@ -90,17 +113,30 @@ async function fetchPainelIndicadores(codigoIbge: number) {
     if (!entries.length) continue;
     const anoMaisRecente = entries[0].ano;
     const idade = anoAtual - anoMaisRecente;
+    // Tendência: compara último vs anterior se houver série
+    const tendencia = entries.length >= 2
+      ? {
+          valor_anterior: entries[1].v,
+          ano_anterior: entries[1].ano,
+          delta: entries[0].v - entries[1].v,
+          delta_pct: entries[1].v !== 0
+            ? ((entries[0].v - entries[1].v) / Math.abs(entries[1].v)) * 100
+            : null,
+        }
+      : null;
     out[String(meta.id)] = {
       id: meta.id,
       label: meta.label,
       area: meta.area,
       unidade: meta.unidade,
       fonte: `${meta.fonte_orgao} ${anoMaisRecente}`,
+      fonte_orgao: meta.fonte_orgao,
       ano: anoMaisRecente,
       valor: entries[0].v,
       higher_is_worse: meta.higher_is_worse,
       outdated: idade > 3,
       idade_anos: idade,
+      tendencia,
     };
     count++;
   }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import {
   RefreshCw, Info, MapPin, Search, ChevronDown, AlertTriangle, Heart, GraduationCap,
-  DollarSign, Users, Building2, Droplets, TreePine,
+  DollarSign, Users, Building2, Droplets, TrendingUp, TrendingDown, Minus, Trophy,
 } from "lucide-react";
 
 const fmt = (n: number | null | undefined, casas = 2) =>
@@ -56,6 +56,26 @@ export default function ContextoTerritorial() {
     },
   });
 
+  // Ranking estadual: agrupa estatísticas por código IBGE → indicador
+  const { data: rankingMap } = useQuery({
+    queryKey: ["municipios-ranking", ufFiltro],
+    staleTime: 60_000,
+    enabled: !!ufFiltro && (municipios?.length ?? 0) > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("municipios_ranking_uf" as any, {
+        p_uf: ufFiltro.toUpperCase(),
+      });
+      if (error) throw error;
+      const map: Record<string, Record<string, any>> = {};
+      for (const row of (data as any[]) || []) {
+        const k = String(row.codigo_ibge);
+        if (!map[k]) map[k] = {};
+        map[k][row.indicador_id] = row;
+      }
+      return map;
+    },
+  });
+
   const { data: ultimoLog } = useQuery({
     queryKey: ["municipios-sync-log-last"],
     refetchInterval: 5000,
@@ -92,10 +112,12 @@ export default function ContextoTerritorial() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-xs">
-          <strong>20 indicadores oficiais por município</strong> — IDH, Gini, mortalidade infantil,
-          IDEB, esgoto, água, pobreza, salário médio, PIB per capita e mais. Mesma fonte usada pela
-          Narrativa Política. Indicadores marcados como <em>desatualizados</em> não entram nos
-          discursos gerados por IA.
+          <strong>30+ indicadores oficiais por município</strong> — Atlas Brasil (IDH, renda,
+          longevidade, pobreza), INEP (IDEB, matrículas, docentes), DATASUS (mortalidade infantil,
+          CNES) e SNIS (esgoto, água canalizada). Filtre por UF para ver{" "}
+          <strong>posição no ranking estadual</strong> e{" "}
+          <strong>comparativo com a média do estado</strong> em cada indicador. Dados &gt;3 anos
+          ficam marcados e não entram na narrativa de IA.
         </AlertDescription>
       </Alert>
 
@@ -188,7 +210,14 @@ export default function ContextoTerritorial() {
       ) : (
         <TooltipProvider>
           <div className="grid gap-3">
-            {municipios?.map((m: any) => <MunicipioCard key={m.id} m={m} />)}
+            {municipios?.map((m: any) => (
+              <MunicipioCard
+                key={m.id}
+                m={m}
+                ranking={rankingMap?.[String(m.codigo_ibge)]}
+                temRanking={!!ufFiltro}
+              />
+            ))}
           </div>
         </TooltipProvider>
       )}
@@ -196,7 +225,15 @@ export default function ContextoTerritorial() {
   );
 }
 
-function MunicipioCard({ m }: { m: any }) {
+function MunicipioCard({
+  m,
+  ranking,
+  temRanking,
+}: {
+  m: any;
+  ranking?: Record<string, any>;
+  temRanking: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const indicadores: Record<string, any> = m.indicadores || {};
   const lista = Object.values(indicadores) as any[];
@@ -271,7 +308,12 @@ function MunicipioCard({ m }: { m: any }) {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {items.map((i: any) => (
-                          <IndicadorPill key={i.id} i={i} />
+                          <IndicadorPill
+                            key={i.id}
+                            i={i}
+                            comparativo={ranking?.[String(i.id)]}
+                            temRanking={temRanking}
+                          />
                         ))}
                       </div>
                     </div>
@@ -282,7 +324,7 @@ function MunicipioCard({ m }: { m: any }) {
                   <div className="pt-2 border-t space-y-1.5">
                     <div className="text-[11px] uppercase tracking-wide text-amber-600 flex items-center gap-1.5">
                       <AlertTriangle className="w-3 h-3" />
-                      Dados antigos (>3 anos — não usados na narrativa)
+                      Dados antigos (&gt;3 anos — não usados na narrativa)
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {antigos.map((i: any) => (
@@ -300,7 +342,55 @@ function MunicipioCard({ m }: { m: any }) {
   );
 }
 
-function IndicadorPill({ i, antigo }: { i: any; antigo?: boolean }) {
+function IndicadorPill({
+  i,
+  antigo,
+  comparativo,
+  temRanking,
+}: {
+  i: any;
+  antigo?: boolean;
+  comparativo?: any;
+  temRanking?: boolean;
+}) {
+  // delta_pct vs média estadual; ajusta cor pelo "higher_is_worse"
+  const deltaPct = comparativo?.delta_pct;
+  const ehBom =
+    deltaPct == null
+      ? null
+      : i.higher_is_worse
+      ? deltaPct < 0 // menor que a média é bom
+      : deltaPct > 0; // maior que a média é bom
+  const corDelta =
+    ehBom == null
+      ? "text-muted-foreground"
+      : ehBom
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-rose-600 dark:text-rose-400";
+
+  // Tendência interna (último vs anterior)
+  const tend = i.tendencia;
+  const TendIcon = tend
+    ? tend.delta > 0
+      ? TrendingUp
+      : tend.delta < 0
+      ? TrendingDown
+      : Minus
+    : null;
+  const tendCor = tend
+    ? i.higher_is_worse
+      ? tend.delta > 0
+        ? "text-rose-500"
+        : tend.delta < 0
+        ? "text-emerald-500"
+        : "text-muted-foreground"
+      : tend.delta > 0
+      ? "text-emerald-500"
+      : tend.delta < 0
+      ? "text-rose-500"
+      : "text-muted-foreground"
+    : "text-muted-foreground";
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -309,16 +399,80 @@ function IndicadorPill({ i, antigo }: { i: any; antigo?: boolean }) {
             antigo ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/40" : "bg-card/50"
           }`}
         >
-          <div className="text-[10px] text-muted-foreground truncate">{i.label}</div>
-          <div className="font-semibold mt-0.5 truncate">
-            {fmt(i.valor)} <span className="text-[10px] font-normal text-muted-foreground">{i.unidade}</span>
+          <div className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+            <span className="truncate">{i.label}</span>
+            {TendIcon && (
+              <TendIcon className={`w-2.5 h-2.5 shrink-0 ${tendCor}`} />
+            )}
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">{i.ano}</div>
+          <div className="font-semibold mt-0.5 truncate">
+            {fmt(i.valor)}{" "}
+            <span className="text-[10px] font-normal text-muted-foreground">{i.unidade}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center justify-between gap-1">
+            <span>{i.ano}</span>
+            {comparativo && temRanking && (
+              <span className="flex items-center gap-1">
+                <Trophy className="w-2.5 h-2.5" />
+                <span>
+                  {comparativo.posicao}º/{comparativo.total_uf}
+                </span>
+              </span>
+            )}
+          </div>
+          {comparativo && temRanking && deltaPct != null && (
+            <div className={`text-[10px] mt-0.5 font-medium ${corDelta}`}>
+              {deltaPct > 0 ? "+" : ""}
+              {fmt(deltaPct, 1)}% vs média
+            </div>
+          )}
         </div>
       </TooltipTrigger>
-      <TooltipContent>
-        {i.fonte}
-        {antigo ? ` · ${i.idade_anos} anos (desatualizado)` : ""}
+      <TooltipContent className="max-w-xs">
+        <div className="space-y-1 text-xs">
+          <div className="font-semibold">
+            {i.label} ({i.ano})
+          </div>
+          <div>{i.fonte}</div>
+          {comparativo && temRanking && (
+            <>
+              <div className="border-t pt-1 mt-1">
+                <div>
+                  Média estadual: <strong>{fmt(comparativo.media_uf)}</strong> {i.unidade}
+                </div>
+                <div>
+                  Mín/Máx: {fmt(comparativo.min_uf)} / {fmt(comparativo.max_uf)}
+                </div>
+                <div>
+                  Posição:{" "}
+                  <strong>
+                    {comparativo.posicao}º de {comparativo.total_uf}
+                  </strong>{" "}
+                  ({i.higher_is_worse ? "1º = pior" : "1º = melhor"})
+                </div>
+                <div>Percentil: {fmt(comparativo.percentil, 1)}</div>
+              </div>
+            </>
+          )}
+          {tend && (
+            <div className="border-t pt-1 mt-1">
+              Tendência: {fmt(tend.valor_anterior)} ({tend.ano_anterior}) →{" "}
+              {fmt(i.valor)} ({i.ano})
+              {tend.delta_pct != null && (
+                <>
+                  {" "}
+                  ({tend.delta > 0 ? "+" : ""}
+                  {fmt(tend.delta_pct, 1)}%)
+                </>
+              )}
+            </div>
+          )}
+          {antigo && (
+            <div className="text-amber-600 border-t pt-1 mt-1">
+              {i.idade_anos} anos — não usado na narrativa
+            </div>
+          )}
+        </div>
       </TooltipContent>
     </Tooltip>
   );

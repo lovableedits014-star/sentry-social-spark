@@ -88,7 +88,7 @@ REGRAS OBRIGATÓRIAS:
 - Saída deve ser estritamente um JSON válido seguindo o schema do tool.`;
 }
 
-function buildUserPrompt(dossie: any) {
+function buildUserPrompt(dossie: any, ranking?: Record<string, any>) {
   const meta = dossie.dados_brutos?.meta || {};
   const ibge = dossie.dados_brutos?.ibge || {};
   const tse = dossie.dados_brutos?.tse_local || {};
@@ -110,9 +110,17 @@ function buildUserPrompt(dossie: any) {
       indicadoresIgnorados.push(`${d.label} (${d.ano})`);
       continue;
     }
+    // Comparativo estadual via RPC tem prioridade (ranking + percentil)
+    const r: any = ranking?.[id];
     const e: any = indicadoresEstado[id];
     const partes = [`- ${d.label}: ${d.valor} ${d.unidade} (${d.ano}, ${d.fonte})`];
-    if (e && Number.isFinite(e.valor)) {
+    if (r && Number.isFinite(Number(r.media_uf))) {
+      const sinal = r.delta_pct > 0 ? "+" : "";
+      const qual = r.higher_is_worse ? "1º = pior" : "1º = melhor";
+      partes.push(
+        `  → média ${meta.uf}: ${r.media_uf} | min ${r.min_uf} / máx ${r.max_uf} | posição ${r.posicao}º de ${r.total_uf} (${qual}) | ${sinal}${r.delta_pct}% vs média`,
+      );
+    } else if (e && Number.isFinite(e.valor)) {
       const diff = d.valor - e.valor;
       const sinal = diff > 0 ? "+" : "";
       partes.push(`  → média ${meta.uf}: ${e.valor} (${sinal}${diff.toFixed(2)})`);
@@ -342,6 +350,23 @@ Deno.serve(async (req) => {
 
     await supa.from("narrativa_dossies").update({ status: "gerando" }).eq("id", dossie_id);
 
+    // Busca ranking estadual (Atlas/INEP/DATASUS/SNIS) para o município do dossiê
+    let rankingMap: Record<string, any> = {};
+    try {
+      const meta: any = dossie.dados_brutos?.meta || {};
+      const codigoIbge = meta?.codigo_ibge ?? meta?.codigoIbge;
+      if (codigoIbge) {
+        const { data: rk } = await supa.rpc("municipio_ranking", {
+          p_codigo_ibge: Number(codigoIbge),
+        });
+        for (const row of (rk as any[]) || []) {
+          rankingMap[String(row.indicador_id)] = row;
+        }
+      }
+    } catch (rkErr) {
+      console.warn("ranking RPC falhou, seguindo sem comparativo estadual:", rkErr);
+    }
+
     const aiRes = await fetch(AI_URL, {
       method: "POST",
       headers: {
@@ -352,7 +377,7 @@ Deno.serve(async (req) => {
         model: MODEL,
         messages: [
           { role: "system", content: buildSystemPrompt(perfil) },
-          { role: "user", content: buildUserPrompt(dossie) },
+          { role: "user", content: buildUserPrompt(dossie, rankingMap) },
         ],
         tools: [TOOL_SCHEMA],
         tool_choice: { type: "function", function: { name: "gerar_pacote_narrativa" } },

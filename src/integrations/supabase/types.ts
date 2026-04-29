@@ -4802,6 +4802,50 @@ export type Database = {
             }
             Returns: undefined
           }
+      municipio_ranking: {
+        Args: { p_codigo_ibge: number }
+        Returns: {
+          ano: number
+          area: string
+          delta_pct: number
+          fonte: string
+          higher_is_worse: boolean
+          indicador_id: string
+          indicador_label: string
+          max_uf: number
+          media_uf: number
+          min_uf: number
+          percentil: number
+          posicao: number
+          total_uf: number
+          unidade: string
+          valor: number
+        }[]
+      }
+      municipios_ranking_uf: {
+        Args: { p_uf: string }
+        Returns: {
+          ano: number
+          area: string
+          codigo_ibge: number
+          delta_pct: number
+          delta_vs_media: number
+          fonte: string
+          higher_is_worse: boolean
+          indicador_id: string
+          indicador_label: string
+          max_uf: number
+          media_uf: number
+          mediana_uf: number
+          min_uf: number
+          nome: string
+          percentil: number
+          posicao: number
+          total_uf: number
+          unidade: string
+          valor: number
+        }[]
+      }
       normalize_br_phone: { Args: { p_raw: string }; Returns: string }
       normalize_locality: { Args: { p_input: string }; Returns: string }
       normalize_person_name: { Args: { p_name: string }; Returns: string }
