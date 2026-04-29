@@ -1243,7 +1243,7 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 <TabsTrigger value="discursos">Discursos (3 versões)</TabsTrigger>
                 <TabsTrigger value="ataques">Ataques 3-camadas</TabsTrigger>
                 <TabsTrigger value="reels">Manchetes / Reels</TabsTrigger>
-                <TabsTrigger value="visita">Roteiro de visita</TabsTrigger>
+                <TabsTrigger value="visita">Roteiro estratégico</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discursos" className="mt-4 space-y-3">
@@ -1285,18 +1285,11 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
                 </ul>
               </TabsContent>
 
-              <TabsContent value="visita" className="mt-4">
-                <Card>
-                  <CardContent className="pt-4 text-sm space-y-2">
-                    <div><b>Foco:</b> {conteudos.roteiro_visita?.foco}</div>
-                    <div><b>Emoção alvo:</b> {conteudos.roteiro_visita?.emocao_alvo}</div>
-                    <div><b>Bairro sugerido:</b> {conteudos.roteiro_visita?.bairro_sugerido}</div>
-                    <Separator />
-                    <div><b>Primeira frase:</b> "{conteudos.roteiro_visita?.primeira_frase}"</div>
-                    <div><b>Mensagem central:</b> {conteudos.roteiro_visita?.mensagem_central}</div>
-                    <div><b>Chamada para ação:</b> {conteudos.roteiro_visita?.chamada_acao}</div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="visita" className="mt-4 space-y-4">
+                <RoteiroEstrategicoView
+                  paradas={conteudos.roteiro_estrategico || []}
+                  resumoVisita={conteudos.roteiro_visita}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>
