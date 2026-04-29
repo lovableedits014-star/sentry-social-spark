@@ -1641,62 +1641,6 @@ const DossieView = ({ dossie, clientId }: { dossie: Dossie; clientId: string | n
         </Card>
       </div>
 
-      {/* TOP 10 LOCAIS CRÍTICOS */}
-      {topLocais.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MapPinned className="w-4 h-4 text-primary" />
-              {(() => {
-                const ref = dossie.dados_brutos?.tse_local?.candidato_referencia;
-                const lado = (dossie as any)?.lado_ref;
-                if (ref?.origem === "manual") {
-                  return <>Top 10 locais — <span className="text-primary">{ref.nome}</span></>;
-                }
-                return <>Top 10 locais críticos</>;
-              })()}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {(() => {
-                const ref = dossie.dados_brutos?.tse_local?.candidato_referencia;
-                if (ref?.origem === "manual") {
-                  return <>
-                    Bairros/escolas das zonas TSE onde <b>{ref.nome}</b> ({ref.cargo} {ref.ano}) teve <b>menor desempenho</b>.
-                    {" "}São os pontos de <b>maior oportunidade</b> de crescimento (se for seu candidato) ou de <b>conquista</b> (se for adversário).
-                  </>;
-                }
-                return <>
-                  Bairros/escolas das zonas TSE onde o <b>prefeito eleito em 2024</b> teve menor desempenho —
-                  esses são os pontos de maior oportunidade política. <em>(Dica: escolha um candidato no painel "Candidato de referência" para análise personalizada.)</em>
-                </>;
-              })()}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {topLocais.map((l: any) => (
-                <div key={`${l.zona}-${l.rank}`} className="flex items-start gap-3 p-2 border rounded">
-                  <div className="text-2xl font-bold tabular-nums w-8 text-center text-muted-foreground">{l.rank}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{l.bairro}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {l.nome_local || "—"}{l.endereco ? ` · ${l.endereco}` : ""}
-                    </div>
-                    <div className="text-[11px] mt-1 text-destructive">{l.motivo}</div>
-                  </div>
-                  <Badge variant="outline" className="shrink-0">Zona {l.zona}</Badge>
-                  {l.pct_eleito_zona != null && (
-                    <Badge className="shrink-0 bg-destructive/10 text-destructive border-destructive/30">
-                      {l.pct_eleito_zona}%
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* CONTEÚDOS GERADOS */}
       {conteudos && Object.keys(conteudos).length > 0 ? (
         <Card>
