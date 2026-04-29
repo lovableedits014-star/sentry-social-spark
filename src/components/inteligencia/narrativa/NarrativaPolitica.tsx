@@ -15,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   Megaphone, Target, Flame, Users, MapPin, Newspaper, Sparkles, RefreshCw, Settings,
   AlertTriangle, History, Copy, Loader2, Search, FileDown, Send, MapPinned, Star, Pencil, Check, X,
+  Route, Clock, Camera, MessageSquareQuote,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -58,6 +59,15 @@ const PAIN_COLORS: Record<string, string> = {
 const AREA_LABEL: Record<string, string> = {
   saude: "Saúde", educacao: "Educação", seguranca: "Segurança",
   infra: "Infraestrutura", economia: "Economia", social: "Social",
+};
+
+const AREA_COLOR_CLASS: Record<string, string> = {
+  saude: "bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-400",
+  educacao: "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
+  seguranca: "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-400",
+  infra: "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+  economia: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
+  social: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
 };
 
 function copyText(t: string) {
