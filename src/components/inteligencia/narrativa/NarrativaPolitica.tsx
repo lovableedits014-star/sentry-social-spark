@@ -681,6 +681,35 @@ const NarrativaPolitica = () => {
     [municipios, uf],
   );
 
+  // Validação prévia: verifica disponibilidade de dados zonais TSE para a cidade selecionada
+  const { data: tseStatus, isFetching: tseChecking } = useQuery({
+    queryKey: ["narrativa-tse-status", uf, municipio],
+    enabled: !!uf && !!municipio,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const [zonaRes, localRes, bairroRes] = await Promise.all([
+        supabase.from("tse_votacao_zona" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("uf", uf).eq("municipio", municipio),
+        supabase.from("tse_votacao_local" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("uf", uf).eq("municipio", municipio),
+        supabase.from("tse_votacao_local" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("uf", uf).eq("municipio", municipio).not("bairro", "is", null),
+      ]);
+      const zonas = zonaRes.count || 0;
+      const locais = localRes.count || 0;
+      const comBairro = bairroRes.count || 0;
+      const pctBairro = locais > 0 ? Math.round((comBairro / locais) * 100) : 0;
+      return {
+        zonas, locais, comBairro, pctBairro,
+        bloqueado: zonas === 0 || comBairro === 0,
+        avisoLeve: zonas > 0 && comBairro > 0 && pctBairro < 40,
+      };
+    },
+  });
+
   // Pipeline: coleta -> analise -> gerar
   const runPipeline = useMutation({
     mutationFn: async ({ uf, municipio }: { uf: string; municipio: string }) => {
