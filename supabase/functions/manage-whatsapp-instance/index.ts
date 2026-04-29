@@ -23,6 +23,16 @@ const isQrPendingResponse = (data: any) => {
   return Boolean(data?.requires_reconnect) || (error.includes("qr") && error.includes("preserved"));
 };
 
+const isConnectedStatus = (status: unknown) => {
+  const s = String(status || "").toLowerCase();
+  return s === "connected" || s === "open";
+};
+
+const isExplicitOfflineStatus = (status: unknown) => {
+  const s = String(status || "").toLowerCase();
+  return ["disconnected", "offline", "closed", "logged_out", "logout", "banned"].includes(s);
+};
+
 const awaitingQrResponse = (message = "Instância criada. Aguardando geração do QR Code.") =>
   jsonResponse({
     success: true,
@@ -106,11 +116,20 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
   });
 
   const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-  const status = rawStatus === "connected" || rawStatus === "open"
+  const wasConnected = isConnectedStatus(inst.status);
+  let status = isConnectedStatus(rawStatus)
     ? "connected"
     : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr"
       ? "connecting"
-      : "disconnected";
+      : isExplicitOfflineStatus(rawStatus)
+        ? "disconnected"
+        : (inst.status || "disconnected");
+
+  // Health checks can briefly report "connecting" while the WhatsApp session is still usable.
+  // Preserve a previously connected chip unless the bridge explicitly confirms an offline/logout state.
+  if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus) && !isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+    status = "connected";
+  }
 
   const updates: any = {
     status,
@@ -120,7 +139,10 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
     || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
   if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
   if (status === "connected" && !inst.connected_since) updates.connected_since = new Date().toISOString();
-  if (status !== "connected") updates.connected_since = null;
+  if (status === "disconnected") {
+    updates.connected_since = null;
+    updates.last_disconnected_at = new Date().toISOString();
+  }
 
   await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
   return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
@@ -166,12 +188,20 @@ async function tryReconnectInstance(adminClient: any, inst: any) {
     body: { action: "reconnect" },
   });
   const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-  const status = rawStatus === "connected" || rawStatus === "open" ? "connected" : "connecting";
+  const wasConnected = isConnectedStatus(inst.status);
+  let status = isConnectedStatus(rawStatus) ? "connected" : isExplicitOfflineStatus(rawStatus) ? "disconnected" : "connecting";
+  if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus) && !isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+    status = "connected";
+  }
   const updates: any = { status, last_health_check_at: new Date().toISOString() };
   const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
     || bridgeData?.instance?.phone_number || bridgeData?.instance?.phone;
   if (reportedPhone) updates.phone_number = String(reportedPhone).replace(/\D/g, "");
   if (status === "connected") updates.connected_since = new Date().toISOString();
+  if (status === "disconnected") {
+    updates.connected_since = null;
+    updates.last_disconnected_at = new Date().toISOString();
+  }
   await adminClient.from("whatsapp_instances").update(updates).eq("id", inst.id);
   return { id: inst.id, reconnected: status === "connected", status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
 }
@@ -714,11 +744,15 @@ Deno.serve(async (req) => {
 
     if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
       const health = await syncInstanceHealth(adminClient, activeInstanceRow);
-      if (health.status !== "connected") {
+      const currentStatus = health.status === "connected" || isConnectedStatus(activeInstanceRow.status) ? "connected" : health.status;
+      if (currentStatus !== "connected") {
         const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
         if (reconnect.status !== "connected") {
           const error = "Instância WhatsApp desconectada. Reconecte o chip antes de enviar.";
-          await markInstanceDisconnected(adminClient, instance_id);
+          const bridgeState = String(reconnect.details?.status || reconnect.details?.instance?.status || health.details?.status || health.details?.instance?.status || "").toLowerCase();
+          if (isExplicitOfflineStatus(bridgeState)) {
+            await markInstanceDisconnected(adminClient, instance_id);
+          }
           await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error });
           return jsonResponse({ success: false, status: reconnect.status || health.status, error, health, reconnect });
         }
@@ -827,7 +861,10 @@ Deno.serve(async (req) => {
               return jsonResponse(retry.bridgeData);
             }
           }
-          await markInstanceDisconnected(adminClient, instance_id);
+          const bridgeState = String(reconnect.details?.status || reconnect.details?.instance?.status || bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
+          if (isExplicitOfflineStatus(bridgeState) || isInvalidApiKeyResponse(bridgeRes.status, bridgeData)) {
+            await markInstanceDisconnected(adminClient, instance_id);
+          }
         }
         await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
         return jsonResponse({ success: false, error: failure, details: sanitizeBridgeData(bridgeData) });
@@ -838,15 +875,19 @@ Deno.serve(async (req) => {
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
       const rawStatus = String(bridgeData?.status || bridgeData?.instance?.status || "").toLowerCase();
-      const status = rawStatus === "connected" || rawStatus === "open" ? "connected"
+      const wasConnected = isConnectedStatus(activeInstanceRow.status);
+      let status = isConnectedStatus(rawStatus) ? "connected"
         : rawStatus === "connecting" || rawStatus === "qr" || rawStatus === "awaiting_qr" ? "connecting"
-        : "disconnected";
+        : isExplicitOfflineStatus(rawStatus) ? "disconnected"
+        : (activeInstanceRow.status || "disconnected");
+      if (wasConnected && status !== "connected" && !isExplicitOfflineStatus(rawStatus)) status = "connected";
       const updates: any = { status, last_health_check_at: new Date().toISOString() };
       if (status === "connected" && !activeInstanceRow.connected_since) {
         updates.connected_since = new Date().toISOString();
       }
-      if (status !== "connected") {
+      if (status === "disconnected") {
         updates.connected_since = null;
+        updates.last_disconnected_at = new Date().toISOString();
       }
       // Sincroniza telefone sempre que a bridge informar (mesmo em connecting)
       const reportedPhone = bridgeData?.phone_number || bridgeData?.phone
