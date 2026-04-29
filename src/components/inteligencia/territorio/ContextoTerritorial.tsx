@@ -4,15 +4,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
-  RefreshCw, Info, MapPin, Users, DollarSign, Heart, GraduationCap, Search,
+  RefreshCw, Info, MapPin, Search, ChevronDown, AlertTriangle, Heart, GraduationCap,
+  DollarSign, Users, Building2, Droplets, TreePine,
 } from "lucide-react";
 
-const fmtNum = (n: number | null | undefined) => n == null ? "—" : n.toLocaleString("pt-BR");
-const fmtMoney = (n: number | null | undefined) => n == null ? "—" : `R$ ${n.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+const fmt = (n: number | null | undefined, casas = 2) =>
+  n == null ? "—" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: casas });
+
+const AREA_ICON: Record<string, any> = {
+  saude: Heart,
+  educacao: GraduationCap,
+  economia: DollarSign,
+  social: Users,
+  infra: Droplets,
+  demografia: Building2,
+};
+const AREA_LABEL: Record<string, string> = {
+  saude: "Saúde",
+  educacao: "Educação",
+  economia: "Economia",
+  social: "Social",
+  infra: "Infraestrutura",
+  demografia: "Demografia",
+};
 
 export default function ContextoTerritorial() {
   const qc = useQueryClient();
@@ -59,7 +79,9 @@ export default function ContextoTerritorial() {
       return data;
     },
     onSuccess: (data: any) => {
-      toast.success(`${data.processados} municípios sincronizados`);
+      toast.success(
+        `${data.processados} municípios sincronizados (${data.indicadores_coletados} indicadores)`,
+      );
       qc.invalidateQueries({ queryKey: ["municipios-indicadores"] });
     },
     onError: (e: any) => toast.error(`Erro: ${e.message}`),
@@ -70,19 +92,21 @@ export default function ContextoTerritorial() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-xs">
-          <strong>Cruze território + dados socioeconômicos.</strong> Use estes indicadores oficiais (IBGE/DataSUS/INEP)
-          para identificar pautas estratégicas: <em>"este bairro tem renda baixa + IDEB caindo = vetor educação"</em>.
-          Combine com o mapa de votos do TSE para encontrar oportunidades reais de crescimento.
+          <strong>20 indicadores oficiais por município</strong> — IDH, Gini, mortalidade infantil,
+          IDEB, esgoto, água, pobreza, salário médio, PIB per capita e mais. Mesma fonte usada pela
+          Narrativa Política. Indicadores marcados como <em>desatualizados</em> não entram nos
+          discursos gerados por IA.
         </AlertDescription>
       </Alert>
 
       {/* Coleta */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Coletar dados de uma UF</CardTitle>
+          <CardTitle className="text-base">Coletar dados completos de uma UF</CardTitle>
           <CardDescription className="text-xs">
-            Busca todos os municípios da UF na API do IBGE e atualiza população, PIB e PIB per capita.
-            Pode levar até 1 minuto para estados grandes.
+            Puxa todos os municípios da UF do Painel IBGE Cidades — população, PIB, IDH, IDEB,
+            mortalidade, esgoto, etc. Pode levar até 1 minuto para estados grandes (rode novamente
+            se aparecer "timeout").
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,12 +136,18 @@ export default function ContextoTerritorial() {
           </div>
           {ultimoLog && (
             <p className="text-xs text-muted-foreground mt-3">
-              Última coleta: {new Date(ultimoLog.created_at).toLocaleString("pt-BR")} · {ultimoLog.fonte} ·{" "}
-              <span className={
-                ultimoLog.status === "success" ? "text-green-600" :
-                ultimoLog.status === "partial" ? "text-amber-600" : "text-destructive"
-              }>
-                {ultimoLog.status} ({ultimoLog.municipios_processados} municípios em {Math.round((ultimoLog.duracao_ms || 0) / 1000)}s)
+              Última coleta: {new Date(ultimoLog.created_at).toLocaleString("pt-BR")} ·{" "}
+              <span
+                className={
+                  ultimoLog.status === "success"
+                    ? "text-green-600"
+                    : ultimoLog.status === "partial"
+                    ? "text-amber-600"
+                    : "text-destructive"
+                }
+              >
+                {ultimoLog.status} ({ultimoLog.municipios_processados} municípios em{" "}
+                {Math.round((ultimoLog.duracao_ms || 0) / 1000)}s)
               </span>
             </p>
           )}
@@ -157,7 +187,7 @@ export default function ContextoTerritorial() {
         </Card>
       ) : (
         <TooltipProvider>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3">
             {municipios?.map((m: any) => <MunicipioCard key={m.id} m={m} />)}
           </div>
         </TooltipProvider>
@@ -167,67 +197,129 @@ export default function ContextoTerritorial() {
 }
 
 function MunicipioCard({ m }: { m: any }) {
+  const [open, setOpen] = useState(false);
+  const indicadores: Record<string, any> = m.indicadores || {};
+  const lista = Object.values(indicadores) as any[];
+  const recentes = lista.filter((i) => !i.outdated);
+  const antigos = lista.filter((i) => i.outdated);
+
+  // Agrupa por área
+  const porArea: Record<string, any[]> = {};
+  for (const i of recentes) {
+    if (!porArea[i.area]) porArea[i.area] = [];
+    porArea[i.area].push(i);
+  }
+
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-primary" />
-          {m.nome} <span className="text-xs text-muted-foreground font-normal">/ {m.uf}</span>
-        </CardTitle>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              {m.nome}
+              <span className="text-xs text-muted-foreground font-normal">/ {m.uf}</span>
+            </CardTitle>
+            <CardDescription className="text-xs mt-1">
+              {fmt(m.populacao, 0)} hab.
+              {m.populacao_ano ? ` (${m.populacao_ano})` : ""} ·{" "}
+              {recentes.length} indicadores recentes
+              {antigos.length > 0 && (
+                <span className="text-amber-600"> · {antigos.length} desatualizados</span>
+              )}
+            </CardDescription>
+          </div>
+          {m.idh != null && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="cursor-help">
+                  IDH {fmt(m.idh, 3)}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>IDH-M ({m.idh_ano})</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 text-sm">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 cursor-help">
-              <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              <div>
-                <p className="text-[11px] text-muted-foreground">População</p>
-                <p className="font-medium">{fmtNum(m.populacao)}</p>
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Estimativa IBGE {m.populacao_ano || "—"}</TooltipContent>
-        </Tooltip>
+      <CardContent>
+        {lista.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Sem indicadores carregados — rode o coletor para puxar do IBGE.
+          </p>
+        ) : (
+          <>
+            <Collapsible open={open} onOpenChange={setOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between h-8 px-2">
+                  <span className="text-xs font-medium">
+                    Ver {recentes.length} indicadores recentes
+                    {antigos.length > 0 ? ` (+ ${antigos.length} antigos)` : ""}
+                  </span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3 space-y-3">
+                {Object.entries(porArea).map(([area, items]) => {
+                  const Icon = AREA_ICON[area] || Building2;
+                  return (
+                    <div key={area} className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                        <Icon className="w-3 h-3" />
+                        {AREA_LABEL[area] || area}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {items.map((i: any) => (
+                          <IndicadorPill key={i.id} i={i} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 cursor-help">
-              <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-              <div>
-                <p className="text-[11px] text-muted-foreground">PIB per capita</p>
-                <p className="font-medium">{fmtMoney(m.pib_per_capita)}</p>
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>PIB IBGE {m.pib_ano || "—"}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 cursor-help">
-              <Heart className="w-3.5 h-3.5 text-muted-foreground" />
-              <div>
-                <p className="text-[11px] text-muted-foreground">Mort. infantil</p>
-                <p className="font-medium">{m.mortalidade_infantil ?? "—"}</p>
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Por 1.000 nascidos vivos (DataSUS — em breve)</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2 cursor-help">
-              <GraduationCap className="w-3.5 h-3.5 text-muted-foreground" />
-              <div>
-                <p className="text-[11px] text-muted-foreground">IDEB</p>
-                <p className="font-medium">{m.ideb_anos_iniciais ?? "—"}</p>
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>IDEB anos iniciais (INEP — em breve)</TooltipContent>
-        </Tooltip>
+                {antigos.length > 0 && (
+                  <div className="pt-2 border-t space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wide text-amber-600 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3" />
+                      Dados antigos (>3 anos — não usados na narrativa)
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {antigos.map((i: any) => (
+                        <IndicadorPill key={i.id} i={i} antigo />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function IndicadorPill({ i, antigo }: { i: any; antigo?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={`rounded border p-2 text-xs cursor-help ${
+            antigo ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/40" : "bg-card/50"
+          }`}
+        >
+          <div className="text-[10px] text-muted-foreground truncate">{i.label}</div>
+          <div className="font-semibold mt-0.5 truncate">
+            {fmt(i.valor)} <span className="text-[10px] font-normal text-muted-foreground">{i.unidade}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{i.ano}</div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        {i.fonte}
+        {antigo ? ` · ${i.idade_anos} anos (desatualizado)` : ""}
+      </TooltipContent>
+    </Tooltip>
   );
 }
