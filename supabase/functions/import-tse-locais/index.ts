@@ -4,7 +4,7 @@
 // Os votos por local vêm de outras fontes; aqui o objetivo é ter o universo de
 // locais para o geocoding de bairros funcionar em qualquer cidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BlobReader, ZipReader, Uint8ArrayWriter, TextWriter, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
+import { BlobReader, ZipReader, configure } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
 configure({ useWebWorkers: false });
 
@@ -82,28 +82,50 @@ Deno.serve(async (req) => {
       await reader.close();
       return new Response(JSON.stringify({ error: `CSV da UF ${ufStr} não encontrado`, files: entries.map((e: any) => e.filename) }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    console.log("Extraindo:", target.filename, target.uncompressedSize, "bytes (stream)");
-    // Decodifica como texto direto pelo zip.js — evita criar Uint8Array gigante
-    const text: string = await target.getData!(new TextWriter("iso-8859-1"));
-    await reader.close();
-    console.log("Texto extraído:", text.length, "chars");
+    console.log("Extraindo:", target.filename, target.uncompressedSize, "bytes (streaming real)");
 
-    // Itera linha-a-linha SEM split() — split de string gigante explode memória
-    let lineStart = 0;
-    let headerCols: string[] | null = null;
+    // ===== STREAMING REAL =====
+    // Em vez de descomprimir tudo na RAM (TextWriter/Uint8ArrayWriter explodem com 300MB+),
+    // usamos um WritableStream customizado que recebe chunks descomprimidos do zip.js,
+    // decodifica latin1 incrementalmente e quebra em linhas.
+    const decoder = new TextDecoder("iso-8859-1");
+    let lineBuffer = "";
+    const lines: string[] = [];      // fila de linhas prontas para consumo
+    let producerDone = false;
+
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        lineBuffer += decoder.decode(chunk, { stream: true });
+        let nl: number;
+        while ((nl = lineBuffer.indexOf("\n")) !== -1) {
+          const ln = lineBuffer.substring(0, nl).replace(/\r$/, "");
+          lineBuffer = lineBuffer.substring(nl + 1);
+          lines.push(ln);
+        }
+      },
+      close() {
+        lineBuffer += decoder.decode();
+        if (lineBuffer.length) {
+          lines.push(lineBuffer.replace(/\r$/, ""));
+          lineBuffer = "";
+        }
+        producerDone = true;
+      },
+    });
+
+    // Inicia descompressão em paralelo (não aguarda terminar — vamos consumindo as linhas)
+    const extractionPromise = target.getData!(writable).then(() => { producerDone = true; });
+
+    // Aguarda chegar pelo menos a primeira linha (header)
+    while (lines.length === 0 && !producerDone) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
     let lineNum = 0;
-
-    const getNextLine = (): string | null => {
-      if (lineStart >= text.length) return null;
-      let nl = text.indexOf("\n", lineStart);
-      if (nl === -1) nl = text.length;
-      const line = text.substring(lineStart, nl).replace(/\r$/, "");
-      lineStart = nl + 1;
-      return line;
-    };
-
-    const headerLine = getNextLine();
+    let headerCols: string[] | null = null;
+    const headerLine = lines.shift();
     if (!headerLine) {
+      await extractionPromise.catch(() => {});
       return new Response(JSON.stringify({ error: "CSV vazio" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     headerCols = parseCsvLine(headerLine).map((h) => h.trim().toUpperCase().replace(/^"|"$/g, ""));
@@ -142,17 +164,28 @@ Deno.serve(async (req) => {
       else inserted += slice.length;
     };
 
-    let line: string | null;
-    while ((line = getNextLine()) !== null) {
+    // Consome linhas conforme chegam do stream de descompressão
+    while (true) {
+      if (lines.length === 0) {
+        if (producerDone) break;
+        await new Promise((r) => setTimeout(r, 5));
+        continue;
+      }
+      const line = lines.shift()!;
       lineNum++;
       if (lineNum <= resumeAfter) continue;
       if (!line.trim()) continue;
       scanned++;
 
-      // Checa timeout periodicamente (a cada 1000 linhas pra não pesar)
-      if (scanned % 1000 === 0 && Date.now() - startedAt > MAX_RUNTIME_MS) {
-        timedOut = true;
-        break;
+      // Checa timeout periodicamente (a cada 2000 linhas pra não pesar)
+      if (scanned % 2000 === 0) {
+        if (Date.now() - startedAt > MAX_RUNTIME_MS) {
+          timedOut = true;
+          break;
+        }
+        if (scanned % 20000 === 0) {
+          console.log(`progresso: scanned=${scanned} matched=${matched} inserted=${inserted} buffer=${lines.length}`);
+        }
       }
 
       const cols = parseCsvLine(line);
@@ -192,6 +225,9 @@ Deno.serve(async (req) => {
 
     // Flush final
     await flush();
+    // Garante que o stream finalizou (ou capturamos erro de descompressão)
+    try { await extractionPromise; } catch (e) { console.error("Erro descompressão:", (e as any)?.message); }
+    try { await reader.close(); } catch { /* ignore */ }
     console.log(`scanned=${scanned} matched=${matched} inserted=${inserted} timedOut=${timedOut} lastLine=${lineNum}`);
 
     return new Response(JSON.stringify({
