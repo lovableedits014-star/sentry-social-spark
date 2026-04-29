@@ -154,11 +154,11 @@ export default function StatusWhatsApp() {
   const handleHealthCheckAll = async () => {
     if (!clientId) return;
     setBusy("check-all");
-    const { error } = await supabase.functions.invoke("manage-whatsapp-instance", {
+    const { data, error } = await supabase.functions.invoke("manage-whatsapp-instance", {
       body: { action: "health_check_all", client_id: clientId },
     });
     setBusy(null);
-    if (error) toast.error("Falha: " + error.message);
+    if (error || data?.error || data?.success === false) toast.error("Falha: " + (error?.message || data?.error || "verificação não concluída"));
     else { toast.success("Verificação completa solicitada."); loadAll(true); }
   };
 

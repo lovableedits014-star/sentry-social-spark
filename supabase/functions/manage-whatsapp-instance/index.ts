@@ -126,6 +126,38 @@ async function syncInstanceHealth(adminClient: any, inst: any) {
   return { id: inst.id, status, ok: bridgeRes.ok, details: sanitizeBridgeData(bridgeData) };
 }
 
+function isInstanceDisconnectedError(status: number, data: any): boolean {
+  if (status === 401) return true;
+  const msg = String(data?.error || data?.message || "").toLowerCase();
+  return msg.includes("instance") && (msg.includes("disconnect") || msg.includes("not connected") || msg.includes("offline"));
+}
+
+function getSendFailure(status: number, data: any): string | null {
+  if (status < 200 || status >= 300) return data?.error || data?.message || `Erro na ponte WhatsApp (status ${status})`;
+  if (data?.success === false) return data?.error || data?.message || "Ponte recusou o envio";
+  if (data?.delivered === false) return data?.error || data?.message || "Mensagem não entregue pelo WhatsApp";
+  const hasDeliverySignal = data?.success === true || data?.delivered === true || Boolean(data?.messageId || data?.message_id || data?.id || data?.key?.id);
+  return hasDeliverySignal ? null : (data?.error || data?.message || "Ponte não confirmou entrega da mensagem");
+}
+
+async function markInstanceDisconnected(adminClient: any, instanceId: string) {
+  await adminClient.from("whatsapp_instances").update({
+    status: "disconnected",
+    connected_since: null,
+    last_disconnected_at: new Date().toISOString(),
+  }).eq("id", instanceId);
+}
+
+async function logDirectSend(adminClient: any, params: { instanceId: string; clientId: string; success: boolean; error?: string | null }) {
+  await adminClient.rpc("log_whatsapp_send", {
+    p_instance_id: params.instanceId,
+    p_client_id: params.clientId,
+    p_dispatch_id: null,
+    p_success: params.success,
+    p_error_message: params.error || null,
+  });
+}
+
 async function tryReconnectInstance(adminClient: any, inst: any) {
   if (!inst?.bridge_api_key) return { id: inst?.id, reconnected: false, reason: "missing_api_key" };
   const { bridgeRes, bridgeData } = await fetchBridgeAction({
@@ -296,8 +328,11 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    const body = await req.json();
+    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
+    const cronRequested = action === "health_check_all";
+    if (!authHeader && !cronRequested) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -305,16 +340,13 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const bridgeToken = Deno.env.get("WHATSAPP_BRIDGE_TOKEN");
 
-    const userClient = createClient(supabaseUrl, anonKey, {
+    const userClient = createClient(supabaseUrl, anonKey, authHeader ? {
       global: { headers: { Authorization: authHeader } },
-    });
+    } : {});
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    const body = await req.json();
-    const { action, phone, message, client_id, name, instance_id, apelido, bridge_url, bridge_api_key, is_active, status: newStatus, media, mimetype, filename, caption } = body;
-    const cronRequested = action === "health_check_all";
 
     if ((authErr || !user) && !cronRequested) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);
@@ -326,15 +358,32 @@ Deno.serve(async (req) => {
         .select("value")
         .eq("key", "whatsapp_keepalive_token")
         .maybeSingle();
-      if (!tokenConfig?.value || keepaliveToken !== tokenConfig.value) {
+      const isAuthenticatedUser = Boolean(user);
+      const validKeepalive = Boolean(tokenConfig?.value && keepaliveToken === tokenConfig.value);
+      if (!isAuthenticatedUser && !validKeepalive) {
         return jsonResponse({ success: false, error: "Unauthorized keepalive" }, 401);
       }
-      const { data: rows, error } = await adminClient
+      let allowedClientId: string | null = null;
+      if (isAuthenticatedUser) {
+        const requestedClientId = typeof client_id === "string" ? client_id : null;
+        if (!requestedClientId) return jsonResponse({ success: false, error: "client_id obrigatório" }, 400);
+        const { data: ownedClient } = await adminClient
+          .from("clients")
+          .select("id")
+          .eq("id", requestedClientId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!ownedClient) return jsonResponse({ success: false, error: "Cliente não autorizado" }, 403);
+        allowedClientId = ownedClient.id;
+      }
+      let query = adminClient
         .from("whatsapp_instances")
         .select("id, bridge_api_key, status, connected_since, is_active")
         .eq("is_active", true)
         .not("bridge_api_key", "is", null)
         .limit(50);
+      if (isAuthenticatedUser && allowedClientId) query = query.eq("client_id", allowedClientId);
+      const { data: rows, error } = await query;
       if (error) return jsonResponse({ success: false, error: error.message }, 500);
       const results = await Promise.allSettled((rows || []).map(async (inst: any) => {
         const health = await syncInstanceHealth(adminClient, inst);
@@ -663,6 +712,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Instância WhatsApp não configurada. Crie uma instância primeiro." }, 400);
     }
 
+    if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
+      const health = await syncInstanceHealth(adminClient, activeInstanceRow);
+      if (health.status !== "connected") {
+        const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+        if (reconnect.status !== "connected") {
+          const error = "Instância WhatsApp desconectada. Reconecte o chip antes de enviar.";
+          await markInstanceDisconnected(adminClient, instance_id);
+          await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error });
+          return jsonResponse({ success: false, status: reconnect.status || health.status, error, health, reconnect });
+        }
+      }
+    }
+
     // Proxy all other actions to bridge with X-Api-Key
     // IMPORTANT: never transform `phone` here. The frontend already sends
     // the fully-formed number (e.g. 5567992248348). Any normalization risks
@@ -751,6 +813,27 @@ Deno.serve(async (req) => {
       apiKey: clientApiKey,
       body: proxyBody,
     });
+
+    if ((action === "send" || action === "send_media") && instance_id && activeInstanceRow) {
+      const failure = getSendFailure(bridgeRes.status, bridgeData);
+      if (failure) {
+        if (isInstanceDisconnectedError(bridgeRes.status, bridgeData)) {
+          const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+          if (reconnect.status === "connected") {
+            const retry = await fetchBridgeAction({ action, apiKey: clientApiKey, body: proxyBody, retries: 1 });
+            const retryFailure = getSendFailure(retry.bridgeRes.status, retry.bridgeData);
+            if (!retryFailure) {
+              await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: true });
+              return jsonResponse(retry.bridgeData);
+            }
+          }
+          await markInstanceDisconnected(adminClient, instance_id);
+        }
+        await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
+        return jsonResponse({ success: false, error: failure, details: sanitizeBridgeData(bridgeData) });
+      }
+      await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: true });
+    }
 
     // Sincroniza status/phone_number na tabela quando consultando uma instância específica
     if (instance_id && activeInstanceRow && action === "instance_status" && bridgeRes.ok) {
