@@ -64,7 +64,11 @@ Deno.serve(async (req) => {
     const zipUrl = `https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_${anoNum}.zip`;
     console.log("Abrindo ZIP:", zipUrl);
 
-    const reader = new ZipReader(new HttpReader(zipUrl, { useRangeHeader: true, preventHeadRequest: false }));
+    const reader = new ZipReader(new HttpReader(zipUrl, {
+      useRangeHeader: true,
+      preventHeadRequest: true,
+      headers: [["User-Agent", "SentrySocialSpark/1.0 (TSE locais importer)"]],
+    } as any));
     const entries = await reader.getEntries();
     const target = entries.find((e: any) => e.filename.toUpperCase().includes(`_${ufStr}.CSV`));
     if (!target) {
