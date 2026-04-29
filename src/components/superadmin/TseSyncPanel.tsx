@@ -135,14 +135,33 @@ export default function TseSyncPanel() {
     }
     setImportingLocais(true);
     try {
-      const { data, error } = await supabase.functions.invoke("import-tse-locais", {
-        body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPathLocais },
-      });
-      if (error) throw error;
-      const d = data as any;
-      toast.success(`Locais TSE importados`, {
-        description: `${d?.inserted ?? "?"} locais (${d?.unique ?? "?"} únicos) — ${municipio || "todos os municípios"}/${uf}`,
-      });
+      let totalInserted = 0;
+      let resumeAfter = 0;
+      let lap = 0;
+      // Loop de retomada automática enquanto a edge function indicar timeout
+      // (cada chamada processa ~50s; o ZIP completo da UF pode exigir 2-3 leituras)
+      while (true) {
+        lap++;
+        if (lap > 8) {
+          toast.warning("Importação muito longa", { description: "Pare aqui e refine o filtro de município." });
+          break;
+        }
+        toast.info(`Processando lote ${lap}...`, { description: resumeAfter > 0 ? `Retomando da linha ${resumeAfter.toLocaleString("pt-BR")}` : "Iniciando" });
+        const { data, error } = await supabase.functions.invoke("import-tse-locais", {
+          body: { uf, ano, municipio: municipio.trim() || undefined, storage_path: uploadedPathLocais, resume_after: resumeAfter },
+        });
+        if (error) throw error;
+        const d = data as any;
+        totalInserted += d?.inserted ?? 0;
+        if (d?.timed_out && d?.last_line) {
+          resumeAfter = d.last_line;
+          continue;
+        }
+        toast.success(`Locais TSE importados`, {
+          description: `${totalInserted.toLocaleString("pt-BR")} locais — ${municipio || "todos os municípios"}/${uf} (${lap} lote${lap > 1 ? "s" : ""})`,
+        });
+        break;
+      }
       await load();
     } catch (e: any) {
       toast.error("Falha ao importar locais", { description: e?.message || String(e) });
