@@ -448,11 +448,26 @@ function buildDossiePdf(dossie: any, download = true) {
   }
 
   // MANCHETES
+  // IMPORTANTE: a fonte Helvetica padrão do jsPDF NÃO tem glifos para
+  // caracteres unicode "decorativos" (▸ ▶ • → etc). Quando usados, o jsPDF
+  // renderiza lixo (ex.: "%¸") E calcula a largura errada — por isso o texto
+  // vazava pela margem direita. Usamos ">" puro (ASCII) para manter o layout
+  // correto e o wrap do splitTextToSize confiável.
   if ((c.manchetes_reels || []).length > 0) {
     y += 8;
     sectionTitle("Manchetes / Reels Sugeridos", C.accent);
     for (const m of c.manchetes_reels) {
-      paragraph(`▸ ${m}`, { size: 10 });
+      // Indenta a continuação visualmente reservando o "> " como prefixo do bloco.
+      const linhas = doc.splitTextToSize(`> ${m}`, contentW);
+      setText(C.text);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      for (const ln of linhas) {
+        ensure(14);
+        doc.text(ln, margin, y);
+        y += 14;
+      }
+      y += 2;
     }
   }
 
