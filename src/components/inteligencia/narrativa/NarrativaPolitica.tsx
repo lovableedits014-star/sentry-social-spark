@@ -644,7 +644,10 @@ const NarrativaPolitica = () => {
       const pctBairro = locais > 0 ? Math.round((comBairro / locais) * 100) : 0;
       return {
         zonas, locais, comBairro, pctBairro,
-        bloqueado: zonas === 0 || comBairro === 0,
+        // Dados zonais TSE não são mais obrigatórios (o roteiro estratégico foi removido em favor de Curiosidades & Cultura).
+        // Mantemos como informativo apenas.
+        bloqueado: false,
+        semDados: zonas === 0 || comBairro === 0,
         avisoLeve: zonas > 0 && comBairro > 0 && pctBairro < 40,
       };
     },
