@@ -692,9 +692,9 @@ const NarrativaPolitica = () => {
               )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-              ℹ️ Indicadores socioeconômicos vêm de fontes oficiais (IBGE, INEP, DataSUS, Tesouro). 
-              Alguns dados (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos órgãos. 
-              Indicadores mais antigos que 3 anos aparecem marcados como <b>desatualizado</b> — esse é o dado mais recente que existe oficialmente.
+              ℹ️ Todos os indicadores são <b>oficiais</b> (IBGE, INEP, DataSUS, Tesouro Nacional). 
+              Alguns (Censo, IDEB, Atlas) só são atualizados a cada 4–10 anos pelos próprios órgãos competentes. 
+              Por isso cada linha mostra o ano da <b>última atualização oficial</b> publicada — esse é o dado mais recente que existe.
             </p>
           </CardContent>
         </Card>
