@@ -75,7 +75,7 @@ export default function TseSyncPanel() {
         .select("uf, ano, zona, cod_municipio");
       const { data: ld } = await supabase
         .from("tse_votacao_local" as any)
-        .select("uf, ano, bairro, cod_municipio");
+        .select("uf, ano, bairro, cod_municipio, zona, nr_local");
 
       const zMap = new Map<string, ZonaRow>();
       for (const r of (zd as any[]) || []) {
@@ -99,11 +99,20 @@ export default function TseSyncPanel() {
 
       const lMap = new Map<string, LocalRow>();
       const lSets = new Map<string, Set<number>>();
+      const localSeen = new Set<string>();
+      const localHasBairro = new Set<string>();
       for (const r of (ld as any[]) || []) {
         const k = `${r.uf}|${r.ano}`;
+        const localKey = `${k}|${r.cod_municipio}|${r.zona}|${r.nr_local}`;
         const cur = lMap.get(k) || { uf: r.uf, ano: r.ano, locais: 0, com_bairro: 0, municipios: 0 };
-        cur.locais += 1;
-        if (r.bairro) cur.com_bairro += 1;
+        if (!localSeen.has(localKey)) {
+          localSeen.add(localKey);
+          cur.locais += 1;
+        }
+        if (r.bairro && !localHasBairro.has(localKey)) {
+          localHasBairro.add(localKey);
+          cur.com_bairro += 1;
+        }
         lMap.set(k, cur);
         const ms = lSets.get(k) || new Set<number>();
         ms.add(r.cod_municipio); lSets.set(k, ms);
