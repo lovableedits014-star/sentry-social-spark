@@ -385,6 +385,31 @@ Deno.serve(async (req) => {
       .single();
     if (insErr) throw new Error(`Falha ao criar dossiê: ${insErr.message}`);
 
+    // Lê o candidato de referência configurado no perfil deste cliente.
+    // Toda análise (top locais críticos etc.) usará este candidato — seja
+    // prefeito, vereador, deputado etc. — em vez do vencedor automático.
+    let refCandidato: { nome: string | null; cargo: string | null; ano: number | null } | null = null;
+    try {
+      const { data: perfilRow } = await supa
+        .from("narrativa_perfil_candidato")
+        .select("ref_nome, ref_cargo, ref_ano, ref_uf, ref_municipio")
+        .eq("client_id", client_id)
+        .maybeSingle();
+      // Só usa se o candidato de referência for desta mesma cidade
+      if (perfilRow?.ref_nome && perfilRow?.ref_cargo
+          && (!perfilRow.ref_uf || perfilRow.ref_uf === uf)
+          && (!perfilRow.ref_municipio || perfilRow.ref_municipio === municipio)) {
+        refCandidato = {
+          nome: perfilRow.ref_nome,
+          cargo: perfilRow.ref_cargo,
+          ano: perfilRow.ref_ano || 2024,
+        };
+      }
+    } catch (_e) {
+      // se a coluna não existir ou der erro, segue com auto-detecção
+      refCandidato = null;
+    }
+
     // Resolve código IBGE se ausente
     if (!ibge_code) {
       ibge_code = await resolveIbgeCode(municipio, uf);
@@ -395,7 +420,7 @@ Deno.serve(async (req) => {
       ibge_code ? fetchIbgeBase(Number(ibge_code)) : Promise.resolve(null),
       ibge_code ? fetchPainelIndicadores(Number(ibge_code)) : Promise.resolve({}),
       fetchMediaEstadual(uf),
-      fetchTseLocal(supa, uf, municipio),
+      fetchTseLocal(supa, uf, municipio, refCandidato),
       fetchGdelt(municipio),
     ]);
 
