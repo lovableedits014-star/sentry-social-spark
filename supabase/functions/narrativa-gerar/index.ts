@@ -212,6 +212,8 @@ INSTRUÇÕES CRÍTICAS:
 - PROIBIDO mencionar dados de censos antigos (2010 ou anteriores) — eles foram filtrados desta lista de propósito
 - Se um indicador NÃO tiver dado recente, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
+- Se o "CONTEXTO RECENTE DA WEB" trouxer notícias dos últimos 90 dias, AMARRE pelo menos 1 ataque ou 1 discurso a um acontecimento real citado lá (ex: "a obra que parou no bairro X", "o decreto da prefeitura sobre Y").
+- NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
 BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
