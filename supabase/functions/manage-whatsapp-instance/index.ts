@@ -818,6 +818,15 @@ Deno.serve(async (req) => {
       const failure = getSendFailure(bridgeRes.status, bridgeData);
       if (failure) {
         if (isInstanceDisconnectedError(bridgeRes.status, bridgeData)) {
+          const reconnect = await tryReconnectInstance(adminClient, activeInstanceRow);
+          if (reconnect.status === "connected") {
+            const retry = await fetchBridgeAction({ action, apiKey: clientApiKey, body: proxyBody, retries: 1 });
+            const retryFailure = getSendFailure(retry.bridgeRes.status, retry.bridgeData);
+            if (!retryFailure) {
+              await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: true });
+              return jsonResponse(retry.bridgeData);
+            }
+          }
           await markInstanceDisconnected(adminClient, instance_id);
         }
         await logDirectSend(adminClient, { instanceId: instance_id, clientId: resolvedClientId, success: false, error: failure });
