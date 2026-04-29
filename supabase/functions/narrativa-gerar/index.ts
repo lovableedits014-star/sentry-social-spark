@@ -33,6 +33,32 @@ export function normBairro(s: string): string {
     .trim();
 }
 
+function buildContextoWebBlock(ctx: any): string {
+  if (!ctx) return "";
+  const linhas: string[] = [];
+  linhas.push("CONTEXTO RECENTE DA WEB (busca em tempo real — Wikipedia, Google News, sites .gov.br):");
+  if (ctx.wiki?.extrato) {
+    linhas.push(`📖 Wikipedia: ${ctx.wiki.extrato}`);
+  }
+  const noticias = Array.isArray(ctx.noticias) ? ctx.noticias : [];
+  if (noticias.length) {
+    linhas.push(`\n📰 Notícias recentes (${noticias.length}, últimos 90 dias):`);
+    for (const n of noticias.slice(0, 8)) {
+      linhas.push(`  - [${n.data || "?"}] "${n.titulo}" (${n.fonte})${n.resumo ? ` — ${n.resumo.slice(0, 160)}` : ""}`);
+    }
+  }
+  const oficiais = Array.isArray(ctx.oficiais) ? ctx.oficiais : [];
+  if (oficiais.length) {
+    linhas.push(`\n🏛️ Fontes oficiais (.gov.br):`);
+    for (const o of oficiais.slice(0, 5)) {
+      linhas.push(`  - [${o.data || "?"}] "${o.titulo}" (${o.fonte})`);
+    }
+  }
+  if (linhas.length === 1) return ""; // só o cabeçalho — sem conteúdo útil
+  linhas.push("\nUSE este contexto para citar acontecimentos REAIS e RECENTES da cidade nos discursos e ataques. Não invente fatos — só use o que está aqui ou nos indicadores numéricos acima.\n");
+  return linhas.join("\n") + "\n";
+}
+
 /**
  * Sanitiza o roteiro estratégico retornado pela IA:
  *  - descarta paradas sem bairro
@@ -88,7 +114,7 @@ REGRAS OBRIGATÓRIAS:
 - Saída deve ser estritamente um JSON válido seguindo o schema do tool.`;
 }
 
-function buildUserPrompt(dossie: any, ranking?: Record<string, any>) {
+function buildUserPrompt(dossie: any, ranking?: Record<string, any>, contextoWeb?: any) {
   const meta = dossie.dados_brutos?.meta || {};
   const ibge = dossie.dados_brutos?.ibge || {};
   const tse = dossie.dados_brutos?.tse_local || {};
@@ -161,6 +187,7 @@ INDICADORES MUNICIPAIS RECENTES (≤3 anos, com comparação ao estado de ${meta
 ${linhasIndicadores.join("\n") || "(sem dados IBGE)"}
 ${indicadoresIgnorados.length ? `\n(Descartados por serem antigos demais: ${indicadoresIgnorados.join(", ")})` : ""}
 
+${buildContextoWebBlock(contextoWeb)}
 EVIDÊNCIAS NUMÉRICAS DAS DORES (use ESTES números nos discursos):
 ${evidenciasDores || "(sem evidências numéricas — use TSE e mídia)"}
 
@@ -185,6 +212,8 @@ INSTRUÇÕES CRÍTICAS:
 - PROIBIDO mencionar dados de censos antigos (2010 ou anteriores) — eles foram filtrados desta lista de propósito
 - Se um indicador NÃO tiver dado recente, NÃO invente — fale do que tem
 - Os "ataques 3-camadas" devem usar números específicos da cidade
+- Se o "CONTEXTO RECENTE DA WEB" trouxer notícias dos últimos 90 dias, AMARRE pelo menos 1 ataque ou 1 discurso a um acontecimento real citado lá (ex: "a obra que parou no bairro X", "o decreto da prefeitura sobre Y").
+- NUNCA invente notícia ou cite fonte que não esteja na lista do contexto web acima.
 
 ========================================
 BAIRROS REAIS DISPONÍVEIS PARA O ROTEIRO
@@ -367,6 +396,31 @@ Deno.serve(async (req) => {
       console.warn("ranking RPC falhou, seguindo sem comparativo estadual:", rkErr);
     }
 
+    // Busca contexto web em tempo real (Wikipedia + Google News + sites .gov.br)
+    // Sem persistência — apenas em memória para enriquecer este prompt.
+    let contextoWeb: any = null;
+    try {
+      const meta: any = dossie.dados_brutos?.meta || {};
+      if (meta?.municipio && meta?.uf) {
+        const webRes = await fetch(`${SUPA_URL}/functions/v1/municipio-contexto-web`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SUPA_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ municipio: meta.municipio, uf: meta.uf, max_news: 8 }),
+        });
+        if (webRes.ok) {
+          contextoWeb = await webRes.json();
+          console.log("contexto web ok:", contextoWeb?._stats);
+        } else {
+          console.warn("contexto web falhou:", webRes.status);
+        }
+      }
+    } catch (webErr) {
+      console.warn("contexto web erro (seguindo sem):", (webErr as Error).message);
+    }
+
     const aiRes = await fetch(AI_URL, {
       method: "POST",
       headers: {
@@ -377,7 +431,7 @@ Deno.serve(async (req) => {
         model: MODEL,
         messages: [
           { role: "system", content: buildSystemPrompt(perfil) },
-          { role: "user", content: buildUserPrompt(dossie, rankingMap) },
+          { role: "user", content: buildUserPrompt(dossie, rankingMap, contextoWeb) },
         ],
         tools: [TOOL_SCHEMA],
         tool_choice: { type: "function", function: { name: "gerar_pacote_narrativa" } },
