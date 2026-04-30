@@ -5,6 +5,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BADGE_META } from "@/lib/militant-badges";
+import { getSocialProfileUrl } from "@/lib/social-url";
+import { ExternalLink } from "lucide-react";
 import type { MilitantRow } from "@/hooks/useMilitants";
 
 const SENTIMENT_COLORS = {
@@ -73,6 +75,8 @@ export function MilitanciaCharts({ militants, platform }: Props) {
         comentários: m.total_comments,
         positivos: m.total_positive,
         negativos: m.total_negative,
+        url: getSocialProfileUrl(m.platform, m.platform_user_id),
+        fullName: m.author_name || "—",
       }));
   }, [list]);
 
@@ -155,9 +159,10 @@ export function MilitanciaCharts({ militants, platform }: Props) {
       <Card className="lg:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Top 10 Perfis Mais Ativos</CardTitle>
-          <p className="text-xs text-muted-foreground">Quem mais comenta nas suas publicações — barra dividida em positivos vs negativos.</p>
+          <p className="text-xs text-muted-foreground">Quem mais comenta nas suas publicações — barra dividida em positivos vs negativos. Clique no nome abaixo do gráfico para abrir o perfil.</p>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="space-y-3">
+          <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={topActive} margin={{ left: 0, right: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -169,6 +174,30 @@ export function MilitanciaCharts({ militants, platform }: Props) {
               <Bar dataKey="negativos" stackId="a" fill={SENTIMENT_COLORS.negative} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pt-2 border-t">
+            {topActive.map((p, i) => (
+              p.url ? (
+                <a
+                  key={i}
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-muted hover:bg-primary/10 hover:text-primary transition-colors"
+                  title={`Abrir perfil de ${p.fullName}`}
+                >
+                  <span className="font-medium">#{i + 1}</span>
+                  <span className="truncate max-w-[140px]">{p.fullName}</span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              ) : (
+                <span key={i} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-muted text-muted-foreground">
+                  <span className="font-medium">#{i + 1}</span>
+                  <span className="truncate max-w-[140px]">{p.fullName}</span>
+                </span>
+              )
+            ))}
+          </div>
         </CardContent>
       </Card>
 
