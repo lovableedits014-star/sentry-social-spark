@@ -16,6 +16,7 @@ import {
   Users, MessageSquare, Wifi, WifiOff, Filter, Zap, Target, Settings2, Cake,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SugestoesPanel } from "@/components/disparos/SugestoesPanel";
 import DispatchLogDialog from "@/components/disparos/DispatchLogDialog";
 import BirthdayConfigPanel from "@/components/disparos/BirthdayConfigPanel";
 
@@ -299,6 +300,8 @@ export default function Disparos() {
         </TabsList>
 
         <TabsContent value="disparos" className="space-y-4 sm:space-y-6">
+
+      <SugestoesPanel />
 
       {/* Connection status banner */}
       {!isConnected && (

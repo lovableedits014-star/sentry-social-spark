@@ -540,6 +540,60 @@ export type Database = {
           },
         ]
       }
+      candidate_knowledge: {
+        Row: {
+          aprovado: boolean
+          client_id: string
+          confidence: number | null
+          contexto: string | null
+          created_at: string
+          entidades: Json | null
+          id: string
+          source_date: string | null
+          source_id: string | null
+          source_type: string
+          source_url: string | null
+          tema: string | null
+          texto: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          aprovado?: boolean
+          client_id: string
+          confidence?: number | null
+          contexto?: string | null
+          created_at?: string
+          entidades?: Json | null
+          id?: string
+          source_date?: string | null
+          source_id?: string | null
+          source_type: string
+          source_url?: string | null
+          tema?: string | null
+          texto: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          aprovado?: boolean
+          client_id?: string
+          confidence?: number | null
+          contexto?: string | null
+          created_at?: string
+          entidades?: Json | null
+          id?: string
+          source_date?: string | null
+          source_id?: string | null
+          source_type?: string
+          source_url?: string | null
+          tema?: string | null
+          texto?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           cargo: string | null
@@ -1311,6 +1365,80 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      disparo_sugestoes: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          client_id: string
+          created_at: string
+          destinatarios_filtro: Json | null
+          expires_at: string | null
+          fonte_knowledge_id: string | null
+          fonte_url: string | null
+          id: string
+          mensagem_sugerida: string
+          pessoa_alvo_nome: string | null
+          score: number | null
+          status: string
+          tema: string | null
+          tipo: string
+          titulo: string
+          total_estimado: number | null
+          updated_at: string
+          whatsapp_dispatch_id: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id: string
+          created_at?: string
+          destinatarios_filtro?: Json | null
+          expires_at?: string | null
+          fonte_knowledge_id?: string | null
+          fonte_url?: string | null
+          id?: string
+          mensagem_sugerida: string
+          pessoa_alvo_nome?: string | null
+          score?: number | null
+          status?: string
+          tema?: string | null
+          tipo: string
+          titulo: string
+          total_estimado?: number | null
+          updated_at?: string
+          whatsapp_dispatch_id?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          client_id?: string
+          created_at?: string
+          destinatarios_filtro?: Json | null
+          expires_at?: string | null
+          fonte_knowledge_id?: string | null
+          fonte_url?: string | null
+          id?: string
+          mensagem_sugerida?: string
+          pessoa_alvo_nome?: string | null
+          score?: number | null
+          status?: string
+          tema?: string | null
+          tipo?: string
+          titulo?: string
+          total_estimado?: number | null
+          updated_at?: string
+          whatsapp_dispatch_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disparo_sugestoes_fonte_knowledge_id_fkey"
+            columns: ["fonte_knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "candidate_knowledge"
             referencedColumns: ["id"]
           },
         ]
@@ -4998,6 +5126,14 @@ export type Database = {
       }
       count_assigned_supporters: {
         Args: { p_team_member_id: string }
+        Returns: number
+      }
+      count_pessoas_by_bairro: {
+        Args: {
+          p_bairro: string
+          p_client_id: string
+          p_only_whatsapp?: boolean
+        }
         Returns: number
       }
       enqueue_whatsapp_retry: {

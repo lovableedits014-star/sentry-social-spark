@@ -1,139 +1,159 @@
-
 ## Visão geral
 
-O módulo hoje entrega o básico (Radar, Ideias, Estúdio, DNA) mas opera como 4 caixas isoladas, sem feedback loop, sem proatividade real e sem usar todos os sinais que o sistema já coleta (IED, militância, crises, inteligência eleitoral, calendário). A proposta abaixo transforma o Co-piloto num assistente que **aprende, alerta, projeta e fecha o ciclo** entre escuta → ideia → texto → resultado → próximo ciclo.
+Sistema de inteligência alimentado por **3 fontes vivas** (transcrições, posts/comentários, dados do CRM/território) que devolve valor em **3 superfícies**:
 
-São 6 frentes, do maior impacto para o menor. Cada uma é independente — você pode aprovar tudo ou só as primeiras.
+1. **Memória viva do candidato** (knowledge base)
+2. **Redator de matérias + Coringa** (bot global do sistema)
+3. **Disparos territoriais inteligentes** ← novo destaque dessa rodada
 
----
-
-## 1. Radar++ — escutar tudo, não só comentários da semana
-
-**Hoje:** olha 7 dias de comentários, gera 4 listas estáticas, expira em 24h.
-
-**Proposta:**
-
-- **Fontes adicionais cruzadas no mesmo snapshot:**
-  - **Crises ativas** (alertas de sentimento) → vira bloco "Apagar incêndio agora"
-  - **Apoiadores 🔥 mais ativos** (top militantes da semana) → bloco "Pautas que seus defensores estão puxando"
-  - **Inteligência Eleitoral** (temas em alta no município/região, narrativa política da Onda 3) → bloco "O que está bombando fora da sua bolha"
-  - **Calendário Político** (feriados/datas dos próximos 7 dias) → bloco "Datas que pedem post"
-  - **Pessoas/CRM** (novos cadastros, picos de check-in por região) → bloco "Sinais da base"
-- **Comparação semana vs semana:** cada tema mostra seta ↑↓ e % de variação ("saúde subiu 180% em 3 dias").
-- **Score de oportunidade** (0-100) por item, calculado de: volume + crescimento + sentimento + alinhamento ao DNA.
-- **Snapshot continua diário** (cache), mas com botão "Análise profunda agora" que ignora cache e amplia janela para 14 dias.
+```text
+TRANSCRIÇÕES ─┐
+POSTS+COMMENTS ─┤ ► MEMÓRIA VIVA ─► Redator de Matérias
+CRM/PESSOAS  ─┤   (knowledge      ─► Coringa (bot global)
+TERRITÓRIO   ─┘    base)          ─► Disparos Territoriais Sugeridos
+```
 
 ---
 
-## 2. Ciclo fechado de aprendizado — a IA aprende com o que funcionou
+## Parte 1 — Memória viva (multi-fonte)
 
-**Hoje:** ideias têm aprovar/descartar mas o sinal não volta para a IA.
+Pipeline de extração que roda em **toda nova transcrição E todo novo post publicado**. Salva fatos estruturados em `candidate_knowledge`:
 
-**Proposta — nova tabela `content_outcomes`:**
+- **Promessas / propostas concretas** ("3 creches no Aero Rancho")
+- **Bandeiras / pautas** (saúde, segurança, mobilidade)
+- **Bairros e localidades citadas** (com normalização para bater com `pessoas.bairro`)
+- **Pessoas citadas** (lideranças, adversários, apoiadores)
+- **Histórias e bordões** (frases marcantes)
+- **Números e dados** ("60% das escolas...")
+- **Eventos passados** ("ontem visitei...")
+- **Adversários e ataques recebidos**
 
-- Quando o usuário aprova ou usa uma ideia, ele pode marcar depois: "publiquei", "deu certo 👍", "deu errado 👎", colando opcionalmente o link/print do post real.
-- Se o post real for de uma página integrada (Meta), o sistema **busca automaticamente** as métricas reais (likes, comentários, sentimento médio dos comentários) e calcula um `outcome_score`.
-- O Radar e o gerador de ideias **passam a usar esse histórico** no prompt: "ideias parecidas com X performaram bem, evite ângulos parecidos com Y".
-- Painel "O que funciona com a sua base": top 5 temas/ângulos/CTAs que mais engajam, top 5 que mais dão problema.
+**Fontes que alimentam:**
 
----
+- `ic_transcriptions` → fatos da fala
+- **Posts publicados** (texto do post) → fatos do que já foi comunicado
+- **Comentários do candidato** (respostas como page owner) → tom e posicionamentos
+- **Reações dos comentários** (sentimento agregado por tema) → o que pega ou não pega
 
-## 3. Modo Proativo — alertas e ações sugeridas (sem precisar abrir o módulo)
+Cada fato guarda: origem (transcrição/post/comentário com link), data, tema normalizado, bairros mencionados (jsonb), confiança, aprovado (humano pode editar/rejeitar).
 
-**Hoje:** módulo é totalmente reativo. Usuário tem que entrar para ver algo.
-
-**Proposta:**
-
-- **Cron diário (6h da manhã)** roda `ic-radar` + `ic-daily-ideas` automaticamente.
-- **Cron de monitoramento (a cada 2h)** detecta gatilhos:
-  - Pergunta nova repetida 5+ vezes em 24h → cria ideia "Responder dúvida X"
-  - Crítica nova com 10+ autores → cria ideia "Contra-narrativa Y" com tag urgente
-  - Defensor 🔥 elite postou tema novo → cria ideia "Amplificar pauta de [nome]"
-- **Widget no Dashboard principal** ("Sugestões de hoje" — 3 cards) com badge vermelho quando tem urgência.
-- **Notificação WhatsApp opcional** (usa o `manage-whatsapp-instance` existente) para alertas críticos: "Crise detectada sobre tema X, tem texto pronto no Co-piloto".
+A memória passa a alimentar: DNA editorial, geração de resposta a comentários, geração de post, redator de matérias, sugestões de missões, Coringa.
 
 ---
 
-## 4. Estúdio com superpoderes
+## Parte 2 — Redator de Matérias
 
-**Hoje:** preencher 3 campos e gerar 5 formatos.
+Nova aba **"Matérias"** em Inteligência de Conteúdo. Tipos: release de imprensa, matéria para portal/blog, nota oficial, artigo de opinião, texto institucional, **boletim semanal automático** (segunda 7h).
 
-**Proposta:**
-
-- **Modo Remix:** colar texto de um post antigo (ou puxar dos seus últimos posts) e pedir variações ("mais combativo", "mais empático", "para Reels", "para LinkedIn", "responder em 1ª pessoa").
-- **Modo Resposta de Crise:** colar comentário/print hostil → gera resposta calibrada no DNA + variantes (firme/conciliadora/factual com dados).
-- **Variantes A/B:** gerar 2 versões do mesmo post com hipótese diferente ("v1 foca em emoção, v2 foca em dado") para o usuário escolher.
-- **Pré-visualização realista** (mock de feed) do FB/IG mostrando como o post vai aparecer.
-- **Projeção qualitativa** (já existe em `ic-project`, integrar inline): "Provável reação dos seus 🔥: positiva. Risco de munição para críticos: médio. Tema parecido com X que performou bem".
-- **Slot de imagem:** botão "Gerar arte" usa o `generate-arte-feriado` existente (Lovable AI Nano Banana — única exceção permitida) com o brief visual já pronto.
+Você dá tema + ângulo. A IA puxa da memória viva: propostas reais, citações entre aspas (das transcrições), visitas territoriais, métricas de engajamento sobre o tema. Botões de regerar mais técnico / mais emocional / mais curto.
 
 ---
 
-## 5. Banco de Ideias virando workflow real
+## Parte 3 — Coringa (bot global)
 
-**Hoje:** lista de cards com aprovar/descartar/abrir.
+Botão flutuante em todas as páginas. Chat lateral com streaming. Tem ferramentas tipadas (sem SQL bruto) para consultar pessoas, comentários, métricas, memória, território, crises, calendário, militância — e ações com confirmação para criar missão, ideia, agendar disparo, gerar texto.
 
-**Proposta:**
-
-- **Status expandido:** Pendente → Aprovada → Em produção → Publicada → Avaliada.
-- **Calendário editorial:** drag-and-drop das ideias aprovadas para datas (semana/mês), considerando datas do Calendário Político e horários de pico do DNA.
-- **Pin / Prioridade** — ideias com tag "urgente" (vindas de crises) vão para o topo automaticamente.
-- **Busca/filtro** por tema, tipo, origem (radar, manual, daily).
-- **Exportar pauta** (PDF/CSV) da semana para reunião com a equipe.
+Exemplos: *"quantos apoiadores no Aero Rancho?"*, *"o candidato já falou sobre tarifa de ônibus?"*, *"escreve um release sobre a visita de ontem"*, *"sugere 3 pautas pra essa semana"*.
 
 ---
 
-## 6. DNA evolutivo + Inspiração competitiva
+## Parte 4 — Disparos Territoriais Inteligentes (a inovação)
 
-**Hoje:** DNA roda 1 vez nos últimos 90 dias e fica estático.
+Quando você sobe uma transcrição (ou publica um post) que menciona **melhoria/proposta para uma região específica**, o sistema detecta automaticamente e **sugere um disparo de WhatsApp segmentado para os apoiadores daquele bairro/região**.
 
-**Proposta:**
+### Como funciona
 
-- **Recalibração automática semanal** (cron domingo) em vez de manual.
-- **Histórico de evolução do DNA:** ver como o tom mudou ao longo dos meses (ficou mais combativo? mais técnico?).
-- **DNA por contexto:** detectar se posts em horário X performam diferente, ou se posts com vocabulário Y mobilizam mais defensores. Mostrar como recomendações específicas.
-- **Aba nova "Inspiração":** usar a Inteligência Eleitoral (parlamentares/candidatos já mapeados na onda 3) para mostrar "Posts dos seus pares políticos da região na última semana" — resumido pela IA com tags ("o que copiar", "o que evitar"). Sem scrape novo, só usa o que já existe.
+1. Extrator identifica fatos do tipo `proposta` ou `promessa` com `entidades.bairros = ["Aero Rancho"]`.
+2. Cruza com a tabela `pessoas` filtrando por `bairro ILIKE 'Aero Rancho'` + `whatsapp_confirmado = true`.
+3. Se encontrar **≥ N pessoas** (configurável, padrão 5), gera uma **sugestão de disparo** em nova tabela `disparo_sugestoes`:
+   - Bairro/região
+   - Tema (ex: "creches")
+   - Quantidade estimada de destinatários
+   - **Mensagem-template já redigida pela IA** usando o DNA do candidato + a fala original
+   - Link para a fonte (transcrição ou post)
+4. **Aparece em 3 lugares:**
+   - **Card no Dashboard** ("3 disparos territoriais sugeridos")
+   - **Aba nova "Sugestões"** dentro de Disparos
+   - **Notificação no Coringa** ("detectei oportunidade de disparo no Aero Rancho")
+5. Você revisa, edita a mensagem, ajusta destinatários e **confirma** — daí entra no fluxo normal de `whatsapp_dispatches` que já existe (com níveis Conservador/Moderado/Agressivo).
+
+### Mensagem gerada (exemplo)
+
+> "Olá [primeiro_nome]! Como morador(a) do Aero Rancho, queria te contar pessoalmente: estive lá ontem e me comprometi a lutar pela construção de 3 novas creches no bairro. Você que vive a realidade da região, sua opinião importa muito. Conta com você? 🙏"
+
+Variáveis automáticas: `[primeiro_nome]`, `[bairro]`. Personalização leve por pessoa para reduzir cara-de-spam.
+
+### Outros gatilhos de sugestão (mesmo motor)
+
+- **Pessoa citada nominalmente** numa transcrição → sugere mandar mensagem pessoal pra ela ("o candidato te mencionou na live de ontem").
+- **Pauta que o público está cobrando** (muitos comentários sobre tema X) + **candidato acabou de falar sobre X** → sugere disparo para apoiadores que comentaram sobre X.
+- **Aniversariante de bairro visitado essa semana** → cruza aniversário + visita.
+- **Apoiadores 🔥 em região com baixo engajamento** → sugere ativação.
+
+Tudo isso vira itens em `disparo_sugestoes` com `tipo` (territorial, pessoal, tematico, ativacao) e `score` de oportunidade.
+
+---
+
+## Aplicações cruzadas (ganhos automáticos)
+
+- **Resposta a comentários**: passa a citar promessas reais ("como o candidato disse na live de 14/04...").
+- **Geração de post**: usa frases reais do candidato + evita contradições.
+- **DNA editorial**: enriquecido com bordões reais extraídos.
+- **Missões IA**: nova categoria "amplificar fala do candidato em [bairro]".
+- **Dashboard**: widget "O que o candidato anda falando" + "Sugestões de disparo territorial".
+- **Telemarketing**: scripts ganham aba "argumentos do próprio candidato".
+- **Narrativa Política**: campos de perfil ganham auto-sugestão.
 
 ---
 
 ## Detalhes técnicos
 
-**Novas tabelas:**
-- `content_outcomes` (id, idea_id, client_id, post_url, metrics jsonb, outcome_score int, user_rating, created_at)
-- `content_dna_history` (id, client_id, dna_snapshot jsonb, created_at) — versionamento do DNA
-- `content_calendar` (id, client_id, idea_id, scheduled_date, scheduled_time, platform, status)
+**Novas tabelas**
+- `candidate_knowledge` — fatos extraídos (tipo, tema, texto, contexto, entidades jsonb, source_type ∈ transcription|post|comment, source_id, confidence, aprovado).
+- `disparo_sugestoes` — sugestões pendentes (tipo, tema, bairro, mensagem_sugerida, total_estimado, fonte_id, fonte_tipo, score, status ∈ pendente|aprovado|descartado|enviado, expires_at).
+- `materias_geradas` — histórico de matérias.
+- `coringa_conversations` + `coringa_messages` — histórico do bot.
 
-**Novas/edited Edge Functions:**
-- `ic-radar` — adicionar fontes (crises, militantes, IE, calendário, CRM) + comparação semana anterior + score
-- `ic-outcomes-track` — buscar métricas reais de posts publicados (Meta Graph API)
-- `ic-cron-daily` — roda às 6h: radar + 5 ideias + checa gatilhos críticos
-- `ic-cron-monitor` — a cada 2h: detecta gatilhos urgentes
-- `ic-remix` — modo remix/variantes/A-B
-- `ic-crisis-response` — resposta a crítica específica
-- `ic-inspiration` — resumo dos pares políticos via IA
+Todas com RLS por `client_id`.
 
-**Cron jobs (pg_cron):**
-- Daily 06:00 BRT — `ic-cron-daily`
-- A cada 2h — `ic-cron-monitor`
-- Domingo 03:00 — recalibrar DNA de todos clients ativos
+**Novas Edge Functions**
+- `ic-extract-knowledge` — extrai fatos. Chamada em fire-and-forget no fim de `ic-transcribe` e em trigger pós-sync de posts (`fetch-meta-comments`).
+- `ic-suggest-dispatches` — varre fatos novos com bairros/pessoas, cruza com `pessoas`, gera sugestões em `disparo_sugestoes`. Roda após cada extração + cron diário 8h.
+- `ic-write-materia` — gera matérias com contexto da memória viva.
+- `coringa-chat` — bot streaming SSE com tool calling (via `llm-router`).
+- `coringa-cron-boletim` — boletim semanal segunda 7h.
 
-**UI:**
-- Widget "Sugestões de hoje" no Dashboard principal (`DashboardOverview.tsx`)
-- Nova aba "Calendário" em InteligenciaConteudo
-- Nova aba "Aprende" (mostra outcomes + o que funciona)
-- Drawer de detalhes em cada ideia com timeline (criada → aprovada → publicada → avaliada)
+**Normalização de bairros** (crítico pra cruzar fala vs CRM)
+- Função utilitária `normalizeBairro()` (lowercase, sem acento, sem "vila/jardim/parque" como prefixo opcional).
+- Comparação fuzzy com `pessoas.bairro` (ILIKE + similaridade pg_trgm já disponível).
+- Fallback: se não bater nenhum bairro, sugere disparo por cidade.
 
-**Modelo IA:** continua usando o provedor configurado pelo cliente (LLM Router). Lovable AI só na geração de imagem (regra atual mantida).
+**UI**
+- Aba **"Memória"** em InteligenciaConteudo (lista fatos, filtra, edita).
+- Aba **"Matérias"** em InteligenciaConteudo.
+- Aba **"Sugestões"** em Disparos (cards com pré-visualização da mensagem, contagem de destinatários, botões Aprovar/Editar/Descartar).
+- Card **"Sugestões de disparo"** no DashboardOverview.
+- Widget **"O que o candidato anda falando"** no DashboardOverview.
+- Componente global **`<CoringaButton />`** + **`<CoringaDrawer />`** em DashboardLayout.
+
+**LLM**: tudo via `llm-router` existente (respeita config do cliente). Tool calling para extração estruturada e Coringa.
 
 ---
 
-## Ordem de implementação sugerida
+## O que NÃO muda
 
-1. **Radar++** (Fase 1) — fontes extras + comparação + score. Maior ganho percebido imediato.
-2. **Modo Proativo** (Fase 2) — crons + widget no dashboard. Faz o módulo "trabalhar sozinho".
-3. **Ciclo de aprendizado** (Fase 3) — outcomes tracking. Faz a IA ficar melhor com o tempo.
-4. **Estúdio++** (Fase 4) — remix + crise + A/B + pré-visualização.
-5. **Calendário editorial** (Fase 5).
-6. **DNA evolutivo + Inspiração** (Fase 6).
+- Fluxo atual de transcrição/legenda/post de feed continua igual — só ganha pipeline em background.
+- `whatsapp_dispatches` continua o mesmo — sugestões só geram pré-rascunhos que entram nesse fluxo após sua aprovação.
+- Sem novas integrações externas, sem novas dependências.
 
-Posso começar pela Fase 1 e ir liberando para você validar cada etapa, ou implementar 2-3 fases juntas. Qual prefere?
+---
+
+## Ordem de implementação
+
+1. **Fase 1 — Memória viva multi-fonte**: tabela + extrator (transcrições + posts) + aba "Memória" + integração em DNA e respostas.
+2. **Fase 2 — Disparos territoriais sugeridos** ← inovação que você pediu: tabela `disparo_sugestoes` + função `ic-suggest-dispatches` + aba "Sugestões" em Disparos + card no Dashboard.
+3. **Fase 3 — Redator de Matérias** + boletim semanal automático.
+4. **Fase 4 — Coringa (bot global)**: leitura primeiro, streaming, ferramentas de consulta.
+5. **Fase 5 — Coringa avançado** (ações com confirmação) + outros gatilhos de sugestão (pessoa citada, pauta cobrada, ativação de bairro frio).
+
+Sugiro **emendar Fase 1 + 2 num bloco só** já que a parte 2 só faz sentido com a memória rodando. Topa começar por aí?

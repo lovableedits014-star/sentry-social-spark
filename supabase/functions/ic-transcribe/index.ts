@@ -142,6 +142,25 @@ Deno.serve(async (req) => {
       return json({ error: "Falha ao salvar transcrição" }, 500);
     }
 
+    // Fire-and-forget: extrai inteligência da transcrição
+    if (inserted?.full_text && inserted.full_text.length > 50) {
+      fetch(`${SUPABASE_URL}/functions/v1/ic-extract-knowledge`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SERVICE_KEY}`,
+        },
+        body: JSON.stringify({
+          clientId,
+          sourceType: "transcription",
+          sourceId: inserted.id,
+          sourceDate: inserted.created_at,
+          text: inserted.full_text,
+          triggerSuggestions: true,
+        }),
+      }).catch((e) => console.error("[ic-transcribe] extract fire failed:", e));
+    }
+
     return json({ transcription: inserted });
   } catch (e) {
     console.error("ic-transcribe fatal", e);
