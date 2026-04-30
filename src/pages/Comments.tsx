@@ -385,7 +385,7 @@ const Comments = () => {
     } finally {
       setResponding(null);
     }
-  }, [reloadComments]);
+  }, [reloadComments, queryClient, postsLimit]);
 
   const handleManageComment = useCallback(async (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => {
     setManagingComment(commentId);
