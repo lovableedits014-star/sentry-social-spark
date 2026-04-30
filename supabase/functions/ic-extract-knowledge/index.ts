@@ -264,7 +264,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ extracted: inserted, total_proposed: fatos.length });
+    return jsonResponse({
+      extracted: inserted,
+      total_proposed: fatos.length,
+      extraction_run_id: runId,
+      provider: usedProvider,
+      model: usedModel,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("ic-extract-knowledge error:", msg);
