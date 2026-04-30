@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client-selfhosted";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, RefreshCw, Loader2, Copy, ThumbsUp, ThumbsDown, Wand2, Brain, Flame, HelpCircle, AlertTriangle, Heart } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, Copy, ThumbsUp, ThumbsDown, Wand2, Brain, Flame, HelpCircle, AlertTriangle, Heart, TrendingUp, TrendingDown, Minus, Calendar, Users, Siren, Zap, Telescope } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentClientId } from "@/hooks/ic/useCurrentClientId";
 import { useIdeias, useUpdateIdeaStatus, useCreateIdea } from "@/hooks/ic/useIdeias";
@@ -98,6 +98,12 @@ function RadarPanel({ clientId, onSeed }: { clientId: string | null | undefined;
     onError: (e: any) => toast.error(e.message ?? "Falha ao atualizar radar"),
   });
 
+  const deepScan = useMutation({
+    mutationFn: async () => invoke("ic-radar", { clientId, force: true, deep: true }),
+    onSuccess: () => { toast.success("Análise profunda concluída"); refetch(); },
+    onError: (e: any) => toast.error(e.message ?? "Falha na análise profunda"),
+  });
+
   const create = useCreateIdea();
   async function saveAsIdea(titulo: string, descricao: string, tema: string, tipo: string) {
     if (!clientId) return;
@@ -122,73 +128,264 @@ function RadarPanel({ clientId, onSeed }: { clientId: string | null | undefined;
   );
 
   const snap = data?.snapshot;
-  const sections: Array<{ key: string; title: string; icon: any; color: string; items: any[]; render: (it: any) => { titulo: string; desc: string; tema: string; tipo: string } }> = [
-    {
-      key: "hot", title: "Temas quentes", icon: Flame, color: "text-orange-500",
-      items: snap?.hot_topics ?? [],
-      render: (it) => ({ titulo: `Post sobre ${it.tema}`, desc: `Tema com ${it.volume ?? "?"} menções (${it.sentimento_predominante ?? "—"})`, tema: it.tema, tipo: "oportunidade" }),
-    },
-    {
-      key: "questions", title: "Perguntas em aberto", icon: HelpCircle, color: "text-blue-500",
-      items: snap?.open_questions ?? [],
-      render: (it) => ({ titulo: `Responder: ${it.pergunta}`, desc: `Pergunta repetida ${it.frequencia ?? "?"}x`, tema: "dúvidas", tipo: "pergunta" }),
-    },
-    {
-      key: "hostile", title: "Narrativas hostis", icon: AlertTriangle, color: "text-destructive",
-      items: snap?.hostile_narratives ?? [],
-      render: (it) => ({ titulo: `Contra-narrativa: ${it.narrativa}`, desc: `${it.autores_count ?? "?"} autores propagando`, tema: "defesa", tipo: "contra-narrativa" }),
-    },
-    {
-      key: "mob", title: "Pautas que mobilizam", icon: Heart, color: "text-pink-500",
-      items: snap?.mobilizing_pautas ?? [],
-      render: (it) => ({ titulo: `Mobilizar: ${it.pauta}`, desc: `${it.defensores_engajados ?? "?"} defensores engajados`, tema: it.pauta, tipo: "mobilizacao" }),
-    },
-  ];
+  const meta = snap?.meta ?? {};
+  const v = meta.variation ?? {};
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">{snap?.snapshot_date ? `Snapshot de ${snap.snapshot_date}` : "Sem snapshot"} {data?.cached ? "(cache)" : ""}</p>
-        <Button size="sm" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-          {refresh.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          <span className="ml-2">Atualizar agora</span>
-        </Button>
-      </div>
+      {/* Cabeçalho com KPIs da semana */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <Badge variant="outline">
+                {snap?.snapshot_date ? `Snapshot ${snap.snapshot_date}` : "Sem snapshot"}{data?.cached ? " (cache)" : ""}
+              </Badge>
+              <span className="text-muted-foreground">Janela: {meta.window_days ?? 7} dias</span>
+              <span className="text-muted-foreground">·</span>
+              <KpiPill label="Comentários" value={meta.curr_window?.total ?? 0} variation={v.total} />
+              <KpiPill label="Negativos" value={meta.curr_window?.neg ?? 0} variation={v.neg} invertColor />
+              <KpiPill label="Positivos" value={meta.curr_window?.pos ?? 0} variation={v.pos} />
+              {meta.defenders_count > 0 && <Badge variant="secondary" className="text-[10px]">🔥 {meta.defenders_count} defensores</Badge>}
+              {meta.haters_count > 0 && <Badge variant="destructive" className="text-[10px]">⚔️ {meta.haters_count} críticos</Badge>}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending || deepScan.isPending}>
+                {refresh.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <span className="ml-2">Atualizar</span>
+              </Button>
+              <Button size="sm" onClick={() => deepScan.mutate()} disabled={deepScan.isPending || refresh.isPending}>
+                {deepScan.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Telescope className="w-4 h-4" />}
+                <span className="ml-2">Análise profunda (14d)</span>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* CRISES (no topo, urgência) */}
+      {(snap?.crisis_alerts?.length ?? 0) > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <Siren className="w-4 h-4" />Apagar incêndio agora
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {snap.crisis_alerts.slice(0, 5).map((a: any, i: number) => (
+                <li key={i} className="border border-destructive/30 rounded-lg p-3 bg-background">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm flex items-center gap-2">
+                        {a.urgent && <Badge variant="destructive" className="text-[10px]">URGENTE</Badge>}
+                        {a.titulo}
+                      </p>
+                      {a.descricao && <p className="text-xs text-muted-foreground mt-0.5">{a.descricao}</p>}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" className="mt-2 h-7" onClick={() => saveAsIdea(`Resposta de crise: ${a.titulo}`, a.descricao ?? "", "crise", "contra-narrativa")}>
+                    <Wand2 className="w-3 h-3 mr-1" />Preparar resposta
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CALENDÁRIO (datas próximas) */}
+      {(snap?.calendar_hooks?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base"><Calendar className="w-4 h-4 text-purple-500" />Datas que pedem post</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {snap.calendar_hooks.map((h: any, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => saveAsIdea(`Post para ${h.nome}`, `${h.label} (${h.date})`, h.nome, "data-comemorativa")}
+                  className="border rounded-lg px-3 py-2 text-left hover:bg-accent transition"
+                >
+                  <div className="text-xs font-medium">{h.nome}</div>
+                  <div className="text-[10px] text-muted-foreground">{h.label} · {h.date}</div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* GRID PRINCIPAL */}
       <div className="grid md:grid-cols-2 gap-4">
-        {sections.map((s) => {
-          const Icon = s.icon;
-          return (
-            <Card key={s.key}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base"><Icon className={`w-4 h-4 ${s.color}`} />{s.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {s.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">Nada relevante detectado.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {s.items.slice(0, 5).map((it: any, i: number) => {
-                      const r = s.render(it);
-                      return (
-                        <li key={i} className="border rounded-lg p-3 text-sm">
-                          <p className="font-medium">{r.titulo}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{r.desc}</p>
-                          {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground">"{it.exemplos[0]}"</p>}
-                          <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(r.titulo, r.desc, r.tema, r.tipo)}>
-                            <Sparkles className="w-3 h-3 mr-1" />Salvar como ideia
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+        {/* Temas quentes (com score e variação) */}
+        <RadarCard
+          icon={Flame} iconColor="text-orange-500"
+          title="Temas quentes" emptyMsg="Nenhum tema relevante na janela."
+          items={snap?.hot_topics ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <p className="font-medium">{it.tema}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {it.volume ?? "?"} menções · sentimento {it.sentimento_predominante ?? "—"}
+                    {typeof it.defensor_echo === "number" && ` · 🔥 ${Math.round(it.defensor_echo * 100)}%`}
+                  </p>
+                </div>
+                <ScoreBadge score={it.score} />
+              </div>
+              {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground line-clamp-2">"{it.exemplos[0]}"</p>}
+              <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(`Post sobre ${it.tema}`, `${it.volume ?? 0} menções (${it.sentimento_predominante ?? "—"})`, it.tema, "oportunidade")}>
+                <Sparkles className="w-3 h-3 mr-1" />Salvar como ideia
+              </Button>
+            </li>
+          )}
+        />
+
+        {/* Pulso dos defensores */}
+        <RadarCard
+          icon={Zap} iconColor="text-amber-500"
+          title="Pulso dos defensores 🔥" emptyMsg="Nenhuma pauta sendo puxada pelos seus defensores."
+          items={snap?.defender_pulse ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <p className="font-medium">{it.pauta}</p>
+              {it.principais_defensores?.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Por: {it.principais_defensores.slice(0, 3).join(", ")}
+                </p>
+              )}
+              {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground line-clamp-2">"{it.exemplos[0]}"</p>}
+              <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(`Amplificar: ${it.pauta}`, `Pauta puxada espontaneamente pelos defensores`, it.pauta, "mobilizacao")}>
+                <Sparkles className="w-3 h-3 mr-1" />Amplificar como ideia
+              </Button>
+            </li>
+          )}
+        />
+
+        {/* Perguntas em aberto */}
+        <RadarCard
+          icon={HelpCircle} iconColor="text-blue-500"
+          title="Perguntas em aberto" emptyMsg="Sem dúvidas recorrentes."
+          items={snap?.open_questions ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <p className="font-medium">{it.pergunta}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Repetida {it.frequencia ?? "?"}x</p>
+              {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground line-clamp-2">"{it.exemplos[0]}"</p>}
+              <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(`Responder: ${it.pergunta}`, `Pergunta repetida ${it.frequencia ?? "?"}x`, "dúvidas", "pergunta")}>
+                <Sparkles className="w-3 h-3 mr-1" />Salvar como ideia
+              </Button>
+            </li>
+          )}
+        />
+
+        {/* Narrativas hostis */}
+        <RadarCard
+          icon={AlertTriangle} iconColor="text-destructive"
+          title="Narrativas hostis" emptyMsg="Sem narrativas coordenadas detectadas."
+          items={snap?.hostile_narratives ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <p className="font-medium">{it.narrativa}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{it.autores_count ?? "?"} autores propagando</p>
+              {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground line-clamp-2">"{it.exemplos[0]}"</p>}
+              <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(`Contra-narrativa: ${it.narrativa}`, `${it.autores_count ?? "?"} autores propagando`, "defesa", "contra-narrativa")}>
+                <Sparkles className="w-3 h-3 mr-1" />Salvar como ideia
+              </Button>
+            </li>
+          )}
+        />
+
+        {/* Pautas que mobilizam */}
+        <RadarCard
+          icon={Heart} iconColor="text-pink-500"
+          title="Pautas que mobilizam" emptyMsg="Sem pautas mobilizadoras claras."
+          items={snap?.mobilizing_pautas ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <p className="font-medium">{it.pauta}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{it.defensores_engajados ?? "?"} defensores engajados</p>
+              {it.exemplos?.[0] && <p className="text-xs italic mt-1 text-muted-foreground line-clamp-2">"{it.exemplos[0]}"</p>}
+              <Button size="sm" variant="ghost" className="mt-2 h-7" onClick={() => saveAsIdea(`Mobilizar: ${it.pauta}`, `${it.defensores_engajados ?? "?"} defensores engajados`, it.pauta, "mobilizacao")}>
+                <Sparkles className="w-3 h-3 mr-1" />Salvar como ideia
+              </Button>
+            </li>
+          )}
+        />
+
+        {/* Sinais da base */}
+        <RadarCard
+          icon={Users} iconColor="text-emerald-500"
+          title="Sinais da base" emptyMsg="Sem movimentação relevante na base."
+          items={snap?.base_signals ?? []}
+          renderItem={(it: any, i: number) => (
+            <li key={i} className="border rounded-lg p-3 text-sm">
+              <p className="font-medium">{it.titulo}</p>
+              {it.detalhe && <p className="text-xs text-muted-foreground mt-0.5">{it.detalhe}</p>}
+            </li>
+          )}
+        />
       </div>
     </div>
+  );
+}
+
+/* ---------- Componentes auxiliares do Radar ---------- */
+function KpiPill({ label, value, variation, invertColor }: { label: string; value: number; variation?: { delta_pct: number; trend: string }; invertColor?: boolean }) {
+  const trend = variation?.trend ?? "flat";
+  const pct = variation?.delta_pct ?? 0;
+  const Icon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  let color = "text-muted-foreground";
+  if (trend === "up") color = invertColor ? "text-destructive" : "text-emerald-600";
+  if (trend === "down") color = invertColor ? "text-emerald-600" : "text-muted-foreground";
+  if (trend === "new") color = invertColor ? "text-destructive" : "text-emerald-600";
+  return (
+    <span className="inline-flex items-center gap-1 text-xs">
+      <span className="font-medium">{label}:</span>
+      <span className="font-semibold">{value}</span>
+      {variation && trend !== "flat" && (
+        <span className={`inline-flex items-center gap-0.5 ${color}`}>
+          <Icon className="w-3 h-3" />
+          {trend === "new" ? "novo" : `${pct > 0 ? "+" : ""}${pct}%`}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ScoreBadge({ score }: { score?: number }) {
+  if (typeof score !== "number") return null;
+  const tone = score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-muted-foreground";
+  return (
+    <div className="flex flex-col items-center shrink-0">
+      <div className={`w-10 h-10 rounded-full ${tone} text-white flex items-center justify-center text-sm font-bold`}>
+        {score}
+      </div>
+      <span className="text-[9px] text-muted-foreground mt-0.5">score</span>
+    </div>
+  );
+}
+
+function RadarCard({ icon: Icon, iconColor, title, emptyMsg, items, renderItem }: {
+  icon: any; iconColor: string; title: string; emptyMsg: string;
+  items: any[]; renderItem: (it: any, i: number) => React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base"><Icon className={`w-4 h-4 ${iconColor}`} />{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">{emptyMsg}</p>
+        ) : (
+          <ul className="space-y-2">{items.slice(0, 5).map(renderItem)}</ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

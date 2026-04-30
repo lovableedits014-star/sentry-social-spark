@@ -1,253 +1,139 @@
 
-# Inteligência de Conteúdo — co-piloto consultivo
+## Visão geral
 
-Módulo que **municia o usuário com ideias, textos, projeções e briefings**. Não publica, não gera imagem/vídeo, não agenda execução. Você decide e produz tudo manualmente.
+O módulo hoje entrega o básico (Radar, Ideias, Estúdio, DNA) mas opera como 4 caixas isoladas, sem feedback loop, sem proatividade real e sem usar todos os sinais que o sistema já coleta (IED, militância, crises, inteligência eleitoral, calendário). A proposta abaixo transforma o Co-piloto num assistente que **aprende, alerta, projeta e fecha o ciclo** entre escuta → ideia → texto → resultado → próximo ciclo.
 
-**Fonte de IA:** SEMPRE o provedor configurado pelo cliente (`_shared/llm-router.ts` → Settings → Integrações). Nunca Lovable AI (reservado ao Calendário Político).
-
----
-
-## Arquitetura
-
-**Rota:** `/inteligencia-conteudo`
-**Acesso:** admin + `gestor_social` (atualizar `src/lib/access-control.ts`)
-**Cache:** React Query `staleTime: Infinity`, sync manual (padrão do projeto)
-
-```text
-┌──── /inteligencia-conteudo ────────────────────────┐
-│ 1.Radar  2.Banco de Ideias  3.Estúdio de Texto    │
-│ 4.Projeção  5.Calendário  6.Insights Militância   │
-│ 7.Resposta a Crise  8.Modo Adversário  9.DNA      │
-└────────────────────────────────────────────────────┘
-        │
-        ├── ic-radar             (extrai temas/perguntas/ataques)
-        ├── ic-generate-text     (texto FB/IG + roteiro falado + brief visual)
-        ├── ic-project           (projeção qualitativa de reação)
-        ├── ic-daily-ideas       (cron 06:00 — 5 ideias/dia/cliente)
-        ├── ic-dna-analyzer      (recalibra DNA editorial)
-        ├── ic-crisis-brief      (3 abordagens de resposta a crise)
-        ├── ic-adversary-sim     (contra-argumentos prováveis)
-        └── ic-insights-militancia (cruza militantes × temas)
-
-Todas usam callLLM(getClientLLMConfig(supabase, clientId), ...)
-```
-
-**Dados consumidos (somente leitura):**
-`comments` · `social_militants` · `ied_scores` · `candidate_identity` · `municipios_indicadores` · `sentiment_corrections` · `pessoas` · `midia_noticias` · `narrativa_perfil_candidato` · `adversarios_politicos`
+São 6 frentes, do maior impacto para o menor. Cada uma é independente — você pode aprovar tudo ou só as primeiras.
 
 ---
 
-## Banco de dados (migration)
+## 1. Radar++ — escutar tudo, não só comentários da semana
 
-```sql
--- DNA editorial do candidato (descobre seu jeito de escrever)
-create table content_dna (
-  client_id uuid primary key references clients(id) on delete cascade,
-  tom text,                       -- ex: "combativo-empático"
-  vocabulario text[],
-  estruturas jsonb,               -- {pergunta_retorica:0.4,...}
-  emojis_assinatura text[],
-  tamanho_ideal jsonb,            -- {facebook:300, instagram:120}
-  horarios_pico jsonb,            -- {seg:[19,20], ter:[12]}  (informativo, não dispara nada)
-  sample_size int,
-  updated_at timestamptz default now()
-);
+**Hoje:** olha 7 dias de comentários, gera 4 listas estáticas, expira em 24h.
 
--- Banco de ideias (sugestões + manuais)
-create table content_ideas (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid not null references clients(id) on delete cascade,
-  titulo text not null,
-  descricao text,
-  tema text,
-  tipo text,                      -- 'oportunidade'|'pergunta'|'contra-narrativa'|'mobilizacao'|'data'
-  origem text,                    -- 'radar'|'ai-daily'|'manual'|'crise'
-  score int default 50,           -- 0-100 relevância
-  status text default 'pendente', -- pendente|aprovada|descartada|usada
-  source_refs jsonb,              -- {comment_ids:[], post_ids:[], militant_ids:[]}
-  generated_text jsonb,           -- {facebook:'', instagram:'', roteiro_falado:'', brief_visual:''}
-  projection jsonb,               -- saída de ic-project
-  user_feedback text,             -- nota do usuário ao aprovar/descartar
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-create index on content_ideas(client_id, status, created_at desc);
+**Proposta:**
 
--- Snapshot diário do radar (cache)
-create table content_radar_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid not null,
-  snapshot_date date default current_date,
-  hot_topics jsonb,
-  open_questions jsonb,
-  hostile_narratives jsonb,
-  mobilizing_pautas jsonb,
-  created_at timestamptz default now(),
-  unique(client_id, snapshot_date)
-);
-
--- RLS multi-tenant por client_id em todas as 3 tabelas (padrão do projeto)
-```
-
-**Sem tabela `content_outcomes`** — o módulo não fecha loop com publicação real (nada é publicado pela ferramenta).
+- **Fontes adicionais cruzadas no mesmo snapshot:**
+  - **Crises ativas** (alertas de sentimento) → vira bloco "Apagar incêndio agora"
+  - **Apoiadores 🔥 mais ativos** (top militantes da semana) → bloco "Pautas que seus defensores estão puxando"
+  - **Inteligência Eleitoral** (temas em alta no município/região, narrativa política da Onda 3) → bloco "O que está bombando fora da sua bolha"
+  - **Calendário Político** (feriados/datas dos próximos 7 dias) → bloco "Datas que pedem post"
+  - **Pessoas/CRM** (novos cadastros, picos de check-in por região) → bloco "Sinais da base"
+- **Comparação semana vs semana:** cada tema mostra seta ↑↓ e % de variação ("saúde subiu 180% em 3 dias").
+- **Score de oportunidade** (0-100) por item, calculado de: volume + crescimento + sentimento + alinhamento ao DNA.
+- **Snapshot continua diário** (cache), mas com botão "Análise profunda agora" que ignora cache e amplia janela para 14 dias.
 
 ---
 
-## As 9 abas (todas consultivas)
+## 2. Ciclo fechado de aprendizado — a IA aprende com o que funcionou
 
-### 1. Radar de Oportunidade
-4 cards (top 5 cada), atualizados por snapshot diário + refresh manual:
-- 🔥 **Temas quentes** (clusters dos comentários últimos 7d)
-- ❓ **Perguntas em aberto** (perguntas frequentes sem resposta nos comentários)
-- ⚠️ **Narrativas hostis** (recorrência em comentários de `social_militants` badge `hater`/`critico`)
-- ❤️ **Pautas que mobilizam** (temas que mais ativaram defensores 🔥)
+**Hoje:** ideias têm aprovar/descartar mas o sinal não volta para a IA.
 
-Cada item: **"Salvar como ideia"** · **"Abrir no Estúdio"**.
+**Proposta — nova tabela `content_outcomes`:**
 
-### 2. Banco de Ideias
-Lista filtrável (origem/status/tema). Cada card:
-- Título · tema · score · origem · fontes (links pros comentários/posts originais)
-- Ações: **👍 Aprovar** · **👎 Descartar** · **✏️ Abrir no Estúdio**
-- Feedback alimenta DNA implicitamente (aprovadas reforçam padrão).
-
-Cron `ic-daily-ideas` insere 5 sugestões toda manhã.
-
-### 3. Estúdio de Texto (gerador consultivo)
-Layout split:
-- **Esquerda:** briefing (tema, ângulo, CTA, tom override, plataformas-alvo)
-- **Direita:** abas com sugestões geradas
-  - Texto Facebook (longo)
-  - Caption Instagram + sugestão de hashtags + CTA
-  - **Roteiro falado** (script de ~30s p/ Reels/Stories — você grava manualmente)
-  - **Brief visual** (descrição em texto pra você/designer criar a arte — sem geração de imagem)
-  - Sugestão de resposta padrão pra comentários sobre o tema
-
-Botões: **Regenerar variante** · **Aplicar DNA** · **Enviar pra Projeção** · **Copiar texto** · **Salvar como ideia**.
-
-### 4. Projeção de Reação (qualitativa)
-Cole um rascunho → IA analisa contra histórico:
-- 📈 **Engajamento esperado** (range qualitativo: baixo/médio/alto, com justificativa baseada em posts similares)
-- 🎯 **Sentimento provável** (% pos/neg/neu — barra)
-- ⚠️ **Risco de crise** (0-100 + palavras-gatilho destacadas)
-- 👥 **Quem deve reagir** (defensores/críticos/novos rostos — usa `social_militants`)
-- ✏️ 3 sugestões de ajuste com botão **"Aplicar ao texto"**
-
-Sem comparação retroativa com publicação real.
-
-### 5. Calendário Editorial Sugestivo
-Grid semanal **informativo** (não agenda execução):
-- IA sugere **quando** seria bom postar cada ideia aprovada (com base em `horarios_pico` do DNA)
-- Sugere **sequência narrativa** ("nesta semana foque em saúde — 3 posts encadeados")
-- Marca ganchos: aniversários, datas locais, agenda do candidato
-- Drag & drop pra reorganizar a lista mental — **nada é disparado**, é só um quadro de planejamento
-
-### 6. Insights da Militância
-Cruza `social_militants` × `comments`:
-- "🔥 Defensores comentam mais em posts sobre **{tema}**"
-- "⚔️ Críticos atacam mais quando você fala de **{tema}** — sugestão: blindar narrativa"
-- "Novos rostos chegam quando posta **{formato}**"
-Cada insight: botão **"Gerar texto pra aproveitar"** → abre Estúdio.
-
-### 7. Resposta a Crise (briefing)
-Quando detector de crise (existente) sinaliza severidade ≥ aviso:
-- Banner: "Crise ativa: {tema}" com link **"Abrir briefing"**
-- 3 abordagens lado a lado:
-  - **Institucional** (fato + serenidade)
-  - **Empática** (ouvir + reconhecer)
-  - **Contra-ataque factual** (refutação com dados)
-- Cada uma com projeção de impacto + botão **"Copiar"**
-
-### 8. Modo Adversário
-Cole seu rascunho → IA simula:
-- Como `adversarios_politicos` cadastrados poderiam reagir
-- 3-5 contra-argumentos prováveis
-- Sugestão de refutação preventiva pra você incluir antes
-
-### 9. DNA de Conteúdo
-- Card mostrando DNA atual (tom, vocabulário top 20, estruturas %, emojis, tamanho ideal por plataforma, horários de pico)
-- Botão **"Recalibrar DNA"** → roda `ic-dna-analyzer` sobre últimos 90d de posts próprios (`is_page_owner=true`)
-- Toggle **"Aplicar DNA automaticamente nas sugestões"** (default: on)
+- Quando o usuário aprova ou usa uma ideia, ele pode marcar depois: "publiquei", "deu certo 👍", "deu errado 👎", colando opcionalmente o link/print do post real.
+- Se o post real for de uma página integrada (Meta), o sistema **busca automaticamente** as métricas reais (likes, comentários, sentimento médio dos comentários) e calcula um `outcome_score`.
+- O Radar e o gerador de ideias **passam a usar esse histórico** no prompt: "ideias parecidas com X performaram bem, evite ângulos parecidos com Y".
+- Painel "O que funciona com a sua base": top 5 temas/ângulos/CTAs que mais engajam, top 5 que mais dão problema.
 
 ---
 
-## Edge Functions
+## 3. Modo Proativo — alertas e ações sugeridas (sem precisar abrir o módulo)
 
-Todas seguem `getClientLLMConfig(supabase, clientId)` + `callLLM(...)` (provedor do cliente).
+**Hoje:** módulo é totalmente reativo. Usuário tem que entrar para ver algo.
 
-| Função | Trigger | Resumo |
-|---|---|---|
-| `ic-radar` | manual + cron diário 05:30 | Lê 7d de comments, clusteriza temas, extrai perguntas/ataques, salva snapshot |
-| `ic-daily-ideas` | cron 06:00 | Gera 5 ideias usando radar + IED + agenda local |
-| `ic-generate-text` | manual | Texto FB/IG + roteiro falado + brief visual + resposta padrão |
-| `ic-project` | manual | Projeção qualitativa (engajamento/sentimento/risco/quem reage) |
-| `ic-dna-analyzer` | manual + cron semanal | Atualiza `content_dna` |
-| `ic-crisis-brief` | manual (do banner crise) | 3 abordagens de contenção |
-| `ic-adversary-sim` | manual | Contra-argumentos prováveis dos adversários |
-| `ic-insights-militancia` | manual | Cruza militantes × temas → insights acionáveis |
+**Proposta:**
 
-JSON estruturado via parse defensivo (mesmo padrão do `suggest-missions`), sem depender de tool calling do provedor (provedores variam).
-
-Crons via `pg_cron` (insert tool, padrão do projeto).
-
-**Tratamento de erro:** se o provedor do cliente não estiver configurado, mostra mensagem amigável com link para Settings → Integrações.
+- **Cron diário (6h da manhã)** roda `ic-radar` + `ic-daily-ideas` automaticamente.
+- **Cron de monitoramento (a cada 2h)** detecta gatilhos:
+  - Pergunta nova repetida 5+ vezes em 24h → cria ideia "Responder dúvida X"
+  - Crítica nova com 10+ autores → cria ideia "Contra-narrativa Y" com tag urgente
+  - Defensor 🔥 elite postou tema novo → cria ideia "Amplificar pauta de [nome]"
+- **Widget no Dashboard principal** ("Sugestões de hoje" — 3 cards) com badge vermelho quando tem urgência.
+- **Notificação WhatsApp opcional** (usa o `manage-whatsapp-instance` existente) para alertas críticos: "Crise detectada sobre tema X, tem texto pronto no Co-piloto".
 
 ---
 
-## Frontend
+## 4. Estúdio com superpoderes
 
-```
-src/pages/InteligenciaConteudo.tsx
-src/components/ic/
-  RadarPanel.tsx · RadarCard.tsx
-  IdeiasFeed.tsx · IdeiaCard.tsx
-  EstudioEditor.tsx · EstudioOutputTabs.tsx
-  ProjecaoPanel.tsx · ProjecaoChart.tsx
-  CalendarioGrid.tsx
-  MilitanciaInsights.tsx
-  CriseBriefingPanel.tsx
-  AdversarioPanel.tsx
-  DnaCard.tsx · DnaRecalibrar.tsx
+**Hoje:** preencher 3 campos e gerar 5 formatos.
 
-src/hooks/ic/
-  useRadar.ts · useIdeias.ts · useGenerate.ts
-  useProject.ts · useDna.ts · useCrisisFeed.ts
-```
+**Proposta:**
 
-Bibliotecas já no projeto: `recharts`, `react-markdown`, shadcn/ui.
-
-**Botões de ação visíveis em todo lugar:** "Copiar texto" e "Salvar como ideia". **Nenhum botão "publicar", "agendar disparo" ou "gerar imagem"**.
+- **Modo Remix:** colar texto de um post antigo (ou puxar dos seus últimos posts) e pedir variações ("mais combativo", "mais empático", "para Reels", "para LinkedIn", "responder em 1ª pessoa").
+- **Modo Resposta de Crise:** colar comentário/print hostil → gera resposta calibrada no DNA + variantes (firme/conciliadora/factual com dados).
+- **Variantes A/B:** gerar 2 versões do mesmo post com hipótese diferente ("v1 foca em emoção, v2 foca em dado") para o usuário escolher.
+- **Pré-visualização realista** (mock de feed) do FB/IG mostrando como o post vai aparecer.
+- **Projeção qualitativa** (já existe em `ic-project`, integrar inline): "Provável reação dos seus 🔥: positiva. Risco de munição para críticos: médio. Tema parecido com X que performou bem".
+- **Slot de imagem:** botão "Gerar arte" usa o `generate-arte-feriado` existente (Lovable AI Nano Banana — única exceção permitida) com o brief visual já pronto.
 
 ---
 
-## Navegação
+## 5. Banco de Ideias virando workflow real
 
-- Sidebar (`DashboardLayout.tsx`): novo item **"Inteligência de Conteúdo"** ícone `Sparkles`, dentro de Redes Sociais
-- Badge: número de ideias pendentes não revisadas
-- `App.tsx`: rota `/inteligencia-conteudo`
-- `access-control.ts`: liberar admin + `gestor_social`
-- Banner global de crise (existente) ganha link **"Abrir briefing →"** que leva pra aba 7
+**Hoje:** lista de cards com aprovar/descartar/abrir.
 
----
+**Proposta:**
 
-## Memórias a salvar antes de implementar
-
-1. **`mem/funcionalidades/inteligencia-conteudo-consultiva.md`** — módulo é consultivo: gera texto, ideias, projeções, briefings. Nunca publica, agenda execução ou gera imagem/vídeo.
-2. **Reforçar core no `mem/index.md`:** "IA do projeto = provedor configurado pelo cliente via `_shared/llm-router.ts`. Lovable AI restrito ao Calendário Político."
+- **Status expandido:** Pendente → Aprovada → Em produção → Publicada → Avaliada.
+- **Calendário editorial:** drag-and-drop das ideias aprovadas para datas (semana/mês), considerando datas do Calendário Político e horários de pico do DNA.
+- **Pin / Prioridade** — ideias com tag "urgente" (vindas de crises) vão para o topo automaticamente.
+- **Busca/filtro** por tema, tipo, origem (radar, manual, daily).
+- **Exportar pauta** (PDF/CSV) da semana para reunião com a equipe.
 
 ---
 
-## Entrega
+## 6. DNA evolutivo + Inspiração competitiva
 
-Tudo numa branch só, ordem de implementação:
+**Hoje:** DNA roda 1 vez nos últimos 90 dias e fica estático.
 
-1. Migration (3 tabelas + RLS) + crons
-2. 8 edge functions (todas via llm-router)
-3. Página + sidebar + access-control
-4. Abas 1, 2, 3, 9 (núcleo: Radar, Ideias, Estúdio, DNA)
-5. Abas 4, 6 (Projeção, Insights Militância)
-6. Abas 5, 7, 8 (Calendário, Crise, Adversário)
-7. Memórias atualizadas
+**Proposta:**
+
+- **Recalibração automática semanal** (cron domingo) em vez de manual.
+- **Histórico de evolução do DNA:** ver como o tom mudou ao longo dos meses (ficou mais combativo? mais técnico?).
+- **DNA por contexto:** detectar se posts em horário X performam diferente, ou se posts com vocabulário Y mobilizam mais defensores. Mostrar como recomendações específicas.
+- **Aba nova "Inspiração":** usar a Inteligência Eleitoral (parlamentares/candidatos já mapeados na onda 3) para mostrar "Posts dos seus pares políticos da região na última semana" — resumido pela IA com tags ("o que copiar", "o que evitar"). Sem scrape novo, só usa o que já existe.
 
 ---
 
-Aprovado? Sigo direto pra implementação assim que confirmar.
+## Detalhes técnicos
+
+**Novas tabelas:**
+- `content_outcomes` (id, idea_id, client_id, post_url, metrics jsonb, outcome_score int, user_rating, created_at)
+- `content_dna_history` (id, client_id, dna_snapshot jsonb, created_at) — versionamento do DNA
+- `content_calendar` (id, client_id, idea_id, scheduled_date, scheduled_time, platform, status)
+
+**Novas/edited Edge Functions:**
+- `ic-radar` — adicionar fontes (crises, militantes, IE, calendário, CRM) + comparação semana anterior + score
+- `ic-outcomes-track` — buscar métricas reais de posts publicados (Meta Graph API)
+- `ic-cron-daily` — roda às 6h: radar + 5 ideias + checa gatilhos críticos
+- `ic-cron-monitor` — a cada 2h: detecta gatilhos urgentes
+- `ic-remix` — modo remix/variantes/A-B
+- `ic-crisis-response` — resposta a crítica específica
+- `ic-inspiration` — resumo dos pares políticos via IA
+
+**Cron jobs (pg_cron):**
+- Daily 06:00 BRT — `ic-cron-daily`
+- A cada 2h — `ic-cron-monitor`
+- Domingo 03:00 — recalibrar DNA de todos clients ativos
+
+**UI:**
+- Widget "Sugestões de hoje" no Dashboard principal (`DashboardOverview.tsx`)
+- Nova aba "Calendário" em InteligenciaConteudo
+- Nova aba "Aprende" (mostra outcomes + o que funciona)
+- Drawer de detalhes em cada ideia com timeline (criada → aprovada → publicada → avaliada)
+
+**Modelo IA:** continua usando o provedor configurado pelo cliente (LLM Router). Lovable AI só na geração de imagem (regra atual mantida).
+
+---
+
+## Ordem de implementação sugerida
+
+1. **Radar++** (Fase 1) — fontes extras + comparação + score. Maior ganho percebido imediato.
+2. **Modo Proativo** (Fase 2) — crons + widget no dashboard. Faz o módulo "trabalhar sozinho".
+3. **Ciclo de aprendizado** (Fase 3) — outcomes tracking. Faz a IA ficar melhor com o tempo.
+4. **Estúdio++** (Fase 4) — remix + crise + A/B + pré-visualização.
+5. **Calendário editorial** (Fase 5).
+6. **DNA evolutivo + Inspiração** (Fase 6).
+
+Posso começar pela Fase 1 e ir liberando para você validar cada etapa, ou implementar 2-3 fases juntas. Qual prefere?
