@@ -128,16 +128,31 @@ Deno.serve(async (req) => {
         entidades: f.entidades ?? {},
         confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.7,
       };
+      // Dedup manual: evita depender de UNIQUE constraint (source_id pode ser NULL)
+      let dupQuery = admin
+        .from("candidate_knowledge")
+        .select("id, tipo, tema, texto, entidades")
+        .eq("client_id", clientId)
+        .eq("source_type", sourceType)
+        .eq("tipo", row.tipo)
+        .eq("texto", row.texto)
+        .limit(1);
+      if (sourceId) dupQuery = dupQuery.eq("source_id", sourceId);
+      else dupQuery = dupQuery.is("source_id", null);
+      const { data: existing } = await dupQuery.maybeSingle();
+      if (existing) {
+        insertedRows.push(existing);
+        continue;
+      }
       const { data, error } = await admin
         .from("candidate_knowledge")
-        .upsert(row, { onConflict: "client_id,source_type,source_id,tipo,texto", ignoreDuplicates: false })
+        .insert(row)
         .select("id, tipo, tema, texto, entidades")
         .maybeSingle();
       if (!error && data) {
         inserted++;
         insertedRows.push(data);
       } else if (error) {
-        // dedup unique pode bater — não é erro fatal
         console.log("[ic-extract-knowledge] skip:", error.message);
       }
     }
