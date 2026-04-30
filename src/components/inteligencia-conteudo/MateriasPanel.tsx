@@ -275,6 +275,18 @@ export function MateriasPanel({ clientId }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
+            <Label>Tipo</Label>
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="press_release">Press release</SelectItem>
+                <SelectItem value="blog">Post de blog</SelectItem>
+                <SelectItem value="nota_oficial">Nota oficial</SelectItem>
+                <SelectItem value="boletim">Boletim semanal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!isBoletim && <div>
             <div className="flex items-center justify-between">
               <Label>Transcrições-fonte ({transcriptionIds.length} selecionada{transcriptionIds.length === 1 ? "" : "s"})</Label>
               {transcriptionIds.length > 0 && (
@@ -324,20 +336,40 @@ export function MateriasPanel({ clientId }: Props) {
             <p className="text-[11px] text-muted-foreground mt-1">
               Selecione uma ou mais. A IA combina todas e marca a origem de cada trecho com [F1], [F2]…
             </p>
-          </div>
-          <div>
-            <Label>Tipo</Label>
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="press_release">Press release</SelectItem>
-                <SelectItem value="blog">Post de blog</SelectItem>
-                <SelectItem value="nota_oficial">Nota oficial</SelectItem>
-                <SelectItem value="boletim">Boletim semanal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
+          </div>}
+          {isBoletim && (
+            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                A IA vai puxar <strong>postagens reais da semana</strong> (com comentários e sentimento), <strong>ações externas</strong> e <strong>visitas registradas</strong> no período, e organizar tudo num resumo da semana.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">De</Label>
+                  <Input type="date" value={boletimSince} onChange={(e) => setBoletimSince(e.target.value)} className="h-8" />
+                </div>
+                <div>
+                  <Label className="text-xs">Até</Label>
+                  <Input type="date" value={boletimUntil} onChange={(e) => setBoletimUntil(e.target.value)} className="h-8" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Incluir no boletim</Label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirPosts} onCheckedChange={(v) => setIncluirPosts(!!v)} />
+                  Postagens em redes sociais
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirAcoes} onCheckedChange={(v) => setIncluirAcoes(!!v)} />
+                  Ações externas / agenda
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirVisitas} onCheckedChange={(v) => setIncluirVisitas(!!v)} />
+                  Visitas registradas
+                </label>
+              </div>
+            </div>
+          )}
+          {!isBoletim && <div>
             <Label>Tom</Label>
             <Select value={tom} onValueChange={setTom}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -348,12 +380,16 @@ export function MateriasPanel({ clientId }: Props) {
                 <SelectItem value="tecnico">Técnico</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </div>}
           <div>
-            <Label>Tema (opcional)</Label>
-            <Input placeholder="ex: saude, educacao, mobilidade" value={tema} onChange={(e) => setTema(e.target.value)} />
+            <Label>{isBoletim ? "Foco da semana (opcional)" : "Tema (opcional)"}</Label>
+            <Input
+              placeholder={isBoletim ? "ex: ênfase em saúde nesta semana" : "ex: saude, educacao, mobilidade"}
+              value={tema}
+              onChange={(e) => setTema(e.target.value)}
+            />
           </div>
-          <div>
+          {!isBoletim && <div>
             <Label>
               Briefing {transcriptionIds.length > 0 && <span className="text-muted-foreground font-normal">(opcional — as transcrições já são a base)</span>}
             </Label>
@@ -367,10 +403,10 @@ export function MateriasPanel({ clientId }: Props) {
               onChange={(e) => setBriefing(e.target.value)}
               rows={5}
             />
-          </div>
+          </div>}
           <Button onClick={gerar} disabled={loading} className="w-full">
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            Gerar matéria
+            {isBoletim ? "Gerar boletim" : "Gerar matéria"}
           </Button>
         </CardContent>
       </Card>
