@@ -522,6 +522,84 @@ export function MateriasPanel({ clientId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={reprocessOpen} onOpenChange={setReprocessOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <RefreshCw className="w-4 h-4" /> Reprocessar matéria
+            </DialogTitle>
+            <DialogDescription>
+              A versão atual será salva no histórico. A IA escolhida vai re-extrair a memória da transcrição inteira e reescrever a matéria.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Provider</Label>
+              <Select value={reprocessProvider} onValueChange={(v) => { setReprocessProvider(v); setReprocessModel(""); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PROVIDERS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Modelo (opcional)</Label>
+              <Input
+                value={reprocessModel}
+                onChange={(e) => setReprocessModel(e.target.value)}
+                placeholder={PROVIDERS.find((p) => p.value === reprocessProvider)?.defaultModel || "default"}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Vazio = modelo padrão do provider.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setReprocessOpen(false)} disabled={reprocessLoading}>Cancelar</Button>
+            <Button size="sm" onClick={reprocessar} disabled={reprocessLoading}>
+              {reprocessLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+              Reprocessar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={versionsOpen} onOpenChange={setVersionsOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <History className="w-4 h-4" /> Histórico de versões
+            </DialogTitle>
+            <DialogDescription>Versões anteriores desta matéria, antes de cada reprocessamento.</DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 space-y-2">
+            {versions.map((v) => (
+              <div key={v.id} className="border rounded-md p-3 hover:bg-accent/40 cursor-pointer" onClick={() => setVersionPreview(v)}>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">v{v.versao}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(v.created_at).toLocaleString("pt-BR")}
+                    {v.provider && ` · ${v.provider}${v.model ? "/" + v.model : ""}`}
+                  </span>
+                </div>
+                <p className="text-sm font-medium mt-1 truncate">{v.titulo}</p>
+              </div>
+            ))}
+            {versions.length === 0 && <p className="text-sm text-muted-foreground">Sem versões anteriores.</p>}
+          </div>
+          {versionPreview && (
+            <div className="border-t pt-3 mt-2 max-h-[40vh] overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1">v{versionPreview.versao} · {versionPreview.provider}{versionPreview.model && "/" + versionPreview.model}</p>
+              <h4 className="font-semibold text-sm mb-2">{versionPreview.titulo}</h4>
+              <pre className="whitespace-pre-wrap text-xs font-sans text-foreground/90">{versionPreview.corpo}</pre>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => { navigator.clipboard.writeText(versionPreview.corpo); toast.success("Copiado!"); }}>
+                <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar esta versão
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
