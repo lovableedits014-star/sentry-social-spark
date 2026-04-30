@@ -68,11 +68,12 @@ serve(async (req) => {
       badge: militantMap.get(`${c.platform}:${c.platform_user_id}`) ?? "observador",
     }));
 
-    // Sample para o LLM (não jogar 800 comentários)
-    const sampleComments = sample(enriched, 120);
+    // Sample reduzida para caber no limite de TPM (Groq llama-3.1-8b: 6000 TPM)
+    // ~40 comentários x 140 chars ≈ 1.5k tokens de input
+    const sampleComments = sample(enriched, 40);
     const commentText = sampleComments
       .map((c: any, i: number) =>
-        `[${i + 1}] (${c.platform}/${c.sentiment ?? "?"}/${c.badge}) "${(c.text ?? "").slice(0, 220)}"`
+        `[${i + 1}](${c.platform[0]}/${(c.sentiment ?? "?")[0]}/${c.badge[0]}) ${(c.text ?? "").replace(/\s+/g, " ").trim().slice(0, 140)}`
       )
       .join("\n");
 
@@ -107,7 +108,7 @@ Responda APENAS com o JSON.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      maxTokens: 2500,
+      maxTokens: 1500,
       temperature: 0.5,
     });
 
