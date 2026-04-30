@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { isPathAllowed, getRoleLabels, type AccessProfile } from "@/lib/access-control";
+import { CoringaButton } from "@/components/coringa/CoringaButton";
 
 type MenuSection = {
   label: string;
