@@ -437,6 +437,27 @@ export function MateriasPanel({ clientId }: Props) {
                   </Button>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Voltar</Button>
+                {(selected.transcription_id || selected.fontes?.transcription_id || selected.fontes?.transcription_ids?.[0]) && (
+                  <Button size="sm" variant="default" onClick={() => {
+                    const cur = (selected.provider as string) || "lovable";
+                    setReprocessProvider(cur);
+                    setReprocessModel("");
+                    setReprocessOpen(true);
+                  }}>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reprocessar
+                  </Button>
+                )}
+                {versions.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setVersionsOpen(true)}>
+                    <History className="w-3.5 h-3.5 mr-1.5" /> Histórico ({versions.length})
+                  </Button>
+                )}
+                {(selected.provider || selected.metadata?.provider) && (
+                  <Badge variant="secondary" className="text-[10px] ml-auto self-center">
+                    v{selected.versao || 1} · {selected.provider || selected.metadata?.provider}
+                    {selected.model && ` / ${selected.model}`}
+                  </Badge>
+                )}
               </div>
             </div>
           ) : materias.length === 0 ? (
