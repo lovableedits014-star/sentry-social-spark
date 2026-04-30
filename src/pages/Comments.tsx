@@ -15,6 +15,9 @@ import {
 import { toast } from "sonner";
 import { PostCard } from "@/components/PostCard";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
+import { useMilitantsMap, type MilitantRow } from "@/hooks/useMilitants";
+import { AuthorHistoryDrawer } from "@/components/comments/AuthorHistoryDrawer";
+import { AlertTriangle } from "lucide-react";
 
 type Comment = CommentData;
 
