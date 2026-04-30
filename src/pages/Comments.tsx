@@ -487,12 +487,41 @@ const Comments = () => {
   const handleClassifySentiment = useCallback(async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
     setClassifyingSentiment(commentId);
     try {
+      // Find original sentiment to log the correction (for AI learning)
+      const allCached: any[] = [
+        ...((queryClient.getQueryData(["comments-data", postsLimit]) as any)?.comments ?? []),
+        ...((queryClient.getQueryData(["recent-comments-independent"]) as any[]) ?? []),
+      ];
+      const original = allCached.find((c: any) => c.id === commentId);
+
       const { error } = await supabase
         .from("comments")
-        .update({ sentiment })
+        .update({
+          sentiment,
+          sentiment_source: 'human',
+          sentiment_confidence: 1,
+          needs_review: false,
+        } as any)
         .eq("id", commentId);
 
       if (error) throw error;
+
+      // Log correction for few-shot learning (best-effort, ignore failure)
+      if (original && original.sentiment && original.sentiment !== sentiment && clientIdRef.current) {
+        (supabase as any)
+          .from("sentiment_corrections")
+          .insert({
+            client_id: clientIdRef.current,
+            comment_id: commentId,
+            text: original.text,
+            post_message: original.post_message,
+            ai_sentiment: original.sentiment,
+            human_sentiment: sentiment,
+          })
+          .then(({ error: insErr }: any) => {
+            if (insErr) console.warn("[sentiment_corrections] insert error:", insErr.message);
+          });
+      }
 
       // Update local cache optimistically
       queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
@@ -500,14 +529,14 @@ const Comments = () => {
         return {
           ...old,
           comments: old.comments.map((c: any) =>
-            c.id === commentId ? { ...c, sentiment } : c
+            c.id === commentId ? { ...c, sentiment, sentiment_source: 'human', needs_review: false } : c
           ),
         };
       });
       queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
         if (!old) return old;
         return (old as any[]).map((c: any) =>
-          c.id === commentId ? { ...c, sentiment } : c
+          c.id === commentId ? { ...c, sentiment, sentiment_source: 'human', needs_review: false } : c
         );
       });
       toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
