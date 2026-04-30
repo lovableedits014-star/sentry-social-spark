@@ -17,6 +17,8 @@ import {
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 import { QuickRepliesGrid } from "@/components/comments/QuickRepliesGrid";
 import { QuickContactsBar } from "@/components/comments/QuickContactsBar";
+import { MilitantBadge } from "@/components/comments/MilitantBadge";
+import type { MilitantBadgeMap, MilitantRow } from "@/hooks/useMilitants";
 
 export type RegisteredSupportersMap = Map<string, { name: string; classification: string }>;
 
@@ -56,6 +58,14 @@ export interface CommentItemProps {
   comment: CommentData;
   authorStats?: AuthorStatsMap;
   registeredSupporters?: RegisteredSupportersMap;
+  militants?: MilitantBadgeMap;
+  onOpenAuthorHistory?: (info: {
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  }) => void;
   onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -142,6 +152,8 @@ export const CommentItem = memo(function CommentItem({
   comment,
   authorStats,
   registeredSupporters,
+  militants,
+  onOpenAuthorHistory,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -171,6 +183,18 @@ export const CommentItem = memo(function CommentItem({
   const stats = authorKey && authorStats ? authorStats.get(authorKey) : null;
   // Check if author is already a registered supporter
   const registeredSupporter = authorKey && registeredSupporters ? registeredSupporters.get(authorKey) : null;
+  // Militant profile (badge + history)
+  const militant = authorKey && militants ? militants.get(authorKey) ?? null : null;
+  const handleOpenHistory = () => {
+    if (!onOpenAuthorHistory || !comment.platform_user_id || !comment.platform) return;
+    onOpenAuthorHistory({
+      platform: comment.platform,
+      platformUserId: comment.platform_user_id,
+      authorName: comment.author_name,
+      avatarUrl: comment.author_profile_picture,
+      militant,
+    });
+  };
 
   const classificationLabels: Record<string, string> = {
     apoiador_ativo: "Apoiador Ativo",
@@ -305,6 +329,28 @@ export const CommentItem = memo(function CommentItem({
                 </span>
               )}
               {getPlatformIcon(comment.platform || 'facebook')}
+              {/* Militant badge (most relevant — computed in DB) */}
+              {!isPageOwner && militant && <MilitantBadge militant={militant} />}
+              {/* Author history button */}
+              {!isPageOwner && onOpenAuthorHistory && comment.platform_user_id && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleOpenHistory}
+                        className="inline-flex items-center justify-center h-5 w-5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        aria-label="Ver histórico do autor"
+                      >
+                        <Eye className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">Ver últimos 20 comentários deste autor</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {/* Registered supporter badge */}
               {registeredSupporter && !isPageOwner && (
                 <TooltipProvider>

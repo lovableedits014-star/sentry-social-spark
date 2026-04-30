@@ -15,6 +15,9 @@ import {
 import { toast } from "sonner";
 import { PostCard } from "@/components/PostCard";
 import { CommentItem, type CommentData } from "@/components/CommentItem";
+import { useMilitantsMap, type MilitantRow } from "@/hooks/useMilitants";
+import { AuthorHistoryDrawer } from "@/components/comments/AuthorHistoryDrawer";
+import { AlertTriangle } from "lucide-react";
 
 type Comment = CommentData;
 
@@ -45,6 +48,14 @@ const Comments = () => {
   const [hideResponded, setHideResponded] = useState(true);
   const [showIgnored, setShowIgnored] = useState(false);
   const [reanalyzingSentiments, setReanalyzingSentiments] = useState(false);
+  const [authorDrawer, setAuthorDrawer] = useState<{
+    open: boolean;
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const fetchCommentsData = useCallback(async (limit: number) => {
@@ -166,6 +177,54 @@ const Comments = () => {
     clientIdRef.current = commentsData.clientId;
   }
   const clientId = clientIdRef.current;
+
+  // Load militant profiles for badge rendering on comments
+  const { data: militantsMap } = useMilitantsMap(commentsData?.clientId || null);
+
+  const openAuthorHistory = useCallback((info: {
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  }) => {
+    setAuthorDrawer({ open: true, ...info });
+  }, []);
+
+  // ====== AI Review Queue (low-confidence sentiment classifications) ======
+  const { data: reviewQueue = [], isLoading: loadingReview } = useQuery({
+    queryKey: ["ai-review-queue", commentsData?.clientId],
+    queryFn: async () => {
+      if (!commentsData?.clientId) return [] as Comment[];
+      const { data, error } = await (supabase as any)
+        .from("comments")
+        .select("*")
+        .eq("client_id", commentsData.clientId)
+        .eq("needs_review", true)
+        .eq("is_page_owner", false)
+        .neq("text", "__post_stub__")
+        .order("comment_created_time", { ascending: false })
+        .limit(100);
+      if (error) {
+        console.warn("[ai-review-queue] error:", error.message);
+        return [];
+      }
+      return (data ?? []) as Comment[];
+    },
+    enabled: !!commentsData?.clientId,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const filteredReviewQueue = useMemo(() => {
+    return reviewQueue.filter((c) => {
+      const matchesSearch = !searchTerm ||
+        c.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPlatform = platformFilter === "all" || c.platform === platformFilter;
+      return matchesSearch && matchesPlatform;
+    });
+  }, [reviewQueue, searchTerm, platformFilter]);
 
   // Independent query for Recentes tab — fetches latest comments regardless of post age
   const fetchRecentComments = useCallback(async () => {
@@ -476,12 +535,41 @@ const Comments = () => {
   const handleClassifySentiment = useCallback(async (commentId: string, sentiment: 'positive' | 'neutral' | 'negative') => {
     setClassifyingSentiment(commentId);
     try {
+      // Find original sentiment to log the correction (for AI learning)
+      const allCached: any[] = [
+        ...((queryClient.getQueryData(["comments-data", postsLimit]) as any)?.comments ?? []),
+        ...((queryClient.getQueryData(["recent-comments-independent"]) as any[]) ?? []),
+      ];
+      const original = allCached.find((c: any) => c.id === commentId);
+
       const { error } = await supabase
         .from("comments")
-        .update({ sentiment })
+        .update({
+          sentiment,
+          sentiment_source: 'human',
+          sentiment_confidence: 1,
+          needs_review: false,
+        } as any)
         .eq("id", commentId);
 
       if (error) throw error;
+
+      // Log correction for few-shot learning (best-effort, ignore failure)
+      if (original && original.sentiment && original.sentiment !== sentiment && clientIdRef.current) {
+        (supabase as any)
+          .from("sentiment_corrections")
+          .insert({
+            client_id: clientIdRef.current,
+            comment_id: commentId,
+            text: original.text,
+            post_message: original.post_message,
+            ai_sentiment: original.sentiment,
+            human_sentiment: sentiment,
+          })
+          .then(({ error: insErr }: any) => {
+            if (insErr) console.warn("[sentiment_corrections] insert error:", insErr.message);
+          });
+      }
 
       // Update local cache optimistically
       queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
@@ -489,16 +577,23 @@ const Comments = () => {
         return {
           ...old,
           comments: old.comments.map((c: any) =>
-            c.id === commentId ? { ...c, sentiment } : c
+            c.id === commentId ? { ...c, sentiment, sentiment_source: 'human', needs_review: false } : c
           ),
         };
       });
       queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
         if (!old) return old;
         return (old as any[]).map((c: any) =>
-          c.id === commentId ? { ...c, sentiment } : c
+          c.id === commentId ? { ...c, sentiment, sentiment_source: 'human', needs_review: false } : c
         );
       });
+      // Remove from AI review queue (it was just confirmed/corrected by a human)
+      queryClient.setQueryData(["ai-review-queue", clientIdRef.current], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).filter((c: any) => c.id !== commentId);
+      });
+      // Refresh militants (badges may change)
+      queryClient.invalidateQueries({ queryKey: ["militants-map", clientIdRef.current] });
       toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
     } catch (error: any) {
       console.error("Error classifying sentiment:", error);
@@ -777,6 +872,15 @@ const Comments = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="review" className="gap-1.5">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Revisar IA</span>
+              {reviewQueue.length > 0 && (
+                <Badge variant="outline" className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5 border-orange-500/40 text-orange-600">
+                  {reviewQueue.length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* Filters inline */}
@@ -845,6 +949,8 @@ const Comments = () => {
                   group={group}
                   authorStats={authorStats}
                   registeredSupporters={registeredSupportersMap}
+                  militants={militantsMap}
+                  onOpenAuthorHistory={openAuthorHistory}
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
@@ -960,6 +1066,8 @@ const Comments = () => {
                     comment={comment}
                     authorStats={authorStats}
                     registeredSupporters={registeredSupportersMap}
+                    militants={militantsMap}
+                    onOpenAuthorHistory={openAuthorHistory}
                     onGenerateResponse={handleGenerateResponse}
                     onSendResponse={handleSendResponse}
                     onManageComment={handleManageComment}
@@ -980,6 +1088,8 @@ const Comments = () => {
                         comment={reply}
                         authorStats={authorStats}
                         registeredSupporters={registeredSupportersMap}
+                        militants={militantsMap}
+                        onOpenAuthorHistory={openAuthorHistory}
                         onGenerateResponse={handleGenerateResponse}
                         onSendResponse={handleSendResponse}
                         onManageComment={handleManageComment}
@@ -1005,7 +1115,77 @@ const Comments = () => {
           </>
           )}
         </TabsContent>
+
+        {/* Tab: Revisar IA */}
+        <TabsContent value="review">
+          <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-orange-700 dark:text-orange-300 mb-1">Fila de revisão da IA</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Comentários onde a IA classificou o sentimento mas ficou em dúvida (baixa confiança).
+                  Confirme ou corrija a classificação manualmente. Cada correção sua treina a IA para acertar mais nos próximos.
+                </p>
+              </div>
+            </div>
+          </div>
+          {loadingReview ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted rounded-xl"></div>)}
+            </div>
+          ) : filteredReviewQueue.length === 0 ? (
+            <Card>
+              <CardContent className="py-16">
+                <div className="text-center text-muted-foreground">
+                  <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="font-medium">Nada para revisar 🎉</p>
+                  <p className="text-sm mt-1">A IA está confiante em todas as classificações recentes.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
+              {filteredReviewQueue.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  authorStats={authorStats}
+                  registeredSupporters={registeredSupportersMap}
+                  militants={militantsMap}
+                  onOpenAuthorHistory={openAuthorHistory}
+                  onGenerateResponse={handleGenerateResponse}
+                  onSendResponse={handleSendResponse}
+                  onManageComment={handleManageComment}
+                  onReactToComment={handleReactToComment}
+                  onClassifySentiment={handleClassifySentiment}
+                  onIgnoreComment={handleIgnoreComment}
+                  onUnignoreComment={handleUnignoreComment}
+                  isGenerating={generatingResponse === comment.id}
+                  isResponding={responding === comment.id}
+                  isManaging={managingComment === comment.id}
+                  isReacting={reactingComment === comment.id}
+                  isClassifying={classifyingSentiment === comment.id}
+                  showPostInfo
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {authorDrawer && (
+        <AuthorHistoryDrawer
+          open={authorDrawer.open}
+          onOpenChange={(o) => setAuthorDrawer((prev) => prev ? { ...prev, open: o } : prev)}
+          clientId={clientId}
+          platform={authorDrawer.platform}
+          platformUserId={authorDrawer.platformUserId}
+          authorName={authorDrawer.authorName}
+          avatarUrl={authorDrawer.avatarUrl}
+          militant={authorDrawer.militant}
+        />
+      )}
     </div>
   );
 };

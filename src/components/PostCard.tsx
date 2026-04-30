@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp,
 } from "lucide-react";
 import { CommentItem, type CommentData, type AuthorStatsMap } from "@/components/CommentItem";
+import type { MilitantBadgeMap, MilitantRow } from "@/hooks/useMilitants";
 
 type Comment = CommentData;
 
@@ -26,6 +27,14 @@ interface PostCardProps {
   group: PostGroup;
   authorStats?: AuthorStatsMap;
   registeredSupporters?: RegisteredSupportersMap;
+  militants?: MilitantBadgeMap;
+  onOpenAuthorHistory?: (info: {
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  }) => void;
   onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
@@ -60,6 +69,8 @@ export const PostCard = memo(function PostCard({
   group,
   authorStats,
   registeredSupporters,
+  militants,
+  onOpenAuthorHistory,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -184,6 +195,8 @@ export const PostCard = memo(function PostCard({
                 comment={comment}
                 authorStats={authorStats}
                 registeredSupporters={registeredSupporters}
+                militants={militants}
+                onOpenAuthorHistory={onOpenAuthorHistory}
                 onGenerateResponse={onGenerateResponse}
                 onSendResponse={onSendResponse}
                 onManageComment={onManageComment}
@@ -202,6 +215,8 @@ export const PostCard = memo(function PostCard({
                     comment={reply}
                     authorStats={authorStats}
                     registeredSupporters={registeredSupporters}
+                    militants={militants}
+                    onOpenAuthorHistory={onOpenAuthorHistory}
                     onGenerateResponse={onGenerateResponse}
                     onSendResponse={onSendResponse}
                     onManageComment={onManageComment}
