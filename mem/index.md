@@ -72,6 +72,7 @@
 - [Conexão WhatsApp Self-Service](mem://funcionalidades/whatsapp-conexao-self-service) — Fluxo de QR Code Base64 com polling de 4s
 - [Vinculação Usuário Portal](mem://tecnico/portal-vinculacao-usuario) — Mapeamento obrigatório de `user_id` da `auth.users`
 - [Organização Inteligência Eleitoral](mem://interface/inteligencia-eleitoral-organizacao) — 5 abas: Panorama, Candidatos&Chapa, Inteligência Política, Hiperlocal CG/MS, Narrativa (Pulso Mídia/GDELT removidos)
+- [Respostas Rápidas Comentários](mem://funcionalidades/respostas-rapidas-comentarios) — Grid 3x4 de respostas pré-prontas (regeneráveis via IA) + chips de contatos de encaminhamento (tabela `quick_contacts`)
 - [Contexto Web Narrativa](mem://funcionalidades/contexto-web-narrativa) — Wikipedia + Google News + .gov.br ao vivo, sem persistência, injetado no prompt da narrativa
 - [Curiosidades & Cultura Local](mem://funcionalidades/curiosidades-locais-narrativa) — Substituiu Roteiro Estratégico. Wiki seções (História/Cultura/Personalidades/Gastronomia) → IA gera fatos com "como usar na campanha". Bloqueio de bairros TSE removido.
 - [Comparativo Estadual de Indicadores](mem://funcionalidades/comparativo-estadual-indicadores) — RPC `municipios_ranking_uf` calcula posição/percentil de cada município por indicador (Atlas Brasil, INEP, DATASUS, SNIS). UI mostra delta% vs média da UF; narrativa-gerar injeta no prompt da IA.
