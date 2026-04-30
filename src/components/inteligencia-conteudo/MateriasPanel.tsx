@@ -426,7 +426,41 @@ export function MateriasPanel({ clientId }: Props) {
                 )}
               </div>
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
-              {sourceTranscripts.length > 0 && (
+              {selected.tipo === "boletim" && Array.isArray(selected.fontes?.posts_referenciados) && selected.fontes.posts_referenciados.length > 0 && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-primary" />
+                    Cobertura da semana ({selected.fontes.posts_referenciados.length} postagens
+                    {selected.fontes?.stats?.comentarios ? ` · ${selected.fontes.stats.comentarios} comentários` : ""}
+                    {selected.fontes?.periodo?.since && ` · ${new Date(selected.fontes.periodo.since).toLocaleDateString("pt-BR")} → ${new Date(selected.fontes.periodo.until).toLocaleDateString("pt-BR")}`})
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {selected.fontes.posts_referenciados.map((p: any) => {
+                      const Icon = p.platform === "instagram" ? Instagram : Facebook;
+                      return (
+                        <div key={p.post_id} className="rounded border bg-background p-2 text-xs flex gap-2">
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-foreground line-clamp-2 leading-snug">{p.message || "(sem texto)"}</p>
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                              {p.first_seen && <span>{new Date(p.first_seen).toLocaleDateString("pt-BR")}</span>}
+                              <span className="flex items-center gap-0.5"><MessageSquare className="w-2.5 h-2.5" />{p.total}</span>
+                              {p.pos > 0 && <span className="flex items-center gap-0.5 text-emerald-600"><ThumbsUp className="w-2.5 h-2.5" />{p.pos}</span>}
+                              {p.neg > 0 && <span className="flex items-center gap-0.5 text-rose-600"><ThumbsDown className="w-2.5 h-2.5" />{p.neg}</span>}
+                              {p.url && (
+                                <a href={p.url} target="_blank" rel="noreferrer" className="ml-auto text-primary hover:underline flex items-center gap-0.5">
+                                  Ver post <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {selected.tipo !== "boletim" && sourceTranscripts.length > 0 && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2 text-xs">
                   <p className="font-medium text-foreground flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-primary" />
@@ -492,7 +526,7 @@ export function MateriasPanel({ clientId }: Props) {
                   <ReactMarkdown>{selected.corpo || ""}</ReactMarkdown>
                 </div>
               </article>
-              {paragrafosAuditoria.length > 0 && (
+              {selected.tipo !== "boletim" && paragrafosAuditoria.length > 0 && (
                 <details className="rounded-md border bg-muted/30 p-3">
                   <summary className="cursor-pointer text-xs font-medium text-foreground hover:text-primary select-none">
                     🔎 Auditoria por parágrafo ({paragrafosAuditoria.length})
