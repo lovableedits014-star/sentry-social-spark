@@ -331,6 +331,26 @@ export const CommentItem = memo(function CommentItem({
               {getPlatformIcon(comment.platform || 'facebook')}
               {/* Militant badge (most relevant — computed in DB) */}
               {!isPageOwner && militant && <MilitantBadge militant={militant} />}
+              {/* Author history button */}
+              {!isPageOwner && onOpenAuthorHistory && comment.platform_user_id && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleOpenHistory}
+                        className="inline-flex items-center justify-center h-5 w-5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        aria-label="Ver histórico do autor"
+                      >
+                        <Eye className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">Ver últimos 20 comentários deste autor</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {/* Registered supporter badge */}
               {registeredSupporter && !isPageOwner && (
                 <TooltipProvider>
