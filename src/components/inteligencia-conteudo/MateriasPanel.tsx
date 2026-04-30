@@ -21,6 +21,8 @@ export function MateriasPanel({ clientId }: Props) {
   const [loading, setLoading] = useState(false);
   const [materias, setMaterias] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
+  const [transcricoes, setTranscricoes] = useState<any[]>([]);
+  const [transcriptionId, setTranscriptionId] = useState<string>("none");
 
   const load = async () => {
     const { data } = await supabase
@@ -30,6 +32,13 @@ export function MateriasPanel({ clientId }: Props) {
       .order("created_at", { ascending: false })
       .limit(30);
     setMaterias(data || []);
+    const { data: trs } = await supabase
+      .from("ic_transcriptions")
+      .select("id, filename, created_at, full_text")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setTranscricoes(trs || []);
   };
 
   useEffect(() => { if (clientId) load(); }, [clientId]);
@@ -42,7 +51,15 @@ export function MateriasPanel({ clientId }: Props) {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ic-write-materia", {
-        body: { clientId, tipo, tom, tema: tema || undefined, briefing, salvarComo: "rascunho" },
+        body: {
+          clientId,
+          tipo,
+          tom,
+          tema: tema || undefined,
+          briefing,
+          salvarComo: "rascunho",
+          transcriptionId: transcriptionId !== "none" ? transcriptionId : undefined,
+        },
       });
       if (error) throw error;
       toast.success("Matéria gerada!");
@@ -75,6 +92,23 @@ export function MateriasPanel({ clientId }: Props) {
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div>
+            <Label>Transcrição-fonte (usa o texto INTEIRO como base)</Label>
+            <Select value={transcriptionId} onValueChange={setTranscriptionId}>
+              <SelectTrigger><SelectValue placeholder="Nenhuma — usar memória + posts" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhuma (usa memória + posts)</SelectItem>
+                {transcricoes.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {(t.filename || "transcrição").slice(0, 40)} · {new Date(t.created_at).toLocaleDateString("pt-BR")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Quando selecionada, a transcrição inteira vira a fonte principal — sem fragmentação em blocos.
+            </p>
+          </div>
           <div>
             <Label>Tipo</Label>
             <Select value={tipo} onValueChange={setTipo}>
