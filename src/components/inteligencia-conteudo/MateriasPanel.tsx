@@ -10,11 +10,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Props { clientId: string }
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const daysAgoIso = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 
 export function MateriasPanel({ clientId }: Props) {
   const [tipo, setTipo] = useState("press_release");
@@ -37,6 +40,14 @@ export function MateriasPanel({ clientId }: Props) {
   const [versions, setVersions] = useState<any[]>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<any>(null);
+  // Boletim semanal
+  const [boletimSince, setBoletimSince] = useState(daysAgoIso(7));
+  const [boletimUntil, setBoletimUntil] = useState(todayIso());
+  const [incluirPosts, setIncluirPosts] = useState(true);
+  const [incluirAcoes, setIncluirAcoes] = useState(true);
+  const [incluirVisitas, setIncluirVisitas] = useState(true);
+
+  const isBoletim = tipo === "boletim";
 
   // Carrega versões anteriores quando seleciona uma matéria
   useEffect(() => {
