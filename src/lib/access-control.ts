@@ -12,7 +12,7 @@ export const ACCESS_PROFILES: Record<AccessProfile, { label: string; description
   gestor_social: {
     label: 'Gestor de Redes Sociais',
     description: 'Comentários, Apoiadores e Engajamento',
-    allowedPaths: ['/dashboard', '/comments', '/supporters', '/engagement'],
+    allowedPaths: ['/dashboard', '/comments', '/militancia', '/supporters', '/engagement'],
   },
   gestor_campanha: {
     label: 'Gestor de Campanha',
