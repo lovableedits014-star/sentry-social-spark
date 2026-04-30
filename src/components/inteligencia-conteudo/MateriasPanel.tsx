@@ -118,41 +118,6 @@ export function MateriasPanel({ clientId }: Props) {
     }
   };
 
-  const _legacyReprocessar = async () => {
-    const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
-    if (!trId) {
-      toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
-      return;
-    }
-    setReprocessLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ic-reprocess-transcription", {
-        body: {
-          clientId,
-          transcriptionId: trId,
-          provider: reprocessProvider || undefined,
-          model: reprocessModel || undefined,
-          reprocessMateriaId: selected.id,
-          regenerateMemory: !refineInstructions.trim(),
-          materia: refineInstructions.trim()
-            ? { briefing: refineInstructions.trim() }
-            : undefined,
-        },
-      });
-      if (error) throw error;
-      if (data?.materia_error) throw new Error(data.materia_error);
-      toast.success(`Reprocessado com ${data?.materia_provider || reprocessProvider}/${data?.materia_model || "default"}`);
-      setReprocessOpen(false);
-      setRefineInstructions("");
-      await load();
-      if (data?.materia) setSelected(data.materia);
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao reprocessar");
-    } finally {
-      setReprocessLoading(false);
-    }
-  };
-
   const PROVIDERS = [
     { value: "lovable", label: "Lovable AI (Gemini)", defaultModel: "google/gemini-2.5-flash" },
     { value: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini" },
