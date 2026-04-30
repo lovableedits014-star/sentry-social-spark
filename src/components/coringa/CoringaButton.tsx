@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Send, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
-import { useClientId } from "@/hooks/useClientId";
+import { useCurrentClientId } from "@/hooks/ic/useCurrentClientId";
 import { toast } from "sonner";
 
 interface Msg { role: "user" | "assistant"; content: string; tools?: any[] }
 
 export function CoringaButton() {
-  const { clientId } = useClientId();
+  const { data: clientId } = useCurrentClientId();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
