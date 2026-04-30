@@ -342,17 +342,6 @@ async function callGroq(
   throw new Error(`Groq error: 429 após ${maxAttempts} tentativas - ${lastError}`);
 }
 
-// (placeholder removido — função finaliza acima)
-async function _unused_groq_tail(): Promise<LLMResponse> {
-  const data: any = {};
-  return {
-    content: data.choices[0].message.content,
-    provider: 'groq',
-    model: '',
-    usage: data.usage?.total_tokens,
-  };
-}
-
 // Mistral
 async function callMistral(
   apiKey: string,
