@@ -909,6 +909,94 @@ export function MateriasPanel({ clientId }: Props) {
                   <Badge variant="destructive" className="text-[10px]">⚠ {selected.metadata.avisos}</Badge>
                 )}
               </div>
+              {selected.tipo === "boletim" && (
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => exportBoletimPdf(selected)}>
+                    <FileDown className="w-4 h-4 mr-2" /> Exportar PDF
+                  </Button>
+                  <Dialog open={waOpen} onOpenChange={setWaOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline">
+                        <Send className="w-4 h-4 mr-2" /> Enviar por WhatsApp
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enviar boletim via WhatsApp</DialogTitle>
+                        <DialogDescription>
+                          O boletim será enviado como link clicável para download do PDF (válido por 7 dias).
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+                        {defaultPhone && !editingDefault && (
+                          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Star className="w-4 h-4 text-primary fill-primary shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-xs text-muted-foreground">Número padrão salvo</div>
+                                <div className="font-semibold truncate">{formatPhoneDisplay(defaultPhone)}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button size="sm" variant="ghost" onClick={startEditDefault} title="Trocar número padrão">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={clearDefault} title="Remover padrão">
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {editingDefault && (
+                          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 space-y-2">
+                            <Label className="text-xs">Trocar número padrão</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="ex: 67999999999"
+                                value={editPhoneValue}
+                                onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, ""))}
+                              />
+                              <Button size="sm" onClick={confirmEditDefault}><Check className="w-4 h-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingDefault(false)}>
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <Label className="text-xs">
+                            {defaultPhone ? "Enviar para outro número (opcional)" : "Número (com DDD, só dígitos)"}
+                          </Label>
+                          <Input
+                            placeholder="ex: 67999999999"
+                            value={waPhone}
+                            onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, ""))}
+                          />
+                          {waPhone && waPhone !== defaultPhone && (
+                            <button
+                              type="button"
+                              onClick={saveAsDefault}
+                              className="mt-1.5 text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              <Star className="w-3 h-3" /> Salvar este como padrão
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <DialogFooter className="gap-2 sm:gap-2">
+                        <Button onClick={sendBoletimWhatsApp} disabled={waSending || !waPhone}>
+                          {waSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                          Enviar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
               {selected.tipo === "boletim" && Array.isArray(selected.fontes?.posts_referenciados) && selected.fontes.posts_referenciados.length > 0 && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2">
