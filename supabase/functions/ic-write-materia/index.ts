@@ -18,6 +18,10 @@ interface WriteRequest {
   salvarComo?: "rascunho" | null; // se "rascunho", salva no histórico
   transcriptionId?: string; // se informado, usa a transcrição INTEIRA como fonte primária
   transcriptionIds?: string[]; // múltiplas transcrições-fonte combinadas com rastreabilidade
+  providerOverride?: string;
+  modelOverride?: string;
+  apiKeyOverride?: string;
+  reprocessMateriaId?: string; // se informado, snapshota a versão atual e SOBRESCREVE a matéria
 }
 
 const TIPO_DESC: Record<Tipo, string> = {
