@@ -312,11 +312,68 @@ export function MateriasPanel({ clientId }: Props) {
                   )}
                 </div>
               )}
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap">{selected.corpo}</div>
+              <div className="space-y-4">
+                {corpoParagrafos.map((par, i) => {
+                  const audit = auditByIndex.get(i);
+                  const cits: any[] = Array.isArray(audit?.citacoes) ? audit.citacoes : [];
+                  return (
+                    <div key={i} className="group">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{par}</p>
+                      {cits.length > 0 ? (
+                        <details className="mt-1.5 pl-3 border-l-2 border-muted hover:border-primary/40 transition-colors">
+                          <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
+                            🔎 Auditoria · {cits.length} trecho{cits.length === 1 ? "" : "s"} de origem
+                            {audit?.resumo && <span className="ml-1 italic">— {audit.resumo}</span>}
+                          </summary>
+                          <ul className="mt-1.5 space-y-1.5">
+                            {cits.map((c, ci) => {
+                              const tr = sourceTranscripts.find((t) => t.id === c.transcription_id);
+                              return (
+                                <li key={ci} className="text-[11px] flex gap-1.5">
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0">{c.fonte}</Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-foreground/80 italic">"{c.trecho_origem}"</span>
+                                    {tr && (
+                                      <button
+                                        type="button"
+                                        className="ml-1.5 text-primary hover:underline"
+                                        onClick={() => setSourceOpen(tr.id)}
+                                      >
+                                        ver na transcrição →
+                                      </button>
+                                    )}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </details>
+                      ) : sourceTranscripts.length > 0 ? (
+                        <p className="mt-1 pl-3 text-[10px] text-muted-foreground/70 italic">
+                          (parágrafo de transição — sem fato citável)
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${selected.titulo}\n\n${selected.corpo}`); toast.success("Copiado!"); }}>
                   <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar
                 </Button>
+                {paragrafosAuditoria.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    const md = corpoParagrafos.map((par, i) => {
+                      const a = auditByIndex.get(i);
+                      const cits = (a?.citacoes || []).map((c: any) => `  - [${c.fonte}] "${c.trecho_origem}"`).join("\n");
+                      return `§${i + 1}. ${par}${cits ? "\n" + cits : ""}`;
+                    }).join("\n\n");
+                    navigator.clipboard.writeText(`${selected.titulo}\n\n${md}`);
+                    toast.success("Matéria + auditoria copiadas!");
+                  }}>
+                    <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar com auditoria
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Voltar</Button>
               </div>
             </div>
