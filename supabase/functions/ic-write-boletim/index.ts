@@ -153,11 +153,14 @@ Deno.serve(async (req) => {
     };
 
     // === Material bruto para a IA ===
-    const postsTxt = postsAgg
+    // Trim defensivo: garante que não estoure TPM mesmo com semana cheia.
+    const MAX_POSTS = 25;
+    const postsTrim = postsAgg.slice(-MAX_POSTS);
+    const postsTxt = postsTrim
       .map((p, i) => {
         const data = p.first_seen ? fmtBR(p.first_seen) : "?";
         const sent = p.total > 0 ? `(${p.pos}👍 ${p.neg}👎 de ${p.total} comentários)` : "";
-        return `[P${i + 1}] ${data} · ${p.platform || "?"} · ${sent}\n"${(p.message || "(sem texto)").slice(0, 600)}"${p.url ? `\nURL: ${p.url}` : ""}`;
+        return `[P${i + 1}] ${data} · ${p.platform || "?"} · ${sent}\n"${(p.message || "(sem texto)").slice(0, 350)}"${p.url ? `\nURL: ${p.url}` : ""}`;
       })
       .join("\n\n");
 
@@ -237,6 +240,11 @@ ${visitasTxt || "(nenhuma visita registrada)"}`;
       ? { provider: providerOverride, model: modelOverride || undefined, apiKey: apiKeyOverride || baseConfig.apiKey }
       : { ...baseConfig, model: modelOverride || baseConfig.model };
     if (!llmConfig.model) llmConfig.model = baseConfig.model;
+    // Auto-upgrade Groq: o default `llama-3.1-8b-instant` tem TPM de 6000 e estoura
+    // facilmente com payloads de boletim. Sobe para 70b-versatile (12k TPM).
+    if (llmConfig.provider === "groq" && !modelOverride && (!llmConfig.model || llmConfig.model.includes("8b-instant"))) {
+      llmConfig.model = "llama-3.3-70b-versatile";
+    }
 
     const resp = await callLLM(llmConfig, {
       messages: [

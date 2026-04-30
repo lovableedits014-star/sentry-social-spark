@@ -274,6 +274,12 @@ ${postsTxt || "(nenhum)"}`;
         }
       : { ...baseConfig, model: modelOverride || baseConfig.model };
     if (!llmConfig.model) llmConfig.model = baseConfig.model;
+    // Auto-upgrade Groq quando o usuário não escolheu modelo explicitamente:
+    // o default `llama-3.1-8b-instant` tem TPM de apenas 6000 e estoura nesta função.
+    // `llama-3.3-70b-versatile` tem 12000 TPM e melhor qualidade editorial.
+    if (llmConfig.provider === "groq" && !modelOverride && (!llmConfig.model || llmConfig.model.includes("8b-instant"))) {
+      llmConfig.model = "llama-3.3-70b-versatile";
+    }
     const resp = await callLLM(llmConfig, {
       messages: [
         { role: "system", content: systemPrompt },
