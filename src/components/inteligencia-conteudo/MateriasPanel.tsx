@@ -33,6 +33,7 @@ export function MateriasPanel({ clientId }: Props) {
   const [reprocessProvider, setReprocessProvider] = useState("lovable");
   const [reprocessModel, setReprocessModel] = useState("");
   const [reprocessLoading, setReprocessLoading] = useState(false);
+  const [refineInstructions, setRefineInstructions] = useState("");
   const [versions, setVersions] = useState<any[]>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<any>(null);
@@ -67,13 +68,17 @@ export function MateriasPanel({ clientId }: Props) {
           provider: reprocessProvider || undefined,
           model: reprocessModel || undefined,
           reprocessMateriaId: selected.id,
-          regenerateMemory: true,
+          regenerateMemory: !refineInstructions.trim(),
+          materia: refineInstructions.trim()
+            ? { briefing: refineInstructions.trim() }
+            : undefined,
         },
       });
       if (error) throw error;
       if (data?.materia_error) throw new Error(data.materia_error);
       toast.success(`Reprocessado com ${data?.materia_provider || reprocessProvider}/${data?.materia_model || "default"}`);
       setReprocessOpen(false);
+      setRefineInstructions("");
       await load();
       if (data?.materia) setSelected(data.materia);
     } catch (e: any) {
