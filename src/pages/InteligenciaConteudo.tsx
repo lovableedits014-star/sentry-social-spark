@@ -698,8 +698,8 @@ const FUNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 function TranscricaoPanel({ clientId }: { clientId: string | null | undefined }) {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState<string>("pt");
-  const [maxSeconds, setMaxSeconds] = useState<number>(7);
-  const [maxChars, setMaxChars] = useState<number>(90);
+  const [maxSeconds, setMaxSeconds] = useState<number>(4);
+  const [maxChars, setMaxChars] = useState<number>(42);
   const [uploading, setUploading] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -768,13 +768,18 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+          <div className="grid sm:grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-end">
             <div>
               <label className="text-xs text-muted-foreground">Arquivo</label>
               <Input
+                key={file?.name ?? "empty"}
                 type="file"
                 accept="audio/*,video/mp4,video/quicktime,.mp3,.m4a,.wav,.aac,.mp4,.mov,.webm,.ogg"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                  // permite re-selecionar o mesmo arquivo depois
+                  e.target.value = "";
+                }}
               />
             </div>
             <div>
@@ -782,14 +787,21 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
               <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="pt" className="w-20" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Bloco (s)</label>
-              <Input type="number" min={2} max={20} value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value) || 7)} className="w-20" />
+              <label className="text-xs text-muted-foreground" title="Duração máxima de cada legenda na tela">Tempo máx (s)</label>
+              <Input type="number" min={1} max={20} value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value) || 4)} className="w-20" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground" title="Caracteres por bloco. Menor = legendas mais curtas e rápidas (estilo TikTok/Reels). Padrão Netflix: 42.">Caracteres</label>
+              <Input type="number" min={10} max={200} value={maxChars} onChange={(e) => setMaxChars(Number(e.target.value) || 42)} className="w-24" />
             </div>
             <Button onClick={handleUpload} disabled={!file || uploading || !clientId}>
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               <span className="ml-2">Transcrever</span>
             </Button>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            💡 Para legendas <strong>rápidas estilo Reels/TikTok</strong>: tempo 2s + 20 caracteres. Para <strong>cinema/Netflix</strong>: 4s + 42 caracteres. Para <strong>palestras</strong>: 7s + 90 caracteres.
+          </p>
           {file && (
             <p className="text-xs text-muted-foreground">
               {file.name} · {(file.size / (1024 * 1024)).toFixed(1)}MB
