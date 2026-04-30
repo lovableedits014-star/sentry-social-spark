@@ -54,8 +54,11 @@ Deno.serve(async (req) => {
     } = body || ({} as WriteRequest);
 
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
-    if (!briefing || briefing.trim().length < 10)
-      return errorResponse("briefing muito curto (mínimo 10 caracteres)", 400);
+    if ((!briefing || briefing.trim().length < 10) && !transcriptionId)
+      return errorResponse(
+        "Informe um briefing OU selecione uma transcrição-fonte.",
+        400
+      );
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
