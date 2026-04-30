@@ -587,6 +587,13 @@ const Comments = () => {
           c.id === commentId ? { ...c, sentiment, sentiment_source: 'human', needs_review: false } : c
         );
       });
+      // Remove from AI review queue (it was just confirmed/corrected by a human)
+      queryClient.setQueryData(["ai-review-queue", clientIdRef.current], (old: any) => {
+        if (!old) return old;
+        return (old as any[]).filter((c: any) => c.id !== commentId);
+      });
+      // Refresh militants (badges may change)
+      queryClient.invalidateQueries({ queryKey: ["militants-map", clientIdRef.current] });
       toast.success(`Sentimento classificado como ${sentiment === 'positive' ? 'positivo' : sentiment === 'negative' ? 'negativo' : 'neutro'}`);
     } catch (error: any) {
       console.error("Error classifying sentiment:", error);
