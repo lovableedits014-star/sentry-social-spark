@@ -17,6 +17,8 @@ import {
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
 import { QuickRepliesGrid } from "@/components/comments/QuickRepliesGrid";
 import { QuickContactsBar } from "@/components/comments/QuickContactsBar";
+import { MilitantBadge } from "@/components/comments/MilitantBadge";
+import type { MilitantBadgeMap, MilitantRow } from "@/hooks/useMilitants";
 
 export type RegisteredSupportersMap = Map<string, { name: string; classification: string }>;
 
@@ -56,6 +58,14 @@ export interface CommentItemProps {
   comment: CommentData;
   authorStats?: AuthorStatsMap;
   registeredSupporters?: RegisteredSupportersMap;
+  militants?: MilitantBadgeMap;
+  onOpenAuthorHistory?: (info: {
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  }) => void;
   onGenerateResponse: (commentId: string, isRegenerate: boolean, userGuidance?: string) => void;
   onSendResponse: (commentId: string, responseText: string, platform: string) => void;
   onManageComment?: (commentId: string, action: 'delete' | 'hide' | 'unhide' | 'block_user') => Promise<void>;
