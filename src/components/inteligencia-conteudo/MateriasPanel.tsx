@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, FileText, Copy, Trash2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Props { clientId: string }
 
@@ -23,6 +24,32 @@ export function MateriasPanel({ clientId }: Props) {
   const [selected, setSelected] = useState<any>(null);
   const [transcricoes, setTranscricoes] = useState<any[]>([]);
   const [transcriptionId, setTranscriptionId] = useState<string>("none");
+  const [sourceTranscript, setSourceTranscript] = useState<any>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+
+  // Quando seleciona uma matéria, carrega a transcrição-fonte (se houver)
+  useEffect(() => {
+    const trId = selected?.transcription_id || selected?.fontes?.transcription_id;
+    if (!selected || !trId) {
+      setSourceTranscript(null);
+      return;
+    }
+    let cancel = false;
+    (async () => {
+      setSourceLoading(true);
+      const { data } = await supabase
+        .from("ic_transcriptions")
+        .select("id, filename, full_text, created_at, duration_sec")
+        .eq("id", trId)
+        .maybeSingle();
+      if (!cancel) {
+        setSourceTranscript(data || null);
+        setSourceLoading(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [selected]);
 
   const load = async () => {
     const { data } = await supabase
@@ -175,6 +202,29 @@ export function MateriasPanel({ clientId }: Props) {
                 )}
               </div>
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
+              {(selected.transcription_id || selected.fontes?.transcription_id) && (
+                <div className="rounded-md border bg-muted/40 p-3 flex items-start gap-2 text-xs">
+                  <FileText className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground">Fonte: transcrição integral</p>
+                    <p className="text-muted-foreground truncate">
+                      {sourceLoading
+                        ? "Carregando..."
+                        : sourceTranscript?.filename || "Transcrição vinculada"}
+                      {sourceTranscript?.created_at && ` · ${new Date(sourceTranscript.created_at).toLocaleDateString("pt-BR")}`}
+                      {sourceTranscript?.full_text && ` · ${sourceTranscript.full_text.length.toLocaleString("pt-BR")} caracteres`}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!sourceTranscript?.full_text}
+                    onClick={() => setSourceOpen(true)}
+                  >
+                    Ver transcrição completa
+                  </Button>
+                </div>
+              )}
               <div className="prose prose-sm max-w-none whitespace-pre-wrap">{selected.corpo}</div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${selected.titulo}\n\n${selected.corpo}`); toast.success("Copiado!"); }}>
@@ -202,6 +252,41 @@ export function MateriasPanel({ clientId }: Props) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={sourceOpen} onOpenChange={setSourceOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileText className="w-4 h-4" />
+              {sourceTranscript?.filename || "Transcrição-fonte"}
+            </DialogTitle>
+            <DialogDescription>
+              Conteúdo integral usado pela IA para gerar esta matéria.
+              {sourceTranscript?.created_at && ` Capturada em ${new Date(sourceTranscript.created_at).toLocaleString("pt-BR")}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 -mx-6 px-6">
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-foreground">
+              {sourceTranscript?.full_text || "(sem conteúdo)"}
+            </pre>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (sourceTranscript?.full_text) {
+                  navigator.clipboard.writeText(sourceTranscript.full_text);
+                  toast.success("Transcrição copiada!");
+                }
+              }}
+            >
+              <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar transcrição
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSourceOpen(false)}>Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
