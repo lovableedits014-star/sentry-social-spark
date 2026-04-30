@@ -90,7 +90,17 @@ Deno.serve(async (req) => {
       cargo: clientCtx?.cargo || 'político',
     };
 
-    let sentiment = await analyzeSentiment(llmConfig, comment.text, comment.post_message, ctx);
+    // Few-shot learning: load last 20 manual corrections for this client to calibrate the model
+    const { data: corrections } = await supabaseClient
+      .from('sentiment_corrections')
+      .select('text, post_message, ai_sentiment, human_sentiment')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    let { sentiment, confidence } = await analyzeSentiment(
+      llmConfig, comment.text, comment.post_message, ctx, corrections ?? []
+    );
     sentiment = applyHeuristicGuard(sentiment as 'positive' | 'negative' | 'neutral', comment.text, comment.post_message);
 
     // Double-check negatives
@@ -99,17 +109,26 @@ Deno.serve(async (req) => {
       if (verdict !== 'negative') {
         console.log(`✅ Reclassified: negative → ${verdict}`);
         sentiment = verdict;
+        // Lower confidence if the verifier disagreed
+        confidence = Math.min(confidence, 0.5);
       }
     }
 
-    // Update comment
+    const needsReview = confidence < 0.7;
+
+    // Update comment (only if not already human-classified — protected by trigger anyway)
     await supabaseClient
       .from('comments')
-      .update({ sentiment })
+      .update({
+        sentiment,
+        sentiment_source: 'ai',
+        sentiment_confidence: confidence,
+        needs_review: needsReview,
+      })
       .eq('id', commentId);
 
     return new Response(
-      JSON.stringify({ success: true, sentiment, provider: llmConfig.provider }),
+      JSON.stringify({ success: true, sentiment, confidence, needs_review: needsReview, provider: llmConfig.provider }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -133,10 +152,28 @@ async function analyzeSentiment(
   text: string,
   postMessage: string | null,
   ctx: { candidato: string; cargo: string }
-): Promise<string> {
+  ,
+  corrections: Array<{ text: string; post_message: string | null; ai_sentiment: string; human_sentiment: string }> = [],
+): Promise<{ sentiment: string; confidence: number }> {
   const postCtx = postMessage
     ? postMessage.substring(0, 200).replace(/\s+/g, ' ').trim()
     : '(sem contexto do post)';
+
+  // Build few-shot examples block from past human corrections
+  let fewShot = '';
+  if (corrections.length > 0) {
+    const examples = corrections.slice(0, 12).map((c, i) => {
+      const post = c.post_message ? c.post_message.substring(0, 120).replace(/\s+/g, ' ').trim() : '(sem post)';
+      const txt = c.text.substring(0, 200).replace(/\s+/g, ' ').trim();
+      return `Exemplo ${i + 1}:
+POST: "${post}"
+COMENTÁRIO: "${txt}"
+❌ IA tinha dito: ${c.ai_sentiment}
+✅ Resposta correta: ${c.human_sentiment}`;
+    }).join('\n\n');
+    fewShot = `\n\n📚 APRENDIZADOS COM CORREÇÕES MANUAIS DO USUÁRIO (siga este padrão):\n${examples}\n\nUse esses exemplos para calibrar sua próxima classificação.`;
+  }
+
   const messages: LLMMessage[] = [
     {
       role: 'system',
@@ -150,11 +187,15 @@ Menções a aliados/candidatos da mesma corrente em tom otimista = POSITIVE.
 - positive: elogio, apoio, incentivo, gratidão, emojis positivos (❤️👏🙏💪)
 - negative: crítica hostil, ironia destrutiva, deboche, xingamento, emojis negativos (🤡🤮)
 - neutral: marcações puras, perguntas factuais sobre o post, pedidos de informação prática, demandas cívicas sem hostilidade
-Na dúvida entre neutral e negative, escolha neutral se não houver ataque direto.`,
+Na dúvida entre neutral e negative, escolha neutral se não houver ataque direto.${fewShot}
+
+FORMATO DE RESPOSTA OBRIGATÓRIO (JSON em uma linha):
+{"s":"positive|negative|neutral","c":0.0-1.0}
+Onde "c" é sua confiança (1.0 = certeza absoluta, 0.5 = incerto, 0.3 = chute). Se você está em dúvida, use c<0.7.`,
     },
     {
       role: 'user',
-      content: `Classifique o sentimento e responda APENAS "positive", "negative" ou "neutral":
+      content: `Classifique o sentimento e responda APENAS o JSON {"s":"...","c":0.x}:
 
 POST: "${postCtx}"
 COMENTÁRIO: "${text}"`,
@@ -164,23 +205,38 @@ COMENTÁRIO: "${text}"`,
   try {
     const response = await callLLM(llmConfig as any, {
       messages,
-      maxTokens: 10,
+      maxTokens: 40,
       temperature: 0,
     });
 
-    const result = response.content.toLowerCase().trim().replace(/[^a-z]/g, '');
-    
-    if (['positive', 'negative', 'neutral'].includes(result)) {
-      return applyHeuristicGuard(result as 'positive' | 'negative' | 'neutral', text, postMessage);
+    const raw = response.content.trim();
+    // Try parsing JSON first
+    let sentiment: string = 'neutral';
+    let confidence = 0.6;
+    try {
+      const match = raw.match(/\{[^}]+\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (typeof parsed.s === 'string') sentiment = parsed.s.toLowerCase().trim();
+        if (typeof parsed.c === 'number') confidence = Math.max(0, Math.min(1, parsed.c));
+      }
+    } catch { /* fallthrough to text parsing */ }
+
+    if (!['positive', 'negative', 'neutral'].includes(sentiment)) {
+      const lower = raw.toLowerCase();
+      if (lower.includes('positive')) sentiment = 'positive';
+      else if (lower.includes('negative')) sentiment = 'negative';
+      else sentiment = 'neutral';
+      confidence = Math.min(confidence, 0.5);
     }
-    // Extract from longer responses
-    if (result.includes('positive')) return applyHeuristicGuard('positive', text, postMessage);
-    if (result.includes('negative')) return applyHeuristicGuard('negative', text, postMessage);
-    if (result.includes('neutral')) return applyHeuristicGuard('neutral', text, postMessage);
-    return applyHeuristicGuard('neutral', text, postMessage);
+
+    return {
+      sentiment: applyHeuristicGuard(sentiment as 'positive' | 'negative' | 'neutral', text, postMessage),
+      confidence,
+    };
   } catch (error) {
     console.error('Sentiment analysis failed:', error);
-    return applyHeuristicGuard('neutral', text, postMessage);
+    return { sentiment: applyHeuristicGuard('neutral', text, postMessage), confidence: 0.3 };
   }
 }
 
