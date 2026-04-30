@@ -153,11 +153,14 @@ Deno.serve(async (req) => {
     };
 
     // === Material bruto para a IA ===
-    const postsTxt = postsAgg
+    // Trim defensivo: garante que não estoure TPM mesmo com semana cheia.
+    const MAX_POSTS = 25;
+    const postsTrim = postsAgg.slice(-MAX_POSTS);
+    const postsTxt = postsTrim
       .map((p, i) => {
         const data = p.first_seen ? fmtBR(p.first_seen) : "?";
         const sent = p.total > 0 ? `(${p.pos}👍 ${p.neg}👎 de ${p.total} comentários)` : "";
-        return `[P${i + 1}] ${data} · ${p.platform || "?"} · ${sent}\n"${(p.message || "(sem texto)").slice(0, 600)}"${p.url ? `\nURL: ${p.url}` : ""}`;
+        return `[P${i + 1}] ${data} · ${p.platform || "?"} · ${sent}\n"${(p.message || "(sem texto)").slice(0, 350)}"${p.url ? `\nURL: ${p.url}` : ""}`;
       })
       .join("\n\n");
 
