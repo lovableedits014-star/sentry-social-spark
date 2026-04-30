@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -29,6 +29,68 @@ export function MateriasPanel({ clientId }: Props) {
   const [sourceTranscripts, setSourceTranscripts] = useState<any[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // id da fonte aberta no modal
+  const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [reprocessProvider, setReprocessProvider] = useState("lovable");
+  const [reprocessModel, setReprocessModel] = useState("");
+  const [reprocessLoading, setReprocessLoading] = useState(false);
+  const [versions, setVersions] = useState<any[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versionPreview, setVersionPreview] = useState<any>(null);
+
+  // Carrega versões anteriores quando seleciona uma matéria
+  useEffect(() => {
+    if (!selected?.id) { setVersions([]); return; }
+    let cancel = false;
+    (async () => {
+      const { data } = await supabase
+        .from("materias_versions" as any)
+        .select("*")
+        .eq("materia_id", selected.id)
+        .order("versao", { ascending: false });
+      if (!cancel) setVersions((data as any[]) || []);
+    })();
+    return () => { cancel = true; };
+  }, [selected?.id]);
+
+  const reprocessar = async () => {
+    const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
+    if (!trId) {
+      toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
+      return;
+    }
+    setReprocessLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ic-reprocess-transcription", {
+        body: {
+          clientId,
+          transcriptionId: trId,
+          provider: reprocessProvider || undefined,
+          model: reprocessModel || undefined,
+          reprocessMateriaId: selected.id,
+          regenerateMemory: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.materia_error) throw new Error(data.materia_error);
+      toast.success(`Reprocessado com ${data?.materia_provider || reprocessProvider}/${data?.materia_model || "default"}`);
+      setReprocessOpen(false);
+      await load();
+      if (data?.materia) setSelected(data.materia);
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao reprocessar");
+    } finally {
+      setReprocessLoading(false);
+    }
+  };
+
+  const PROVIDERS = [
+    { value: "lovable", label: "Lovable AI (Gemini)", defaultModel: "google/gemini-2.5-flash" },
+    { value: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini" },
+    { value: "anthropic", label: "Anthropic Claude", defaultModel: "claude-3-haiku-20240307" },
+    { value: "groq", label: "Groq", defaultModel: "llama-3.1-8b-instant" },
+    { value: "gemini", label: "Google Gemini (direct)", defaultModel: "gemini-1.5-flash" },
+    { value: "mistral", label: "Mistral", defaultModel: "mistral-small-latest" },
+  ];
 
   // Quando seleciona uma matéria, carrega TODAS as transcrições-fonte vinculadas
   useEffect(() => {
