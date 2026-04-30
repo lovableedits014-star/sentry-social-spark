@@ -308,6 +308,7 @@ const DashboardLayout = () => {
           <Outlet />
         </div>
       </main>
+      <CoringaButton />
     </div>
   );
 };
