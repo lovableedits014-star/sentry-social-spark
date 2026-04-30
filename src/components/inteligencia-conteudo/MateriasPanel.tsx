@@ -417,6 +417,122 @@ export function MateriasPanel({ clientId }: Props) {
   const [incluirAcoes, setIncluirAcoes] = useState(true);
   const [incluirVisitas, setIncluirVisitas] = useState(true);
 
+  // ===== WhatsApp dispatch (mesmo fluxo da Narrativa) =====
+  const [waOpen, setWaOpen] = useState(false);
+  const [waPhone, setWaPhone] = useState("");
+  const [waSending, setWaSending] = useState(false);
+  const defaultPhoneKey = clientId ? `wa_default_phone:${clientId}` : "wa_default_phone:_anon_";
+  const [defaultPhone, setDefaultPhone] = useState("");
+  const [editingDefault, setEditingDefault] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(defaultPhoneKey) || "";
+      setDefaultPhone(saved);
+      if (saved && !waPhone) setWaPhone(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultPhoneKey]);
+
+  useEffect(() => {
+    if (waOpen && defaultPhone && !waPhone) setWaPhone(defaultPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waOpen]);
+
+  const formatPhoneDisplay = (digits: string): string => {
+    const d = digits.replace(/\D/g, "");
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 13 && d.startsWith("55")) return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
+    return d;
+  };
+
+  const saveAsDefault = () => {
+    const d = waPhone.replace(/\D/g, "");
+    if (d.length < 10) { toast.error("Número inválido. Informe DDD + número."); return; }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      toast.success(`Número padrão salvo: ${formatPhoneDisplay(d)}`);
+    } catch { toast.error("Erro ao salvar"); }
+  };
+  const clearDefault = () => {
+    try { localStorage.removeItem(defaultPhoneKey); setDefaultPhone(""); toast.success("Número padrão removido"); } catch {}
+  };
+  const startEditDefault = () => { setEditPhoneValue(defaultPhone); setEditingDefault(true); };
+  const confirmEditDefault = () => {
+    const d = editPhoneValue.replace(/\D/g, "");
+    if (d.length < 10) { toast.error("Número inválido"); return; }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d); setWaPhone(d); setEditingDefault(false);
+      toast.success(`Padrão atualizado: ${formatPhoneDisplay(d)}`);
+    } catch {}
+  };
+
+  const sendBoletimWhatsApp = async () => {
+    if (!selected || selected.tipo !== "boletim") { toast.error("Selecione um boletim"); return; }
+    if (!waPhone) { toast.error("Informe o número"); return; }
+    setWaSending(true);
+    try {
+      if (!clientId) throw new Error("Cliente não identificado");
+      // 1) Gera o PDF em memória
+      const pdfDoc = buildBoletimPdf(selected, false);
+      const pdfBlob = pdfDoc.output("blob") as Blob;
+      const periodo = selected.fontes?.periodo || {};
+      const periodoLabel = periodo.since && periodo.until
+        ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+        : "semana";
+      const slug = periodoLabel.replace(/[^\w]+/g, "-").toLowerCase();
+      const filename = `boletim-${slug}.pdf`;
+      const objectPath = `dispatches/${clientId}/${Date.now()}-${filename}`;
+
+      // 2) Upload bucket whatsapp-media
+      const up = await supabase.storage.from("whatsapp-media")
+        .upload(objectPath, pdfBlob, { contentType: "application/pdf", upsert: true });
+      if (up.error) throw up.error;
+      const { data: pub } = supabase.storage.from("whatsapp-media").getPublicUrl(objectPath);
+      const downloadUrl = pub?.publicUrl;
+      if (!downloadUrl) throw new Error("Falha ao gerar link público do PDF");
+
+      // 3) Mensagem
+      const stats = selected.fontes?.stats || {};
+      const message =
+        `📊 *Boletim Semanal — ${periodoLabel}*\n\n` +
+        `${selected.subtitulo || "Resumo da semana de atividades, postagens e agenda."}\n\n` +
+        `• ${stats.posts ?? 0} postagens · ${stats.comentarios ?? 0} comentários\n` +
+        `• Tom: ${(stats.tom_geral || "—").toUpperCase()}\n` +
+        `• ${stats.acoes ?? 0} ações · ${stats.visitas ?? 0} visitas\n\n` +
+        `📎 PDF completo: ${downloadUrl}\n\n` +
+        `_O link fica disponível por 7 dias._`;
+
+      // 4) Normaliza telefone
+      let phone = waPhone.replace(/\D/g, "");
+      if (phone.length === 11 || phone.length === 10) phone = "55" + phone;
+
+      // 5) Pool de instâncias
+      const { data: instanceId, error: pickErr } = await supabase
+        .rpc("pick_healthy_whatsapp_instance" as any, { p_client_id: clientId });
+      if (pickErr) throw pickErr;
+      if (!instanceId) throw new Error("Nenhum chip WhatsApp ativo no pool. Configure em Settings → Pool de Instâncias.");
+
+      // 6) Envia
+      const r = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "send", phone, message, instance_id: instanceId, client_id: clientId },
+      });
+      if (r.error) throw r.error;
+      if (r.data?.success === false || r.data?.error) throw new Error(r.data?.error || "Falha no envio pela bridge");
+
+      toast.success(`Boletim enviado para ${phone}. Link disponível por 7 dias.`);
+      setWaOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao enviar");
+    } finally {
+      setWaSending(false);
+    }
+  };
+
   const isBoletim = tipo === "boletim";
 
   // Carrega versões anteriores quando seleciona uma matéria
