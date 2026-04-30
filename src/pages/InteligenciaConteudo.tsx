@@ -365,17 +365,127 @@ function DnaPanel({ clientId }: { clientId: string | null | undefined }) {
         {!dna ? (
           <p className="text-sm text-muted-foreground text-center py-8">DNA ainda não calibrado. Clique em "Recalibrar" para analisar seus posts próprios.</p>
         ) : (
-          <dl className="grid sm:grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-xs font-semibold text-muted-foreground">Tom</dt><dd>{dna.tom ?? "—"}</dd></div>
-            <div><dt className="text-xs font-semibold text-muted-foreground">Amostra</dt><dd>{dna.sample_size} posts</dd></div>
-            <div className="sm:col-span-2"><dt className="text-xs font-semibold text-muted-foreground">Vocabulário</dt><dd className="flex flex-wrap gap-1 mt-1">{(dna.vocabulario ?? []).map((v: string) => <Badge key={v} variant="secondary">{v}</Badge>)}</dd></div>
-            <div><dt className="text-xs font-semibold text-muted-foreground">Emojis</dt><dd className="text-xl">{(dna.emojis_assinatura ?? []).join(" ") || "—"}</dd></div>
-            <div><dt className="text-xs font-semibold text-muted-foreground">Tamanho ideal</dt><dd className="text-xs">{JSON.stringify(dna.tamanho_ideal)}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-xs font-semibold text-muted-foreground">Estruturas</dt><dd className="text-xs">{JSON.stringify(dna.estruturas)}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-xs font-semibold text-muted-foreground">Horários de pico</dt><dd className="text-xs">{JSON.stringify(dna.horarios_pico)}</dd></div>
-          </dl>
+          <DnaContent dna={dna} />
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function DnaContent({ dna }: { dna: any }) {
+  const vocab: string[] = Array.from(
+    new Map<string, string>(
+      (dna.vocabulario ?? [])
+        .filter((v: any) => typeof v === "string" && v.trim())
+        .map((v: string) => [v.trim().toLowerCase(), v.trim()])
+    ).values()
+  );
+
+  const tamanho = (dna.tamanho_ideal ?? {}) as Record<string, number>;
+  const estruturas = (dna.estruturas ?? {}) as Record<string, number>;
+  const horarios = (dna.horarios_pico ?? {}) as Record<string, number[]>;
+
+  const estruturaLabels: Record<string, string> = {
+    pergunta_retorica: "Pergunta retórica",
+    dado_emocao: "Dado + emoção",
+    storytelling: "Storytelling",
+    lista: "Lista",
+    cta_direto: "CTA direto",
+  };
+
+  const diasOrdem = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
+  const diasLabels: Record<string, string> = {
+    seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom",
+  };
+
+  return (
+    <div className="space-y-5 text-sm">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-1">Tom</div>
+          <div className="capitalize">{dna.tom ?? "—"}</div>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-1">Amostra</div>
+          <div>{dna.sample_size} posts</div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold text-muted-foreground mb-2">Vocabulário recorrente</div>
+        {vocab.length === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {vocab.map((v) => <Badge key={v} variant="secondary">{v}</Badge>)}
+          </div>
+        )}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-1">Emojis assinatura</div>
+          <div className="text-2xl leading-relaxed">
+            {(dna.emojis_assinatura ?? []).join(" ") || "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-2">Tamanho ideal (caracteres)</div>
+          <div className="flex gap-4">
+            {Object.entries(tamanho).map(([plat, size]) => (
+              <div key={plat} className="flex flex-col">
+                <span className="text-xs text-muted-foreground capitalize">{plat}</span>
+                <span className="font-semibold">{size}</span>
+              </div>
+            ))}
+            {Object.keys(tamanho).length === 0 && <span className="text-muted-foreground">—</span>}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold text-muted-foreground mb-2">Estruturas mais usadas</div>
+        {Object.keys(estruturas).length === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="space-y-1.5">
+            {Object.entries(estruturas)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .map(([key, val]) => {
+                const pct = Math.round((val as number) * 100);
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="w-32 text-xs">{estruturaLabels[key] ?? key}</span>
+                    <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs tabular-nums w-10 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold text-muted-foreground mb-2">Horários de pico</div>
+        {Object.keys(horarios).length === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {diasOrdem
+              .filter((d) => horarios[d]?.length)
+              .map((d) => (
+                <div key={d} className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted">
+                  <span className="text-xs font-semibold">{diasLabels[d]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {horarios[d].map((h) => `${String(h).padStart(2, "0")}h`).join(" · ")}
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
