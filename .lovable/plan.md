@@ -1,94 +1,116 @@
+## Objetivo
 
-# Narrativa Política — Plano final aprovado
+No box "Responder" dos comentários (`CommentItem.tsx`), adicionar:
 
-Com base nas suas 4 decisões, está tudo definido. Antes de implementar, recapitulo a versão final pra você confirmar.
+1. **Respostas Rápidas Positivas** — grid 3×4 (12 botões) que preenchem o textarea com 1 clique, com botão **"Gerar novas respostas"** que troca todas via IA.
+2. **Contatos de Encaminhamento** — chips de telefones + texto contextual cadastrados pelo próprio usuário, que ao clicar acrescentam o trecho ao final da resposta.
 
-## Decisões consolidadas
+---
 
-1. **Localização**: nova aba dentro de `/inteligencia-eleitoral` (ao lado de Prefeito 2024, Vereador 2024, Composição de Chapa, etc.)
-2. **Perfil do candidato**: editado dentro da própria aba (botão "Configurar Candidato" no topo, abre dialog)
-3. **Saída IA**: gera as 3 versões (popular/técnico/emocional) já no primeiro clique
-4. **Memória de campanha**: registrada e visível, sem alerta automático nessa primeira versão
+## 1. Respostas Rápidas (com gerador IA)
 
-## Estrutura final da aba
+### Pool inicial (hardcoded em `src/lib/quick-replies.ts`)
+12 frases padrão:
+- "Muito obrigado pelo carinho! 🙏"
+- "Agradeço o apoio, conte sempre comigo!"
+- "Que bom ter você com a gente! 💪"
+- "Seu apoio faz toda a diferença, obrigado!"
+- "Obrigado pela força! Seguimos juntos."
+- "Valeu demais pelo comentário! 🙌"
+- "Gratidão pelo seu carinho!"
+- "Obrigado, é por pessoas como você que seguimos firmes!"
+- "Recebido com muito carinho, obrigado!"
+- "Muito obrigado, abraço!"
+- "Agradeço de coração 💚"
+- "Obrigado, conte sempre comigo!"
 
-```text
-┌─ Inteligência Eleitoral ────────────────────────────────────┐
-│ [Prefeito 24] [Vereador 24] [Chapa] ... [📣 Narrativa]     │ ← nova aba
-├─────────────────────────────────────────────────────────────┤
-│ Cidade: [Campo Grande/MS ▾]  [Configurar Candidato] [Gerar] │
-├─────────────────────────────────────────────────────────────┤
-│ 1. RAIO-X RELÂMPAGO                                         │
-│    Quem governa • Margem da última eleição • Rejeição local │
-├─────────────────────────────────────────────────────────────┤
-│ 2. MAPA DE DOR                                              │
-│    🔴 EXPLOSIVA   🟡 LATENTE   ⚪ SILENCIOSA                │
-│    cada card: número + fonte + ano + selo Impacto Digital   │
-│    + frase de ataque (3-camadas) + frase de proposta        │
-├─────────────────────────────────────────────────────────────┤
-│ 3. OPORTUNIDADE POLÍTICA                                    │
-│    🟢 Forte (alta dor + ninguém atua + alinha bandeira)    │
-│    🟡 Disputa  ⚪ Não prioritário                           │
-├─────────────────────────────────────────────────────────────┤
-│ 4. POSICIONAMENTO DO CANDIDATO                              │
-│    3 ângulos cruzando bandeiras × dores explosivas          │
-├─────────────────────────────────────────────────────────────┤
-│ 5. ROTEIRO ESTRATÉGICO (Onda 2)                             │
-│    Cada parada: local • objetivo • emoção • fala • imagem   │
-├─────────────────────────────────────────────────────────────┤
-│ 6. CONTEÚDO PRONTO                                          │
-│    Discurso 3min  [Popular] [Técnico] [Emocional]           │
-│    Reels 30s • 5 headlines • 3 ataques 3-camadas            │
-│    [Copiar] [PDF] [WhatsApp]                                │
-├─────────────────────────────────────────────────────────────┤
-│ MEMÓRIA DE CAMPANHA (lateral): últimas 5 cidades + temas    │
-└─────────────────────────────────────────────────────────────┘
-```
+### UI
+- Grid `grid-cols-3 gap-1.5` com 12 botões `outline` (texto truncado, `title` mostra completo).
+- 1 clique → `setManualText(frase)` (substitui o conteúdo).
+- Botão "Gerar novas respostas" (ícone Sparkles, à direita do título da seção).
+- Estado local guarda o pool atual; ao gerar, substitui as 12 e mantém em memória durante a sessão. (Sem persistir em DB — o usuário pediu para "sempre trocar".)
 
-## Onda 1 — MVP arma de combate (entrega rápida)
+### Backend — nova Edge Function `generate-quick-replies`
+- Usa o LLM já configurado do cliente (`getClientLLMConfig` + `callLLM`, mesmo padrão de `generate-response`).
+- **Prompt do sistema (interno, fixo):**
 
-### Banco (1 migration)
-- `narrativa_perfil_candidato` (client_id PK, bandeiras text[], estilo, tom, biografia)
-- `narrativa_dossies` (client_id, codigo_ibge, payload jsonb, gerado_em, expires_at)
-- `narrativa_visitas_realizadas` (client_id, codigo_ibge, data_visita, temas_usados text[], discurso_id, observacoes)
-- RLS por `client_id` em todas; reuso total da `api_cache`
+> "Você gera respostas curtas e positivas para comentários de apoiadores em redes sociais de um político brasileiro. Gere exatamente 12 frases distintas, cada uma com no máximo 80 caracteres, em português coloquial brasileiro, tom caloroso e agradecido. Varie a estrutura (algumas com emoji, outras sem; algumas começando com 'Obrigado', outras com 'Gratidão', 'Que bom', 'Valeu', etc). Evite repetir palavras de abertura. Não use hashtags, não mencione política, não faça promessas. Retorne via tool call."
 
-### Edge Functions (3 nesta onda)
-1. **`narrativa-coleta`** — orquestra IBGE + TSE local + GDELT + DataSUS (CNES) + INEP/QEdu em paralelo, salva em `api_cache`
-2. **`narrativa-analise`** — calcula escores Dor + Oportunidade Política + Impacto Digital; monta JSON estruturado
-3. **`narrativa-gerar`** — recebe dossiê + perfil candidato + memória → gera 3 versões de discurso, Reels, headlines, ataques 3-camadas
+- Estruturado via tool calling (schema `{ replies: string[12] }`) — padrão já recomendado no projeto.
+- Recebe `clientId`, valida ownership (igual `generate-response`).
+- Retorna `{ success: true, replies: [...] }`.
+- Opcional: passar `currentReplies` para o prompt orientar variação ("evite estas frases já usadas: ...").
 
 ### Frontend
-- Nova aba `<TabsContent value="narrativa">` em `InteligenciaEleitoral.tsx`
-- Componente principal `NarrativaPolitica.tsx`
-- Subcomponentes: `RaioXSection`, `MapaDorSection`, `OportunidadeSection`, `PosicionamentoSection`, `ConteudoSection`, `MemoriaCampanhaPanel`
-- `MunicaoCard` reutilizável (número + fonte + selo Impacto + frase ataque + frase proposta + copiar)
-- `PerfilCandidatoDialog` (botão no topo)
-- React Query com `staleTime: Infinity`
+- Hook `useQuickReplies(clientId)` — estado local com o array de 12 + função `regenerate()` que invoca a edge function via `supabase.functions.invoke`.
+- Toast de sucesso/erro; loader no botão durante a geração.
 
-### IA (Lovable AI Gateway, sem chave)
-- `google/gemini-2.5-pro` para Análise estratégica (Dor + Posicionamento)
-- `google/gemini-2.5-flash` para Conteúdo (3 versões + Reels + headlines)
+---
 
-### Fontes nesta onda
-IBGE, TSE (já temos), GDELT (já temos), DataSUS/CNES, INEP/QEdu
+## 2. Contatos de Encaminhamento (com texto contextual)
 
-### Saídas
-3 discursos completos + Reels + 5 headlines + 3 ataques estruturados + PDF + WhatsApp
+### Schema — nova tabela `quick_contacts`
+- `id uuid pk default gen_random_uuid()`
+- `client_id uuid not null` (FK clients, RLS)
+- `label text not null` (ex: "Indicações")
+- `phone text not null` (livre, exibido como digitado)
+- `context_message text` (texto pronto que acompanha o telefone — **novo campo solicitado**)
+- `display_order int default 0`
+- `created_at`, `updated_at`
 
-## Onda 2 (depois, quando pedir)
-- Seção 5 Roteiro Estratégico com locais reais por zona
-- Bairro Inferido (cruza zona TSE × CNES × INEP × GDELT)
-- SNIS, IPEA, Tesouro, Câmara/emendas
-- Cron "Cidade do Dia"
+RLS: SELECT/INSERT/UPDATE/DELETE para usuários do mesmo `client_id` (mesmo padrão das demais tabelas).
 
-## O que NÃO vamos fazer (compromisso firme)
-- Não inventar dado de bairro que não existe (qualquer inferência vem rotulada)
-- Não disparar nada automático no WhatsApp (sempre revisão manual)
-- Não usar mapa geográfico externo
-- Não criar 9 módulos — tudo em 1 aba
+### UI — chips abaixo das respostas rápidas
+- Cada contato vira um botão pequeno com o `label` (ex: "Indicações").
+- Hover mostra tooltip com o texto que será inserido.
+- Clicar **acrescenta ao final** do textarea atual (não substitui), com quebra de linha:
 
-## Próximo passo
-Se aprovar este plano, eu começo pela Onda 1 inteira: schema + 3 edge functions + UI completa + integração com o IBGE/TSE/GDELT/DataSUS/INEP. Entrega funcional ponta a ponta.
+  ```
+  {texto atual}
 
-Pode aprovar?
+  {context_message}
+  Telefone: {phone}
+  ```
+
+  Exemplo cadastrado:
+  - label: "Agendamentos"
+  - phone: "(67) 99999-9999"
+  - context_message: "Para agendar uma visita ou audiência, fale com nossa equipe:"
+
+  Resultado inserido:
+  ```
+  Para agendar uma visita ou audiência, fale com nossa equipe:
+  Telefone: (67) 99999-9999
+  ```
+
+- Botão **+** abre popover (Dialog pequeno) com 3 campos: Rótulo, Telefone, Texto de contexto (textarea curta).
+- Ícone de lápis em cada chip (no hover) → editar / remover.
+
+### Hook
+`src/hooks/useQuickContacts.ts` — React Query (`staleTime: Infinity`), invalidação após criar/editar/deletar.
+
+---
+
+## Arquivos a criar/editar
+
+**Criar:**
+- `src/lib/quick-replies.ts` — pool padrão das 12 frases.
+- `src/hooks/useQuickReplies.ts` — estado + chamada à edge function.
+- `src/hooks/useQuickContacts.ts` — CRUD via Supabase.
+- `src/components/comments/QuickRepliesGrid.tsx` — grid 3×4 + botão "Gerar novas".
+- `src/components/comments/QuickContactsBar.tsx` — chips + popover de cadastro/edição.
+- `supabase/functions/generate-quick-replies/index.ts` — edge function com prompt fixo + tool calling.
+- `supabase/migrations/<timestamp>_quick_contacts.sql` — tabela + RLS + trigger updated_at.
+
+**Editar:**
+- `src/components/CommentItem.tsx` — incluir os dois componentes dentro do bloco `showManualReply`, recebendo `manualText`/`setManualText` e `clientId`.
+
+---
+
+## Observações técnicas
+
+- Geração das respostas usa o **mesmo LLM já configurado por cliente** (não consome chave nova) — segue padrão de `generate-response`.
+- O prompt da geração fica **fixo dentro da edge function** (você não precisa configurar nada).
+- Pool gerado vive só na sessão atual — recarregando a página, volta para o pool padrão. Se quiser persistir o último pool gerado por usuário, posso usar `localStorage` (me avise).
+- Contatos rápidos são por `client_id` — toda a equipe do mesmo cliente compartilha os atalhos.
+- Nenhuma mudança no fluxo de envio nem nas funções de WhatsApp/Meta — é só composição de texto local.
