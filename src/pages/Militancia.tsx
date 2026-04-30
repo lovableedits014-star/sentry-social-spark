@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Facebook, Instagram, TrendingUp, TrendingDown,
-  Users, Calendar, Loader2, MessageSquare, Eye, BarChart3, FileText,
+  Users, Calendar, Loader2, MessageSquare, Eye, BarChart3, FileText, ExternalLink,
 } from "lucide-react";
 import { BADGE_META, getBadgeMeta } from "@/lib/militant-badges";
 import { MilitantBadge } from "@/components/comments/MilitantBadge";
 import { AuthorHistoryDrawer } from "@/components/comments/AuthorHistoryDrawer";
 import { MilitanciaCharts } from "@/components/militancia/MilitanciaCharts";
 import { MilitanciaReport } from "@/components/militancia/MilitanciaReport";
+import { getSocialProfileUrl } from "@/lib/social-url";
 import type { MilitantRow } from "@/hooks/useMilitants";
 
 function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: number | string; accent?: string }) {
@@ -63,31 +64,56 @@ function MilitantList({
   return (
     <div className="bg-card rounded-xl border shadow-sm divide-y overflow-hidden">
       {militants.map((m) => (
-        <button
+        <div
           key={m.id}
-          onClick={() => onOpen(m)}
-          className="w-full text-left px-3 py-3 hover:bg-muted/50 transition-colors flex items-center gap-3"
+          className="w-full px-3 py-3 hover:bg-muted/50 transition-colors flex items-center gap-3"
         >
-          <Avatar className="h-10 w-10 shrink-0">
-            {m.avatar_url && <AvatarImage src={m.avatar_url} alt={m.author_name || ""} />}
-            <AvatarFallback className={m.platform === 'instagram' ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white text-xs' : 'bg-primary/10 text-primary text-xs'}>
-              {m.author_name?.charAt(0).toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium truncate">{m.author_name || "Autor desconhecido"}</span>
-              <MilitantBadge militant={m} />
+          <button
+            onClick={() => onOpen(m)}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          >
+            <Avatar className="h-10 w-10 shrink-0">
+              {m.avatar_url && <AvatarImage src={m.avatar_url} alt={m.author_name || ""} />}
+              <AvatarFallback className={m.platform === 'instagram' ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white text-xs' : 'bg-primary/10 text-primary text-xs'}>
+                {m.author_name?.charAt(0).toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium truncate">{m.author_name || "Autor desconhecido"}</span>
+                <MilitantBadge militant={m} />
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+                <span className="inline-flex items-center gap-1"><MessageSquare className="w-3 h-3" />{m.total_comments}</span>
+                <span className="inline-flex items-center gap-1 text-green-600"><TrendingUp className="w-3 h-3" />{m.total_positive}</span>
+                <span className="inline-flex items-center gap-1 text-destructive"><TrendingDown className="w-3 h-3" />{m.total_negative}</span>
+                <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />última: {new Date(m.last_seen_at).toLocaleDateString("pt-BR")}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
-              <span className="inline-flex items-center gap-1"><MessageSquare className="w-3 h-3" />{m.total_comments}</span>
-              <span className="inline-flex items-center gap-1 text-green-600"><TrendingUp className="w-3 h-3" />{m.total_positive}</span>
-              <span className="inline-flex items-center gap-1 text-destructive"><TrendingDown className="w-3 h-3" />{m.total_negative}</span>
-              <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />última: {new Date(m.last_seen_at).toLocaleDateString("pt-BR")}</span>
-            </div>
-          </div>
-          <Eye className="w-4 h-4 text-muted-foreground shrink-0" />
-        </button>
+          </button>
+          {(() => {
+            const url = getSocialProfileUrl(m.platform, m.platform_user_id);
+            return url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`Abrir perfil no ${m.platform === 'instagram' ? 'Instagram' : 'Facebook'}`}
+                className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            ) : null;
+          })()}
+          <button
+            onClick={() => onOpen(m)}
+            title="Ver histórico"
+            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
       ))}
     </div>
   );
