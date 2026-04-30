@@ -955,7 +955,6 @@ function TranscriptionEditor({
 /* ---------- Gerador de post de feed a partir da transcrição ---------- */
 function FeedFromTranscriptPanel({ transcription, blocks }: { transcription: any; blocks: SrtBlock[] }) {
   const { data: clientId } = useCurrentClientId();
-  const [plataforma, setPlataforma] = useState<"facebook" | "instagram">("facebook");
   const [result, setResult] = useState<any>(null);
   const [candidato, setCandidato] = useState<string>("");
 
@@ -968,7 +967,7 @@ function FeedFromTranscriptPanel({ transcription, blocks }: { transcription: any
         clientId,
         transcriptionId: transcription.id,
         transcriptText,
-        plataforma,
+        plataforma: "ambos",
       });
     },
     onSuccess: (data) => {
@@ -990,24 +989,15 @@ function FeedFromTranscriptPanel({ transcription, blocks }: { transcription: any
           <Megaphone className="w-4 h-4 text-primary" />
           <h3 className="text-sm font-semibold">Gerar post pronto para o feed</h3>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={plataforma}
-            onChange={(e) => setPlataforma(e.target.value as "facebook" | "instagram")}
-            className="text-xs border rounded-md px-2 py-1 bg-background"
-          >
-            <option value="facebook">Facebook</option>
-            <option value="instagram">Instagram</option>
-          </select>
-          <Button size="sm" onClick={() => gen.mutate()} disabled={gen.isPending}>
-            {gen.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            <span className="ml-2">{result ? "Gerar de novo" : "Gerar post do feed"}</span>
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => gen.mutate()} disabled={gen.isPending}>
+          {gen.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+          <span className="ml-2">{result ? "Gerar de novo" : "Gerar post do feed"}</span>
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        A IA entende o <strong>contexto</strong> da fala (não copia palavra por palavra) e escreve em primeira pessoa
-        como <strong>{candidato || "o candidato cadastrado neste perfil"}</strong>, com emojis e hashtags. O sistema reconhece automaticamente o dono da página pelo cliente vinculado.
+        Texto único pronto para postar em <strong>Facebook e Instagram</strong>. A IA entende o <strong>contexto</strong> da fala
+        (não copia palavra por palavra) e escreve em primeira pessoa como <strong>{candidato || "o candidato cadastrado neste perfil"}</strong>,
+        com emojis e hashtags.
       </p>
 
       {result && (
