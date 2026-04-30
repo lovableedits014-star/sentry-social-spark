@@ -379,51 +379,81 @@ export function MateriasPanel({ clientId }: Props) {
                   )}
                 </div>
               )}
-              <div className="space-y-4">
-                {corpoParagrafos.map((par, i) => {
-                  const audit = auditByIndex.get(i);
-                  const cits: any[] = Array.isArray(audit?.citacoes) ? audit.citacoes : [];
-                  return (
-                    <div key={i} className="group">
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{par}</p>
-                      {cits.length > 0 ? (
-                        <details className="mt-1.5 pl-3 border-l-2 border-muted hover:border-primary/40 transition-colors">
-                          <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
-                            🔎 Auditoria · {cits.length} trecho{cits.length === 1 ? "" : "s"} de origem
-                            {audit?.resumo && <span className="ml-1 italic">— {audit.resumo}</span>}
-                          </summary>
-                          <ul className="mt-1.5 space-y-1.5">
-                            {cits.map((c, ci) => {
-                              const tr = sourceTranscripts.find((t) => t.id === c.transcription_id);
-                              return (
-                                <li key={ci} className="text-[11px] flex gap-1.5">
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0">{c.fonte}</Badge>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-foreground/80 italic">"{c.trecho_origem}"</span>
-                                    {tr && (
-                                      <button
-                                        type="button"
-                                        className="ml-1.5 text-primary hover:underline"
-                                        onClick={() => setSourceOpen(tr.id)}
-                                      >
-                                        ver na transcrição →
-                                      </button>
-                                    )}
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </details>
-                      ) : sourceTranscripts.length > 0 ? (
-                        <p className="mt-1 pl-3 text-[10px] text-muted-foreground/70 italic">
-                          (parágrafo de transição — sem fato citável)
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+              <article className="rounded-lg border bg-card p-6 md:p-8 shadow-sm">
+                <h1 className="font-serif text-2xl md:text-3xl leading-tight font-semibold tracking-tight text-foreground mb-2">
+                  {selected.titulo}
+                </h1>
+                {selected.subtitulo && (
+                  <p className="text-base md:text-lg text-muted-foreground italic mb-5 leading-snug border-l-2 border-primary/40 pl-3">
+                    {selected.subtitulo}
+                  </p>
+                )}
+                <div className="prose prose-sm md:prose-base max-w-none
+                  prose-headings:font-serif prose-headings:font-semibold prose-headings:tracking-tight
+                  prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-2 prose-h2:text-foreground
+                  prose-h3:text-base prose-h3:mt-4 prose-h3:mb-1.5
+                  prose-p:text-foreground/90 prose-p:leading-relaxed prose-p:my-3
+                  prose-strong:text-foreground prose-strong:font-semibold
+                  prose-blockquote:border-l-4 prose-blockquote:border-primary
+                  prose-blockquote:bg-primary/5 prose-blockquote:py-2 prose-blockquote:px-4
+                  prose-blockquote:not-italic prose-blockquote:text-foreground prose-blockquote:font-medium
+                  prose-blockquote:rounded-r-md
+                  prose-ul:my-2 prose-li:my-0.5 prose-li:text-foreground/90
+                  prose-a:text-primary">
+                  <ReactMarkdown>{selected.corpo || ""}</ReactMarkdown>
+                </div>
+              </article>
+              {paragrafosAuditoria.length > 0 && (
+                <details className="rounded-md border bg-muted/30 p-3">
+                  <summary className="cursor-pointer text-xs font-medium text-foreground hover:text-primary select-none">
+                    🔎 Auditoria por parágrafo ({paragrafosAuditoria.length})
+                  </summary>
+                  <ol className="mt-3 space-y-3">
+                    {paragrafosAuditoria.map((audit, i) => {
+                      const cits: any[] = Array.isArray(audit?.citacoes) ? audit.citacoes : [];
+                      const par = corpoParagrafos[i];
+                      return (
+                        <li key={i} className="border-l-2 border-muted pl-3">
+                          <div className="flex items-start gap-2">
+                            <Badge variant="outline" className="text-[10px] mt-0.5">§{i + 1}</Badge>
+                            <p className="text-xs text-foreground/80 line-clamp-2 flex-1">
+                              {audit?.resumo || par || ""}
+                            </p>
+                          </div>
+                          {cits.length > 0 ? (
+                            <ul className="mt-1.5 space-y-1 ml-8">
+                              {cits.map((c, ci) => {
+                                const tr = sourceTranscripts.find((t) => t.id === c.transcription_id);
+                                return (
+                                  <li key={ci} className="text-[11px] flex gap-1.5">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0">{c.fonte}</Badge>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-foreground/70 italic">"{c.trecho_origem}"</span>
+                                      {tr && (
+                                        <button
+                                          type="button"
+                                          className="ml-1.5 text-primary hover:underline"
+                                          onClick={() => setSourceOpen(tr.id)}
+                                        >
+                                          ver na fonte →
+                                        </button>
+                                      )}
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="ml-8 mt-1 text-[10px] text-muted-foreground/70 italic">
+                              (parágrafo de transição — sem fato citável)
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </details>
+              )}
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${selected.titulo}\n\n${selected.corpo}`); toast.success("Copiado!"); }}>
                   <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar
