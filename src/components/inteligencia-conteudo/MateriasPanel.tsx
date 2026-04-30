@@ -129,6 +129,19 @@ export function MateriasPanel({ clientId }: Props) {
     selected?.fontes?.transcription_labels || [];
   labelsMeta.forEach((l) => labelMap.set(l.id, { label: l.label, filename: l.filename }));
 
+  // Auditoria por parágrafo: { indice, resumo, citacoes:[{fonte, trecho_origem, transcription_id, offset_aprox}] }
+  const paragrafosAuditoria: any[] = Array.isArray(selected?.fontes?.paragrafos)
+    ? selected.fontes.paragrafos
+    : [];
+  const auditByIndex = new Map<number, any>();
+  paragrafosAuditoria.forEach((p) => {
+    if (typeof p?.indice === "number") auditByIndex.set(p.indice, p);
+  });
+  const corpoParagrafos: string[] = (selected?.corpo || "")
+    .split(/\n\n+/)
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-1">
