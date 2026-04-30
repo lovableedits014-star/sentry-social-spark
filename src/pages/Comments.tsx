@@ -191,6 +191,41 @@ const Comments = () => {
     setAuthorDrawer({ open: true, ...info });
   }, []);
 
+  // ====== AI Review Queue (low-confidence sentiment classifications) ======
+  const { data: reviewQueue = [], isLoading: loadingReview } = useQuery({
+    queryKey: ["ai-review-queue", commentsData?.clientId],
+    queryFn: async () => {
+      if (!commentsData?.clientId) return [] as Comment[];
+      const { data, error } = await (supabase as any)
+        .from("comments")
+        .select("*")
+        .eq("client_id", commentsData.clientId)
+        .eq("needs_review", true)
+        .eq("is_page_owner", false)
+        .neq("text", "__post_stub__")
+        .order("comment_created_time", { ascending: false })
+        .limit(100);
+      if (error) {
+        console.warn("[ai-review-queue] error:", error.message);
+        return [];
+      }
+      return (data ?? []) as Comment[];
+    },
+    enabled: !!commentsData?.clientId,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const filteredReviewQueue = useMemo(() => {
+    return reviewQueue.filter((c) => {
+      const matchesSearch = !searchTerm ||
+        c.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.author_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPlatform = platformFilter === "all" || c.platform === platformFilter;
+      return matchesSearch && matchesPlatform;
+    });
+  }, [reviewQueue, searchTerm, platformFilter]);
+
   // Independent query for Recentes tab — fetches latest comments regardless of post age
   const fetchRecentComments = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
