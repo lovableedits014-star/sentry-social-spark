@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const fatos = await extractFactsViaLLM(admin, clientId, text);
+    const fatos = await extractFactsViaLLM(admin, clientId, text, sourceType);
     if (!fatos.length) {
       return jsonResponse({ extracted: 0 });
     }
