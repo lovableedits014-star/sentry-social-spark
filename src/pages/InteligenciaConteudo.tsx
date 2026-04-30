@@ -81,7 +81,7 @@ export default function InteligenciaConteudo() {
 
 /* ---------- Radar ---------- */
 function RadarPanel({ clientId, onSeed }: { clientId: string | null | undefined; onSeed: () => void }) {
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, error } = useQuery({
     queryKey: ["ic-radar", clientId],
     queryFn: async () => {
       if (!clientId) return null;
@@ -89,6 +89,7 @@ function RadarPanel({ clientId, onSeed }: { clientId: string | null | undefined;
     },
     enabled: !!clientId,
     staleTime: Infinity,
+    retry: false,
   });
 
   const refresh = useMutation({
@@ -107,6 +108,18 @@ function RadarPanel({ clientId, onSeed }: { clientId: string | null | undefined;
 
   if (!clientId) return <Card><CardContent className="py-10 text-center text-muted-foreground">Carregando…</CardContent></Card>;
   if (isLoading) return <Card><CardContent className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></CardContent></Card>;
+  if (error) return (
+    <Card>
+      <CardContent className="py-8 text-center space-y-3">
+        <AlertTriangle className="w-6 h-6 text-destructive mx-auto" />
+        <p className="text-sm text-muted-foreground">Não foi possível gerar o radar agora.</p>
+        <p className="text-xs text-muted-foreground max-w-md mx-auto">{(error as Error).message}</p>
+        <Button size="sm" variant="outline" onClick={() => refresh.mutate()}>
+          <RefreshCw className="w-4 h-4 mr-2" />Tentar novamente
+        </Button>
+      </CardContent>
+    </Card>
+  );
 
   const snap = data?.snapshot;
   const sections: Array<{ key: string; title: string; icon: any; color: string; items: any[]; render: (it: any) => { titulo: string; desc: string; tema: string; tipo: string } }> = [
