@@ -619,6 +619,7 @@ export type Database = {
           id: string
           is_hidden: boolean
           is_page_owner: boolean
+          needs_review: boolean
           parent_comment_id: string | null
           platform: string | null
           platform_user_id: string | null
@@ -629,6 +630,8 @@ export type Database = {
           post_permalink_url: string | null
           responded_at: string | null
           sentiment: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_confidence: number | null
+          sentiment_source: string
           social_profile_id: string | null
           status: Database["public"]["Enums"]["comment_status"] | null
           text: string
@@ -649,6 +652,7 @@ export type Database = {
           id?: string
           is_hidden?: boolean
           is_page_owner?: boolean
+          needs_review?: boolean
           parent_comment_id?: string | null
           platform?: string | null
           platform_user_id?: string | null
@@ -659,6 +663,8 @@ export type Database = {
           post_permalink_url?: string | null
           responded_at?: string | null
           sentiment?: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_confidence?: number | null
+          sentiment_source?: string
           social_profile_id?: string | null
           status?: Database["public"]["Enums"]["comment_status"] | null
           text: string
@@ -679,6 +685,7 @@ export type Database = {
           id?: string
           is_hidden?: boolean
           is_page_owner?: boolean
+          needs_review?: boolean
           parent_comment_id?: string | null
           platform?: string | null
           platform_user_id?: string | null
@@ -689,6 +696,8 @@ export type Database = {
           post_permalink_url?: string | null
           responded_at?: string | null
           sentiment?: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_confidence?: number | null
+          sentiment_source?: string
           social_profile_id?: string | null
           status?: Database["public"]["Enums"]["comment_status"] | null
           text?: string
@@ -3588,6 +3597,105 @@ export type Database = {
           },
         ]
       }
+      sentiment_corrections: {
+        Row: {
+          ai_predicted: string | null
+          client_id: string
+          comment_id: string | null
+          comment_text: string
+          corrected_by: string | null
+          created_at: string
+          human_corrected: string
+          id: string
+        }
+        Insert: {
+          ai_predicted?: string | null
+          client_id: string
+          comment_id?: string | null
+          comment_text: string
+          corrected_by?: string | null
+          created_at?: string
+          human_corrected: string
+          id?: string
+        }
+        Update: {
+          ai_predicted?: string | null
+          client_id?: string
+          comment_id?: string | null
+          comment_text?: string
+          corrected_by?: string | null
+          created_at?: string
+          human_corrected?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      social_militants: {
+        Row: {
+          author_name: string | null
+          avatar_url: string | null
+          client_id: string
+          created_at: string
+          current_badge: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          notes: string | null
+          platform: string
+          platform_user_id: string
+          promoted_to_supporter_id: string | null
+          total_30d_negative: number
+          total_30d_positive: number
+          total_comments: number
+          total_negative: number
+          total_neutral: number
+          total_positive: number
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          avatar_url?: string | null
+          client_id: string
+          created_at?: string
+          current_badge?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          notes?: string | null
+          platform: string
+          platform_user_id: string
+          promoted_to_supporter_id?: string | null
+          total_30d_negative?: number
+          total_30d_positive?: number
+          total_comments?: number
+          total_negative?: number
+          total_neutral?: number
+          total_positive?: number
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          avatar_url?: string | null
+          client_id?: string
+          created_at?: string
+          current_badge?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          notes?: string | null
+          platform?: string
+          platform_user_id?: string
+          promoted_to_supporter_id?: string | null
+          total_30d_negative?: number
+          total_30d_positive?: number
+          total_comments?: number
+          total_negative?: number
+          total_neutral?: number
+          total_positive?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       social_profiles: {
         Row: {
           avatar_url: string | null
@@ -4662,6 +4770,18 @@ export type Database = {
         Args: { p_days?: number; p_supporter_id: string }
         Returns: number
       }
+      compute_militant_badge: {
+        Args: {
+          p_30d_neg: number
+          p_30d_pos: number
+          p_first_seen: string
+          p_last_seen: string
+          p_total_comments: number
+          p_total_neg: number
+          p_total_pos: number
+        }
+        Returns: string
+      }
       confirm_whatsapp_by_phone: {
         Args: { p_client_id: string; p_phone: string }
         Returns: Json
@@ -4894,6 +5014,14 @@ export type Database = {
       pick_healthy_whatsapp_instance: {
         Args: { p_client_id: string }
         Returns: string
+      }
+      recompute_militant: {
+        Args: {
+          p_client_id: string
+          p_platform: string
+          p_platform_user_id: string
+        }
+        Returns: undefined
       }
       register_pessoa_public: {
         Args: {
