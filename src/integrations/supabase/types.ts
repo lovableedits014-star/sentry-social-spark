@@ -831,34 +831,52 @@ export type Database = {
       }
       content_radar_snapshots: {
         Row: {
+          base_signals: Json | null
+          calendar_hooks: Json | null
           client_id: string
           created_at: string
+          crisis_alerts: Json | null
+          defender_pulse: Json | null
           hostile_narratives: Json | null
           hot_topics: Json | null
           id: string
+          meta: Json | null
           mobilizing_pautas: Json | null
           open_questions: Json | null
           snapshot_date: string
+          total_signals: number | null
         }
         Insert: {
+          base_signals?: Json | null
+          calendar_hooks?: Json | null
           client_id: string
           created_at?: string
+          crisis_alerts?: Json | null
+          defender_pulse?: Json | null
           hostile_narratives?: Json | null
           hot_topics?: Json | null
           id?: string
+          meta?: Json | null
           mobilizing_pautas?: Json | null
           open_questions?: Json | null
           snapshot_date?: string
+          total_signals?: number | null
         }
         Update: {
+          base_signals?: Json | null
+          calendar_hooks?: Json | null
           client_id?: string
           created_at?: string
+          crisis_alerts?: Json | null
+          defender_pulse?: Json | null
           hostile_narratives?: Json | null
           hot_topics?: Json | null
           id?: string
+          meta?: Json | null
           mobilizing_pautas?: Json | null
           open_questions?: Json | null
           snapshot_date?: string
+          total_signals?: number | null
         }
         Relationships: [
           {
