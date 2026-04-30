@@ -57,6 +57,10 @@ Deno.serve(async (req) => {
       salvarComo = "rascunho",
       transcriptionId,
       transcriptionIds,
+      providerOverride,
+      modelOverride,
+      apiKeyOverride,
+      reprocessMateriaId,
     } = body || ({} as WriteRequest);
 
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
