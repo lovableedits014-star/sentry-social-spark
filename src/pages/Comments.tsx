@@ -178,6 +178,9 @@ const Comments = () => {
   }
   const clientId = clientIdRef.current;
 
+  // Load militant profiles for badge rendering on comments
+  const { data: militantsMap } = useMilitantsMap(commentsData?.clientId || null);
+
   // Independent query for Recentes tab — fetches latest comments regardless of post age
   const fetchRecentComments = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
