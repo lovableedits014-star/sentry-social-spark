@@ -65,6 +65,60 @@ export function MateriasPanel({ clientId }: Props) {
   }, [selected?.id]);
 
   const reprocessar = async () => {
+    const isBol = selected?.tipo === "boletim";
+    const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
+    if (!isBol && !trId) {
+      toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
+      return;
+    }
+    setReprocessLoading(true);
+    try {
+      let data: any, error: any;
+      if (isBol) {
+        const periodo = selected?.fontes?.periodo || {};
+        const r = await supabase.functions.invoke("ic-write-boletim", {
+          body: {
+            clientId,
+            since: periodo.since ? periodo.since.slice(0, 10) : boletimSince,
+            until: periodo.until ? periodo.until.slice(0, 10) : boletimUntil,
+            tema: selected?.tema || undefined,
+            providerOverride: reprocessProvider || undefined,
+            modelOverride: reprocessModel || undefined,
+            reprocessMateriaId: selected.id,
+            briefing: refineInstructions.trim() || undefined,
+          },
+        });
+        data = r.data; error = r.error;
+      } else {
+        const r = await supabase.functions.invoke("ic-reprocess-transcription", {
+          body: {
+            clientId,
+            transcriptionId: trId,
+            provider: reprocessProvider || undefined,
+            model: reprocessModel || undefined,
+            reprocessMateriaId: selected.id,
+            regenerateMemory: !refineInstructions.trim(),
+            materia: refineInstructions.trim() ? { briefing: refineInstructions.trim() } : undefined,
+          },
+        });
+        data = r.data; error = r.error;
+      }
+      if (error) throw error;
+      if (data?.materia_error) throw new Error(data.materia_error);
+      toast.success(`Reprocessado com ${data?.materia_provider || data?.provider || reprocessProvider}/${data?.materia_model || data?.model || "default"}`);
+      setReprocessOpen(false);
+      setRefineInstructions("");
+      await load();
+      const next = data?.saved || data?.materia;
+      if (next) setSelected(next);
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao reprocessar");
+    } finally {
+      setReprocessLoading(false);
+    }
+  };
+
+  const _legacyReprocessar = async () => {
     const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
     if (!trId) {
       toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
