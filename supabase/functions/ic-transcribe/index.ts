@@ -143,6 +143,45 @@ Deno.serve(async (req) => {
       return json({ error: "Falha ao salvar transcrição" }, 500);
     }
 
+    // Gera título IA a partir da transcrição inteira (sem fragmentar)
+    if (inserted?.full_text && inserted.full_text.length > 30) {
+      try {
+        const llmConfig = await getClientLLMConfig(admin, clientId);
+        const titleResp = await callLLM(llmConfig, {
+          messages: [
+            {
+              role: "system",
+              content:
+                "Você dá títulos curtos e descritivos para transcrições políticas em português. Responda APENAS com o título — máximo 70 caracteres, sem aspas, sem ponto final, sem emojis. Capture o tema central (ex: 'Visita à UBS Moreninha 4 — promessa de novo PSF').",
+            },
+            {
+              role: "user",
+              content: `Transcrição:\n"""${(inserted.full_text as string).slice(0, 8000)}"""\n\nTítulo:`,
+            },
+          ],
+          maxTokens: 60,
+          temperature: 0.3,
+        });
+        const rawTitle = (titleResp.content || "")
+          .replace(/["'`*]/g, "")
+          .replace(/^título:\s*/i, "")
+          .split("\n")[0]
+          .trim()
+          .slice(0, 80);
+        if (rawTitle.length >= 5) {
+          const { data: updated } = await admin
+            .from("ic_transcriptions")
+            .update({ filename: rawTitle })
+            .eq("id", inserted.id)
+            .select("*")
+            .maybeSingle();
+          if (updated) Object.assign(inserted, updated);
+        }
+      } catch (e) {
+        console.error("[ic-transcribe] title generation failed:", e);
+      }
+    }
+
     // Fire-and-forget: extrai inteligência da transcrição
     if (inserted?.full_text && inserted.full_text.length > 50) {
       fetch(`${SUPABASE_URL}/functions/v1/ic-extract-knowledge`, {
