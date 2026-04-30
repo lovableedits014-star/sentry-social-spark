@@ -512,6 +512,19 @@ export const CommentItem = memo(function CommentItem({
                 className="min-h-[80px] text-sm resize-none"
                 autoFocus
               />
+              <QuickRepliesGrid
+                clientId={comment.client_id}
+                onPick={(text) => setManualText(text)}
+              />
+              <QuickContactsBar
+                clientId={comment.client_id}
+                onPick={(snippet) => {
+                  setManualText((prev) => {
+                    const base = (prev ?? "").trimEnd();
+                    return base ? `${base}\n\n${snippet}` : snippet;
+                  });
+                }}
+              />
               <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
