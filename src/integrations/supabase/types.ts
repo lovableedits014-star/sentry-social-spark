@@ -548,7 +548,10 @@ export type Database = {
           contexto: string | null
           created_at: string
           entidades: Json | null
+          extraction_run_id: string | null
           id: string
+          model: string | null
+          provider: string | null
           source_date: string | null
           source_id: string | null
           source_type: string
@@ -565,7 +568,10 @@ export type Database = {
           contexto?: string | null
           created_at?: string
           entidades?: Json | null
+          extraction_run_id?: string | null
           id?: string
+          model?: string | null
+          provider?: string | null
           source_date?: string | null
           source_id?: string | null
           source_type: string
@@ -582,7 +588,10 @@ export type Database = {
           contexto?: string | null
           created_at?: string
           entidades?: Json | null
+          extraction_run_id?: string | null
           id?: string
+          model?: string | null
+          provider?: string | null
           source_date?: string | null
           source_id?: string | null
           source_type?: string
@@ -2290,7 +2299,9 @@ export type Database = {
           fontes: Json
           id: string
           metadata: Json
+          model: string | null
           prompt_input: string | null
+          provider: string | null
           status: string
           subtitulo: string | null
           tema: string | null
@@ -2300,6 +2311,7 @@ export type Database = {
           transcription_id: string | null
           updated_at: string
           user_id: string | null
+          versao: number
         }
         Insert: {
           client_id: string
@@ -2308,7 +2320,9 @@ export type Database = {
           fontes?: Json
           id?: string
           metadata?: Json
+          model?: string | null
           prompt_input?: string | null
+          provider?: string | null
           status?: string
           subtitulo?: string | null
           tema?: string | null
@@ -2318,6 +2332,7 @@ export type Database = {
           transcription_id?: string | null
           updated_at?: string
           user_id?: string | null
+          versao?: number
         }
         Update: {
           client_id?: string
@@ -2326,7 +2341,9 @@ export type Database = {
           fontes?: Json
           id?: string
           metadata?: Json
+          model?: string | null
           prompt_input?: string | null
+          provider?: string | null
           status?: string
           subtitulo?: string | null
           tema?: string | null
@@ -2336,6 +2353,7 @@ export type Database = {
           transcription_id?: string | null
           updated_at?: string
           user_id?: string | null
+          versao?: number
         }
         Relationships: [
           {
@@ -2343,6 +2361,62 @@ export type Database = {
             columns: ["transcription_id"]
             isOneToOne: false
             referencedRelation: "ic_transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      materias_versions: {
+        Row: {
+          client_id: string
+          corpo: string
+          created_at: string
+          fontes: Json
+          id: string
+          materia_id: string
+          metadata: Json
+          model: string | null
+          prompt_input: string | null
+          provider: string | null
+          subtitulo: string | null
+          titulo: string
+          versao: number
+        }
+        Insert: {
+          client_id: string
+          corpo: string
+          created_at?: string
+          fontes?: Json
+          id?: string
+          materia_id: string
+          metadata?: Json
+          model?: string | null
+          prompt_input?: string | null
+          provider?: string | null
+          subtitulo?: string | null
+          titulo: string
+          versao: number
+        }
+        Update: {
+          client_id?: string
+          corpo?: string
+          created_at?: string
+          fontes?: Json
+          id?: string
+          materia_id?: string
+          metadata?: Json
+          model?: string | null
+          prompt_input?: string | null
+          provider?: string | null
+          subtitulo?: string | null
+          titulo?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materias_versions_materia_id_fkey"
+            columns: ["materia_id"]
+            isOneToOne: false
+            referencedRelation: "materias_geradas"
             referencedColumns: ["id"]
           },
         ]
