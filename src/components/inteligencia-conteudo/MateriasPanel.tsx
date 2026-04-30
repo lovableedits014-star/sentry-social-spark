@@ -10,9 +10,379 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown, FileDown, Send, Star, Pencil, X, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import jsPDF from "jspdf";
+
+/* ==========================================================================
+ * PDF BUILDER — Boletim Semanal (mesmo padrão visual do Dossiê de Narrativa)
+ * ========================================================================== */
+function buildBoletimPdf(boletim: any, download = true): jsPDF {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  const contentW = pageW - margin * 2;
+
+  const C = {
+    primary: [15, 23, 42] as number[],
+    accent:  [59, 130, 246] as number[],
+    danger:  [220, 38, 38] as number[],
+    warn:    [234, 88, 12] as number[],
+    muted:   [100, 116, 139] as number[],
+    light:   [241, 245, 249] as number[],
+    border:  [226, 232, 240] as number[],
+    success: [22, 163, 74] as number[],
+    text:    [30, 41, 59] as number[],
+    white:   [255, 255, 255] as number[],
+    bgSoft:  [248, 250, 252] as number[],
+  };
+  const setFill = (c: number[]) => doc.setFillColor(c[0], c[1], c[2]);
+  const setStroke = (c: number[]) => doc.setDrawColor(c[0], c[1], c[2]);
+  const setText = (c: number[]) => doc.setTextColor(c[0], c[1], c[2]);
+
+  let y = margin;
+  let pageNum = 1;
+
+  const fontes = boletim?.fontes || {};
+  const stats = fontes.stats || {};
+  const periodo = fontes.periodo || {};
+  const meta = boletim?.metadata || {};
+  const periodoLabel = periodo.since && periodo.until
+    ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+    : "Período não definido";
+  const titulo = boletim?.titulo || `Boletim semanal — ${periodoLabel}`;
+  const subtitulo = boletim?.subtitulo || "";
+
+  const drawHeader = () => {
+    if (pageNum === 1) return;
+    setFill(C.primary);
+    doc.rect(0, 0, pageW, 28, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(`BOLETIM SEMANAL · ${periodoLabel}`, margin, 18);
+  };
+  const drawFooter = () => {
+    setText(C.muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Inteligência de Conteúdo · Boletim Semanal", margin, pageH - 18);
+    doc.text(`Página ${pageNum}`, pageW - margin, pageH - 18, { align: "right" });
+  };
+  const newPage = () => {
+    drawFooter();
+    doc.addPage();
+    pageNum++;
+    drawHeader();
+    y = pageNum === 1 ? margin : 56;
+  };
+  const ensure = (h: number) => { if (y + h > pageH - 40) newPage(); };
+
+  const sectionTitle = (title: string, accent: number[] = C.accent) => {
+    ensure(38);
+    setFill(accent);
+    doc.rect(margin, y, 4, 18, "F");
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(title, margin + 12, y + 14);
+    y += 28;
+  };
+
+  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean; italic?: boolean; maxWidth?: number; indent?: number } = {}) => {
+    const size = opts.size ?? 10;
+    setText(opts.color ?? C.text);
+    const style = opts.bold ? (opts.italic ? "bolditalic" : "bold") : (opts.italic ? "italic" : "normal");
+    doc.setFont("helvetica", style);
+    doc.setFontSize(size);
+    const safe = (text || "").replace(/(\S{30,})/g, (m) => m.replace(/(.{22})/g, "$1 "));
+    const w = opts.maxWidth ?? contentW - (opts.indent || 0);
+    const wrapped = doc.splitTextToSize(safe, w);
+    for (const line of wrapped) {
+      ensure(size + 4);
+      doc.text(line, margin + (opts.indent || 0), y);
+      y += size + 4;
+    }
+  };
+
+  const card = (title: string, value: string, sub: string, x: number, w: number, accent = C.accent) => {
+    const h = 56;
+    setFill(C.light);
+    setStroke(C.border);
+    doc.roundedRect(x, y, w, h, 4, 4, "FD");
+    setFill(accent);
+    doc.rect(x, y, 3, h, "F");
+    setText(C.muted);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(title.toUpperCase(), x + 10, y + 14);
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    const vWrapped = doc.splitTextToSize(value, w - 20);
+    doc.text(vWrapped[0] || "—", x + 10, y + 32);
+    if (sub) {
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const sWrapped = doc.splitTextToSize(sub, w - 20);
+      doc.text(sWrapped[0], x + 10, y + 48);
+    }
+  };
+
+  const pill = (text: string, x: number, py: number, color: number[]): number => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    const tw = doc.getTextWidth(text) + 14;
+    setFill(color);
+    doc.roundedRect(x, py - 9, tw, 14, 7, 7, "F");
+    setText(C.white);
+    doc.text(text, x + 7, py);
+    return tw;
+  };
+
+  /* ---------- CAPA ---------- */
+  setFill(C.primary);
+  doc.rect(0, 0, pageW, 220, "F");
+  setFill(C.accent);
+  doc.rect(0, 220, pageW, 4, "F");
+
+  setText(C.white);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("INTELIGÊNCIA DE CONTEÚDO · BOLETIM SEMANAL", margin, 70);
+
+  doc.setFontSize(28);
+  const titWrap = doc.splitTextToSize(titulo, contentW);
+  doc.text(titWrap.slice(0, 3), margin, 110);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
+  setText(C.light);
+  doc.text(periodoLabel, margin, 180);
+
+  // Caixa "destaques da semana"
+  setFill(C.white);
+  setStroke(C.border);
+  doc.roundedRect(margin, 250, contentW, 200, 6, 6, "FD");
+  setText(C.muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("RESUMO DA SEMANA", margin + 16, 274);
+
+  setText(C.primary);
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(11);
+  if (subtitulo) {
+    const sub = doc.splitTextToSize(subtitulo, contentW - 32);
+    doc.text(sub.slice(0, 3), margin + 16, 296);
+  }
+
+  // Destaques bullet
+  setText(C.text);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const destaques: string[] = Array.isArray(meta.destaques) ? meta.destaques : [];
+  let dy = 340;
+  for (const d of destaques.slice(0, 4)) {
+    const wrap = doc.splitTextToSize(`• ${d}`, contentW - 32);
+    for (const ln of wrap.slice(0, 3)) {
+      if (dy > 438) break;
+      doc.text(ln, margin + 16, dy);
+      dy += 14;
+    }
+    dy += 2;
+  }
+
+  // KPIs na capa
+  y = 470;
+  const kpiW = (contentW - 20) / 3;
+  const yKpi = 470;
+  const tomColor = stats.tom_geral === "positivo" ? C.success
+    : stats.tom_geral === "negativo" ? C.danger
+    : stats.tom_geral === "misto" ? C.warn : C.muted;
+  card("Postagens", String(stats.posts ?? 0),
+    stats.semana_anterior?.variacao_posts_pct != null
+      ? `${stats.semana_anterior.variacao_posts_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_posts_pct}% vs semana anterior`
+      : "",
+    margin, kpiW, C.accent);
+  y = yKpi;
+  card("Comentários", String(stats.comentarios ?? 0),
+    stats.semana_anterior?.variacao_comentarios_pct != null
+      ? `${stats.semana_anterior.variacao_comentarios_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_comentarios_pct}% vs semana anterior`
+      : "",
+    margin + kpiW + 10, kpiW, C.success);
+  y = yKpi;
+  card("Tom da recepção", String(stats.tom_geral || "—").toUpperCase(),
+    `👍 ${stats.sentimento_positivo ?? 0} · 👎 ${stats.sentimento_negativo ?? 0} · 😐 ${stats.sentimento_neutro ?? 0}`,
+    margin + (kpiW + 10) * 2, kpiW, tomColor);
+
+  // Segunda linha de KPIs
+  y = 540;
+  card("Ações externas", String(stats.acoes ?? 0), "Eventos / agenda registrada", margin, kpiW, C.warn);
+  y = 540;
+  card("Visitas", String(stats.visitas ?? 0), "Territórios visitados", margin + kpiW + 10, kpiW, C.accent);
+  y = 540;
+  card("Taxa de resposta", `${stats.taxa_resposta_pct ?? 0}%`,
+    `${stats.respondidos ?? 0} de ${stats.comentarios ?? 0} comentários`,
+    margin + (kpiW + 10) * 2, kpiW, C.success);
+
+  drawFooter();
+
+  /* ---------- CONTEÚDO ---------- */
+  doc.addPage();
+  pageNum++;
+  drawHeader();
+  y = 56;
+
+  // Render do markdown do corpo (parser leve: ##, ###, listas, links, negrito)
+  const corpo: string = (boletim?.corpo || "").trim();
+  if (corpo) {
+    sectionTitle("Análise da semana", C.accent);
+
+    const lines = corpo.split("\n");
+    const stripMd = (s: string) =>
+      s.replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\*(.+?)\*/g, "$1")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+        .replace(/`([^`]+)`/g, "$1");
+
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+      if (!line.trim()) { y += 4; continue; }
+      // H2
+      if (line.startsWith("## ")) {
+        y += 6;
+        sectionTitle(stripMd(line.replace(/^##\s+/, "")), C.accent);
+        continue;
+      }
+      // H3
+      if (line.startsWith("### ")) {
+        y += 4;
+        ensure(20);
+        setText(C.primary);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(stripMd(line.replace(/^###\s+/, "")), margin, y);
+        y += 14;
+        continue;
+      }
+      // Bullet
+      if (/^[-*]\s+/.test(line)) {
+        const txt = stripMd(line.replace(/^[-*]\s+/, ""));
+        ensure(14);
+        setText(C.accent);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("•", margin + 4, y);
+        paragraph(txt, { size: 10, indent: 16 });
+        continue;
+      }
+      // Parágrafo comum
+      paragraph(stripMd(line), { size: 10 });
+    }
+  }
+
+  /* ---------- TOP POSTAGENS ---------- */
+  const topPosts: any[] = Array.isArray(stats.top_posts) ? stats.top_posts : [];
+  if (topPosts.length > 0) {
+    y += 8;
+    sectionTitle("Top postagens (mais comentadas)", C.warn);
+
+    ensure(24);
+    setFill(C.primary);
+    doc.rect(margin, y, contentW, 20, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("#", margin + 8, y + 14);
+    doc.text("PLATAFORMA", margin + 30, y + 14);
+    doc.text("RESUMO DO POST", margin + 130, y + 14);
+    doc.text("COMENT.", pageW - margin - 60, y + 14);
+    y += 20;
+
+    topPosts.forEach((p, idx) => {
+      const txt = (p.message || "(sem texto)");
+      const safe = txt.replace(/\s+/g, " ").trim().slice(0, 180);
+      const wrap = doc.splitTextToSize(safe, 280);
+      const rowH = Math.max(28, 14 + wrap.length * 12);
+      ensure(rowH);
+      if (idx % 2 === 0) {
+        setFill(C.bgSoft);
+        doc.rect(margin, y, contentW, rowH, "F");
+      }
+      setText(C.text);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(String(p.rank ?? idx + 1), margin + 8, y + 16);
+      doc.setFont("helvetica", "bold");
+      doc.text((p.platform || "?").toUpperCase(), margin + 30, y + 16);
+      doc.setFont("helvetica", "normal");
+      let ty = y + 16;
+      for (const ln of wrap) {
+        doc.text(ln, margin + 130, ty);
+        ty += 12;
+      }
+      doc.setFont("helvetica", "bold");
+      setText(C.accent);
+      doc.text(`${p.total ?? 0}`, pageW - margin - 60, y + 16);
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(`👍${p.pos ?? 0} 👎${p.neg ?? 0}`, pageW - margin - 60, y + 30);
+      y += rowH;
+    });
+  }
+
+  /* ---------- AGENDA / VISITAS ---------- */
+  const acoes: any[] = Array.isArray(fontes.acoes_referenciadas) ? fontes.acoes_referenciadas : [];
+  const visitas: any[] = Array.isArray(fontes.visitas_referenciadas) ? fontes.visitas_referenciadas : [];
+
+  if (acoes.length > 0) {
+    y += 12;
+    sectionTitle("Agenda externa", C.success);
+    for (const a of acoes) {
+      const data = a.data_inicio ? new Date(a.data_inicio).toLocaleDateString("pt-BR") : "—";
+      const meta = a.meta ? ` (${a.cadastros || 0}/${a.meta} cadastros)` : "";
+      paragraph(`• ${data} — ${a.titulo || "Ação"}${a.local ? ` em ${a.local}` : ""}${meta}`, { size: 10 });
+    }
+  }
+
+  if (visitas.length > 0) {
+    y += 12;
+    sectionTitle("Visitas realizadas", C.accent);
+    for (const v of visitas) {
+      const data = v.data_visita ? new Date(v.data_visita).toLocaleDateString("pt-BR") : "—";
+      const bairros = Array.isArray(v.bairros) && v.bairros.length ? ` · bairros: ${v.bairros.join(", ")}` : "";
+      const temas = Array.isArray(v.temas) && v.temas.length ? ` · temas: ${v.temas.join(", ")}` : "";
+      paragraph(`• ${data} — ${v.municipio || "?"}/${v.uf || "?"}${bairros}${temas}`, { size: 10 });
+    }
+  }
+
+  /* ---------- RECOMENDAÇÕES ---------- */
+  const recs: string[] = Array.isArray(meta.recomendacoes) ? meta.recomendacoes : [];
+  if (recs.length > 0) {
+    y += 12;
+    sectionTitle("Recomendações para a próxima semana", C.warn);
+    for (const r of recs) {
+      paragraph(`• ${r}`, { size: 10 });
+    }
+  }
+
+  drawFooter();
+
+  if (download) {
+    const slug = periodoLabel.replace(/[^\w]+/g, "-").toLowerCase();
+    doc.save(`boletim-semanal-${slug}.pdf`);
+  }
+  return doc;
+}
+
+function exportBoletimPdf(boletim: any) {
+  buildBoletimPdf(boletim, true);
+}
 
 interface Props { clientId: string }
 
@@ -46,6 +416,122 @@ export function MateriasPanel({ clientId }: Props) {
   const [incluirPosts, setIncluirPosts] = useState(true);
   const [incluirAcoes, setIncluirAcoes] = useState(true);
   const [incluirVisitas, setIncluirVisitas] = useState(true);
+
+  // ===== WhatsApp dispatch (mesmo fluxo da Narrativa) =====
+  const [waOpen, setWaOpen] = useState(false);
+  const [waPhone, setWaPhone] = useState("");
+  const [waSending, setWaSending] = useState(false);
+  const defaultPhoneKey = clientId ? `wa_default_phone:${clientId}` : "wa_default_phone:_anon_";
+  const [defaultPhone, setDefaultPhone] = useState("");
+  const [editingDefault, setEditingDefault] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(defaultPhoneKey) || "";
+      setDefaultPhone(saved);
+      if (saved && !waPhone) setWaPhone(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultPhoneKey]);
+
+  useEffect(() => {
+    if (waOpen && defaultPhone && !waPhone) setWaPhone(defaultPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waOpen]);
+
+  const formatPhoneDisplay = (digits: string): string => {
+    const d = digits.replace(/\D/g, "");
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 13 && d.startsWith("55")) return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
+    return d;
+  };
+
+  const saveAsDefault = () => {
+    const d = waPhone.replace(/\D/g, "");
+    if (d.length < 10) { toast.error("Número inválido. Informe DDD + número."); return; }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d);
+      toast.success(`Número padrão salvo: ${formatPhoneDisplay(d)}`);
+    } catch { toast.error("Erro ao salvar"); }
+  };
+  const clearDefault = () => {
+    try { localStorage.removeItem(defaultPhoneKey); setDefaultPhone(""); toast.success("Número padrão removido"); } catch {}
+  };
+  const startEditDefault = () => { setEditPhoneValue(defaultPhone); setEditingDefault(true); };
+  const confirmEditDefault = () => {
+    const d = editPhoneValue.replace(/\D/g, "");
+    if (d.length < 10) { toast.error("Número inválido"); return; }
+    try {
+      localStorage.setItem(defaultPhoneKey, d);
+      setDefaultPhone(d); setWaPhone(d); setEditingDefault(false);
+      toast.success(`Padrão atualizado: ${formatPhoneDisplay(d)}`);
+    } catch {}
+  };
+
+  const sendBoletimWhatsApp = async () => {
+    if (!selected || selected.tipo !== "boletim") { toast.error("Selecione um boletim"); return; }
+    if (!waPhone) { toast.error("Informe o número"); return; }
+    setWaSending(true);
+    try {
+      if (!clientId) throw new Error("Cliente não identificado");
+      // 1) Gera o PDF em memória
+      const pdfDoc = buildBoletimPdf(selected, false);
+      const pdfBlob = pdfDoc.output("blob") as Blob;
+      const periodo = selected.fontes?.periodo || {};
+      const periodoLabel = periodo.since && periodo.until
+        ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+        : "semana";
+      const slug = periodoLabel.replace(/[^\w]+/g, "-").toLowerCase();
+      const filename = `boletim-${slug}.pdf`;
+      const objectPath = `dispatches/${clientId}/${Date.now()}-${filename}`;
+
+      // 2) Upload bucket whatsapp-media
+      const up = await supabase.storage.from("whatsapp-media")
+        .upload(objectPath, pdfBlob, { contentType: "application/pdf", upsert: true });
+      if (up.error) throw up.error;
+      const { data: pub } = supabase.storage.from("whatsapp-media").getPublicUrl(objectPath);
+      const downloadUrl = pub?.publicUrl;
+      if (!downloadUrl) throw new Error("Falha ao gerar link público do PDF");
+
+      // 3) Mensagem
+      const stats = selected.fontes?.stats || {};
+      const message =
+        `📊 *Boletim Semanal — ${periodoLabel}*\n\n` +
+        `${selected.subtitulo || "Resumo da semana de atividades, postagens e agenda."}\n\n` +
+        `• ${stats.posts ?? 0} postagens · ${stats.comentarios ?? 0} comentários\n` +
+        `• Tom: ${(stats.tom_geral || "—").toUpperCase()}\n` +
+        `• ${stats.acoes ?? 0} ações · ${stats.visitas ?? 0} visitas\n\n` +
+        `📎 PDF completo: ${downloadUrl}\n\n` +
+        `_O link fica disponível por 7 dias._`;
+
+      // 4) Normaliza telefone
+      let phone = waPhone.replace(/\D/g, "");
+      if (phone.length === 11 || phone.length === 10) phone = "55" + phone;
+
+      // 5) Pool de instâncias
+      const { data: instanceId, error: pickErr } = await supabase
+        .rpc("pick_healthy_whatsapp_instance" as any, { p_client_id: clientId });
+      if (pickErr) throw pickErr;
+      if (!instanceId) throw new Error("Nenhum chip WhatsApp ativo no pool. Configure em Settings → Pool de Instâncias.");
+
+      // 6) Envia
+      const r = await supabase.functions.invoke("manage-whatsapp-instance", {
+        body: { action: "send", phone, message, instance_id: instanceId, client_id: clientId },
+      });
+      if (r.error) throw r.error;
+      if (r.data?.success === false || r.data?.error) throw new Error(r.data?.error || "Falha no envio pela bridge");
+
+      toast.success(`Boletim enviado para ${phone}. Link disponível por 7 dias.`);
+      setWaOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao enviar");
+    } finally {
+      setWaSending(false);
+    }
+  };
 
   const isBoletim = tipo === "boletim";
 
@@ -423,6 +909,94 @@ export function MateriasPanel({ clientId }: Props) {
                   <Badge variant="destructive" className="text-[10px]">⚠ {selected.metadata.avisos}</Badge>
                 )}
               </div>
+              {selected.tipo === "boletim" && (
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => exportBoletimPdf(selected)}>
+                    <FileDown className="w-4 h-4 mr-2" /> Exportar PDF
+                  </Button>
+                  <Dialog open={waOpen} onOpenChange={setWaOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline">
+                        <Send className="w-4 h-4 mr-2" /> Enviar por WhatsApp
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enviar boletim via WhatsApp</DialogTitle>
+                        <DialogDescription>
+                          O boletim será enviado como link clicável para download do PDF (válido por 7 dias).
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+                        {defaultPhone && !editingDefault && (
+                          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Star className="w-4 h-4 text-primary fill-primary shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-xs text-muted-foreground">Número padrão salvo</div>
+                                <div className="font-semibold truncate">{formatPhoneDisplay(defaultPhone)}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button size="sm" variant="ghost" onClick={startEditDefault} title="Trocar número padrão">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={clearDefault} title="Remover padrão">
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {editingDefault && (
+                          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 space-y-2">
+                            <Label className="text-xs">Trocar número padrão</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="ex: 67999999999"
+                                value={editPhoneValue}
+                                onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, ""))}
+                              />
+                              <Button size="sm" onClick={confirmEditDefault}><Check className="w-4 h-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingDefault(false)}>
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <Label className="text-xs">
+                            {defaultPhone ? "Enviar para outro número (opcional)" : "Número (com DDD, só dígitos)"}
+                          </Label>
+                          <Input
+                            placeholder="ex: 67999999999"
+                            value={waPhone}
+                            onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, ""))}
+                          />
+                          {waPhone && waPhone !== defaultPhone && (
+                            <button
+                              type="button"
+                              onClick={saveAsDefault}
+                              className="mt-1.5 text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              <Star className="w-3 h-3" /> Salvar este como padrão
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <DialogFooter className="gap-2 sm:gap-2">
+                        <Button onClick={sendBoletimWhatsApp} disabled={waSending || !waPhone}>
+                          {waSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                          Enviar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
               {selected.tipo === "boletim" && Array.isArray(selected.fontes?.posts_referenciados) && selected.fontes.posts_referenciados.length > 0 && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2">
