@@ -48,6 +48,14 @@ const Comments = () => {
   const [hideResponded, setHideResponded] = useState(true);
   const [showIgnored, setShowIgnored] = useState(false);
   const [reanalyzingSentiments, setReanalyzingSentiments] = useState(false);
+  const [authorDrawer, setAuthorDrawer] = useState<{
+    open: boolean;
+    platform: string;
+    platformUserId: string;
+    authorName: string | null;
+    avatarUrl: string | null;
+    militant: MilitantRow | null;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const fetchCommentsData = useCallback(async (limit: number) => {
