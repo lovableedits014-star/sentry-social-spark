@@ -691,3 +691,259 @@ function DnaContent({ dna }: { dna: any }) {
     </div>
   );
 }
+
+/* ---------- Transcrição (áudio/vídeo → SRT) ---------- */
+const FUNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+function TranscricaoPanel({ clientId }: { clientId: string | null | undefined }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [language, setLanguage] = useState<string>("pt");
+  const [maxSeconds, setMaxSeconds] = useState<number>(7);
+  const [maxChars, setMaxChars] = useState<number>(90);
+  const [uploading, setUploading] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const list = useQuery({
+    queryKey: ["ic-transcriptions", clientId],
+    queryFn: async () => {
+      if (!clientId) return [];
+      const { data, error } = await supabase
+        .from("ic_transcriptions")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!clientId,
+    staleTime: Infinity,
+  });
+
+  async function handleUpload() {
+    if (!file || !clientId) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("Máximo 25MB. Exporte só o áudio (MP3/M4A) do Premiere.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const form = new FormData();
+      form.append("file", file);
+      form.append("clientId", clientId);
+      if (language) form.append("language", language);
+      const res = await fetch(`${FUNC_URL}/ic-transcribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `Falha (${res.status})`);
+      toast.success("Transcrição concluída");
+      setFile(null);
+      setActiveId(json.transcription.id);
+      list.refetch();
+    } catch (e: any) {
+      toast.error(e.message ?? "Falha ao transcrever");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const active = (list.data ?? []).find((t: any) => t.id === activeId) ?? (list.data?.[0] as any);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileAudio className="w-4 h-4 text-primary" />
+            Transcrever áudio/vídeo → legenda SRT
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Suba um arquivo de áudio (MP3, M4A, WAV) ou vídeo curto. Use Whisper Large v3 da Groq via sua chave configurada.
+            <br />
+            <strong>Dica:</strong> exporte só o áudio do Premiere (Arquivo &gt; Exportar &gt; Mídia &gt; Formato MP3) — limite 25MB.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+            <div>
+              <label className="text-xs text-muted-foreground">Arquivo</label>
+              <Input
+                type="file"
+                accept="audio/*,video/mp4,video/quicktime,.mp3,.m4a,.wav,.aac,.mp4,.mov,.webm,.ogg"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Idioma</label>
+              <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="pt" className="w-20" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Bloco (s)</label>
+              <Input type="number" min={2} max={20} value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value) || 7)} className="w-20" />
+            </div>
+            <Button onClick={handleUpload} disabled={!file || uploading || !clientId}>
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <span className="ml-2">Transcrever</span>
+            </Button>
+          </div>
+          {file && (
+            <p className="text-xs text-muted-foreground">
+              {file.name} · {(file.size / (1024 * 1024)).toFixed(1)}MB
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid lg:grid-cols-[280px_1fr] gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Histórico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 max-h-[600px] overflow-auto">
+            {list.isLoading && <Loader2 className="w-4 h-4 animate-spin mx-auto my-4" />}
+            {(list.data ?? []).length === 0 && !list.isLoading && (
+              <p className="text-xs text-muted-foreground text-center py-4">Nenhuma transcrição ainda.</p>
+            )}
+            {(list.data ?? []).map((t: any) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveId(t.id)}
+                className={`w-full text-left p-2 rounded-md border text-xs transition ${
+                  active?.id === t.id ? "bg-accent border-primary" : "hover:bg-accent"
+                }`}
+              >
+                <div className="font-medium truncate">{t.filename}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t.duration_sec ? `${Math.round(t.duration_sec)}s · ` : ""}
+                  {new Date(t.created_at).toLocaleString("pt-BR")}
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+
+        {active ? (
+          <TranscriptionEditor
+            key={active.id}
+            transcription={active}
+            maxSeconds={maxSeconds}
+            maxChars={maxChars}
+            onDeleted={() => {
+              setActiveId(null);
+              list.refetch();
+            }}
+            onSaved={() => list.refetch()}
+          />
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              Faça upload ou selecione uma transcrição.
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TranscriptionEditor({
+  transcription,
+  maxSeconds,
+  maxChars,
+  onDeleted,
+  onSaved,
+}: {
+  transcription: any;
+  maxSeconds: number;
+  maxChars: number;
+  onDeleted: () => void;
+  onSaved: () => void;
+}) {
+  const initialBlocks = React.useMemo(
+    () => groupSegments(transcription.segments as RawSegment[], { maxSeconds, maxChars }),
+    [transcription.id, maxSeconds, maxChars]
+  );
+  const [blocks, setBlocks] = useState<SrtBlock[]>(initialBlocks);
+  React.useEffect(() => setBlocks(initialBlocks), [initialBlocks]);
+
+  function updateText(i: number, text: string) {
+    setBlocks((prev) => prev.map((b, idx) => (idx === i ? { ...b, text } : b)));
+  }
+
+  function download(kind: "srt" | "vtt" | "txt") {
+    const base = transcription.filename.replace(/\.[^.]+$/, "");
+    if (kind === "srt") downloadTextFile(`${base}.srt`, blocksToSrt(blocks), "application/x-subrip");
+    else if (kind === "vtt") downloadTextFile(`${base}.vtt`, blocksToVtt(blocks), "text/vtt");
+    else downloadTextFile(`${base}.txt`, blocksToPlainText(blocks), "text/plain");
+  }
+
+  async function handleDelete() {
+    if (!confirm("Apagar esta transcrição?")) return;
+    const { error } = await supabase.from("ic_transcriptions").delete().eq("id", transcription.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Apagada");
+      onDeleted();
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileAudio className="w-4 h-4 text-primary" />
+              {transcription.filename}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {transcription.language?.toUpperCase() ?? "—"} ·{" "}
+              {transcription.duration_sec ? `${Math.round(transcription.duration_sec)}s` : "—"} ·{" "}
+              {blocks.length} blocos
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="default" onClick={() => download("srt")}>
+              <Download className="w-4 h-4 mr-1.5" />.SRT
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => download("vtt")}>
+              <Download className="w-4 h-4 mr-1.5" />.VTT
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => download("txt")}>
+              <Download className="w-4 h-4 mr-1.5" />.TXT
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => copyText(blocksToPlainText(blocks))}>
+              <Copy className="w-4 h-4 mr-1.5" />Copiar texto
+            </Button>
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={handleDelete}>
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2 max-h-[600px] overflow-auto pr-1">
+          {blocks.map((b, i) => (
+            <div key={i} className="border rounded-md p-2 flex gap-3 items-start hover:bg-accent/30 transition">
+              <div className="text-[10px] text-muted-foreground font-mono shrink-0 w-32 pt-2">
+                {formatSrtTime(b.start)}
+                <br />
+                <span className="text-muted-foreground/70">→ {formatSrtTime(b.end)}</span>
+              </div>
+              <Textarea
+                value={b.text}
+                onChange={(e) => updateText(i, e.target.value)}
+                rows={2}
+                className="text-sm flex-1 min-h-[3rem]"
+              />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
