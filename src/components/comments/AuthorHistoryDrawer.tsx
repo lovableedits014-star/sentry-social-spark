@@ -4,8 +4,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TrendingUp, TrendingDown, Minus, Calendar, Facebook, Instagram, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Calendar, Facebook, Instagram, Loader2, ExternalLink } from "lucide-react";
 import { MilitantBadge } from "./MilitantBadge";
+import { Button } from "@/components/ui/button";
+import { getSocialProfileUrl } from "@/lib/social-url";
 import type { MilitantRow } from "@/hooks/useMilitants";
 
 interface Props {
@@ -28,6 +30,7 @@ function sentimentIcon(s: string | null) {
 export function AuthorHistoryDrawer({
   open, onOpenChange, clientId, platform, platformUserId, authorName, avatarUrl, militant,
 }: Props) {
+  const profileUrl = getSocialProfileUrl(platform, platformUserId);
   const { data, isLoading } = useQuery({
     queryKey: ["author-history", clientId, platform, platformUserId],
     queryFn: async () => {
@@ -87,6 +90,14 @@ export function AuthorHistoryDrawer({
                 </div>
               </div>
             </div>
+          )}
+          {profileUrl && (
+            <Button asChild size="sm" variant="outline" className="w-full gap-2">
+              <a href={profileUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3.5 h-3.5" />
+                Abrir perfil no {platform === "instagram" ? "Instagram" : "Facebook"}
+              </a>
+            </Button>
           )}
         </SheetHeader>
 
