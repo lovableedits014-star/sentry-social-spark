@@ -242,6 +242,38 @@ ${postsTxt || "(nenhum)"}`;
       return errorResponse("LLM retornou formato inválido", 500);
     }
 
+    // Mapeia automaticamente os trechos de origem dentro do texto integral
+    // de cada transcrição para gerar âncoras (offset/length) na auditoria.
+    const fonteByLabel = new Map(fontesTranscricoes.map((t) => [t.label, t]));
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const paragrafosAuditoria = Array.isArray(parsed.paragrafos)
+      ? parsed.paragrafos.map((p: any) => {
+          const citacoes = Array.isArray(p?.citacoes) ? p.citacoes : [];
+          return {
+            indice: typeof p?.indice === "number" ? p.indice : null,
+            resumo: p?.resumo ? String(p.resumo).slice(0, 300) : null,
+            citacoes: citacoes.map((c: any) => {
+              const fonte = String(c?.fonte || "").trim();
+              const trecho = String(c?.trecho_origem || c?.trecho || "").slice(0, 240);
+              const tr = fonteByLabel.get(fonte);
+              let offset: number | null = null;
+              if (tr?.full_text && trecho) {
+                const haystack = norm(tr.full_text);
+                const needle = norm(trecho).slice(0, 80);
+                const idx = needle ? haystack.indexOf(needle) : -1;
+                offset = idx >= 0 ? idx : null;
+              }
+              return {
+                fonte,
+                trecho_origem: trecho,
+                transcription_id: tr?.id ?? null,
+                offset_aprox: offset,
+              };
+            }),
+          };
+        })
+      : [];
+
     let saved: any = null;
     if (salvarComo === "rascunho") {
       const { data, error } = await admin
@@ -265,6 +297,7 @@ ${postsTxt || "(nenhum)"}`;
               created_at: t.created_at,
             })),
             tracos: Array.isArray(parsed.tracos) ? parsed.tracos : [],
+            paragrafos: paragrafosAuditoria,
           },
           transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
