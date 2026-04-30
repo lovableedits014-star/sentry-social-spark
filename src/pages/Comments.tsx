@@ -865,6 +865,15 @@ const Comments = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="review" className="gap-1.5">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Revisar IA</span>
+              {reviewQueue.length > 0 && (
+                <Badge variant="outline" className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5 border-orange-500/40 text-orange-600">
+                  {reviewQueue.length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* Filters inline */}
