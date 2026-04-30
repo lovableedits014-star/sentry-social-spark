@@ -3364,6 +3364,47 @@ export type Database = {
           },
         ]
       }
+      quick_contacts: {
+        Row: {
+          client_id: string
+          context_message: string | null
+          created_at: string
+          display_order: number
+          id: string
+          label: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          context_message?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          label: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          context_message?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          label?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reactions: {
         Row: {
           client_id: string
