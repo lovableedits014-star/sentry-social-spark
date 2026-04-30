@@ -20,7 +20,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 const daysAgoIso = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 
 export function MateriasPanel({ clientId }: Props) {
-  const [tipo, setTipo] = useState("press_release");
+  const [tipo, setTipo] = useState("materia");
   const [tom, setTom] = useState("jornalistico");
   const [tema, setTema] = useState("");
   const [briefing, setBriefing] = useState("");
@@ -279,9 +279,7 @@ export function MateriasPanel({ clientId }: Props) {
             <Select value={tipo} onValueChange={setTipo}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="press_release">Press release</SelectItem>
-                <SelectItem value="blog">Post de blog</SelectItem>
-                <SelectItem value="nota_oficial">Nota oficial</SelectItem>
+                <SelectItem value="materia">Escrever Matéria</SelectItem>
                 <SelectItem value="boletim">Boletim semanal</SelectItem>
               </SelectContent>
             </Select>
