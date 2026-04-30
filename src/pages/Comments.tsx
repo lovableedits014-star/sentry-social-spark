@@ -1015,6 +1015,8 @@ const Comments = () => {
                     comment={comment}
                     authorStats={authorStats}
                     registeredSupporters={registeredSupportersMap}
+                    militants={militantsMap}
+                    onOpenAuthorHistory={openAuthorHistory}
                     onGenerateResponse={handleGenerateResponse}
                     onSendResponse={handleSendResponse}
                     onManageComment={handleManageComment}
@@ -1035,6 +1037,8 @@ const Comments = () => {
                         comment={reply}
                         authorStats={authorStats}
                         registeredSupporters={registeredSupportersMap}
+                        militants={militantsMap}
+                        onOpenAuthorHistory={openAuthorHistory}
                         onGenerateResponse={handleGenerateResponse}
                         onSendResponse={handleSendResponse}
                         onManageComment={handleManageComment}
