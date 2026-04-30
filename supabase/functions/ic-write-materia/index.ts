@@ -160,9 +160,16 @@ Retorne JSON ESTRITO no formato:
 
 Sem markdown, sem comentários fora do JSON.`;
 
+    const briefingFinal =
+      briefing && briefing.trim().length >= 10
+        ? briefing.trim()
+        : transcricaoFonte
+        ? "Escreva uma matéria a partir da TRANSCRIÇÃO-FONTE abaixo. Identifique o tema central, a mensagem principal e os fatos relevantes — e construa a matéria em torno disso."
+        : "";
+
     const userPrompt = `BRIEFING DO USUÁRIO:
 """
-${briefing}
+${briefingFinal}
 """
 
 CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
