@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -29,6 +29,68 @@ export function MateriasPanel({ clientId }: Props) {
   const [sourceTranscripts, setSourceTranscripts] = useState<any[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // id da fonte aberta no modal
+  const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [reprocessProvider, setReprocessProvider] = useState("lovable");
+  const [reprocessModel, setReprocessModel] = useState("");
+  const [reprocessLoading, setReprocessLoading] = useState(false);
+  const [versions, setVersions] = useState<any[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versionPreview, setVersionPreview] = useState<any>(null);
+
+  // Carrega versões anteriores quando seleciona uma matéria
+  useEffect(() => {
+    if (!selected?.id) { setVersions([]); return; }
+    let cancel = false;
+    (async () => {
+      const { data } = await supabase
+        .from("materias_versions" as any)
+        .select("*")
+        .eq("materia_id", selected.id)
+        .order("versao", { ascending: false });
+      if (!cancel) setVersions((data as any[]) || []);
+    })();
+    return () => { cancel = true; };
+  }, [selected?.id]);
+
+  const reprocessar = async () => {
+    const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
+    if (!trId) {
+      toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
+      return;
+    }
+    setReprocessLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ic-reprocess-transcription", {
+        body: {
+          clientId,
+          transcriptionId: trId,
+          provider: reprocessProvider || undefined,
+          model: reprocessModel || undefined,
+          reprocessMateriaId: selected.id,
+          regenerateMemory: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.materia_error) throw new Error(data.materia_error);
+      toast.success(`Reprocessado com ${data?.materia_provider || reprocessProvider}/${data?.materia_model || "default"}`);
+      setReprocessOpen(false);
+      await load();
+      if (data?.materia) setSelected(data.materia);
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao reprocessar");
+    } finally {
+      setReprocessLoading(false);
+    }
+  };
+
+  const PROVIDERS = [
+    { value: "lovable", label: "Lovable AI (Gemini)", defaultModel: "google/gemini-2.5-flash" },
+    { value: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini" },
+    { value: "anthropic", label: "Anthropic Claude", defaultModel: "claude-3-haiku-20240307" },
+    { value: "groq", label: "Groq", defaultModel: "llama-3.1-8b-instant" },
+    { value: "gemini", label: "Google Gemini (direct)", defaultModel: "gemini-1.5-flash" },
+    { value: "mistral", label: "Mistral", defaultModel: "mistral-small-latest" },
+  ];
 
   // Quando seleciona uma matéria, carrega TODAS as transcrições-fonte vinculadas
   useEffect(() => {
@@ -375,6 +437,27 @@ export function MateriasPanel({ clientId }: Props) {
                   </Button>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Voltar</Button>
+                {(selected.transcription_id || selected.fontes?.transcription_id || selected.fontes?.transcription_ids?.[0]) && (
+                  <Button size="sm" variant="default" onClick={() => {
+                    const cur = (selected.provider as string) || "lovable";
+                    setReprocessProvider(cur);
+                    setReprocessModel("");
+                    setReprocessOpen(true);
+                  }}>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reprocessar
+                  </Button>
+                )}
+                {versions.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setVersionsOpen(true)}>
+                    <History className="w-3.5 h-3.5 mr-1.5" /> Histórico ({versions.length})
+                  </Button>
+                )}
+                {(selected.provider || selected.metadata?.provider) && (
+                  <Badge variant="secondary" className="text-[10px] ml-auto self-center">
+                    v{selected.versao || 1} · {selected.provider || selected.metadata?.provider}
+                    {selected.model && ` / ${selected.model}`}
+                  </Badge>
+                )}
               </div>
             </div>
           ) : materias.length === 0 ? (
@@ -437,6 +520,84 @@ export function MateriasPanel({ clientId }: Props) {
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setSourceOpen(null)}>Fechar</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reprocessOpen} onOpenChange={setReprocessOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <RefreshCw className="w-4 h-4" /> Reprocessar matéria
+            </DialogTitle>
+            <DialogDescription>
+              A versão atual será salva no histórico. A IA escolhida vai re-extrair a memória da transcrição inteira e reescrever a matéria.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Provider</Label>
+              <Select value={reprocessProvider} onValueChange={(v) => { setReprocessProvider(v); setReprocessModel(""); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PROVIDERS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Modelo (opcional)</Label>
+              <Input
+                value={reprocessModel}
+                onChange={(e) => setReprocessModel(e.target.value)}
+                placeholder={PROVIDERS.find((p) => p.value === reprocessProvider)?.defaultModel || "default"}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Vazio = modelo padrão do provider.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setReprocessOpen(false)} disabled={reprocessLoading}>Cancelar</Button>
+            <Button size="sm" onClick={reprocessar} disabled={reprocessLoading}>
+              {reprocessLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+              Reprocessar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={versionsOpen} onOpenChange={setVersionsOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <History className="w-4 h-4" /> Histórico de versões
+            </DialogTitle>
+            <DialogDescription>Versões anteriores desta matéria, antes de cada reprocessamento.</DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 space-y-2">
+            {versions.map((v) => (
+              <div key={v.id} className="border rounded-md p-3 hover:bg-accent/40 cursor-pointer" onClick={() => setVersionPreview(v)}>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">v{v.versao}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(v.created_at).toLocaleString("pt-BR")}
+                    {v.provider && ` · ${v.provider}${v.model ? "/" + v.model : ""}`}
+                  </span>
+                </div>
+                <p className="text-sm font-medium mt-1 truncate">{v.titulo}</p>
+              </div>
+            ))}
+            {versions.length === 0 && <p className="text-sm text-muted-foreground">Sem versões anteriores.</p>}
+          </div>
+          {versionPreview && (
+            <div className="border-t pt-3 mt-2 max-h-[40vh] overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1">v{versionPreview.versao} · {versionPreview.provider}{versionPreview.model && "/" + versionPreview.model}</p>
+              <h4 className="font-semibold text-sm mb-2">{versionPreview.titulo}</h4>
+              <pre className="whitespace-pre-wrap text-xs font-sans text-foreground/90">{versionPreview.corpo}</pre>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => { navigator.clipboard.writeText(versionPreview.corpo); toast.success("Copiado!"); }}>
+                <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar esta versão
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -15,6 +15,10 @@ interface ExtractRequest {
   sourceDate?: string; // ISO
   text: string;
   triggerSuggestions?: boolean; // default true
+  providerOverride?: string;
+  modelOverride?: string;
+  apiKeyOverride?: string;
+  extractionRunId?: string;
 }
 
 interface ExtractedFact {
@@ -120,8 +124,16 @@ async function extractFactsViaLLM(
   clientId: string,
   text: string,
   sourceType: SourceType,
-): Promise<ExtractedFact[]> {
-  const llmConfig = await getClientLLMConfig(supabase, clientId);
+  override?: { provider?: string; model?: string; apiKey?: string },
+): Promise<{ facts: ExtractedFact[]; provider: string; model: string }> {
+  const baseConfig = await getClientLLMConfig(supabase, clientId);
+  const llmConfig = {
+    provider: (override?.provider as any) || baseConfig.provider,
+    model: override?.model || (override?.provider ? undefined : baseConfig.model),
+    apiKey: override?.apiKey || baseConfig.apiKey,
+  } as any;
+  // Se o provider mudou e não veio modelo, deixa o callLLM/router escolher default
+  if (!llmConfig.model) llmConfig.model = baseConfig.model;
 
   // Para transcrições, GARANTIR que o texto INTEIRO seja a fonte da memória.
   // Para outros tipos (post/comment/manual) usamos um único chunk truncado.
@@ -156,7 +168,7 @@ async function extractFactsViaLLM(
     seen.add(key);
     dedup.push(f);
   }
-  return dedup;
+  return { facts: dedup, provider: llmConfig.provider, model: llmConfig.model };
 }
 
 Deno.serve(async (req) => {
@@ -174,7 +186,14 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const fatos = await extractFactsViaLLM(admin, clientId, text, sourceType);
+    const { providerOverride, modelOverride, apiKeyOverride, extractionRunId } = body;
+    const runId = extractionRunId || crypto.randomUUID();
+    const { facts: fatos, provider: usedProvider, model: usedModel } =
+      await extractFactsViaLLM(admin, clientId, text, sourceType, {
+        provider: providerOverride,
+        model: modelOverride,
+        apiKey: apiKeyOverride,
+      });
     if (!fatos.length) {
       return jsonResponse({ extracted: 0 });
     }
@@ -195,6 +214,9 @@ Deno.serve(async (req) => {
         contexto: f.contexto?.slice(0, 1500) ?? null,
         entidades: f.entidades ?? {},
         confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.7,
+        extraction_run_id: runId,
+        provider: usedProvider,
+        model: usedModel,
       };
       // Dedup manual: evita depender de UNIQUE constraint (source_id pode ser NULL)
       let dupQuery = admin
@@ -242,7 +264,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ extracted: inserted, total_proposed: fatos.length });
+    return jsonResponse({
+      extracted: inserted,
+      total_proposed: fatos.length,
+      extraction_run_id: runId,
+      provider: usedProvider,
+      model: usedModel,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("ic-extract-knowledge error:", msg);

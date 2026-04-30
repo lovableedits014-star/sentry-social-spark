@@ -18,6 +18,10 @@ interface WriteRequest {
   salvarComo?: "rascunho" | null; // se "rascunho", salva no histórico
   transcriptionId?: string; // se informado, usa a transcrição INTEIRA como fonte primária
   transcriptionIds?: string[]; // múltiplas transcrições-fonte combinadas com rastreabilidade
+  providerOverride?: string;
+  modelOverride?: string;
+  apiKeyOverride?: string;
+  reprocessMateriaId?: string; // se informado, snapshota a versão atual e SOBRESCREVE a matéria
 }
 
 const TIPO_DESC: Record<Tipo, string> = {
@@ -53,6 +57,10 @@ Deno.serve(async (req) => {
       salvarComo = "rascunho",
       transcriptionId,
       transcriptionIds,
+      providerOverride,
+      modelOverride,
+      apiKeyOverride,
+      reprocessMateriaId,
     } = body || ({} as WriteRequest);
 
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
@@ -239,7 +247,15 @@ ${transcrTxt || "(nenhuma)"}
 ============ POSTS RECENTES ============
 ${postsTxt || "(nenhum)"}`;
 
-    const llmConfig = await getClientLLMConfig(admin, clientId);
+    const baseConfig = await getClientLLMConfig(admin, clientId);
+    const llmConfig: any = providerOverride
+      ? {
+          provider: providerOverride,
+          model: modelOverride || undefined,
+          apiKey: apiKeyOverride || baseConfig.apiKey,
+        }
+      : { ...baseConfig, model: modelOverride || baseConfig.model };
+    if (!llmConfig.model) llmConfig.model = baseConfig.model;
     const resp = await callLLM(llmConfig, {
       messages: [
         { role: "system", content: systemPrompt },
@@ -293,7 +309,77 @@ ${postsTxt || "(nenhum)"}`;
       : [];
 
     let saved: any = null;
-    if (salvarComo === "rascunho") {
+    const fontesPayload = {
+      memoria_ids: parsed.fontes_usadas || [],
+      transcription_id: transcricaoFonte?.id ?? null,
+      transcription_ids: fontesTranscricoes.map((t) => t.id),
+      transcription_labels: fontesTranscricoes.map((t) => ({
+        id: t.id,
+        label: t.label,
+        filename: t.filename,
+        created_at: t.created_at,
+      })),
+      tracos: Array.isArray(parsed.tracos) ? parsed.tracos : [],
+      paragrafos: paragrafosAuditoria,
+    };
+    const metadataPayload = {
+      avisos: parsed.avisos || "",
+      provider: resp.provider,
+      model: resp.model,
+      reprocessed_from: reprocessMateriaId || null,
+    };
+
+    if (reprocessMateriaId) {
+      // Reprocessamento: snapshota a versão atual em materias_versions e SOBRESCREVE a matéria
+      const { data: current } = await admin
+        .from("materias_geradas")
+        .select("*")
+        .eq("id", reprocessMateriaId)
+        .eq("client_id", clientId)
+        .maybeSingle();
+      if (!current) return errorResponse("Matéria a reprocessar não encontrada", 404);
+
+      const currentVersao = current.versao || 1;
+      const { error: versionErr } = await admin.from("materias_versions").insert({
+        materia_id: current.id,
+        client_id: clientId,
+        versao: currentVersao,
+        provider: current.provider || current.metadata?.provider || null,
+        model: current.model || current.metadata?.model || null,
+        titulo: current.titulo,
+        subtitulo: current.subtitulo,
+        corpo: current.corpo,
+        fontes: current.fontes || {},
+        prompt_input: current.prompt_input,
+        metadata: current.metadata || {},
+      });
+      if (versionErr) console.error("[ic-write-materia] snapshot error:", versionErr);
+
+      const { data, error } = await admin
+        .from("materias_geradas")
+        .update({
+          tipo,
+          tom,
+          tema: tema ?? current.tema ?? null,
+          titulo: (parsed.titulo || current.titulo || "Sem título").slice(0, 300),
+          subtitulo: parsed.subtitulo ? String(parsed.subtitulo).slice(0, 500) : null,
+          corpo: parsed.corpo || "",
+          fontes: fontesPayload,
+          transcription_id: transcricaoFonte?.id ?? current.transcription_id ?? null,
+          status: "rascunho",
+          prompt_input: briefingFinal,
+          metadata: metadataPayload,
+          versao: currentVersao + 1,
+          provider: resp.provider,
+          model: resp.model,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", reprocessMateriaId)
+        .select("*")
+        .maybeSingle();
+      if (error) console.error("[ic-write-materia] update error:", error);
+      saved = data;
+    } else if (salvarComo === "rascunho") {
       const { data, error } = await admin
         .from("materias_geradas")
         .insert({
@@ -304,23 +390,14 @@ ${postsTxt || "(nenhum)"}`;
           titulo: (parsed.titulo || "Sem título").slice(0, 300),
           subtitulo: parsed.subtitulo ? String(parsed.subtitulo).slice(0, 500) : null,
           corpo: parsed.corpo || "",
-          fontes: {
-            memoria_ids: parsed.fontes_usadas || [],
-            transcription_id: transcricaoFonte?.id ?? null,
-            transcription_ids: fontesTranscricoes.map((t) => t.id),
-            transcription_labels: fontesTranscricoes.map((t) => ({
-              id: t.id,
-              label: t.label,
-              filename: t.filename,
-              created_at: t.created_at,
-            })),
-            tracos: Array.isArray(parsed.tracos) ? parsed.tracos : [],
-            paragrafos: paragrafosAuditoria,
-          },
+          fontes: fontesPayload,
           transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
           prompt_input: briefingFinal,
-          metadata: { avisos: parsed.avisos || "", provider: resp.provider, model: resp.model },
+          metadata: metadataPayload,
+          provider: resp.provider,
+          model: resp.model,
+          versao: 1,
         })
         .select("*")
         .maybeSingle();
@@ -339,6 +416,7 @@ ${postsTxt || "(nenhum)"}`;
         transcricao_fonte: transcricaoFonte ? { id: transcricaoFonte.id, filename: transcricaoFonte.filename } : null,
         fontes_transcricoes: fontesTranscricoes.map((t) => ({ id: t.id, label: t.label, filename: t.filename })),
       },
+      model: resp.model,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
