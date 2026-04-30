@@ -351,7 +351,21 @@ const Comments = () => {
 
       if (data.success) {
         toast.success(`Resposta publicada no ${platform === 'instagram' ? 'Instagram' : 'Facebook'}!`);
-        // Delay reload so user can see sentiment classification before comment hides
+        // Optimistic update: mark as responded immediately so it leaves the "Pendentes" view
+        const nowIso = new Date().toISOString();
+        const markResponded = (c: any) =>
+          c.id === commentId
+            ? { ...c, status: 'responded', final_response: responseText, responded_at: nowIso }
+            : c;
+        queryClient.setQueryData(["comments-data", postsLimit], (old: any) => {
+          if (!old) return old;
+          return { ...old, comments: old.comments.map(markResponded) };
+        });
+        queryClient.setQueryData(["recent-comments-independent"], (old: any) => {
+          if (!old) return old;
+          return (old as any[]).map(markResponded);
+        });
+        // Delay full reload so user can see sentiment classification before any background refresh
         setTimeout(() => reloadComments(), 3000);
       } else if (data.code === 'RATE_LIMITED') {
         toast.warning(data.error, { duration: 10000 });
