@@ -270,7 +270,34 @@ ${postsTxt || "(nenhum)"}`;
       const cleaned = resp.content.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
       const start = cleaned.indexOf("{");
       const end = cleaned.lastIndexOf("}");
-      parsed = JSON.parse(cleaned.slice(start, end + 1));
+      const slice = cleaned.slice(start, end + 1);
+      // Sanitiza caracteres de controle não escapados DENTRO de strings JSON
+      // (LLMs costumam retornar \n literal no meio de "corpo": "...").
+      const sanitizeJson = (raw: string) => {
+        let out = "";
+        let inStr = false;
+        let escape = false;
+        for (let i = 0; i < raw.length; i++) {
+          const ch = raw[i];
+          if (escape) { out += ch; escape = false; continue; }
+          if (ch === "\\") { out += ch; escape = true; continue; }
+          if (ch === '"') { inStr = !inStr; out += ch; continue; }
+          if (inStr) {
+            if (ch === "\n") { out += "\\n"; continue; }
+            if (ch === "\r") { out += "\\r"; continue; }
+            if (ch === "\t") { out += "\\t"; continue; }
+            const code = ch.charCodeAt(0);
+            if (code < 0x20) { out += "\\u" + code.toString(16).padStart(4, "0"); continue; }
+          }
+          out += ch;
+        }
+        return out;
+      };
+      try {
+        parsed = JSON.parse(slice);
+      } catch {
+        parsed = JSON.parse(sanitizeJson(slice));
+      }
     } catch (e) {
       console.error("[ic-write-materia] parse error:", e, resp.content?.slice(0, 400));
       return errorResponse("LLM retornou formato inválido", 500);
