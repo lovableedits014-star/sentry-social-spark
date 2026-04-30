@@ -160,6 +160,29 @@ export function MateriasPanel({ clientId }: Props) {
   };
 
   const gerar = async () => {
+    if (isBoletim) {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("ic-write-boletim", {
+          body: {
+            clientId,
+            since: boletimSince,
+            until: boletimUntil,
+            tema: tema || undefined,
+            incluir: { posts: incluirPosts, acoes: incluirAcoes, visitas: incluirVisitas },
+          },
+        });
+        if (error) throw error;
+        toast.success("Boletim gerado!");
+        setSelected(data?.saved || data?.boletim);
+        await load();
+      } catch (e: any) {
+        toast.error(e.message || "Erro ao gerar boletim");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     const hasTranscript = transcriptionIds.length > 0;
     if (!hasTranscript && briefing.trim().length < 10) {
       toast.error("Descreva o briefing OU selecione uma transcrição-fonte.");
