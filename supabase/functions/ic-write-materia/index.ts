@@ -190,9 +190,27 @@ Retorne JSON ESTRITO no formato:
   "fontes_usadas": ["id_memoria_1", ...],
   "tracos": [${multiFontes ? '{"trecho":"resumo da afirmação", "fonte":"F1"}' : ""}],
   "avisos": "se faltou alguma informação, descreva aqui — senão string vazia"
+${hasAnyTranscription
+  ? `,
+  "paragrafos": [
+    {
+      "indice": 0,
+      "resumo": "1 frase curta resumindo o parágrafo",
+      "citacoes": [
+        { "fonte": "${fontesTranscricoes[0]?.label || "F1"}", "trecho_origem": "trecho LITERAL (até 240 chars) copiado da transcrição que embasa este parágrafo" }
+      ]
+    }
+  ]`
+  : ""}
 }
 
-Sem markdown, sem comentários fora do JSON.`;
+${hasAnyTranscription ? `REGRAS DE AUDITORIA POR PARÁGRAFO:
+- Para CADA parágrafo do corpo (separado por \\n\\n), gere um item em "paragrafos" com o índice (0,1,2...) e "citacoes".
+- Cada "trecho_origem" DEVE ser uma cópia LITERAL (sem parafrasear) extraída da transcrição correspondente — será usado para auditoria humana.
+- Se um parágrafo for puramente de transição/conclusão sem fato citável, use citacoes: [].
+- Limite de 240 caracteres por trecho. Mantenha pontuação e palavras originais.
+
+` : ""}Sem markdown, sem comentários fora do JSON.`;
 
     const briefingFinal =
       briefing && briefing.trim().length >= 10
@@ -227,7 +245,7 @@ ${postsTxt || "(nenhum)"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      maxTokens: 2800,
+      maxTokens: hasAnyTranscription ? 4500 : 2800,
       temperature: 0.5,
     });
 
@@ -241,6 +259,38 @@ ${postsTxt || "(nenhum)"}`;
       console.error("[ic-write-materia] parse error:", e, resp.content?.slice(0, 400));
       return errorResponse("LLM retornou formato inválido", 500);
     }
+
+    // Mapeia automaticamente os trechos de origem dentro do texto integral
+    // de cada transcrição para gerar âncoras (offset/length) na auditoria.
+    const fonteByLabel = new Map(fontesTranscricoes.map((t) => [t.label, t]));
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const paragrafosAuditoria = Array.isArray(parsed.paragrafos)
+      ? parsed.paragrafos.map((p: any) => {
+          const citacoes = Array.isArray(p?.citacoes) ? p.citacoes : [];
+          return {
+            indice: typeof p?.indice === "number" ? p.indice : null,
+            resumo: p?.resumo ? String(p.resumo).slice(0, 300) : null,
+            citacoes: citacoes.map((c: any) => {
+              const fonte = String(c?.fonte || "").trim();
+              const trecho = String(c?.trecho_origem || c?.trecho || "").slice(0, 240);
+              const tr = fonteByLabel.get(fonte);
+              let offset: number | null = null;
+              if (tr?.full_text && trecho) {
+                const haystack = norm(tr.full_text);
+                const needle = norm(trecho).slice(0, 80);
+                const idx = needle ? haystack.indexOf(needle) : -1;
+                offset = idx >= 0 ? idx : null;
+              }
+              return {
+                fonte,
+                trecho_origem: trecho,
+                transcription_id: tr?.id ?? null,
+                offset_aprox: offset,
+              };
+            }),
+          };
+        })
+      : [];
 
     let saved: any = null;
     if (salvarComo === "rascunho") {
@@ -265,6 +315,7 @@ ${postsTxt || "(nenhum)"}`;
               created_at: t.created_at,
             })),
             tracos: Array.isArray(parsed.tracos) ? parsed.tracos : [],
+            paragrafos: paragrafosAuditoria,
           },
           transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
