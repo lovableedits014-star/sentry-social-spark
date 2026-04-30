@@ -1797,6 +1797,48 @@ export type Database = {
           },
         ]
       }
+      ic_transcriptions: {
+        Row: {
+          client_id: string
+          created_at: string
+          duration_sec: number | null
+          filename: string
+          full_text: string | null
+          id: string
+          language: string | null
+          model: string | null
+          segments: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          duration_sec?: number | null
+          filename: string
+          full_text?: string | null
+          id?: string
+          language?: string | null
+          model?: string | null
+          segments?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          duration_sec?: number | null
+          filename?: string
+          full_text?: string | null
+          id?: string
+          language?: string | null
+          model?: string | null
+          segments?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ied_scores: {
         Row: {
           checkin_score: number
