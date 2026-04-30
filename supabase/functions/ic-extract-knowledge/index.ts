@@ -15,6 +15,10 @@ interface ExtractRequest {
   sourceDate?: string; // ISO
   text: string;
   triggerSuggestions?: boolean; // default true
+  providerOverride?: string;
+  modelOverride?: string;
+  apiKeyOverride?: string;
+  extractionRunId?: string;
 }
 
 interface ExtractedFact {
