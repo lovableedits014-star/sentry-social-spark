@@ -36,13 +36,19 @@ export function formatVttTime(seconds: number): string {
  */
 export function groupSegments(
   segments: RawSegment[],
-  opts: { maxSeconds?: number; maxChars?: number } = {}
+  opts: { maxSeconds?: number; maxChars?: number; maxWords?: number } = {}
 ): SrtBlock[] {
   const maxSeconds = opts.maxSeconds ?? 7;
-  const maxChars = opts.maxChars ?? 90;
+  const maxChars = opts.maxChars ?? 200;
+  const maxWords = opts.maxWords ?? 0; // 0 = sem limite por palavras
   const blocks: SrtBlock[] = [];
   let cur: SrtBlock | null = null;
 
+  const countWords = (s: string) => (s.trim().match(/\S+/g)?.length ?? 0);
+
+  // Se temos limite por palavras, primeiro montamos blocos brutos por tempo,
+  // depois dividimos cada um respeitando o número máximo de palavras,
+  // distribuindo o tempo proporcionalmente ao número de palavras.
   for (const seg of segments) {
     const text = (seg.text ?? "").trim();
     if (!text) continue;
@@ -52,7 +58,9 @@ export function groupSegments(
     }
     const wouldText = `${cur.text} ${text}`.trim();
     const wouldDur = seg.end - cur.start;
-    if (wouldDur <= maxSeconds && wouldText.length <= maxChars) {
+    const wouldWords = countWords(wouldText);
+    const wordsOk = maxWords > 0 ? wouldWords <= maxWords : true;
+    if (wouldDur <= maxSeconds && wouldText.length <= maxChars && wordsOk) {
       cur.end = seg.end;
       cur.text = wouldText;
     } else {
@@ -61,7 +69,31 @@ export function groupSegments(
     }
   }
   if (cur) blocks.push(cur);
-  return blocks.map((b, i) => ({ ...b, index: i + 1 }));
+
+  // Pós-processo: se algum bloco ainda passou do limite de palavras
+  // (ex: o segmento original já vinha com muitas palavras), dividimos.
+  let final: SrtBlock[] = blocks;
+  if (maxWords > 0) {
+    final = [];
+    for (const b of blocks) {
+      const words = b.text.trim().split(/\s+/);
+      if (words.length <= maxWords) {
+        final.push(b);
+        continue;
+      }
+      const totalDur = Math.max(0.001, b.end - b.start);
+      const perWord = totalDur / words.length;
+      let idx = 0;
+      while (idx < words.length) {
+        const chunk = words.slice(idx, idx + maxWords);
+        const start = b.start + idx * perWord;
+        const end = b.start + Math.min(words.length, idx + maxWords) * perWord;
+        final.push({ index: 0, start, end, text: chunk.join(" ") });
+        idx += maxWords;
+      }
+    }
+  }
+  return final.map((b, i) => ({ ...b, index: i + 1 }));
 }
 
 export function blocksToSrt(blocks: SrtBlock[]): string {

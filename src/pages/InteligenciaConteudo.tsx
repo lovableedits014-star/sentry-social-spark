@@ -698,8 +698,7 @@ const FUNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 function TranscricaoPanel({ clientId }: { clientId: string | null | undefined }) {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState<string>("pt");
-  const [maxSeconds, setMaxSeconds] = useState<number>(4);
-  const [maxChars, setMaxChars] = useState<number>(42);
+  const [maxWords, setMaxWords] = useState<number>(5);
   const [uploading, setUploading] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -768,7 +767,7 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid sm:grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-end">
+          <div className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
             <div>
               <label className="text-xs text-muted-foreground">Arquivo</label>
               <Input
@@ -777,7 +776,6 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
                 accept="audio/*,video/mp4,video/quicktime,.mp3,.m4a,.wav,.aac,.mp4,.mov,.webm,.ogg"
                 onChange={(e) => {
                   setFile(e.target.files?.[0] ?? null);
-                  // permite re-selecionar o mesmo arquivo depois
                   e.target.value = "";
                 }}
               />
@@ -787,12 +785,8 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
               <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="pt" className="w-20" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground" title="Duração máxima de cada legenda na tela">Tempo máx (s)</label>
-              <Input type="number" min={1} max={20} value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value) || 4)} className="w-20" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground" title="Caracteres por bloco. Menor = legendas mais curtas e rápidas (estilo TikTok/Reels). Padrão Netflix: 42.">Caracteres</label>
-              <Input type="number" min={10} max={200} value={maxChars} onChange={(e) => setMaxChars(Number(e.target.value) || 42)} className="w-24" />
+              <label className="text-xs text-muted-foreground" title="Quantas palavras no máximo por legenda. 3-5 = estilo Reels/TikTok rápido.">Palavras por bloco</label>
+              <Input type="number" min={1} max={30} value={maxWords} onChange={(e) => setMaxWords(Math.max(1, Number(e.target.value) || 5))} className="w-24" />
             </div>
             <Button onClick={handleUpload} disabled={!file || uploading || !clientId}>
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
@@ -800,7 +794,7 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            💡 Para legendas <strong>rápidas estilo Reels/TikTok</strong>: tempo 2s + 20 caracteres. Para <strong>cinema/Netflix</strong>: 4s + 42 caracteres. Para <strong>palestras</strong>: 7s + 90 caracteres.
+            💡 <strong>3 palavras</strong> = legendas curtinhas (Reels). <strong>5-7 palavras</strong> = ritmo equilibrado. <strong>10+ palavras</strong> = estilo palestra. Você pode mudar e os blocos atualizam na hora — sem re-transcrever.
           </p>
           {file && (
             <p className="text-xs text-muted-foreground">
@@ -842,8 +836,7 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
           <TranscriptionEditor
             key={active.id}
             transcription={active}
-            maxSeconds={maxSeconds}
-            maxChars={maxChars}
+            maxWords={maxWords}
             onDeleted={() => {
               setActiveId(null);
               list.refetch();
@@ -864,20 +857,18 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
 
 function TranscriptionEditor({
   transcription,
-  maxSeconds,
-  maxChars,
+  maxWords,
   onDeleted,
   onSaved,
 }: {
   transcription: any;
-  maxSeconds: number;
-  maxChars: number;
+  maxWords: number;
   onDeleted: () => void;
   onSaved: () => void;
 }) {
   const initialBlocks = React.useMemo(
-    () => groupSegments(transcription.segments as RawSegment[], { maxSeconds, maxChars }),
-    [transcription.id, maxSeconds, maxChars]
+    () => groupSegments(transcription.segments as RawSegment[], { maxWords }),
+    [transcription.id, maxWords]
   );
   const [blocks, setBlocks] = useState<SrtBlock[]>(initialBlocks);
   React.useEffect(() => setBlocks(initialBlocks), [initialBlocks]);
