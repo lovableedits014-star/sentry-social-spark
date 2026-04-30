@@ -62,12 +62,36 @@ REGRAS:
 - Bordões só se forem frases curtas e marcantes (não confunda com proposta).
 - Se o texto for muito curto ou irrelevante, retorne lista vazia.`;
 
-async function extractFactsViaLLM(supabase: any, clientId: string, text: string): Promise<ExtractedFact[]> {
-  const llmConfig = await getClientLLMConfig(supabase, clientId);
+const CHUNK_SIZE = 12000;
+const CHUNK_OVERLAP = 500;
 
-  const userPrompt = `TEXTO PARA ANÁLISE:
+function splitIntoChunks(text: string, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP): string[] {
+  if (text.length <= size) return [text];
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(start + size, text.length);
+    chunks.push(text.slice(start, end));
+    if (end >= text.length) break;
+    start = end - overlap;
+  }
+  return chunks;
+}
+
+async function extractFactsFromChunk(
+  llmConfig: any,
+  chunk: string,
+  chunkIdx: number,
+  totalChunks: number,
+): Promise<ExtractedFact[]> {
+  const header =
+    totalChunks > 1
+      ? `PARTE ${chunkIdx + 1} de ${totalChunks} de uma TRANSCRIÇÃO ÍNTEGRA. Extraia fatos APENAS desta parte, mas mantenha coerência sabendo que o texto faz parte de um todo maior.\n\n`
+      : "";
+
+  const userPrompt = `${header}TEXTO PARA ANÁLISE:
 """
-${text.slice(0, 12000)}
+${chunk}
 """
 
 Retorne APENAS um JSON no formato:
@@ -89,6 +113,50 @@ Sem markdown, sem comentários.`;
 
   const parsed = parseLooseJson<{ fatos?: ExtractedFact[] }>(resp.content);
   return Array.isArray(parsed?.fatos) ? parsed.fatos : [];
+}
+
+async function extractFactsViaLLM(
+  supabase: any,
+  clientId: string,
+  text: string,
+  sourceType: SourceType,
+): Promise<ExtractedFact[]> {
+  const llmConfig = await getClientLLMConfig(supabase, clientId);
+
+  // Para transcrições, GARANTIR que o texto INTEIRO seja a fonte da memória.
+  // Para outros tipos (post/comment/manual) usamos um único chunk truncado.
+  const isTranscription = sourceType === "transcription";
+  const chunks = isTranscription ? splitIntoChunks(text) : [text.slice(0, CHUNK_SIZE)];
+
+  console.log(
+    `[ic-extract-knowledge] sourceType=${sourceType} fullLen=${text.length} chunks=${chunks.length} ${
+      isTranscription ? "(modo TRANSCRIÇÃO ÍNTEGRA)" : "(modo single-chunk)"
+    }`,
+  );
+
+  const all: ExtractedFact[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      const facts = await extractFactsFromChunk(llmConfig, chunks[i], i, chunks.length);
+      all.push(...facts);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[ic-extract-knowledge] chunk ${i + 1}/${chunks.length} falhou:`, msg);
+      // segue para o próximo chunk — não perdemos a transcrição inteira por causa de um erro
+    }
+  }
+
+  // Dedup local por (tipo + texto normalizado) para evitar repetições do overlap
+  const seen = new Set<string>();
+  const dedup: ExtractedFact[] = [];
+  for (const f of all) {
+    if (!f?.texto || !f?.tipo) continue;
+    const key = `${f.tipo}::${f.texto.trim().toLowerCase().slice(0, 200)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    dedup.push(f);
+  }
+  return dedup;
 }
 
 Deno.serve(async (req) => {
