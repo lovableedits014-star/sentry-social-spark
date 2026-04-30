@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, RefreshCw, Loader2, Copy, ThumbsUp, ThumbsDown, Wand2, Brain, Flame, HelpCircle, AlertTriangle, Heart, TrendingUp, TrendingDown, Minus, Calendar, Users, Siren, Zap, Telescope } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, Copy, ThumbsUp, ThumbsDown, Wand2, Brain, Flame, HelpCircle, AlertTriangle, Heart, TrendingUp, TrendingDown, Minus, Calendar, Users, Siren, Zap, Telescope, FileAudio, Upload, Download, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentClientId } from "@/hooks/ic/useCurrentClientId";
 import { useIdeias, useUpdateIdeaStatus, useCreateIdea } from "@/hooks/ic/useIdeias";
+import { groupSegments, blocksToSrt, blocksToVtt, blocksToPlainText, downloadTextFile, type RawSegment, type SrtBlock, formatSrtTime } from "@/lib/srt";
 
 const FUNC_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -55,11 +56,12 @@ export default function InteligenciaConteudo() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-3xl">
           <TabsTrigger value="radar"><Flame className="w-4 h-4 mr-1.5" />Radar</TabsTrigger>
           <TabsTrigger value="ideias"><Sparkles className="w-4 h-4 mr-1.5" />Ideias</TabsTrigger>
           <TabsTrigger value="estudio"><Wand2 className="w-4 h-4 mr-1.5" />Estúdio</TabsTrigger>
           <TabsTrigger value="dna"><Brain className="w-4 h-4 mr-1.5" />DNA</TabsTrigger>
+          <TabsTrigger value="transcricao"><FileAudio className="w-4 h-4 mr-1.5" />Transcrição</TabsTrigger>
         </TabsList>
 
         <TabsContent value="radar" className="mt-4">
@@ -73,6 +75,9 @@ export default function InteligenciaConteudo() {
         </TabsContent>
         <TabsContent value="dna" className="mt-4">
           <DnaPanel clientId={clientId} />
+        </TabsContent>
+        <TabsContent value="transcricao" className="mt-4">
+          <TranscricaoPanel clientId={clientId} />
         </TabsContent>
       </Tabs>
     </div>
