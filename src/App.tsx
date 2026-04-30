@@ -42,6 +42,7 @@ import CalendarioPolitico from "./pages/CalendarioPolitico";
 import Midia from "./pages/Midia";
 import StatusWhatsApp from "./pages/StatusWhatsApp";
 import Militancia from "./pages/Militancia";
+import InteligenciaConteudo from "./pages/InteligenciaConteudo";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 
 // Wrappers de redirect para preservar links antigos
@@ -87,6 +88,7 @@ const App = () => (
             <Route path="/comments" element={<Comments />} />
             <Route path="/militancia" element={<Militancia />} />
             <Route path="/engagement" element={<Engagement />} />
+            <Route path="/inteligencia-conteudo" element={<InteligenciaConteudo />} />
             <Route path="/disparos" element={<Disparos />} />
             <Route path="/territorial" element={<Territorial />} />
             <Route path="/pessoas" element={<Pessoas />} />
