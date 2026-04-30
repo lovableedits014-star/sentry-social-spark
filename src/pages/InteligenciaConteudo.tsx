@@ -946,7 +946,116 @@ function TranscriptionEditor({
             </div>
           ))}
         </div>
+        <FeedFromTranscriptPanel transcription={transcription} blocks={blocks} />
       </CardContent>
     </Card>
+  );
+}
+
+/* ---------- Gerador de post de feed a partir da transcrição ---------- */
+function FeedFromTranscriptPanel({ transcription, blocks }: { transcription: any; blocks: SrtBlock[] }) {
+  const { data: clientId } = useCurrentClientId();
+  const [plataforma, setPlataforma] = useState<"facebook" | "instagram">("facebook");
+  const [result, setResult] = useState<any>(null);
+  const [candidato, setCandidato] = useState<string>("");
+
+  const gen = useMutation({
+    mutationFn: async () => {
+      if (!clientId) throw new Error("Cliente não identificado");
+      // Usa o texto editado dos blocos (mais preciso do que o original)
+      const transcriptText = blocksToPlainText(blocks);
+      return invoke("ic-feed-from-transcript", {
+        clientId,
+        transcriptionId: transcription.id,
+        transcriptText,
+        plataforma,
+      });
+    },
+    onSuccess: (data) => {
+      setResult(data.generated);
+      setCandidato(data.candidato || "");
+      toast.success("Post gerado");
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao gerar post"),
+  });
+
+  const fullText = result
+    ? `${result.texto}\n\n${(result.hashtags ?? []).join(" ")}`
+    : "";
+
+  return (
+    <div className="mt-6 border-t pt-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Megaphone className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold">Gerar post pronto para o feed</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={plataforma}
+            onChange={(e) => setPlataforma(e.target.value as "facebook" | "instagram")}
+            className="text-xs border rounded-md px-2 py-1 bg-background"
+          >
+            <option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option>
+          </select>
+          <Button size="sm" onClick={() => gen.mutate()} disabled={gen.isPending}>
+            {gen.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            <span className="ml-2">{result ? "Gerar de novo" : "Gerar post do feed"}</span>
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        A IA entende o <strong>contexto</strong> da fala (não copia palavra por palavra) e escreve em primeira pessoa
+        como <strong>{candidato || "o candidato cadastrado neste perfil"}</strong>, com emojis e hashtags. O sistema reconhece automaticamente o dono da página pelo cliente vinculado.
+      </p>
+
+      {result && (
+        <div className="space-y-3">
+          {result.resumo_contexto && (
+            <div className="text-xs bg-muted/40 border rounded-md p-2">
+              <span className="font-medium">📌 Contexto entendido:</span> {result.resumo_contexto}
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
+              <Pencil className="w-3 h-3" /> Texto do post (editável)
+            </label>
+            <Textarea
+              value={result.texto}
+              onChange={(e) => setResult({ ...result, texto: e.target.value })}
+              rows={6}
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
+              <Hash className="w-3 h-3" /> Hashtags
+            </label>
+            <Input
+              value={(result.hashtags ?? []).join(" ")}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  hashtags: e.target.value.split(/\s+/).filter(Boolean),
+                })
+              }
+              className="text-sm font-mono"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="default" onClick={() => copyText(fullText)}>
+              <Copy className="w-4 h-4 mr-1.5" />Copiar post completo
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => copyText(result.texto)}>
+              <Copy className="w-4 h-4 mr-1.5" />Só o texto
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => copyText((result.hashtags ?? []).join(" "))}>
+              <Copy className="w-4 h-4 mr-1.5" />Só hashtags
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
