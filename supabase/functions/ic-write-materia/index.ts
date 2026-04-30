@@ -176,6 +176,8 @@ Deno.serve(async (req) => {
 REGRAS:
 - NUNCA invente fatos, números ou nomes que não estejam no contexto fornecido.
 - Use APENAS o que está na TRANSCRIÇÃO-FONTE (quando houver), MEMÓRIA, TRANSCRIÇÕES e POSTS abaixo.
+- EVITE FRASES VAZIAS DE CONTEÚDO. Proibido usar clichês como "agradeceu a oportunidade", "reafirmou seu compromisso", "destacou a importância", "ressaltou a relevância", "enfatizou o trabalho", "frisou que", "pontuou a necessidade" sem ANCORÁ-LOS em um fato concreto da transcrição (número, local, nome, data, ação específica). Se a transcrição não traz fato concreto, NÃO escreva o parágrafo.
+- Prefira voz ativa, frases curtas, dados quantificáveis (km de asfalto, valor de convênio, bairro citado, nome de quem participou). Cite trechos literais entre aspas quando agregar credibilidade.
 ${
   fontesTranscricoes.length === 1
     ? "- A TRANSCRIÇÃO-FONTE é a base PRINCIPAL da matéria. Trate-a como o discurso/entrevista que originou esta matéria — preserve o contexto completo, não recorte ideias soltas. Memória e posts são apenas contexto complementar.\n"
@@ -233,6 +235,13 @@ ${hasAnyTranscription ? `REGRAS DE AUDITORIA POR PARÁGRAFO:
 """
 ${briefingFinal}
 """
+${reprocessMateriaId && briefing && briefing.trim().length >= 5 ? `
+============ ORIENTAÇÃO DE CORREÇÃO (PRIORIDADE MÁXIMA) ============
+Esta é uma REESCRITA. O usuário avaliou a versão anterior e quer corrigir os seguintes pontos. Siga estas instruções ACIMA do briefing original:
+"""
+${briefing.trim()}
+"""
+` : ""}
 
 CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
 REGIÃO: ${client?.regiao_atuacao || "não informada"}
