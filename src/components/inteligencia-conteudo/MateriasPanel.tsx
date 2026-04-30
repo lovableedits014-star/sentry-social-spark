@@ -44,8 +44,9 @@ export function MateriasPanel({ clientId }: Props) {
   useEffect(() => { if (clientId) load(); }, [clientId]);
 
   const gerar = async () => {
-    if (briefing.trim().length < 10) {
-      toast.error("Descreva melhor o que você quer escrever (mínimo 10 caracteres).");
+    const hasTranscript = transcriptionId !== "none";
+    if (!hasTranscript && briefing.trim().length < 10) {
+      toast.error("Descreva o briefing OU selecione uma transcrição-fonte.");
       return;
     }
     setLoading(true);
@@ -138,9 +139,15 @@ export function MateriasPanel({ clientId }: Props) {
             <Input placeholder="ex: saude, educacao, mobilidade" value={tema} onChange={(e) => setTema(e.target.value)} />
           </div>
           <div>
-            <Label>Briefing</Label>
+            <Label>
+              Briefing {transcriptionId !== "none" && <span className="text-muted-foreground font-normal">(opcional — a transcrição já é a base)</span>}
+            </Label>
             <Textarea
-              placeholder="Ex: Quero uma matéria sobre as obras de asfalto na Moreninha 4 anunciadas hoje."
+              placeholder={
+                transcriptionId !== "none"
+                  ? "Opcional. Adicione um ângulo extra se quiser (ex: 'foque na promessa de UBS')."
+                  : "Ex: Quero uma matéria sobre as obras de asfalto na Moreninha 4 anunciadas hoje."
+              }
               value={briefing}
               onChange={(e) => setBriefing(e.target.value)}
               rows={5}
