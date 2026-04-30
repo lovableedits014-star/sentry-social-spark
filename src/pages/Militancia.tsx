@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Facebook, Instagram, TrendingUp, TrendingDown,
-  Users, Calendar, Loader2, MessageSquare, Eye,
+  Users, Calendar, Loader2, MessageSquare, Eye, BarChart3, FileText,
 } from "lucide-react";
 import { BADGE_META, getBadgeMeta } from "@/lib/militant-badges";
 import { MilitantBadge } from "@/components/comments/MilitantBadge";
 import { AuthorHistoryDrawer } from "@/components/comments/AuthorHistoryDrawer";
+import { MilitanciaCharts } from "@/components/militancia/MilitanciaCharts";
+import { MilitanciaReport } from "@/components/militancia/MilitanciaReport";
 import type { MilitantRow } from "@/hooks/useMilitants";
 
 function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: number | string; accent?: string }) {
@@ -200,6 +202,14 @@ const Militancia = () => {
             <span>Instagram</span>
             <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-[10px] px-1.5">{igStats.total}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-1.5">
+            <BarChart3 className="w-4 h-4 text-violet-600" />
+            <span>Análise</span>
+          </TabsTrigger>
+          <TabsTrigger value="report" className="gap-1.5">
+            <FileText className="w-4 h-4 text-amber-600" />
+            <span>Relatório</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="facebook" className="space-y-4 mt-4">
@@ -220,6 +230,25 @@ const Militancia = () => {
             <StatCard icon={<Users className="w-4 h-4" />} label="Novos rostos" value={igStats.novos} accent="bg-cyan-500/10 text-cyan-700" />
           </div>
           <MilitantList militants={igList} loading={isLoading} onOpen={setDrawer} />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-4 mt-4">
+          <Tabs defaultValue="fb-charts">
+            <TabsList>
+              <TabsTrigger value="fb-charts" className="gap-1.5"><Facebook className="w-3.5 h-3.5 text-blue-600" /> Facebook</TabsTrigger>
+              <TabsTrigger value="ig-charts" className="gap-1.5"><Instagram className="w-3.5 h-3.5 text-pink-500" /> Instagram</TabsTrigger>
+            </TabsList>
+            <TabsContent value="fb-charts" className="mt-4">
+              <MilitanciaCharts militants={militants} platform="facebook" />
+            </TabsContent>
+            <TabsContent value="ig-charts" className="mt-4">
+              <MilitanciaCharts militants={militants} platform="instagram" />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-4">
+          <MilitanciaReport militants={militants} />
         </TabsContent>
       </Tabs>
 
