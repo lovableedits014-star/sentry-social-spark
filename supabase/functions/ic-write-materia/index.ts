@@ -190,9 +190,27 @@ Retorne JSON ESTRITO no formato:
   "fontes_usadas": ["id_memoria_1", ...],
   "tracos": [${multiFontes ? '{"trecho":"resumo da afirmação", "fonte":"F1"}' : ""}],
   "avisos": "se faltou alguma informação, descreva aqui — senão string vazia"
+${hasAnyTranscription
+  ? `,
+  "paragrafos": [
+    {
+      "indice": 0,
+      "resumo": "1 frase curta resumindo o parágrafo",
+      "citacoes": [
+        { "fonte": "${fontesTranscricoes[0]?.label || "F1"}", "trecho_origem": "trecho LITERAL (até 240 chars) copiado da transcrição que embasa este parágrafo" }
+      ]
+    }
+  ]`
+  : ""}
 }
 
-Sem markdown, sem comentários fora do JSON.`;
+${hasAnyTranscription ? `REGRAS DE AUDITORIA POR PARÁGRAFO:
+- Para CADA parágrafo do corpo (separado por \\n\\n), gere um item em "paragrafos" com o índice (0,1,2...) e "citacoes".
+- Cada "trecho_origem" DEVE ser uma cópia LITERAL (sem parafrasear) extraída da transcrição correspondente — será usado para auditoria humana.
+- Se um parágrafo for puramente de transição/conclusão sem fato citável, use citacoes: [].
+- Limite de 240 caracteres por trecho. Mantenha pontuação e palavras originais.
+
+` : ""}Sem markdown, sem comentários fora do JSON.`;
 
     const briefingFinal =
       briefing && briefing.trim().length >= 10
