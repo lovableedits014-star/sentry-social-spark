@@ -857,20 +857,18 @@ function TranscricaoPanel({ clientId }: { clientId: string | null | undefined })
 
 function TranscriptionEditor({
   transcription,
-  maxSeconds,
-  maxChars,
+  maxWords,
   onDeleted,
   onSaved,
 }: {
   transcription: any;
-  maxSeconds: number;
-  maxChars: number;
+  maxWords: number;
   onDeleted: () => void;
   onSaved: () => void;
 }) {
   const initialBlocks = React.useMemo(
-    () => groupSegments(transcription.segments as RawSegment[], { maxSeconds, maxChars }),
-    [transcription.id, maxSeconds, maxChars]
+    () => groupSegments(transcription.segments as RawSegment[], { maxWords }),
+    [transcription.id, maxWords]
   );
   const [blocks, setBlocks] = useState<SrtBlock[]>(initialBlocks);
   React.useEffect(() => setBlocks(initialBlocks), [initialBlocks]);
