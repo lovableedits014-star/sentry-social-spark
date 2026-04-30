@@ -2297,6 +2297,7 @@ export type Database = {
           tipo: string
           titulo: string
           tom: string | null
+          transcription_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -2314,6 +2315,7 @@ export type Database = {
           tipo?: string
           titulo: string
           tom?: string | null
+          transcription_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -2331,10 +2333,19 @@ export type Database = {
           tipo?: string
           titulo?: string
           tom?: string | null
+          transcription_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "materias_geradas_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "ic_transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       media_alert_events: {
         Row: {
