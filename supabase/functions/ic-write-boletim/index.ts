@@ -237,6 +237,11 @@ ${visitasTxt || "(nenhuma visita registrada)"}`;
       ? { provider: providerOverride, model: modelOverride || undefined, apiKey: apiKeyOverride || baseConfig.apiKey }
       : { ...baseConfig, model: modelOverride || baseConfig.model };
     if (!llmConfig.model) llmConfig.model = baseConfig.model;
+    // Auto-upgrade Groq: o default `llama-3.1-8b-instant` tem TPM de 6000 e estoura
+    // facilmente com payloads de boletim. Sobe para 70b-versatile (12k TPM).
+    if (llmConfig.provider === "groq" && !modelOverride && (!llmConfig.model || llmConfig.model.includes("8b-instant"))) {
+      llmConfig.model = "llama-3.3-70b-versatile";
+    }
 
     const resp = await callLLM(llmConfig, {
       messages: [
