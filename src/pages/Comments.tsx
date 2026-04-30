@@ -898,6 +898,8 @@ const Comments = () => {
                   group={group}
                   authorStats={authorStats}
                   registeredSupporters={registeredSupportersMap}
+                  militants={militantsMap}
+                  onOpenAuthorHistory={openAuthorHistory}
                   onGenerateResponse={handleGenerateResponse}
                   onSendResponse={handleSendResponse}
                   onManageComment={handleManageComment}
