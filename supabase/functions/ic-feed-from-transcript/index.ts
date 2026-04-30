@@ -13,7 +13,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { clientId, transcriptionId, transcriptText, plataforma = "facebook", tomOverride } = await req.json();
+    const { clientId, transcriptionId, transcriptText, tomOverride } = await req.json();
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
     if (!transcriptionId && !transcriptText) return errorResponse("transcriptionId ou transcriptText é obrigatório", 400);
 
@@ -79,7 +79,7 @@ REGRAS CRÍTICAS:
 - Use emojis com moderação (2-5 ao longo do texto, não no início obrigatoriamente).
 - Termine com 5-8 hashtags relevantes (locais + tema + assinatura do candidato).
 - Tom: ${tomOverride || "alinhado ao DNA fornecido"}.
-- Plataforma alvo: ${plataforma} (${plataforma === "instagram" ? "120-220 caracteres no caption" : "200-500 caracteres, mais narrativo"}).
+- Plataforma alvo: post ÚNICO que serve para Facebook E Instagram (220-450 caracteres — narrativo mas sem ficar gigante).
 - Você NUNCA publica — apenas entrega o texto para revisão manual.
 
 Responda APENAS JSON válido, sem markdown:
