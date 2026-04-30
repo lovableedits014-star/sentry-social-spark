@@ -16,6 +16,7 @@ interface WriteRequest {
   briefing: string; // o que o usuário quer escrever
   incluirMemoriaUltimosDias?: number; // default 30
   salvarComo?: "rascunho" | null; // se "rascunho", salva no histórico
+  transcriptionId?: string; // se informado, usa a transcrição INTEIRA como fonte primária
 }
 
 const TIPO_DESC: Record<Tipo, string> = {
@@ -49,6 +50,7 @@ Deno.serve(async (req) => {
       briefing,
       incluirMemoriaUltimosDias = 60,
       salvarComo = "rascunho",
+      transcriptionId,
     } = body || ({} as WriteRequest);
 
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
@@ -64,6 +66,26 @@ Deno.serve(async (req) => {
       .eq("id", clientId)
       .maybeSingle();
 
+    // Transcrição-fonte (INTEIRA) — fonte prioritária quando informada
+    let transcricaoFonte: any = null;
+    if (transcriptionId) {
+      const { data: tr } = await admin
+        .from("ic_transcriptions")
+        .select("id, full_text, filename, created_at, segments")
+        .eq("id", transcriptionId)
+        .eq("client_id", clientId)
+        .maybeSingle();
+      if (tr) {
+        const fromSegs = Array.isArray(tr.segments)
+          ? tr.segments.map((s: any) => s?.text ?? "").join(" ").trim()
+          : "";
+        transcricaoFonte = {
+          ...tr,
+          full_text: tr.full_text || fromSegs,
+        };
+      }
+    }
+
     // Memória relevante (últimos N dias) — filtra por tema se fornecido
     const sinceIso = new Date(Date.now() - incluirMemoriaUltimosDias * 86400000).toISOString();
     let memQuery = admin
@@ -76,13 +98,15 @@ Deno.serve(async (req) => {
     if (tema) memQuery = memQuery.ilike("tema", `%${tema.toLowerCase()}%`);
     const { data: memoria } = await memQuery;
 
-    // Últimas transcrições
-    const { data: transcricoes } = await admin
-      .from("ic_transcriptions")
-      .select("id, full_text, created_at, filename")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false })
-      .limit(5);
+    // Últimas transcrições (apenas como contexto secundário, se NÃO houver fonte específica)
+    const { data: transcricoes } = transcricaoFonte
+      ? { data: [] as any[] }
+      : await admin
+          .from("ic_transcriptions")
+          .select("id, full_text, created_at, filename")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
     // Posts recentes (resumo)
     const { data: posts } = await admin
@@ -100,6 +124,10 @@ Deno.serve(async (req) => {
     const transcrTxt = (transcricoes || [])
       .map((t: any, i: number) => `# Transcrição ${i + 1} (${t.created_at?.slice(0, 10)})\n${(t.full_text || "").slice(0, 800)}`)
       .join("\n\n");
+    // Transcrição-fonte é incluída INTEIRA (até 30k chars) sem fragmentar
+    const fonteTxt = transcricaoFonte
+      ? `# TRANSCRIÇÃO-FONTE (INTEIRA — ${transcricaoFonte.filename || "sem nome"} — ${transcricaoFonte.created_at?.slice(0, 10)})\n${(transcricaoFonte.full_text || "").slice(0, 30000)}`
+      : "";
     const postsTxt = (posts || [])
       .map((p: any) => `- ${(p.message || "").slice(0, 220)}`)
       .join("\n");
@@ -111,7 +139,8 @@ Deno.serve(async (req) => {
 
 REGRAS:
 - NUNCA invente fatos, números ou nomes que não estejam no contexto fornecido.
-- Use APENAS o que está na MEMÓRIA, TRANSCRIÇÕES e POSTS abaixo.
+- Use APENAS o que está na TRANSCRIÇÃO-FONTE (quando houver), MEMÓRIA, TRANSCRIÇÕES e POSTS abaixo.
+${transcricaoFonte ? "- A TRANSCRIÇÃO-FONTE é a base PRINCIPAL da matéria. Trate-a como o discurso/entrevista que originou esta matéria — preserve o contexto completo, não recorte ideias soltas. Memória e posts são apenas contexto complementar.\n" : ""}
 - Se o briefing pedir algo que não está no contexto, diga isso no campo "avisos".
 - Português do Brasil.
 - Formato pedido: ${TIPO_DESC[tipo]}
@@ -136,6 +165,7 @@ ${briefing}
 CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
 REGIÃO: ${client?.regiao_atuacao || "não informada"}
 
+${fonteTxt ? "============ TRANSCRIÇÃO-FONTE (BASE PRINCIPAL — USE INTEGRALMENTE) ============\n" + fonteTxt + "\n\n" : ""}
 ============ MEMÓRIA ESTRUTURADA (fatos extraídos de falas/posts/comentários) ============
 ${memoriaTxt || "(memória vazia)"}
 
@@ -151,7 +181,7 @@ ${postsTxt || "(nenhum)"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      maxTokens: 2200,
+      maxTokens: 2800,
       temperature: 0.5,
     });
 
@@ -178,7 +208,11 @@ ${postsTxt || "(nenhum)"}`;
           titulo: (parsed.titulo || "Sem título").slice(0, 300),
           subtitulo: parsed.subtitulo ? String(parsed.subtitulo).slice(0, 500) : null,
           corpo: parsed.corpo || "",
-          fontes: { memoria_ids: parsed.fontes_usadas || [] },
+          fontes: {
+            memoria_ids: parsed.fontes_usadas || [],
+            transcription_id: transcricaoFonte?.id ?? null,
+          },
+          transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
           prompt_input: briefing,
           metadata: { avisos: parsed.avisos || "", provider: resp.provider, model: resp.model },
@@ -197,6 +231,7 @@ ${postsTxt || "(nenhum)"}`;
         memoria: memoria?.length || 0,
         transcricoes: transcricoes?.length || 0,
         posts: posts?.length || 0,
+        transcricao_fonte: transcricaoFonte ? { id: transcricaoFonte.id, filename: transcricaoFonte.filename } : null,
       },
     });
   } catch (e) {
