@@ -10,11 +10,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Props { clientId: string }
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const daysAgoIso = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 
 export function MateriasPanel({ clientId }: Props) {
   const [tipo, setTipo] = useState("press_release");
@@ -37,6 +40,14 @@ export function MateriasPanel({ clientId }: Props) {
   const [versions, setVersions] = useState<any[]>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versionPreview, setVersionPreview] = useState<any>(null);
+  // Boletim semanal
+  const [boletimSince, setBoletimSince] = useState(daysAgoIso(7));
+  const [boletimUntil, setBoletimUntil] = useState(todayIso());
+  const [incluirPosts, setIncluirPosts] = useState(true);
+  const [incluirAcoes, setIncluirAcoes] = useState(true);
+  const [incluirVisitas, setIncluirVisitas] = useState(true);
+
+  const isBoletim = tipo === "boletim";
 
   // Carrega versões anteriores quando seleciona uma matéria
   useEffect(() => {
@@ -54,33 +65,52 @@ export function MateriasPanel({ clientId }: Props) {
   }, [selected?.id]);
 
   const reprocessar = async () => {
+    const isBol = selected?.tipo === "boletim";
     const trId = selected?.transcription_id || selected?.fontes?.transcription_id || selected?.fontes?.transcription_ids?.[0];
-    if (!trId) {
+    if (!isBol && !trId) {
       toast.error("Esta matéria não tem transcrição-fonte vinculada para reprocessar.");
       return;
     }
     setReprocessLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ic-reprocess-transcription", {
-        body: {
-          clientId,
-          transcriptionId: trId,
-          provider: reprocessProvider || undefined,
-          model: reprocessModel || undefined,
-          reprocessMateriaId: selected.id,
-          regenerateMemory: !refineInstructions.trim(),
-          materia: refineInstructions.trim()
-            ? { briefing: refineInstructions.trim() }
-            : undefined,
-        },
-      });
+      let data: any, error: any;
+      if (isBol) {
+        const periodo = selected?.fontes?.periodo || {};
+        const r = await supabase.functions.invoke("ic-write-boletim", {
+          body: {
+            clientId,
+            since: periodo.since ? periodo.since.slice(0, 10) : boletimSince,
+            until: periodo.until ? periodo.until.slice(0, 10) : boletimUntil,
+            tema: selected?.tema || undefined,
+            providerOverride: reprocessProvider || undefined,
+            modelOverride: reprocessModel || undefined,
+            reprocessMateriaId: selected.id,
+            briefing: refineInstructions.trim() || undefined,
+          },
+        });
+        data = r.data; error = r.error;
+      } else {
+        const r = await supabase.functions.invoke("ic-reprocess-transcription", {
+          body: {
+            clientId,
+            transcriptionId: trId,
+            provider: reprocessProvider || undefined,
+            model: reprocessModel || undefined,
+            reprocessMateriaId: selected.id,
+            regenerateMemory: !refineInstructions.trim(),
+            materia: refineInstructions.trim() ? { briefing: refineInstructions.trim() } : undefined,
+          },
+        });
+        data = r.data; error = r.error;
+      }
       if (error) throw error;
       if (data?.materia_error) throw new Error(data.materia_error);
-      toast.success(`Reprocessado com ${data?.materia_provider || reprocessProvider}/${data?.materia_model || "default"}`);
+      toast.success(`Reprocessado com ${data?.materia_provider || data?.provider || reprocessProvider}/${data?.materia_model || data?.model || "default"}`);
       setReprocessOpen(false);
       setRefineInstructions("");
       await load();
-      if (data?.materia) setSelected(data.materia);
+      const next = data?.saved || data?.materia;
+      if (next) setSelected(next);
     } catch (e: any) {
       toast.error(e.message || "Erro ao reprocessar");
     } finally {
@@ -149,6 +179,29 @@ export function MateriasPanel({ clientId }: Props) {
   };
 
   const gerar = async () => {
+    if (isBoletim) {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("ic-write-boletim", {
+          body: {
+            clientId,
+            since: boletimSince,
+            until: boletimUntil,
+            tema: tema || undefined,
+            incluir: { posts: incluirPosts, acoes: incluirAcoes, visitas: incluirVisitas },
+          },
+        });
+        if (error) throw error;
+        toast.success("Boletim gerado!");
+        setSelected(data?.saved || data?.boletim);
+        await load();
+      } catch (e: any) {
+        toast.error(e.message || "Erro ao gerar boletim");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     const hasTranscript = transcriptionIds.length > 0;
     if (!hasTranscript && briefing.trim().length < 10) {
       toast.error("Descreva o briefing OU selecione uma transcrição-fonte.");
@@ -222,6 +275,18 @@ export function MateriasPanel({ clientId }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
+            <Label>Tipo</Label>
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="press_release">Press release</SelectItem>
+                <SelectItem value="blog">Post de blog</SelectItem>
+                <SelectItem value="nota_oficial">Nota oficial</SelectItem>
+                <SelectItem value="boletim">Boletim semanal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!isBoletim && <div>
             <div className="flex items-center justify-between">
               <Label>Transcrições-fonte ({transcriptionIds.length} selecionada{transcriptionIds.length === 1 ? "" : "s"})</Label>
               {transcriptionIds.length > 0 && (
@@ -271,20 +336,40 @@ export function MateriasPanel({ clientId }: Props) {
             <p className="text-[11px] text-muted-foreground mt-1">
               Selecione uma ou mais. A IA combina todas e marca a origem de cada trecho com [F1], [F2]…
             </p>
-          </div>
-          <div>
-            <Label>Tipo</Label>
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="press_release">Press release</SelectItem>
-                <SelectItem value="blog">Post de blog</SelectItem>
-                <SelectItem value="nota_oficial">Nota oficial</SelectItem>
-                <SelectItem value="boletim">Boletim semanal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
+          </div>}
+          {isBoletim && (
+            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                A IA vai puxar <strong>postagens reais da semana</strong> (com comentários e sentimento), <strong>ações externas</strong> e <strong>visitas registradas</strong> no período, e organizar tudo num resumo da semana.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">De</Label>
+                  <Input type="date" value={boletimSince} onChange={(e) => setBoletimSince(e.target.value)} className="h-8" />
+                </div>
+                <div>
+                  <Label className="text-xs">Até</Label>
+                  <Input type="date" value={boletimUntil} onChange={(e) => setBoletimUntil(e.target.value)} className="h-8" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Incluir no boletim</Label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirPosts} onCheckedChange={(v) => setIncluirPosts(!!v)} />
+                  Postagens em redes sociais
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirAcoes} onCheckedChange={(v) => setIncluirAcoes(!!v)} />
+                  Ações externas / agenda
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={incluirVisitas} onCheckedChange={(v) => setIncluirVisitas(!!v)} />
+                  Visitas registradas
+                </label>
+              </div>
+            </div>
+          )}
+          {!isBoletim && <div>
             <Label>Tom</Label>
             <Select value={tom} onValueChange={setTom}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -295,12 +380,16 @@ export function MateriasPanel({ clientId }: Props) {
                 <SelectItem value="tecnico">Técnico</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </div>}
           <div>
-            <Label>Tema (opcional)</Label>
-            <Input placeholder="ex: saude, educacao, mobilidade" value={tema} onChange={(e) => setTema(e.target.value)} />
+            <Label>{isBoletim ? "Foco da semana (opcional)" : "Tema (opcional)"}</Label>
+            <Input
+              placeholder={isBoletim ? "ex: ênfase em saúde nesta semana" : "ex: saude, educacao, mobilidade"}
+              value={tema}
+              onChange={(e) => setTema(e.target.value)}
+            />
           </div>
-          <div>
+          {!isBoletim && <div>
             <Label>
               Briefing {transcriptionIds.length > 0 && <span className="text-muted-foreground font-normal">(opcional — as transcrições já são a base)</span>}
             </Label>
@@ -314,10 +403,10 @@ export function MateriasPanel({ clientId }: Props) {
               onChange={(e) => setBriefing(e.target.value)}
               rows={5}
             />
-          </div>
+          </div>}
           <Button onClick={gerar} disabled={loading} className="w-full">
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            Gerar matéria
+            {isBoletim ? "Gerar boletim" : "Gerar matéria"}
           </Button>
         </CardContent>
       </Card>
@@ -337,7 +426,41 @@ export function MateriasPanel({ clientId }: Props) {
                 )}
               </div>
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
-              {sourceTranscripts.length > 0 && (
+              {selected.tipo === "boletim" && Array.isArray(selected.fontes?.posts_referenciados) && selected.fontes.posts_referenciados.length > 0 && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-primary" />
+                    Cobertura da semana ({selected.fontes.posts_referenciados.length} postagens
+                    {selected.fontes?.stats?.comentarios ? ` · ${selected.fontes.stats.comentarios} comentários` : ""}
+                    {selected.fontes?.periodo?.since && ` · ${new Date(selected.fontes.periodo.since).toLocaleDateString("pt-BR")} → ${new Date(selected.fontes.periodo.until).toLocaleDateString("pt-BR")}`})
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {selected.fontes.posts_referenciados.map((p: any) => {
+                      const Icon = p.platform === "instagram" ? Instagram : Facebook;
+                      return (
+                        <div key={p.post_id} className="rounded border bg-background p-2 text-xs flex gap-2">
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-foreground line-clamp-2 leading-snug">{p.message || "(sem texto)"}</p>
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                              {p.first_seen && <span>{new Date(p.first_seen).toLocaleDateString("pt-BR")}</span>}
+                              <span className="flex items-center gap-0.5"><MessageSquare className="w-2.5 h-2.5" />{p.total}</span>
+                              {p.pos > 0 && <span className="flex items-center gap-0.5 text-emerald-600"><ThumbsUp className="w-2.5 h-2.5" />{p.pos}</span>}
+                              {p.neg > 0 && <span className="flex items-center gap-0.5 text-rose-600"><ThumbsDown className="w-2.5 h-2.5" />{p.neg}</span>}
+                              {p.url && (
+                                <a href={p.url} target="_blank" rel="noreferrer" className="ml-auto text-primary hover:underline flex items-center gap-0.5">
+                                  Ver post <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {selected.tipo !== "boletim" && sourceTranscripts.length > 0 && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2 text-xs">
                   <p className="font-medium text-foreground flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-primary" />
@@ -403,7 +526,7 @@ export function MateriasPanel({ clientId }: Props) {
                   <ReactMarkdown>{selected.corpo || ""}</ReactMarkdown>
                 </div>
               </article>
-              {paragrafosAuditoria.length > 0 && (
+              {selected.tipo !== "boletim" && paragrafosAuditoria.length > 0 && (
                 <details className="rounded-md border bg-muted/30 p-3">
                   <summary className="cursor-pointer text-xs font-medium text-foreground hover:text-primary select-none">
                     🔎 Auditoria por parágrafo ({paragrafosAuditoria.length})
