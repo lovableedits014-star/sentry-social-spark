@@ -1334,6 +1334,86 @@ export type Database = {
           },
         ]
       }
+      coringa_conversations: {
+        Row: {
+          client_id: string
+          contexto: Json
+          created_at: string
+          id: string
+          titulo: string | null
+          ultima_mensagem_em: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          contexto?: Json
+          created_at?: string
+          id?: string
+          titulo?: string | null
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          contexto?: Json
+          created_at?: string
+          id?: string
+          titulo?: string | null
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      coringa_messages: {
+        Row: {
+          client_id: string
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          role: string
+          tool_call_id: string | null
+          tool_calls: Json | null
+          tool_name: string | null
+        }
+        Insert: {
+          client_id: string
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          tool_name?: string | null
+        }
+        Update: {
+          client_id?: string
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role?: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          tool_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coringa_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "coringa_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_themes: {
         Row: {
           client_id: string
@@ -2201,6 +2281,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      materias_geradas: {
+        Row: {
+          client_id: string
+          corpo: string
+          created_at: string
+          fontes: Json
+          id: string
+          metadata: Json
+          prompt_input: string | null
+          status: string
+          subtitulo: string | null
+          tema: string | null
+          tipo: string
+          titulo: string
+          tom: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id: string
+          corpo: string
+          created_at?: string
+          fontes?: Json
+          id?: string
+          metadata?: Json
+          prompt_input?: string | null
+          status?: string
+          subtitulo?: string | null
+          tema?: string | null
+          tipo?: string
+          titulo: string
+          tom?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          corpo?: string
+          created_at?: string
+          fontes?: Json
+          id?: string
+          metadata?: Json
+          prompt_input?: string | null
+          status?: string
+          subtitulo?: string | null
+          tema?: string | null
+          tipo?: string
+          titulo?: string
+          tom?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       media_alert_events: {
         Row: {
