@@ -15,6 +15,8 @@ import {
   ThumbsUp, SkipForward, Undo2,
 } from "lucide-react";
 import { AddToSupportersButton } from "@/components/AddToSupportersButton";
+import { QuickRepliesGrid } from "@/components/comments/QuickRepliesGrid";
+import { QuickContactsBar } from "@/components/comments/QuickContactsBar";
 
 export type RegisteredSupportersMap = Map<string, { name: string; classification: string }>;
 
