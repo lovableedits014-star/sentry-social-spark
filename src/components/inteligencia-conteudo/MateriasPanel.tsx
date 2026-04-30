@@ -447,6 +447,7 @@ export function MateriasPanel({ clientId }: Props) {
                     const cur = (selected.provider as string) || "lovable";
                     setReprocessProvider(cur);
                     setReprocessModel("");
+                    setRefineInstructions("");
                     setReprocessOpen(true);
                   }}>
                     <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reprocessar
@@ -539,6 +540,18 @@ export function MateriasPanel({ clientId }: Props) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>Orientação de correção (opcional)</Label>
+              <Textarea
+                value={refineInstructions}
+                onChange={(e) => setRefineInstructions(e.target.value)}
+                rows={4}
+                placeholder={`Ex: Evite frases vagas como "o candidato agradeceu" ou "reafirmou seu compromisso". Use só fatos concretos da transcrição (números, locais, nomes). Comece com lead direto.`}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Diretrizes que a IA deve seguir na reescrita. Ela tem prioridade sobre o briefing original.
+              </p>
+            </div>
             <div>
               <Label>Provider</Label>
               <Select value={reprocessProvider} onValueChange={(v) => { setReprocessProvider(v); setReprocessModel(""); }}>
