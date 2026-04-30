@@ -152,6 +152,8 @@ export const CommentItem = memo(function CommentItem({
   comment,
   authorStats,
   registeredSupporters,
+  militants,
+  onOpenAuthorHistory,
   onGenerateResponse,
   onSendResponse,
   onManageComment,
@@ -181,6 +183,18 @@ export const CommentItem = memo(function CommentItem({
   const stats = authorKey && authorStats ? authorStats.get(authorKey) : null;
   // Check if author is already a registered supporter
   const registeredSupporter = authorKey && registeredSupporters ? registeredSupporters.get(authorKey) : null;
+  // Militant profile (badge + history)
+  const militant = authorKey && militants ? militants.get(authorKey) ?? null : null;
+  const handleOpenHistory = () => {
+    if (!onOpenAuthorHistory || !comment.platform_user_id || !comment.platform) return;
+    onOpenAuthorHistory({
+      platform: comment.platform,
+      platformUserId: comment.platform_user_id,
+      authorName: comment.author_name,
+      avatarUrl: comment.author_profile_picture,
+      militant,
+    });
+  };
 
   const classificationLabels: Record<string, string> = {
     apoiador_ativo: "Apoiador Ativo",
