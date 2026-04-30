@@ -720,6 +720,156 @@ export type Database = {
           },
         ]
       }
+      content_dna: {
+        Row: {
+          auto_apply: boolean
+          client_id: string
+          emojis_assinatura: string[] | null
+          estruturas: Json | null
+          horarios_pico: Json | null
+          sample_size: number | null
+          tamanho_ideal: Json | null
+          tom: string | null
+          updated_at: string
+          vocabulario: string[] | null
+        }
+        Insert: {
+          auto_apply?: boolean
+          client_id: string
+          emojis_assinatura?: string[] | null
+          estruturas?: Json | null
+          horarios_pico?: Json | null
+          sample_size?: number | null
+          tamanho_ideal?: Json | null
+          tom?: string | null
+          updated_at?: string
+          vocabulario?: string[] | null
+        }
+        Update: {
+          auto_apply?: boolean
+          client_id?: string
+          emojis_assinatura?: string[] | null
+          estruturas?: Json | null
+          horarios_pico?: Json | null
+          sample_size?: number | null
+          tamanho_ideal?: Json | null
+          tom?: string | null
+          updated_at?: string
+          vocabulario?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_dna_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_ideas: {
+        Row: {
+          client_id: string
+          created_at: string
+          descricao: string | null
+          generated_text: Json | null
+          id: string
+          origem: string | null
+          projection: Json | null
+          score: number
+          source_refs: Json | null
+          status: string
+          tema: string | null
+          tipo: string | null
+          titulo: string
+          updated_at: string
+          user_feedback: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          descricao?: string | null
+          generated_text?: Json | null
+          id?: string
+          origem?: string | null
+          projection?: Json | null
+          score?: number
+          source_refs?: Json | null
+          status?: string
+          tema?: string | null
+          tipo?: string | null
+          titulo: string
+          updated_at?: string
+          user_feedback?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          descricao?: string | null
+          generated_text?: Json | null
+          id?: string
+          origem?: string | null
+          projection?: Json | null
+          score?: number
+          source_refs?: Json | null
+          status?: string
+          tema?: string | null
+          tipo?: string | null
+          titulo?: string
+          updated_at?: string
+          user_feedback?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_ideas_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_radar_snapshots: {
+        Row: {
+          client_id: string
+          created_at: string
+          hostile_narratives: Json | null
+          hot_topics: Json | null
+          id: string
+          mobilizing_pautas: Json | null
+          open_questions: Json | null
+          snapshot_date: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          hostile_narratives?: Json | null
+          hot_topics?: Json | null
+          id?: string
+          mobilizing_pautas?: Json | null
+          open_questions?: Json | null
+          snapshot_date?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          hostile_narratives?: Json | null
+          hot_topics?: Json | null
+          id?: string
+          mobilizing_pautas?: Json | null
+          open_questions?: Json | null
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_radar_snapshots_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_templates: {
         Row: {
           client_id: string
