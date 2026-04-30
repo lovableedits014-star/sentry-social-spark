@@ -245,7 +245,7 @@ ${postsTxt || "(nenhum)"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      maxTokens: 2800,
+      maxTokens: hasAnyTranscription ? 4500 : 2800,
       temperature: 0.5,
     });
 
