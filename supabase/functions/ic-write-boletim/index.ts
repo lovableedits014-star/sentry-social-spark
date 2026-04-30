@@ -65,12 +65,22 @@ Deno.serve(async (req) => {
       .eq("id", clientId)
       .maybeSingle();
 
+    // Período da semana ANTERIOR (mesma duração) — para comparativos
+    const sinceMs = new Date(sinceIso).getTime();
+    const untilMs = new Date(untilIso).getTime();
+    const durationMs = untilMs - sinceMs;
+    const prevSinceIso = new Date(sinceMs - durationMs - 86400000).toISOString();
+    const prevUntilIso = new Date(sinceMs - 1).toISOString();
+
     // === COLETA: Posts (agregando por post_id na tabela comments) ===
     let postsAgg: any[] = [];
+    let prevTotalComments = 0;
+    let prevTotalPosts = 0;
+    let respondidosPeloTime = 0;
     if (incluir.posts !== false) {
       const { data: rows } = await admin
         .from("comments")
-        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, sentiment")
+        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, sentiment, message, status")
         .eq("client_id", clientId)
         .not("post_id", "is", null)
         .gte("comment_created_time", sinceIso)
@@ -89,6 +99,7 @@ Deno.serve(async (req) => {
             platform: r.platform || null,
             first_seen: r.comment_created_time,
             total: 0, pos: 0, neg: 0, neu: 0,
+            comentarios_amostra: [] as string[],
           };
           map.set(r.post_id, p);
         }
@@ -100,10 +111,27 @@ Deno.serve(async (req) => {
         if (r.sentiment === "positive") p.pos += 1;
         else if (r.sentiment === "negative") p.neg += 1;
         else if (r.sentiment === "neutral") p.neu += 1;
+        if (r.status === "responded" || r.status === "respondido") respondidosPeloTime += 1;
+        if (p.comentarios_amostra.length < 3 && r.message && r.message.length > 8) {
+          p.comentarios_amostra.push(String(r.message).slice(0, 140));
+        }
       }
       postsAgg = Array.from(map.values()).sort((a, b) =>
         (a.first_seen || "").localeCompare(b.first_seen || ""),
       );
+
+      // Comparativo: semana anterior (apenas contagem)
+      const { data: prevRows } = await admin
+        .from("comments")
+        .select("post_id")
+        .eq("client_id", clientId)
+        .not("post_id", "is", null)
+        .gte("comment_created_time", prevSinceIso)
+        .lte("comment_created_time", prevUntilIso)
+        .limit(5000);
+      const prevSet = new Set<string>();
+      for (const r of prevRows || []) { prevTotalComments++; if (r.post_id) prevSet.add(r.post_id); }
+      prevTotalPosts = prevSet.size;
     }
 
     // === COLETA: Ações externas / agenda ===
@@ -143,13 +171,47 @@ Deno.serve(async (req) => {
     const totalComments = postsAgg.reduce((s, p) => s + p.total, 0);
     const totalPos = postsAgg.reduce((s, p) => s + p.pos, 0);
     const totalNeg = postsAgg.reduce((s, p) => s + p.neg, 0);
+    const totalNeu = postsAgg.reduce((s, p) => s + p.neu, 0);
+    const sentClassif = totalPos + totalNeg + totalNeu;
+    const tomGeral = sentClassif === 0
+      ? "neutro"
+      : totalPos / sentClassif > 0.55 ? "positivo"
+      : totalNeg / sentClassif > 0.40 ? "negativo"
+      : "misto";
+    const taxaResposta = totalComments > 0 ? Math.round((respondidosPeloTime / totalComments) * 100) : 0;
+    const variacaoComentarios = prevTotalComments > 0
+      ? Math.round(((totalComments - prevTotalComments) / prevTotalComments) * 100)
+      : null;
+    const variacaoPosts = prevTotalPosts > 0
+      ? Math.round(((postsAgg.length - prevTotalPosts) / prevTotalPosts) * 100)
+      : null;
+    const topPosts = [...postsAgg].sort((a, b) => b.total - a.total).slice(0, 5);
     const stats = {
       posts: postsAgg.length,
       comentarios: totalComments,
       sentimento_positivo: totalPos,
       sentimento_negativo: totalNeg,
+      sentimento_neutro: totalNeu,
+      tom_geral: tomGeral,
+      respondidos: respondidosPeloTime,
+      taxa_resposta_pct: taxaResposta,
       acoes: acoes.length,
       visitas: visitas.length,
+      semana_anterior: {
+        comentarios: prevTotalComments,
+        posts: prevTotalPosts,
+        variacao_comentarios_pct: variacaoComentarios,
+        variacao_posts_pct: variacaoPosts,
+      },
+      top_posts: topPosts.map((p, i) => ({
+        rank: i + 1,
+        platform: p.platform,
+        message: (p.message || "").slice(0, 200),
+        total: p.total,
+        pos: p.pos,
+        neg: p.neg,
+        url: p.url,
+      })),
     };
 
     // === Material bruto para a IA ===
@@ -184,7 +246,7 @@ Deno.serve(async (req) => {
     const cargo = client?.cargo_pretendido || "candidato";
     const periodoLabel = `${fmtBR(sinceIso)} a ${fmtBR(untilIso)}`;
 
-    const systemPrompt = `Você é um redator político brasileiro experiente. Escreva um BOLETIM SEMANAL de ${candidato} (${cargo}) cobrindo o período de ${periodoLabel}.
+    const systemPrompt = `Você é um redator político brasileiro experiente. Escreva um BOLETIM SEMANAL DETALHADO de ${candidato} (${cargo}) cobrindo o período de ${periodoLabel}.
 
 REGRAS DE CONTEÚDO:
 - USE APENAS o material da semana fornecido abaixo (postagens, ações, visitas). NÃO invente nada.
@@ -192,15 +254,19 @@ REGRAS DE CONTEÚDO:
 - Se um post não tem fato concreto (foi só agradecimento), não inclua.
 
 ESTRUTURA OBRIGATÓRIA EM MARKDOWN:
-1. Abra com 1 parágrafo curto: "**${periodoLabel}** — Resumo da semana de ${candidato}..." apresentando os 2 ou 3 destaques.
-2. Bloco "## Em números" com bullets: total de postagens, comentários recebidos, ações de rua, visitas. Use os números reais fornecidos.
-3. Seções por TEMA detectado nos posts/ações (ex: "## Saúde", "## Mobilidade", "## Educação", "## Agenda nas comunidades"). Em cada uma, 2 a 4 bullets curtos com fato + local/data + link entre parênteses quando houver URL (formato: "[ver post](URL)"). Cada bullet começa em letra maiúscula.
-4. Encerre com "## Próxima semana" listando 1 a 3 ações ou compromissos derivados do material (visita marcada, evento, etc) — ou frase neutra se não houver.
+1. PARÁGRAFO DE ABERTURA (4-6 linhas): contextualize a semana, o tom geral da recepção (${tomGeral}) e os 2-3 destaques mais relevantes. Cite números reais.
+2. "## Panorama da semana" — 1 parágrafo analítico interpretando os indicadores: volume vs semana anterior, tom dos comentários, engajamento da base.
+3. "## Em números" — bullets concisos com TODOS os indicadores fornecidos (postagens, comentários, tom, ações, visitas, taxa de resposta, variação vs semana anterior).
+4. "## Destaques por tema" — Detecte 3 a 5 TEMAS dos posts/ações (ex: Saúde, Mobilidade, Educação, Agenda Comunitária, Eventos). Para cada um: ### Tema, seguido de 2-4 bullets curtos com fato + local/data + link "[ver post](URL)" quando houver. Se houver comentário relevante na amostra, cite entre aspas brevemente.
+5. "## Top postagens" — Liste em bullets as 3-5 postagens com mais engajamento (use o ranking fornecido), com formato: "**N. [plataforma]** — resumo do post (X comentários · Y👍 Z👎). [Ver post](URL)".
+6. "## Recepção da base" — 1 parágrafo + bullets sobre como a base reagiu (sentimento, comentários frequentes da amostra, tópicos que geraram mais discussão).
+7. "## Agenda e território" — bullets cobrindo ações externas, visitas e bairros tocados (datas, locais, resultados).
+8. "## Próxima semana — recomendações" — 3 a 5 bullets com sugestões de pauta/ação baseadas no que faltou ou no que pegou bem.
 
 FORMATAÇÃO:
-- Use markdown completo: '## ' para seções, '- ' para bullets, '**negrito**' para datas-chave, '[texto](url)' para links.
+- Use markdown completo: '## ' para seções, '### ' para subseções, '- ' para bullets, '**negrito**' para datas/números-chave, '[texto](url)' para links.
 - Linha em branco entre blocos.
-- Português do Brasil.
+- Tom jornalístico-analítico em Português do Brasil. Frases curtas e diretas.
 
 Retorne JSON ESTRITO:
 {
@@ -208,6 +274,8 @@ Retorne JSON ESTRITO:
   "subtitulo": "1 frase resumindo a semana",
   "corpo": "markdown completo do boletim",
   "destaques": ["3 a 5 frases curtas com os principais fatos"],
+  "temas_predominantes": ["lista de 3-5 temas detectados nos posts"],
+  "recomendacoes_proxima_semana": ["3 a 5 sugestões objetivas"],
   "avisos": "string vazia ou observação relevante"
 }
 Sem markdown ao redor do JSON, sem comentários extras.`;
@@ -222,12 +290,21 @@ ${tema ? `\nTEMA/FOCO ESPECÍFICO: ${tema}\n` : ""}${
     }
 ============ ESTATÍSTICAS DA SEMANA ============
 - Postagens: ${stats.posts}
-- Comentários recebidos: ${stats.comentarios} (👍${stats.sentimento_positivo} / 👎${stats.sentimento_negativo})
+- Comentários recebidos: ${stats.comentarios} (👍${stats.sentimento_positivo} / 👎${stats.sentimento_negativo} / 😐${stats.sentimento_neutro})
+- Tom geral da recepção: ${tomGeral.toUpperCase()}
+- Respondidos pela equipe: ${respondidosPeloTime} (${taxaResposta}% do total)
+- Comparativo com semana anterior: ${variacaoComentarios !== null ? `${variacaoComentarios > 0 ? "+" : ""}${variacaoComentarios}% comentários` : "sem dados anteriores"}${variacaoPosts !== null ? ` · ${variacaoPosts > 0 ? "+" : ""}${variacaoPosts}% postagens` : ""}
 - Ações externas: ${stats.acoes}
 - Visitas registradas: ${stats.visitas}
 
+============ TOP POSTAGENS (mais comentadas) ============
+${topPosts.map((p, i) => `[T${i + 1}] ${p.platform || "?"} · ${p.total} coments (👍${p.pos} 👎${p.neg}) — "${(p.message || "").slice(0, 200)}"${p.url ? `\n   URL: ${p.url}` : ""}`).join("\n") || "(nenhuma)"}
+
 ============ POSTAGENS DA SEMANA ============
 ${postsTxt || "(nenhuma postagem registrada no período)"}
+
+============ AMOSTRA DE COMENTÁRIOS DA BASE ============
+${postsTrim.flatMap((p, i) => (p.comentarios_amostra || []).map((c: string) => `[P${i + 1}] "${c}"`)).slice(0, 25).join("\n") || "(sem amostra)"}
 
 ============ AÇÕES EXTERNAS / AGENDA ============
 ${acoesTxt || "(nenhuma ação registrada)"}
@@ -251,7 +328,7 @@ ${visitasTxt || "(nenhuma visita registrada)"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      maxTokens: 3500,
+      maxTokens: 5000,
       temperature: 0.45,
     });
 
@@ -313,6 +390,8 @@ ${visitasTxt || "(nenhuma visita registrada)"}`;
     const metadataPayload = {
       avisos: parsed.avisos || "",
       destaques: Array.isArray(parsed.destaques) ? parsed.destaques : [],
+      temas_predominantes: Array.isArray(parsed.temas_predominantes) ? parsed.temas_predominantes : [],
+      recomendacoes: Array.isArray(parsed.recomendacoes_proxima_semana) ? parsed.recomendacoes_proxima_semana : [],
       provider: resp.provider,
       model: resp.model,
       reprocessed_from: reprocessMateriaId || null,
