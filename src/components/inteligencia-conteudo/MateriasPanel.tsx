@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, FileText, Copy, Trash2, Sparkles } from "lucide-react";
@@ -23,16 +25,18 @@ export function MateriasPanel({ clientId }: Props) {
   const [materias, setMaterias] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [transcricoes, setTranscricoes] = useState<any[]>([]);
-  const [transcriptionId, setTranscriptionId] = useState<string>("none");
-  const [sourceTranscript, setSourceTranscript] = useState<any>(null);
+  const [transcriptionIds, setTranscriptionIds] = useState<string[]>([]);
+  const [sourceTranscripts, setSourceTranscripts] = useState<any[]>([]);
   const [sourceLoading, setSourceLoading] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState<string | null>(null); // id da fonte aberta no modal
 
-  // Quando seleciona uma matéria, carrega a transcrição-fonte (se houver)
+  // Quando seleciona uma matéria, carrega TODAS as transcrições-fonte vinculadas
   useEffect(() => {
-    const trId = selected?.transcription_id || selected?.fontes?.transcription_id;
-    if (!selected || !trId) {
-      setSourceTranscript(null);
+    const ids: string[] =
+      selected?.fontes?.transcription_ids ||
+      (selected?.transcription_id ? [selected.transcription_id] : selected?.fontes?.transcription_id ? [selected.fontes.transcription_id] : []);
+    if (!selected || ids.length === 0) {
+      setSourceTranscripts([]);
       return;
     }
     let cancel = false;
@@ -41,10 +45,11 @@ export function MateriasPanel({ clientId }: Props) {
       const { data } = await supabase
         .from("ic_transcriptions")
         .select("id, filename, full_text, created_at, duration_sec")
-        .eq("id", trId)
-        .maybeSingle();
+        .in("id", ids);
       if (!cancel) {
-        setSourceTranscript(data || null);
+        // Preserva a ordem original (F1, F2, ...)
+        const byId = new Map((data || []).map((t: any) => [t.id, t]));
+        setSourceTranscripts(ids.map((id) => byId.get(id)).filter(Boolean));
         setSourceLoading(false);
       }
     })();
@@ -70,8 +75,14 @@ export function MateriasPanel({ clientId }: Props) {
 
   useEffect(() => { if (clientId) load(); }, [clientId]);
 
+  const toggleTranscription = (id: string) => {
+    setTranscriptionIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
   const gerar = async () => {
-    const hasTranscript = transcriptionId !== "none";
+    const hasTranscript = transcriptionIds.length > 0;
     if (!hasTranscript && briefing.trim().length < 10) {
       toast.error("Descreva o briefing OU selecione uma transcrição-fonte.");
       return;
@@ -86,13 +97,14 @@ export function MateriasPanel({ clientId }: Props) {
           tema: tema || undefined,
           briefing,
           salvarComo: "rascunho",
-          transcriptionId: transcriptionId !== "none" ? transcriptionId : undefined,
+          transcriptionIds: hasTranscript ? transcriptionIds : undefined,
         },
       });
       if (error) throw error;
       toast.success("Matéria gerada!");
       setSelected(data?.saved || data?.materia);
       setBriefing("");
+      setTranscriptionIds([]);
       await load();
     } catch (e: any) {
       toast.error(e.message || "Erro ao gerar matéria");
@@ -108,6 +120,15 @@ export function MateriasPanel({ clientId }: Props) {
     await load();
   };
 
+  const openSource = sourceTranscripts.find((t) => t.id === sourceOpen) || null;
+  const tracos: Array<{ trecho: string; fonte: string }> = Array.isArray(selected?.fontes?.tracos)
+    ? selected.fontes.tracos
+    : [];
+  const labelMap = new Map<string, { label: string; filename?: string }>();
+  const labelsMeta: Array<{ id: string; label: string; filename?: string }> =
+    selected?.fontes?.transcription_labels || [];
+  labelsMeta.forEach((l) => labelMap.set(l.id, { label: l.label, filename: l.filename }));
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-1">
@@ -121,20 +142,54 @@ export function MateriasPanel({ clientId }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label>Transcrição-fonte (usa o texto INTEIRO como base)</Label>
-            <Select value={transcriptionId} onValueChange={setTranscriptionId}>
-              <SelectTrigger><SelectValue placeholder="Nenhuma — usar memória + posts" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhuma (usa memória + posts)</SelectItem>
-                {transcricoes.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {(t.filename || "transcrição").slice(0, 40)} · {new Date(t.created_at).toLocaleDateString("pt-BR")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label>Transcrições-fonte ({transcriptionIds.length} selecionada{transcriptionIds.length === 1 ? "" : "s"})</Label>
+              {transcriptionIds.length > 0 && (
+                <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2" onClick={() => setTranscriptionIds([])}>
+                  Limpar
+                </Button>
+              )}
+            </div>
+            <ScrollArea className="h-44 rounded-md border mt-1">
+              <div className="p-2 space-y-1">
+                {transcricoes.length === 0 && (
+                  <p className="text-xs text-muted-foreground p-2">Nenhuma transcrição disponível.</p>
+                )}
+                {transcricoes.map((t, idx) => {
+                  const checked = transcriptionIds.includes(t.id);
+                  const order = checked ? transcriptionIds.indexOf(t.id) + 1 : null;
+                  return (
+                    <label
+                      key={t.id}
+                      className="flex items-start gap-2 text-xs hover:bg-accent/40 rounded px-2 py-1.5 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleTranscription(t.id)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {order && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
+                              F{order}
+                            </Badge>
+                          )}
+                          <span className="truncate font-medium text-foreground">
+                            {t.filename || `Transcrição ${idx + 1}`}
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground">
+                          {new Date(t.created_at).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </ScrollArea>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Quando selecionada, a transcrição inteira vira a fonte principal — sem fragmentação em blocos.
+              Selecione uma ou mais. A IA combina todas e marca a origem de cada trecho com [F1], [F2]…
             </p>
           </div>
           <div>
@@ -167,11 +222,11 @@ export function MateriasPanel({ clientId }: Props) {
           </div>
           <div>
             <Label>
-              Briefing {transcriptionId !== "none" && <span className="text-muted-foreground font-normal">(opcional — a transcrição já é a base)</span>}
+              Briefing {transcriptionIds.length > 0 && <span className="text-muted-foreground font-normal">(opcional — as transcrições já são a base)</span>}
             </Label>
             <Textarea
               placeholder={
-                transcriptionId !== "none"
+                transcriptionIds.length > 0
                   ? "Opcional. Adicione um ângulo extra se quiser (ex: 'foque na promessa de UBS')."
                   : "Ex: Quero uma matéria sobre as obras de asfalto na Moreninha 4 anunciadas hoje."
               }
@@ -202,27 +257,46 @@ export function MateriasPanel({ clientId }: Props) {
                 )}
               </div>
               {selected.subtitulo && <p className="text-sm text-muted-foreground italic">{selected.subtitulo}</p>}
-              {(selected.transcription_id || selected.fontes?.transcription_id) && (
-                <div className="rounded-md border bg-muted/40 p-3 flex items-start gap-2 text-xs">
-                  <FileText className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground">Fonte: transcrição integral</p>
-                    <p className="text-muted-foreground truncate">
-                      {sourceLoading
-                        ? "Carregando..."
-                        : sourceTranscript?.filename || "Transcrição vinculada"}
-                      {sourceTranscript?.created_at && ` · ${new Date(sourceTranscript.created_at).toLocaleDateString("pt-BR")}`}
-                      {sourceTranscript?.full_text && ` · ${sourceTranscript.full_text.length.toLocaleString("pt-BR")} caracteres`}
-                    </p>
+              {sourceTranscripts.length > 0 && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-2 text-xs">
+                  <p className="font-medium text-foreground flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-primary" />
+                    {sourceTranscripts.length === 1 ? "Fonte: transcrição integral" : `Fontes combinadas: ${sourceTranscripts.length} transcrições`}
+                  </p>
+                  {sourceLoading && <p className="text-muted-foreground">Carregando…</p>}
+                  <div className="space-y-1">
+                    {sourceTranscripts.map((t, i) => {
+                      const label = labelMap.get(t.id)?.label || `F${i + 1}`;
+                      return (
+                        <div key={t.id} className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">{label}</Badge>
+                          <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                            <span className="text-foreground font-medium">{t.filename || "Transcrição"}</span>
+                            {t.created_at && ` · ${new Date(t.created_at).toLocaleDateString("pt-BR")}`}
+                            {t.full_text && ` · ${t.full_text.length.toLocaleString("pt-BR")} car.`}
+                          </span>
+                          <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setSourceOpen(t.id)}>
+                            Ver completa
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!sourceTranscript?.full_text}
-                    onClick={() => setSourceOpen(true)}
-                  >
-                    Ver transcrição completa
-                  </Button>
+                  {tracos.length > 0 && (
+                    <details className="pt-1">
+                      <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+                        Rastreabilidade ({tracos.length} trecho{tracos.length === 1 ? "" : "s"} mapeado{tracos.length === 1 ? "" : "s"})
+                      </summary>
+                      <ul className="mt-1.5 space-y-1 pl-1">
+                        {tracos.map((t, i) => (
+                          <li key={i} className="flex gap-1.5">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0">{t.fonte}</Badge>
+                            <span className="text-foreground/80">{t.trecho}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
               )}
               <div className="prose prose-sm max-w-none whitespace-pre-wrap">{selected.corpo}</div>
@@ -241,7 +315,12 @@ export function MateriasPanel({ clientId }: Props) {
                 <div key={m.id} className="p-3 border rounded-md hover:bg-accent/50 cursor-pointer flex justify-between gap-3" onClick={() => setSelected(m)}>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{m.titulo}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("pt-BR")} · {m.tipo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(m.created_at).toLocaleString("pt-BR")} · {m.tipo}
+                      {Array.isArray(m.fontes?.transcription_ids) && m.fontes.transcription_ids.length > 1 && (
+                        <> · <span className="text-primary">{m.fontes.transcription_ids.length} fontes</span></>
+                      )}
+                    </p>
                   </div>
                   <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); apagar(m.id); }}>
                     <Trash2 className="w-4 h-4 text-destructive" />
@@ -253,21 +332,24 @@ export function MateriasPanel({ clientId }: Props) {
         </CardContent>
       </Card>
 
-      <Dialog open={sourceOpen} onOpenChange={setSourceOpen}>
+      <Dialog open={!!sourceOpen} onOpenChange={(o) => !o && setSourceOpen(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <FileText className="w-4 h-4" />
-              {sourceTranscript?.filename || "Transcrição-fonte"}
+              {openSource?.filename || "Transcrição-fonte"}
+              {openSource && labelMap.get(openSource.id)?.label && (
+                <Badge variant="secondary" className="text-[10px]">{labelMap.get(openSource.id)?.label}</Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
               Conteúdo integral usado pela IA para gerar esta matéria.
-              {sourceTranscript?.created_at && ` Capturada em ${new Date(sourceTranscript.created_at).toLocaleString("pt-BR")}.`}
+              {openSource?.created_at && ` Capturada em ${new Date(openSource.created_at).toLocaleString("pt-BR")}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto flex-1 -mx-6 px-6">
             <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-foreground">
-              {sourceTranscript?.full_text || "(sem conteúdo)"}
+              {openSource?.full_text || "(sem conteúdo)"}
             </pre>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t">
@@ -275,15 +357,15 @@ export function MateriasPanel({ clientId }: Props) {
               size="sm"
               variant="outline"
               onClick={() => {
-                if (sourceTranscript?.full_text) {
-                  navigator.clipboard.writeText(sourceTranscript.full_text);
+                if (openSource?.full_text) {
+                  navigator.clipboard.writeText(openSource.full_text);
                   toast.success("Transcrição copiada!");
                 }
               }}
             >
               <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar transcrição
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSourceOpen(false)}>Fechar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSourceOpen(null)}>Fechar</Button>
           </div>
         </DialogContent>
       </Dialog>

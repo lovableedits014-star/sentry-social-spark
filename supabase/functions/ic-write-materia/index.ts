@@ -17,6 +17,7 @@ interface WriteRequest {
   incluirMemoriaUltimosDias?: number; // default 30
   salvarComo?: "rascunho" | null; // se "rascunho", salva no histórico
   transcriptionId?: string; // se informado, usa a transcrição INTEIRA como fonte primária
+  transcriptionIds?: string[]; // múltiplas transcrições-fonte combinadas com rastreabilidade
 }
 
 const TIPO_DESC: Record<Tipo, string> = {
@@ -51,10 +52,18 @@ Deno.serve(async (req) => {
       incluirMemoriaUltimosDias = 60,
       salvarComo = "rascunho",
       transcriptionId,
+      transcriptionIds,
     } = body || ({} as WriteRequest);
 
     if (!clientId) return errorResponse("clientId é obrigatório", 400);
-    if ((!briefing || briefing.trim().length < 10) && !transcriptionId)
+    const idsFromArray = Array.isArray(transcriptionIds)
+      ? transcriptionIds.filter((x) => typeof x === "string" && x.length > 0)
+      : [];
+    const allTranscriptionIds = Array.from(
+      new Set([...(transcriptionId ? [transcriptionId] : []), ...idsFromArray]),
+    );
+    const hasAnyTranscription = allTranscriptionIds.length > 0;
+    if ((!briefing || briefing.trim().length < 10) && !hasAnyTranscription)
       return errorResponse(
         "Informe um briefing OU selecione uma transcrição-fonte.",
         400
@@ -69,25 +78,33 @@ Deno.serve(async (req) => {
       .eq("id", clientId)
       .maybeSingle();
 
-    // Transcrição-fonte (INTEIRA) — fonte prioritária quando informada
-    let transcricaoFonte: any = null;
-    if (transcriptionId) {
-      const { data: tr } = await admin
+    // Transcrições-fonte (INTEIRAS) — fontes prioritárias quando informadas.
+    // Cada uma recebe um rótulo curto [F1], [F2]... para rastreabilidade nas citações.
+    let fontesTranscricoes: any[] = [];
+    if (hasAnyTranscription) {
+      const { data: trs } = await admin
         .from("ic_transcriptions")
         .select("id, full_text, filename, created_at, segments")
-        .eq("id", transcriptionId)
-        .eq("client_id", clientId)
-        .maybeSingle();
-      if (tr) {
-        const fromSegs = Array.isArray(tr.segments)
-          ? tr.segments.map((s: any) => s?.text ?? "").join(" ").trim()
-          : "";
-        transcricaoFonte = {
-          ...tr,
-          full_text: tr.full_text || fromSegs,
-        };
-      }
+        .in("id", allTranscriptionIds)
+        .eq("client_id", clientId);
+      // Preserva a ordem de seleção do usuário
+      const byId = new Map((trs || []).map((t: any) => [t.id, t]));
+      fontesTranscricoes = allTranscriptionIds
+        .map((id) => byId.get(id))
+        .filter(Boolean)
+        .map((tr: any, idx: number) => {
+          const fromSegs = Array.isArray(tr.segments)
+            ? tr.segments.map((s: any) => s?.text ?? "").join(" ").trim()
+            : "";
+          return {
+            ...tr,
+            label: `F${idx + 1}`,
+            full_text: tr.full_text || fromSegs,
+          };
+        });
     }
+    const transcricaoFonte = fontesTranscricoes[0] || null; // compat com campos antigos
+    const multiFontes = fontesTranscricoes.length > 1;
 
     // Memória relevante (últimos N dias) — filtra por tema se fornecido
     const sinceIso = new Date(Date.now() - incluirMemoriaUltimosDias * 86400000).toISOString();
@@ -102,7 +119,7 @@ Deno.serve(async (req) => {
     const { data: memoria } = await memQuery;
 
     // Últimas transcrições (apenas como contexto secundário, se NÃO houver fonte específica)
-    const { data: transcricoes } = transcricaoFonte
+    const { data: transcricoes } = hasAnyTranscription
       ? { data: [] as any[] }
       : await admin
           .from("ic_transcriptions")
@@ -127,10 +144,18 @@ Deno.serve(async (req) => {
     const transcrTxt = (transcricoes || [])
       .map((t: any, i: number) => `# Transcrição ${i + 1} (${t.created_at?.slice(0, 10)})\n${(t.full_text || "").slice(0, 800)}`)
       .join("\n\n");
-    // Transcrição-fonte é incluída INTEIRA (até 30k chars) sem fragmentar
-    const fonteTxt = transcricaoFonte
-      ? `# TRANSCRIÇÃO-FONTE (INTEIRA — ${transcricaoFonte.filename || "sem nome"} — ${transcricaoFonte.created_at?.slice(0, 10)})\n${(transcricaoFonte.full_text || "").slice(0, 30000)}`
-      : "";
+    // Transcrições-fonte INTEIRAS, divididas por orçamento total (~60k chars).
+    // Cada uma recebe um rótulo [F1] / [F2] para a IA citar no campo `tracos`.
+    const TOTAL_BUDGET = 60000;
+    const perFonteBudget = fontesTranscricoes.length
+      ? Math.max(8000, Math.floor(TOTAL_BUDGET / fontesTranscricoes.length))
+      : 0;
+    const fonteTxt = fontesTranscricoes
+      .map((t) => {
+        const txt = (t.full_text || "").slice(0, perFonteBudget);
+        return `# [${t.label}] TRANSCRIÇÃO-FONTE (INTEIRA — ${t.filename || "sem nome"} — ${t.created_at?.slice(0, 10)})\n${txt}`;
+      })
+      .join("\n\n");
     const postsTxt = (posts || [])
       .map((p: any) => `- ${(p.message || "").slice(0, 220)}`)
       .join("\n");
@@ -143,7 +168,15 @@ Deno.serve(async (req) => {
 REGRAS:
 - NUNCA invente fatos, números ou nomes que não estejam no contexto fornecido.
 - Use APENAS o que está na TRANSCRIÇÃO-FONTE (quando houver), MEMÓRIA, TRANSCRIÇÕES e POSTS abaixo.
-${transcricaoFonte ? "- A TRANSCRIÇÃO-FONTE é a base PRINCIPAL da matéria. Trate-a como o discurso/entrevista que originou esta matéria — preserve o contexto completo, não recorte ideias soltas. Memória e posts são apenas contexto complementar.\n" : ""}
+${
+  fontesTranscricoes.length === 1
+    ? "- A TRANSCRIÇÃO-FONTE é a base PRINCIPAL da matéria. Trate-a como o discurso/entrevista que originou esta matéria — preserve o contexto completo, não recorte ideias soltas. Memória e posts são apenas contexto complementar.\n"
+    : multiFontes
+    ? `- Você tem ${fontesTranscricoes.length} TRANSCRIÇÕES-FONTE rotuladas (${fontesTranscricoes
+        .map((t) => `[${t.label}] ${t.filename || "sem nome"}`)
+        .join(", ")}). Combine-as em UMA matéria coerente que conecte os pontos comuns e contraste, quando houver, divergências.\n- RASTREABILIDADE OBRIGATÓRIA: para CADA trecho/citação/fato derivado, marque a origem com o rótulo entre colchetes (ex: "...obras na Moreninha [F1]" ou "...conforme reforçou em outra entrevista [F2]"). NÃO invente fatos que não estejam em nenhuma fonte.\n- No JSON, preencha o array \`tracos\` listando os principais trechos com sua fonte: [{"trecho":"...","fonte":"F1"}].\n`
+    : ""
+}
 - Se o briefing pedir algo que não está no contexto, diga isso no campo "avisos".
 - Português do Brasil.
 - Formato pedido: ${TIPO_DESC[tipo]}
@@ -153,8 +186,9 @@ Retorne JSON ESTRITO no formato:
 {
   "titulo": "...",
   "subtitulo": "...",
-  "corpo": "texto completo da matéria, com quebras de parágrafo \\n\\n",
+  "corpo": "texto completo da matéria, com quebras de parágrafo \\n\\n${multiFontes ? ", incluindo marcações de origem [F1]/[F2] ao final de cada afirmação derivada" : ""}",
   "fontes_usadas": ["id_memoria_1", ...],
+  "tracos": [${multiFontes ? '{"trecho":"resumo da afirmação", "fonte":"F1"}' : ""}],
   "avisos": "se faltou alguma informação, descreva aqui — senão string vazia"
 }
 
@@ -163,8 +197,10 @@ Sem markdown, sem comentários fora do JSON.`;
     const briefingFinal =
       briefing && briefing.trim().length >= 10
         ? briefing.trim()
-        : transcricaoFonte
-        ? "Escreva uma matéria a partir da TRANSCRIÇÃO-FONTE abaixo. Identifique o tema central, a mensagem principal e os fatos relevantes — e construa a matéria em torno disso."
+        : hasAnyTranscription
+        ? multiFontes
+          ? `Escreva UMA matéria combinando as ${fontesTranscricoes.length} TRANSCRIÇÕES-FONTE abaixo. Identifique convergências e divergências, e marque a origem de cada trecho com o rótulo [F1], [F2]...`
+          : "Escreva uma matéria a partir da TRANSCRIÇÃO-FONTE abaixo. Identifique o tema central, a mensagem principal e os fatos relevantes — e construa a matéria em torno disso."
         : "";
 
     const userPrompt = `BRIEFING DO USUÁRIO:
@@ -175,7 +211,7 @@ ${briefingFinal}
 CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
 REGIÃO: ${client?.regiao_atuacao || "não informada"}
 
-${fonteTxt ? "============ TRANSCRIÇÃO-FONTE (BASE PRINCIPAL — USE INTEGRALMENTE) ============\n" + fonteTxt + "\n\n" : ""}
+${fonteTxt ? `============ ${multiFontes ? `TRANSCRIÇÕES-FONTE (${fontesTranscricoes.length} — BASE PRINCIPAL — USE INTEGRALMENTE, MARQUE ORIGEM)` : "TRANSCRIÇÃO-FONTE (BASE PRINCIPAL — USE INTEGRALMENTE)"} ============\n` + fonteTxt + "\n\n" : ""}
 ============ MEMÓRIA ESTRUTURADA (fatos extraídos de falas/posts/comentários) ============
 ${memoriaTxt || "(memória vazia)"}
 
@@ -221,6 +257,14 @@ ${postsTxt || "(nenhum)"}`;
           fontes: {
             memoria_ids: parsed.fontes_usadas || [],
             transcription_id: transcricaoFonte?.id ?? null,
+            transcription_ids: fontesTranscricoes.map((t) => t.id),
+            transcription_labels: fontesTranscricoes.map((t) => ({
+              id: t.id,
+              label: t.label,
+              filename: t.filename,
+              created_at: t.created_at,
+            })),
+            tracos: Array.isArray(parsed.tracos) ? parsed.tracos : [],
           },
           transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
@@ -242,6 +286,7 @@ ${postsTxt || "(nenhum)"}`;
         transcricoes: transcricoes?.length || 0,
         posts: posts?.length || 0,
         transcricao_fonte: transcricaoFonte ? { id: transcricaoFonte.id, filename: transcricaoFonte.filename } : null,
+        fontes_transcricoes: fontesTranscricoes.map((t) => ({ id: t.id, label: t.label, filename: t.filename })),
       },
     });
   } catch (e) {
