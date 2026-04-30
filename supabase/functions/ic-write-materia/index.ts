@@ -224,7 +224,7 @@ ${postsTxt || "(nenhum)"}`;
           },
           transcription_id: transcricaoFonte?.id ?? null,
           status: "rascunho",
-          prompt_input: briefing,
+          prompt_input: briefingFinal,
           metadata: { avisos: parsed.avisos || "", provider: resp.provider, model: resp.model },
         })
         .select("*")
