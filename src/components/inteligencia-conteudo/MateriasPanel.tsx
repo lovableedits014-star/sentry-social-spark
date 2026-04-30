@@ -10,9 +10,379 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook, Instagram, ExternalLink, MessageSquare, ThumbsUp, ThumbsDown, FileDown, Send, Star, Pencil, X, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import jsPDF from "jspdf";
+
+/* ==========================================================================
+ * PDF BUILDER — Boletim Semanal (mesmo padrão visual do Dossiê de Narrativa)
+ * ========================================================================== */
+function buildBoletimPdf(boletim: any, download = true): jsPDF {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  const contentW = pageW - margin * 2;
+
+  const C = {
+    primary: [15, 23, 42] as number[],
+    accent:  [59, 130, 246] as number[],
+    danger:  [220, 38, 38] as number[],
+    warn:    [234, 88, 12] as number[],
+    muted:   [100, 116, 139] as number[],
+    light:   [241, 245, 249] as number[],
+    border:  [226, 232, 240] as number[],
+    success: [22, 163, 74] as number[],
+    text:    [30, 41, 59] as number[],
+    white:   [255, 255, 255] as number[],
+    bgSoft:  [248, 250, 252] as number[],
+  };
+  const setFill = (c: number[]) => doc.setFillColor(c[0], c[1], c[2]);
+  const setStroke = (c: number[]) => doc.setDrawColor(c[0], c[1], c[2]);
+  const setText = (c: number[]) => doc.setTextColor(c[0], c[1], c[2]);
+
+  let y = margin;
+  let pageNum = 1;
+
+  const fontes = boletim?.fontes || {};
+  const stats = fontes.stats || {};
+  const periodo = fontes.periodo || {};
+  const meta = boletim?.metadata || {};
+  const periodoLabel = periodo.since && periodo.until
+    ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+    : "Período não definido";
+  const titulo = boletim?.titulo || `Boletim semanal — ${periodoLabel}`;
+  const subtitulo = boletim?.subtitulo || "";
+
+  const drawHeader = () => {
+    if (pageNum === 1) return;
+    setFill(C.primary);
+    doc.rect(0, 0, pageW, 28, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(`BOLETIM SEMANAL · ${periodoLabel}`, margin, 18);
+  };
+  const drawFooter = () => {
+    setText(C.muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Inteligência de Conteúdo · Boletim Semanal", margin, pageH - 18);
+    doc.text(`Página ${pageNum}`, pageW - margin, pageH - 18, { align: "right" });
+  };
+  const newPage = () => {
+    drawFooter();
+    doc.addPage();
+    pageNum++;
+    drawHeader();
+    y = pageNum === 1 ? margin : 56;
+  };
+  const ensure = (h: number) => { if (y + h > pageH - 40) newPage(); };
+
+  const sectionTitle = (title: string, accent: number[] = C.accent) => {
+    ensure(38);
+    setFill(accent);
+    doc.rect(margin, y, 4, 18, "F");
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(title, margin + 12, y + 14);
+    y += 28;
+  };
+
+  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean; italic?: boolean; maxWidth?: number; indent?: number } = {}) => {
+    const size = opts.size ?? 10;
+    setText(opts.color ?? C.text);
+    const style = opts.bold ? (opts.italic ? "bolditalic" : "bold") : (opts.italic ? "italic" : "normal");
+    doc.setFont("helvetica", style);
+    doc.setFontSize(size);
+    const safe = (text || "").replace(/(\S{30,})/g, (m) => m.replace(/(.{22})/g, "$1 "));
+    const w = opts.maxWidth ?? contentW - (opts.indent || 0);
+    const wrapped = doc.splitTextToSize(safe, w);
+    for (const line of wrapped) {
+      ensure(size + 4);
+      doc.text(line, margin + (opts.indent || 0), y);
+      y += size + 4;
+    }
+  };
+
+  const card = (title: string, value: string, sub: string, x: number, w: number, accent = C.accent) => {
+    const h = 56;
+    setFill(C.light);
+    setStroke(C.border);
+    doc.roundedRect(x, y, w, h, 4, 4, "FD");
+    setFill(accent);
+    doc.rect(x, y, 3, h, "F");
+    setText(C.muted);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(title.toUpperCase(), x + 10, y + 14);
+    setText(C.primary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    const vWrapped = doc.splitTextToSize(value, w - 20);
+    doc.text(vWrapped[0] || "—", x + 10, y + 32);
+    if (sub) {
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const sWrapped = doc.splitTextToSize(sub, w - 20);
+      doc.text(sWrapped[0], x + 10, y + 48);
+    }
+  };
+
+  const pill = (text: string, x: number, py: number, color: number[]): number => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    const tw = doc.getTextWidth(text) + 14;
+    setFill(color);
+    doc.roundedRect(x, py - 9, tw, 14, 7, 7, "F");
+    setText(C.white);
+    doc.text(text, x + 7, py);
+    return tw;
+  };
+
+  /* ---------- CAPA ---------- */
+  setFill(C.primary);
+  doc.rect(0, 0, pageW, 220, "F");
+  setFill(C.accent);
+  doc.rect(0, 220, pageW, 4, "F");
+
+  setText(C.white);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("INTELIGÊNCIA DE CONTEÚDO · BOLETIM SEMANAL", margin, 70);
+
+  doc.setFontSize(28);
+  const titWrap = doc.splitTextToSize(titulo, contentW);
+  doc.text(titWrap.slice(0, 3), margin, 110);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
+  setText(C.light);
+  doc.text(periodoLabel, margin, 180);
+
+  // Caixa "destaques da semana"
+  setFill(C.white);
+  setStroke(C.border);
+  doc.roundedRect(margin, 250, contentW, 200, 6, 6, "FD");
+  setText(C.muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("RESUMO DA SEMANA", margin + 16, 274);
+
+  setText(C.primary);
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(11);
+  if (subtitulo) {
+    const sub = doc.splitTextToSize(subtitulo, contentW - 32);
+    doc.text(sub.slice(0, 3), margin + 16, 296);
+  }
+
+  // Destaques bullet
+  setText(C.text);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const destaques: string[] = Array.isArray(meta.destaques) ? meta.destaques : [];
+  let dy = 340;
+  for (const d of destaques.slice(0, 4)) {
+    const wrap = doc.splitTextToSize(`• ${d}`, contentW - 32);
+    for (const ln of wrap.slice(0, 3)) {
+      if (dy > 438) break;
+      doc.text(ln, margin + 16, dy);
+      dy += 14;
+    }
+    dy += 2;
+  }
+
+  // KPIs na capa
+  y = 470;
+  const kpiW = (contentW - 20) / 3;
+  const yKpi = 470;
+  const tomColor = stats.tom_geral === "positivo" ? C.success
+    : stats.tom_geral === "negativo" ? C.danger
+    : stats.tom_geral === "misto" ? C.warn : C.muted;
+  card("Postagens", String(stats.posts ?? 0),
+    stats.semana_anterior?.variacao_posts_pct != null
+      ? `${stats.semana_anterior.variacao_posts_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_posts_pct}% vs semana anterior`
+      : "",
+    margin, kpiW, C.accent);
+  y = yKpi;
+  card("Comentários", String(stats.comentarios ?? 0),
+    stats.semana_anterior?.variacao_comentarios_pct != null
+      ? `${stats.semana_anterior.variacao_comentarios_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_comentarios_pct}% vs semana anterior`
+      : "",
+    margin + kpiW + 10, kpiW, C.success);
+  y = yKpi;
+  card("Tom da recepção", String(stats.tom_geral || "—").toUpperCase(),
+    `👍 ${stats.sentimento_positivo ?? 0} · 👎 ${stats.sentimento_negativo ?? 0} · 😐 ${stats.sentimento_neutro ?? 0}`,
+    margin + (kpiW + 10) * 2, kpiW, tomColor);
+
+  // Segunda linha de KPIs
+  y = 540;
+  card("Ações externas", String(stats.acoes ?? 0), "Eventos / agenda registrada", margin, kpiW, C.warn);
+  y = 540;
+  card("Visitas", String(stats.visitas ?? 0), "Territórios visitados", margin + kpiW + 10, kpiW, C.accent);
+  y = 540;
+  card("Taxa de resposta", `${stats.taxa_resposta_pct ?? 0}%`,
+    `${stats.respondidos ?? 0} de ${stats.comentarios ?? 0} comentários`,
+    margin + (kpiW + 10) * 2, kpiW, C.success);
+
+  drawFooter();
+
+  /* ---------- CONTEÚDO ---------- */
+  doc.addPage();
+  pageNum++;
+  drawHeader();
+  y = 56;
+
+  // Render do markdown do corpo (parser leve: ##, ###, listas, links, negrito)
+  const corpo: string = (boletim?.corpo || "").trim();
+  if (corpo) {
+    sectionTitle("Análise da semana", C.accent);
+
+    const lines = corpo.split("\n");
+    const stripMd = (s: string) =>
+      s.replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\*(.+?)\*/g, "$1")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+        .replace(/`([^`]+)`/g, "$1");
+
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+      if (!line.trim()) { y += 4; continue; }
+      // H2
+      if (line.startsWith("## ")) {
+        y += 6;
+        sectionTitle(stripMd(line.replace(/^##\s+/, "")), C.accent);
+        continue;
+      }
+      // H3
+      if (line.startsWith("### ")) {
+        y += 4;
+        ensure(20);
+        setText(C.primary);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(stripMd(line.replace(/^###\s+/, "")), margin, y);
+        y += 14;
+        continue;
+      }
+      // Bullet
+      if (/^[-*]\s+/.test(line)) {
+        const txt = stripMd(line.replace(/^[-*]\s+/, ""));
+        ensure(14);
+        setText(C.accent);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("•", margin + 4, y);
+        paragraph(txt, { size: 10, indent: 16 });
+        continue;
+      }
+      // Parágrafo comum
+      paragraph(stripMd(line), { size: 10 });
+    }
+  }
+
+  /* ---------- TOP POSTAGENS ---------- */
+  const topPosts: any[] = Array.isArray(stats.top_posts) ? stats.top_posts : [];
+  if (topPosts.length > 0) {
+    y += 8;
+    sectionTitle("Top postagens (mais comentadas)", C.warn);
+
+    ensure(24);
+    setFill(C.primary);
+    doc.rect(margin, y, contentW, 20, "F");
+    setText(C.white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("#", margin + 8, y + 14);
+    doc.text("PLATAFORMA", margin + 30, y + 14);
+    doc.text("RESUMO DO POST", margin + 130, y + 14);
+    doc.text("COMENT.", pageW - margin - 60, y + 14);
+    y += 20;
+
+    topPosts.forEach((p, idx) => {
+      const txt = (p.message || "(sem texto)");
+      const safe = txt.replace(/\s+/g, " ").trim().slice(0, 180);
+      const wrap = doc.splitTextToSize(safe, 280);
+      const rowH = Math.max(28, 14 + wrap.length * 12);
+      ensure(rowH);
+      if (idx % 2 === 0) {
+        setFill(C.bgSoft);
+        doc.rect(margin, y, contentW, rowH, "F");
+      }
+      setText(C.text);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(String(p.rank ?? idx + 1), margin + 8, y + 16);
+      doc.setFont("helvetica", "bold");
+      doc.text((p.platform || "?").toUpperCase(), margin + 30, y + 16);
+      doc.setFont("helvetica", "normal");
+      let ty = y + 16;
+      for (const ln of wrap) {
+        doc.text(ln, margin + 130, ty);
+        ty += 12;
+      }
+      doc.setFont("helvetica", "bold");
+      setText(C.accent);
+      doc.text(`${p.total ?? 0}`, pageW - margin - 60, y + 16);
+      setText(C.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(`👍${p.pos ?? 0} 👎${p.neg ?? 0}`, pageW - margin - 60, y + 30);
+      y += rowH;
+    });
+  }
+
+  /* ---------- AGENDA / VISITAS ---------- */
+  const acoes: any[] = Array.isArray(fontes.acoes_referenciadas) ? fontes.acoes_referenciadas : [];
+  const visitas: any[] = Array.isArray(fontes.visitas_referenciadas) ? fontes.visitas_referenciadas : [];
+
+  if (acoes.length > 0) {
+    y += 12;
+    sectionTitle("Agenda externa", C.success);
+    for (const a of acoes) {
+      const data = a.data_inicio ? new Date(a.data_inicio).toLocaleDateString("pt-BR") : "—";
+      const meta = a.meta ? ` (${a.cadastros || 0}/${a.meta} cadastros)` : "";
+      paragraph(`• ${data} — ${a.titulo || "Ação"}${a.local ? ` em ${a.local}` : ""}${meta}`, { size: 10 });
+    }
+  }
+
+  if (visitas.length > 0) {
+    y += 12;
+    sectionTitle("Visitas realizadas", C.accent);
+    for (const v of visitas) {
+      const data = v.data_visita ? new Date(v.data_visita).toLocaleDateString("pt-BR") : "—";
+      const bairros = Array.isArray(v.bairros) && v.bairros.length ? ` · bairros: ${v.bairros.join(", ")}` : "";
+      const temas = Array.isArray(v.temas) && v.temas.length ? ` · temas: ${v.temas.join(", ")}` : "";
+      paragraph(`• ${data} — ${v.municipio || "?"}/${v.uf || "?"}${bairros}${temas}`, { size: 10 });
+    }
+  }
+
+  /* ---------- RECOMENDAÇÕES ---------- */
+  const recs: string[] = Array.isArray(meta.recomendacoes) ? meta.recomendacoes : [];
+  if (recs.length > 0) {
+    y += 12;
+    sectionTitle("Recomendações para a próxima semana", C.warn);
+    for (const r of recs) {
+      paragraph(`• ${r}`, { size: 10 });
+    }
+  }
+
+  drawFooter();
+
+  if (download) {
+    const slug = periodoLabel.replace(/[^\w]+/g, "-").toLowerCase();
+    doc.save(`boletim-semanal-${slug}.pdf`);
+  }
+  return doc;
+}
+
+function exportBoletimPdf(boletim: any) {
+  buildBoletimPdf(boletim, true);
+}
 
 interface Props { clientId: string }
 
