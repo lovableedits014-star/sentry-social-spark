@@ -1108,6 +1108,63 @@ const Comments = () => {
           </>
           )}
         </TabsContent>
+
+        {/* Tab: Revisar IA */}
+        <TabsContent value="review">
+          <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-orange-700 dark:text-orange-300 mb-1">Fila de revisão da IA</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Comentários onde a IA classificou o sentimento mas ficou em dúvida (baixa confiança).
+                  Confirme ou corrija a classificação manualmente. Cada correção sua treina a IA para acertar mais nos próximos.
+                </p>
+              </div>
+            </div>
+          </div>
+          {loadingReview ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted rounded-xl"></div>)}
+            </div>
+          ) : filteredReviewQueue.length === 0 ? (
+            <Card>
+              <CardContent className="py-16">
+                <div className="text-center text-muted-foreground">
+                  <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="font-medium">Nada para revisar 🎉</p>
+                  <p className="text-sm mt-1">A IA está confiante em todas as classificações recentes.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-0 bg-card rounded-xl border shadow-sm overflow-hidden divide-y">
+              {filteredReviewQueue.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  authorStats={authorStats}
+                  registeredSupporters={registeredSupportersMap}
+                  militants={militantsMap}
+                  onOpenAuthorHistory={openAuthorHistory}
+                  onGenerateResponse={handleGenerateResponse}
+                  onSendResponse={handleSendResponse}
+                  onManageComment={handleManageComment}
+                  onReactToComment={handleReactToComment}
+                  onClassifySentiment={handleClassifySentiment}
+                  onIgnoreComment={handleIgnoreComment}
+                  onUnignoreComment={handleUnignoreComment}
+                  isGenerating={generatingResponse === comment.id}
+                  isResponding={responding === comment.id}
+                  isManaging={managingComment === comment.id}
+                  isReacting={reactingComment === comment.id}
+                  isClassifying={classifyingSentiment === comment.id}
+                  showPostInfo
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {authorDrawer && (
