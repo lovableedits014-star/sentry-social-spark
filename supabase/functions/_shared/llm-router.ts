@@ -299,30 +299,56 @@ async function callGroq(
   maxTokens: number,
   temperature: number
 ): Promise<LLMResponse> {
-  const response = await fetch(PROVIDER_ENDPOINTS.groq, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-    }),
-  });
+  const maxAttempts = 4;
+  let lastError = '';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(PROVIDER_ENDPOINTS.groq, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq error: ${response.status} - ${error}`);
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        content: data.choices[0].message.content,
+        provider: 'groq',
+        model,
+        usage: data.usage?.total_tokens,
+      };
+    }
+
+    lastError = await response.text();
+    if (response.status === 429 && attempt < maxAttempts) {
+      // Respeita retry-after do header ou parseia da mensagem ("try again in 2.34s")
+      let waitMs = 0;
+      const retryAfter = response.headers.get('retry-after');
+      if (retryAfter) waitMs = Math.ceil(parseFloat(retryAfter) * 1000);
+      if (!waitMs) {
+        const m = lastError.match(/try again in ([\d.]+)s/i);
+        if (m) waitMs = Math.ceil(parseFloat(m[1]) * 1000);
+      }
+      if (!waitMs) waitMs = 1500 * attempt;
+      waitMs = Math.min(waitMs + 300, 15000); // buffer + cap 15s
+      console.log(`[groq] 429 rate limit, retry ${attempt}/${maxAttempts - 1} em ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    throw new Error(`Groq error: ${response.status} - ${lastError}`);
   }
+  throw new Error(`Groq error: 429 após ${maxAttempts} tentativas - ${lastError}`);
+}
 
-  const data = await response.json();
+// (placeholder removido — função finaliza acima)
+async function _unused_groq_tail(): Promise<LLMResponse> {
+  const data: any = {};
   return {
     content: data.choices[0].message.content,
     provider: 'groq',
-    model,
+    model: '',
     usage: data.usage?.total_tokens,
   };
 }
