@@ -26,13 +26,13 @@ interface WriteRequest {
 
 const TIPO_DESC: Record<Tipo, string> = {
   press_release:
-    "Press release de imprensa: lead com 5W, 2 a 4 parágrafos curtos, citação do candidato entre aspas no meio.",
+    "Press release de imprensa profissional. ESTRUTURA OBRIGATÓRIA: (1) LEAD em 1 parágrafo respondendo 5W (quem, o quê, quando, onde, por quê) — esse parágrafo deve começar com a cidade-data em negrito (ex: '**Campo Grande, 30/04** —'). (2) Corpo com 2 ou 3 INTERTÍTULOS curtos em markdown ('## Intertítulo'), cada seção com 1 a 2 parágrafos densos. (3) PELO MENOS UMA citação em bloco ('> \"Frase literal do candidato.\"') extraída da transcrição. (4) Parágrafo final de fechamento com próximo passo/agenda. Nunca entregue texto solto sem hierarquia.",
   blog:
-    "Post de blog autoral, primeira pessoa, tom mais opinativo, 4 a 6 parágrafos, com subtítulos curtos se ajudar.",
+    "Post de blog autoral em primeira pessoa. ESTRUTURA OBRIGATÓRIA: (1) Abertura com gancho pessoal em 1 parágrafo. (2) Corpo com 2 a 3 INTERTÍTULOS em markdown ('## Intertítulo'), cada um com 1 a 2 parágrafos. (3) Pelo menos uma citação em bloco ('> ...') ou lista com bullets ('- item') quando enumerar ações. (4) Fechamento com chamada/convite. Tom opinativo, próximo, sem clichês.",
   nota_oficial:
-    "Nota oficial do gabinete/mandato, 1 a 3 parágrafos, tom formal e institucional, posicionamento claro.",
+    "Nota oficial institucional. ESTRUTURA OBRIGATÓRIA: (1) Cabeçalho 'NOTA OFICIAL' em negrito como primeira linha. (2) 2 a 3 parágrafos curtos e densos, posicionamento claro e direto. (3) Assinatura final em itálico ('*Gabinete de [nome do candidato]*'). Sem intertítulos, sem citações em bloco — formato sóbrio.",
   boletim:
-    "Boletim semanal de prestação de contas, lista de 4 a 8 ações com bullets curtos + pequena introdução e fechamento.",
+    "Boletim semanal de prestação de contas. ESTRUTURA OBRIGATÓRIA: (1) Título da semana + 1 parágrafo de introdução. (2) INTERTÍTULOS em markdown ('## Categoria') agrupando ações por área (ex: '## Saúde', '## Mobilidade'). (3) Sob cada intertítulo, lista com 2 a 4 bullets ('- Ação concreta com local/número'). (4) Fechamento com agenda da próxima semana.",
 };
 
 const TOM_DESC: Record<Tom, string> = {
@@ -178,6 +178,7 @@ REGRAS:
 - Use APENAS o que está na TRANSCRIÇÃO-FONTE (quando houver), MEMÓRIA, TRANSCRIÇÕES e POSTS abaixo.
 - EVITE FRASES VAZIAS DE CONTEÚDO. Proibido usar clichês como "agradeceu a oportunidade", "reafirmou seu compromisso", "destacou a importância", "ressaltou a relevância", "enfatizou o trabalho", "frisou que", "pontuou a necessidade" sem ANCORÁ-LOS em um fato concreto da transcrição (número, local, nome, data, ação específica). Se a transcrição não traz fato concreto, NÃO escreva o parágrafo.
 - Prefira voz ativa, frases curtas, dados quantificáveis (km de asfalto, valor de convênio, bairro citado, nome de quem participou). Cite trechos literais entre aspas quando agregar credibilidade.
+- FORMATAÇÃO MARKDOWN OBRIGATÓRIA no campo "corpo": use '## ' para intertítulos, '> ' para citação em bloco, '- ' para bullets, '**negrito**' para destaques pontuais (cidade-data, números-chave). Separe blocos por linha em branco dupla (\\n\\n). NUNCA entregue uma sequência de parágrafos planos sem hierarquia — o leitor precisa enxergar a estrutura de matéria de jornal/revista.
 ${
   fontesTranscricoes.length === 1
     ? "- A TRANSCRIÇÃO-FONTE é a base PRINCIPAL da matéria. Trate-a como o discurso/entrevista que originou esta matéria — preserve o contexto completo, não recorte ideias soltas. Memória e posts são apenas contexto complementar.\n"
