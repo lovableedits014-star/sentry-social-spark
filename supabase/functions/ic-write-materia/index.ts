@@ -136,14 +136,22 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(5);
 
-    // Posts recentes (resumo)
-    const { data: posts } = await admin
-      .from("posts")
-      .select("id, message, posted_at")
+    // Posts recentes (a partir de comments — agregados, só para contexto leve)
+    const { data: postsRaw } = await admin
+      .from("comments")
+      .select("post_id, post_message, comment_created_time")
       .eq("client_id", clientId)
-      .not("message", "is", null)
-      .order("posted_at", { ascending: false })
-      .limit(8);
+      .not("post_id", "is", null)
+      .not("post_message", "is", null)
+      .order("comment_created_time", { ascending: false })
+      .limit(60);
+    const postsMap = new Map<string, { message: string; posted_at: string }>();
+    for (const r of postsRaw || []) {
+      if (!r.post_id || postsMap.has(r.post_id)) continue;
+      postsMap.set(r.post_id, { message: r.post_message || "", posted_at: r.comment_created_time });
+      if (postsMap.size >= 8) break;
+    }
+    const posts = Array.from(postsMap.values()).map((p, i) => ({ id: String(i), message: p.message, posted_at: p.posted_at }));
 
     const memoriaTxt = (memoria || [])
       .slice(0, 30)
