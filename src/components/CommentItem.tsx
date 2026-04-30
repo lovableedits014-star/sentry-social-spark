@@ -329,6 +329,8 @@ export const CommentItem = memo(function CommentItem({
                 </span>
               )}
               {getPlatformIcon(comment.platform || 'facebook')}
+              {/* Militant badge (most relevant — computed in DB) */}
+              {!isPageOwner && militant && <MilitantBadge militant={militant} />}
               {/* Registered supporter badge */}
               {registeredSupporter && !isPageOwner && (
                 <TooltipProvider>
