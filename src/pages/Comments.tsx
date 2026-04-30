@@ -1065,6 +1065,19 @@ const Comments = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {authorDrawer && (
+        <AuthorHistoryDrawer
+          open={authorDrawer.open}
+          onOpenChange={(o) => setAuthorDrawer((prev) => prev ? { ...prev, open: o } : prev)}
+          clientId={clientId}
+          platform={authorDrawer.platform}
+          platformUserId={authorDrawer.platformUserId}
+          authorName={authorDrawer.authorName}
+          avatarUrl={authorDrawer.avatarUrl}
+          militant={authorDrawer.militant}
+        />
+      )}
     </div>
   );
 };
