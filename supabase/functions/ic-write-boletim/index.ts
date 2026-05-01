@@ -78,17 +78,19 @@ Deno.serve(async (req) => {
     let prevTotalPosts = 0;
     let respondidosPeloTime = 0;
     if (incluir.posts !== false) {
-      const { data: rows } = await admin
+      const { data: rows, error: rowsError } = await admin
         .from("comments")
-        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, sentiment, message, status")
+        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, created_at, sentiment, text, status")
         .eq("client_id", clientId)
         .not("post_id", "is", null)
         .gte("comment_created_time", sinceIso)
         .lte("comment_created_time", untilIso)
         .limit(5000);
+      if (rowsError) throw rowsError;
       const map = new Map<string, any>();
       for (const r of rows || []) {
         if (!r.post_id) continue;
+        const rowDate = r.comment_created_time || r.created_at;
         let p = map.get(r.post_id);
         if (!p) {
           p = {
@@ -97,7 +99,7 @@ Deno.serve(async (req) => {
             url: r.post_permalink_url || null,
             picture: r.post_full_picture || null,
             platform: r.platform || null,
-            first_seen: r.comment_created_time,
+            first_seen: rowDate,
             total: 0, pos: 0, neg: 0, neu: 0,
             comentarios_amostra: [] as string[],
           };
@@ -106,14 +108,14 @@ Deno.serve(async (req) => {
         if (r.post_message && (!p.message || p.message.length < r.post_message.length)) p.message = r.post_message;
         if (r.post_permalink_url) p.url = r.post_permalink_url;
         if (r.post_full_picture) p.picture = r.post_full_picture;
-        if (r.comment_created_time && (!p.first_seen || r.comment_created_time < p.first_seen)) p.first_seen = r.comment_created_time;
+        if (rowDate && (!p.first_seen || rowDate < p.first_seen)) p.first_seen = rowDate;
         p.total += 1;
         if (r.sentiment === "positive") p.pos += 1;
         else if (r.sentiment === "negative") p.neg += 1;
         else if (r.sentiment === "neutral") p.neu += 1;
         if (r.status === "responded" || r.status === "respondido") respondidosPeloTime += 1;
-        if (p.comentarios_amostra.length < 3 && r.message && r.message.length > 8) {
-          p.comentarios_amostra.push(String(r.message).slice(0, 140));
+        if (p.comentarios_amostra.length < 3 && r.text && r.text !== "__post_stub__" && r.text.length > 8) {
+          p.comentarios_amostra.push(String(r.text).slice(0, 140));
         }
       }
       postsAgg = Array.from(map.values()).sort((a, b) =>
