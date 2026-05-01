@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       );
 
       // Comparativo: semana anterior (apenas contagem)
-      const { data: prevRows } = await admin
+      const { data: prevRowsByCommentTime, error: prevRowsError } = await admin
         .from("comments")
         .select("post_id")
         .eq("client_id", clientId)
@@ -142,6 +142,18 @@ Deno.serve(async (req) => {
         .gte("comment_created_time", prevSinceIso)
         .lte("comment_created_time", prevUntilIso)
         .limit(5000);
+      if (prevRowsError) throw prevRowsError;
+      const { data: prevRowsByCreatedAt, error: prevFallbackRowsError } = await admin
+        .from("comments")
+        .select("post_id")
+        .eq("client_id", clientId)
+        .not("post_id", "is", null)
+        .is("comment_created_time", null)
+        .gte("created_at", prevSinceIso)
+        .lte("created_at", prevUntilIso)
+        .limit(1000);
+      if (prevFallbackRowsError) throw prevFallbackRowsError;
+      const prevRows = [...(prevRowsByCommentTime || []), ...(prevRowsByCreatedAt || [])];
       const prevSet = new Set<string>();
       for (const r of prevRows || []) { prevTotalComments++; if (r.post_id) prevSet.add(r.post_id); }
       prevTotalPosts = prevSet.size;
