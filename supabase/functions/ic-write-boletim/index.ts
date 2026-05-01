@@ -284,8 +284,8 @@ Retorne JSON ESTRITO:
 Sem markdown ao redor do JSON, sem comentários extras.`;
 
     const userPrompt = `PERÍODO: ${periodoLabel}
-CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
-REGIÃO: ${client?.regiao_atuacao || "não informada"}
+CANDIDATO: ${candidato} — ${cargo}
+REGIÃO: não informada
 ${tema ? `\nTEMA/FOCO ESPECÍFICO: ${tema}\n` : ""}${
       reprocessMateriaId && briefing && briefing.trim().length >= 5
         ? `\n============ ORIENTAÇÃO DE CORREÇÃO (PRIORIDADE MÁXIMA) ============\n"""${briefing.trim()}"""\n`
