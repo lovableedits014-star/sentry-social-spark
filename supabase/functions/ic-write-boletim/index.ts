@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
     const { data: client } = await admin
       .from("clients")
-      .select("nome_candidato, cargo_pretendido, partido, regiao_atuacao")
+      .select("name, cargo")
       .eq("id", clientId)
       .maybeSingle();
 
@@ -161,10 +161,13 @@ Deno.serve(async (req) => {
     }
 
     if (postsAgg.length === 0 && acoes.length === 0 && visitas.length === 0) {
-      return errorResponse(
-        `Sem postagens, ações ou visitas registradas entre ${fmtBR(sinceIso)} e ${fmtBR(untilIso)}. Ajuste o período ou registre atividades antes de gerar o boletim.`,
-        400,
-      );
+      return jsonResponse({
+        noData: true,
+        saved: null,
+        message: `Ainda não há postagens, ações ou visitas registradas entre ${fmtBR(sinceIso)} e ${fmtBR(untilIso)}. Sincronize as redes sociais ou amplie o período para gerar o boletim.`,
+        periodo: { since: sinceIso, until: untilIso },
+        stats: { posts: 0, comentarios: 0, acoes: 0, visitas: 0 },
+      });
     }
 
     // === Estatísticas ===
@@ -242,8 +245,8 @@ Deno.serve(async (req) => {
       })
       .join("\n");
 
-    const candidato = client?.nome_candidato || "o candidato";
-    const cargo = client?.cargo_pretendido || "candidato";
+    const candidato = client?.name || "o candidato";
+    const cargo = client?.cargo || "candidato";
     const periodoLabel = `${fmtBR(sinceIso)} a ${fmtBR(untilIso)}`;
 
     const systemPrompt = `Você é um redator político brasileiro experiente. Escreva um BOLETIM SEMANAL DETALHADO de ${candidato} (${cargo}) cobrindo o período de ${periodoLabel}.
