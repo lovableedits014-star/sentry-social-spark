@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     let prevTotalPosts = 0;
     let respondidosPeloTime = 0;
     if (incluir.posts !== false) {
-      const { data: rows, error: rowsError } = await admin
+      const { data: rowsByCommentTime, error: rowsError } = await admin
         .from("comments")
         .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, created_at, sentiment, text, status")
         .eq("client_id", clientId)
@@ -87,6 +87,17 @@ Deno.serve(async (req) => {
         .lte("comment_created_time", untilIso)
         .limit(5000);
       if (rowsError) throw rowsError;
+      const { data: rowsByCreatedAt, error: fallbackRowsError } = await admin
+        .from("comments")
+        .select("post_id, post_message, post_permalink_url, post_full_picture, platform, comment_created_time, created_at, sentiment, text, status")
+        .eq("client_id", clientId)
+        .not("post_id", "is", null)
+        .is("comment_created_time", null)
+        .gte("created_at", sinceIso)
+        .lte("created_at", untilIso)
+        .limit(1000);
+      if (fallbackRowsError) throw fallbackRowsError;
+      const rows = [...(rowsByCommentTime || []), ...(rowsByCreatedAt || [])];
       const map = new Map<string, any>();
       for (const r of rows || []) {
         if (!r.post_id) continue;
