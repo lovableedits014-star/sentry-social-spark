@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     // Carrega contexto do cliente
     const { data: client } = await admin
       .from("clients")
-      .select("nome_candidato, cargo_pretendido, partido, regiao_atuacao")
+      .select("name, cargo")
       .eq("id", clientId)
       .maybeSingle();
 
@@ -176,8 +176,8 @@ Deno.serve(async (req) => {
       .map((p: any) => `- ${(p.message || "").slice(0, 220)}`)
       .join("\n");
 
-    const candidato = client?.nome_candidato || "o candidato";
-    const cargo = client?.cargo_pretendido || "candidato";
+    const candidato = client?.name || "o candidato";
+    const cargo = client?.cargo || "candidato";
 
     const systemPrompt = `Você é um redator político brasileiro experiente. Vai escrever uma matéria sobre ${candidato} (${cargo}).
 
@@ -252,8 +252,8 @@ ${briefing.trim()}
 """
 ` : ""}
 
-CANDIDATO: ${candidato} — ${cargo}${client?.partido ? " (" + client.partido + ")" : ""}
-REGIÃO: ${client?.regiao_atuacao || "não informada"}
+CANDIDATO: ${candidato} — ${cargo}
+REGIÃO: não informada
 
 ${fonteTxt ? `============ ${multiFontes ? `TRANSCRIÇÕES-FONTE (${fontesTranscricoes.length} — BASE PRINCIPAL — USE INTEGRALMENTE, MARQUE ORIGEM)` : "TRANSCRIÇÃO-FONTE (BASE PRINCIPAL — USE INTEGRALMENTE)"} ============\n` + fonteTxt + "\n\n" : ""}
 ============ MEMÓRIA ESTRUTURADA (fatos extraídos de falas/posts/comentários) ============
