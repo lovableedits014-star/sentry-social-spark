@@ -24,6 +24,7 @@ import { FeriadosWidget } from "@/components/dashboard/FeriadosWidget";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EyeOff } from "lucide-react";
 import { exportDashboardPdf } from "@/lib/dashboard-pdf-export";
+import { syncCooldownRemaining, markSyncDone, formatCooldown } from "@/lib/sync-throttle";
 
 interface DashboardComment {
   id: string;
@@ -148,6 +149,11 @@ const Dashboard = () => {
   // Manual sync only
   const handleManualSync = async () => {
     if (!clientId || syncing) return;
+    const remaining = syncCooldownRemaining(clientId);
+    if (remaining > 0) {
+      toast.info(`Aguarde ${formatCooldown(remaining)} antes de sincronizar novamente (limite anti-custo).`);
+      return;
+    }
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('fetch-meta-comments', {
@@ -157,6 +163,7 @@ const Dashboard = () => {
       if (data?.success) {
         toast.success(`🔄 ${data.message}`);
         setLastSync(new Date().toLocaleString("pt-BR"));
+        markSyncDone(clientId);
         if (data.warnings?.length > 0) {
           for (const w of data.warnings) toast.warning(w, { duration: 8000 });
         }
