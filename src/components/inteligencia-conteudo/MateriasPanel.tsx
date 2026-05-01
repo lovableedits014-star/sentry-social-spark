@@ -14,374 +14,328 @@ import { Loader2, FileText, Copy, Trash2, Sparkles, RefreshCw, History, Facebook
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 /* ==========================================================================
- * PDF BUILDER — Boletim Semanal (mesmo padrão visual do Dossiê de Narrativa)
+ * PDF BUILDER — Boletim Semanal
+ *
+ * Renderiza um documento HTML estilizado (Inter via Google Fonts) num container
+ * fora da viewport, captura com html2canvas e divide em páginas A4 com jsPDF.
+ * Essa abordagem evita os problemas de encoding (acentos virando "?"), de
+ * emojis (que viram glifos quebrados nas fontes built-in) e de overflow de
+ * texto que apareciam na versão anterior baseada em desenho direto.
  * ========================================================================== */
-function buildBoletimPdf(boletim: any, download = true): jsPDF {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 48;
-  const contentW = pageW - margin * 2;
+const escapeHtml = (s: any): string =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
-  const C = {
-    primary: [15, 23, 42] as number[],
-    accent:  [59, 130, 246] as number[],
-    danger:  [220, 38, 38] as number[],
-    warn:    [234, 88, 12] as number[],
-    muted:   [100, 116, 139] as number[],
-    light:   [241, 245, 249] as number[],
-    border:  [226, 232, 240] as number[],
-    success: [22, 163, 74] as number[],
-    text:    [30, 41, 59] as number[],
-    white:   [255, 255, 255] as number[],
-    bgSoft:  [248, 250, 252] as number[],
-  };
-  const setFill = (c: number[]) => doc.setFillColor(c[0], c[1], c[2]);
-  const setStroke = (c: number[]) => doc.setDrawColor(c[0], c[1], c[2]);
-  const setText = (c: number[]) => doc.setTextColor(c[0], c[1], c[2]);
+/** Converte um markdown leve (##, ###, -, *, **, links) em HTML seguro. */
+function mdToHtml(md: string): string {
+  if (!md) return "";
+  const lines = md.split("\n");
+  const out: string[] = [];
+  let inList = false;
+  const inline = (s: string) =>
+    escapeHtml(s)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  const closeList = () => { if (inList) { out.push("</ul>"); inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) { closeList(); continue; }
+    if (line.startsWith("## ")) { closeList(); out.push(`<h2>${inline(line.slice(3))}</h2>`); continue; }
+    if (line.startsWith("### ")) { closeList(); out.push(`<h3>${inline(line.slice(4))}</h3>`); continue; }
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push(`<li>${inline(line.replace(/^[-*]\s+/, ""))}</li>`);
+      continue;
+    }
+    closeList();
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  closeList();
+  return out.join("\n");
+}
 
-  let y = margin;
-  let pageNum = 1;
-
+function buildBoletimHtml(boletim: any): string {
   const fontes = boletim?.fontes || {};
   const stats = fontes.stats || {};
   const periodo = fontes.periodo || {};
   const meta = boletim?.metadata || {};
-  const periodoLabel = periodo.since && periodo.until
-    ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
-    : "Período não definido";
+  const periodoLabel =
+    periodo.since && periodo.until
+      ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+      : "Período não definido";
   const titulo = boletim?.titulo || `Boletim semanal — ${periodoLabel}`;
   const subtitulo = boletim?.subtitulo || "";
-
-  const drawHeader = () => {
-    if (pageNum === 1) return;
-    setFill(C.primary);
-    doc.rect(0, 0, pageW, 28, "F");
-    setText(C.white);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(`BOLETIM SEMANAL · ${periodoLabel}`, margin, 18);
-  };
-  const drawFooter = () => {
-    setText(C.muted);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text("Inteligência de Conteúdo · Boletim Semanal", margin, pageH - 18);
-    doc.text(`Página ${pageNum}`, pageW - margin, pageH - 18, { align: "right" });
-  };
-  const newPage = () => {
-    drawFooter();
-    doc.addPage();
-    pageNum++;
-    drawHeader();
-    y = pageNum === 1 ? margin : 56;
-  };
-  const ensure = (h: number) => { if (y + h > pageH - 40) newPage(); };
-
-  const sectionTitle = (title: string, accent: number[] = C.accent) => {
-    ensure(38);
-    setFill(accent);
-    doc.rect(margin, y, 4, 18, "F");
-    setText(C.primary);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(title, margin + 12, y + 14);
-    y += 28;
-  };
-
-  const paragraph = (text: string, opts: { size?: number; color?: number[]; bold?: boolean; italic?: boolean; maxWidth?: number; indent?: number } = {}) => {
-    const size = opts.size ?? 10;
-    setText(opts.color ?? C.text);
-    const style = opts.bold ? (opts.italic ? "bolditalic" : "bold") : (opts.italic ? "italic" : "normal");
-    doc.setFont("helvetica", style);
-    doc.setFontSize(size);
-    const safe = (text || "").replace(/(\S{30,})/g, (m) => m.replace(/(.{22})/g, "$1 "));
-    const w = opts.maxWidth ?? contentW - (opts.indent || 0);
-    const wrapped = doc.splitTextToSize(safe, w);
-    for (const line of wrapped) {
-      ensure(size + 4);
-      doc.text(line, margin + (opts.indent || 0), y);
-      y += size + 4;
-    }
-  };
-
-  const card = (title: string, value: string, sub: string, x: number, w: number, accent = C.accent) => {
-    const h = 56;
-    setFill(C.light);
-    setStroke(C.border);
-    doc.roundedRect(x, y, w, h, 4, 4, "FD");
-    setFill(accent);
-    doc.rect(x, y, 3, h, "F");
-    setText(C.muted);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text(title.toUpperCase(), x + 10, y + 14);
-    setText(C.primary);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    const vWrapped = doc.splitTextToSize(value, w - 20);
-    doc.text(vWrapped[0] || "—", x + 10, y + 32);
-    if (sub) {
-      setText(C.muted);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      const sWrapped = doc.splitTextToSize(sub, w - 20);
-      doc.text(sWrapped[0], x + 10, y + 48);
-    }
-  };
-
-  const pill = (text: string, x: number, py: number, color: number[]): number => {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    const tw = doc.getTextWidth(text) + 14;
-    setFill(color);
-    doc.roundedRect(x, py - 9, tw, 14, 7, 7, "F");
-    setText(C.white);
-    doc.text(text, x + 7, py);
-    return tw;
-  };
-
-  /* ---------- CAPA ---------- */
-  setFill(C.primary);
-  doc.rect(0, 0, pageW, 220, "F");
-  setFill(C.accent);
-  doc.rect(0, 220, pageW, 4, "F");
-
-  setText(C.white);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("INTELIGÊNCIA DE CONTEÚDO · BOLETIM SEMANAL", margin, 70);
-
-  doc.setFontSize(28);
-  const titWrap = doc.splitTextToSize(titulo, contentW);
-  doc.text(titWrap.slice(0, 3), margin, 110);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
-  setText(C.light);
-  doc.text(periodoLabel, margin, 180);
-
-  // Caixa "destaques da semana"
-  setFill(C.white);
-  setStroke(C.border);
-  doc.roundedRect(margin, 250, contentW, 200, 6, 6, "FD");
-  setText(C.muted);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("RESUMO DA SEMANA", margin + 16, 274);
-
-  setText(C.primary);
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(11);
-  if (subtitulo) {
-    const sub = doc.splitTextToSize(subtitulo, contentW - 32);
-    doc.text(sub.slice(0, 3), margin + 16, 296);
-  }
-
-  // Destaques bullet
-  setText(C.text);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
   const destaques: string[] = Array.isArray(meta.destaques) ? meta.destaques : [];
-  let dy = 340;
-  for (const d of destaques.slice(0, 4)) {
-    const wrap = doc.splitTextToSize(`• ${d}`, contentW - 32);
-    for (const ln of wrap.slice(0, 3)) {
-      if (dy > 438) break;
-      doc.text(ln, margin + 16, dy);
-      dy += 14;
-    }
-    dy += 2;
-  }
-
-  // KPIs na capa
-  y = 470;
-  const kpiW = (contentW - 20) / 3;
-  const yKpi = 470;
-  const tomColor = stats.tom_geral === "positivo" ? C.success
-    : stats.tom_geral === "negativo" ? C.danger
-    : stats.tom_geral === "misto" ? C.warn : C.muted;
-  card("Postagens", String(stats.posts ?? 0),
-    stats.semana_anterior?.variacao_posts_pct != null
-      ? `${stats.semana_anterior.variacao_posts_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_posts_pct}% vs semana anterior`
-      : "",
-    margin, kpiW, C.accent);
-  y = yKpi;
-  card("Comentários", String(stats.comentarios ?? 0),
-    stats.semana_anterior?.variacao_comentarios_pct != null
-      ? `${stats.semana_anterior.variacao_comentarios_pct > 0 ? "+" : ""}${stats.semana_anterior.variacao_comentarios_pct}% vs semana anterior`
-      : "",
-    margin + kpiW + 10, kpiW, C.success);
-  y = yKpi;
-  card("Tom da recepção", String(stats.tom_geral || "—").toUpperCase(),
-    `👍 ${stats.sentimento_positivo ?? 0} · 👎 ${stats.sentimento_negativo ?? 0} · 😐 ${stats.sentimento_neutro ?? 0}`,
-    margin + (kpiW + 10) * 2, kpiW, tomColor);
-
-  // Segunda linha de KPIs
-  y = 540;
-  card("Ações externas", String(stats.acoes ?? 0), "Eventos / agenda registrada", margin, kpiW, C.warn);
-  y = 540;
-  card("Visitas", String(stats.visitas ?? 0), "Territórios visitados", margin + kpiW + 10, kpiW, C.accent);
-  y = 540;
-  card("Taxa de resposta", `${stats.taxa_resposta_pct ?? 0}%`,
-    `${stats.respondidos ?? 0} de ${stats.comentarios ?? 0} comentários`,
-    margin + (kpiW + 10) * 2, kpiW, C.success);
-
-  drawFooter();
-
-  /* ---------- CONTEÚDO ---------- */
-  doc.addPage();
-  pageNum++;
-  drawHeader();
-  y = 56;
-
-  // Render do markdown do corpo (parser leve: ##, ###, listas, links, negrito)
-  const corpo: string = (boletim?.corpo || "").trim();
-  if (corpo) {
-    sectionTitle("Análise da semana", C.accent);
-
-    const lines = corpo.split("\n");
-    const stripMd = (s: string) =>
-      s.replace(/\*\*(.+?)\*\*/g, "$1")
-        .replace(/\*(.+?)\*/g, "$1")
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
-        .replace(/`([^`]+)`/g, "$1");
-
-    for (const raw of lines) {
-      const line = raw.trimEnd();
-      if (!line.trim()) { y += 4; continue; }
-      // H2
-      if (line.startsWith("## ")) {
-        y += 6;
-        sectionTitle(stripMd(line.replace(/^##\s+/, "")), C.accent);
-        continue;
-      }
-      // H3
-      if (line.startsWith("### ")) {
-        y += 4;
-        ensure(20);
-        setText(C.primary);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text(stripMd(line.replace(/^###\s+/, "")), margin, y);
-        y += 14;
-        continue;
-      }
-      // Bullet
-      if (/^[-*]\s+/.test(line)) {
-        const txt = stripMd(line.replace(/^[-*]\s+/, ""));
-        ensure(14);
-        setText(C.accent);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text("•", margin + 4, y);
-        paragraph(txt, { size: 10, indent: 16 });
-        continue;
-      }
-      // Parágrafo comum
-      paragraph(stripMd(line), { size: 10 });
-    }
-  }
-
-  /* ---------- TOP POSTAGENS ---------- */
+  const recs: string[] = Array.isArray(meta.recomendacoes) ? meta.recomendacoes : [];
   const topPosts: any[] = Array.isArray(stats.top_posts) ? stats.top_posts : [];
-  if (topPosts.length > 0) {
-    y += 8;
-    sectionTitle("Top postagens (mais comentadas)", C.warn);
-
-    ensure(24);
-    setFill(C.primary);
-    doc.rect(margin, y, contentW, 20, "F");
-    setText(C.white);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("#", margin + 8, y + 14);
-    doc.text("PLATAFORMA", margin + 30, y + 14);
-    doc.text("RESUMO DO POST", margin + 130, y + 14);
-    doc.text("COMENT.", pageW - margin - 60, y + 14);
-    y += 20;
-
-    topPosts.forEach((p, idx) => {
-      const txt = (p.message || "(sem texto)");
-      const safe = txt.replace(/\s+/g, " ").trim().slice(0, 180);
-      const wrap = doc.splitTextToSize(safe, 280);
-      const rowH = Math.max(28, 14 + wrap.length * 12);
-      ensure(rowH);
-      if (idx % 2 === 0) {
-        setFill(C.bgSoft);
-        doc.rect(margin, y, contentW, rowH, "F");
-      }
-      setText(C.text);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(String(p.rank ?? idx + 1), margin + 8, y + 16);
-      doc.setFont("helvetica", "bold");
-      doc.text((p.platform || "?").toUpperCase(), margin + 30, y + 16);
-      doc.setFont("helvetica", "normal");
-      let ty = y + 16;
-      for (const ln of wrap) {
-        doc.text(ln, margin + 130, ty);
-        ty += 12;
-      }
-      doc.setFont("helvetica", "bold");
-      setText(C.accent);
-      doc.text(`${p.total ?? 0}`, pageW - margin - 60, y + 16);
-      setText(C.muted);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(`👍${p.pos ?? 0} 👎${p.neg ?? 0}`, pageW - margin - 60, y + 30);
-      y += rowH;
-    });
-  }
-
-  /* ---------- AGENDA / VISITAS ---------- */
   const acoes: any[] = Array.isArray(fontes.acoes_referenciadas) ? fontes.acoes_referenciadas : [];
   const visitas: any[] = Array.isArray(fontes.visitas_referenciadas) ? fontes.visitas_referenciadas : [];
 
-  if (acoes.length > 0) {
-    y += 12;
-    sectionTitle("Agenda externa", C.success);
-    for (const a of acoes) {
-      const data = a.data_inicio ? new Date(a.data_inicio).toLocaleDateString("pt-BR") : "—";
-      const meta = a.meta ? ` (${a.cadastros || 0}/${a.meta} cadastros)` : "";
-      paragraph(`• ${data} — ${a.titulo || "Ação"}${a.local ? ` em ${a.local}` : ""}${meta}`, { size: 10 });
-    }
+  const tomGeral = String(stats.tom_geral || "—").toLowerCase();
+  const tomClass =
+    tomGeral === "positivo" ? "tom-pos" :
+    tomGeral === "negativo" ? "tom-neg" :
+    tomGeral === "misto" ? "tom-mix" : "tom-neu";
+
+  const variacaoPosts = stats.semana_anterior?.variacao_posts_pct;
+  const variacaoComentarios = stats.semana_anterior?.variacao_comentarios_pct;
+
+  const kpiBlocks = [
+    { label: "Postagens", value: stats.posts ?? 0, sub: variacaoPosts != null ? `${variacaoPosts > 0 ? "+" : ""}${variacaoPosts}% vs semana anterior` : "", cls: "k-blue" },
+    { label: "Comentários", value: stats.comentarios ?? 0, sub: variacaoComentarios != null ? `${variacaoComentarios > 0 ? "+" : ""}${variacaoComentarios}% vs semana anterior` : "", cls: "k-green" },
+    { label: "Tom da recepção", value: String(stats.tom_geral || "—").toUpperCase(), sub: `Pos ${stats.sentimento_positivo ?? 0} · Neg ${stats.sentimento_negativo ?? 0} · Neu ${stats.sentimento_neutro ?? 0}`, cls: tomClass },
+    { label: "Ações externas", value: stats.acoes ?? 0, sub: "Eventos e agenda registrada", cls: "k-orange" },
+    { label: "Visitas", value: stats.visitas ?? 0, sub: "Territórios visitados", cls: "k-blue" },
+    { label: "Taxa de resposta", value: `${stats.taxa_resposta_pct ?? 0}%`, sub: `${stats.respondidos ?? 0} de ${stats.comentarios ?? 0} comentários`, cls: "k-green" },
+  ];
+
+  return `
+<div class="boletim">
+  <header class="cover">
+    <div class="cover-tag">INTELIGÊNCIA DE CONTEÚDO · BOLETIM SEMANAL</div>
+    <h1 class="cover-title">${escapeHtml(titulo)}</h1>
+    <div class="cover-period">${escapeHtml(periodoLabel)}</div>
+  </header>
+
+  <section class="resumo">
+    <div class="resumo-label">RESUMO DA SEMANA</div>
+    ${subtitulo ? `<p class="resumo-sub">${escapeHtml(subtitulo)}</p>` : ""}
+    ${destaques.length ? `<ul class="resumo-list">${destaques.slice(0, 6).map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}
+  </section>
+
+  <section class="kpi-grid">
+    ${kpiBlocks.map((k) => `
+      <div class="kpi ${k.cls}">
+        <div class="kpi-label">${escapeHtml(k.label)}</div>
+        <div class="kpi-value">${escapeHtml(k.value)}</div>
+        ${k.sub ? `<div class="kpi-sub">${escapeHtml(k.sub)}</div>` : ""}
+      </div>
+    `).join("")}
+  </section>
+
+  ${boletim?.corpo ? `
+    <section class="bloco">
+      <h2 class="sec-title"><span class="sec-bar"></span>Análise da semana</h2>
+      <div class="markdown">${mdToHtml(boletim.corpo)}</div>
+    </section>
+  ` : ""}
+
+  ${topPosts.length ? `
+    <section class="bloco">
+      <h2 class="sec-title"><span class="sec-bar bar-orange"></span>Top postagens (mais comentadas)</h2>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-plat">Plataforma</th>
+            <th>Resumo do post</th>
+            <th class="col-num">Comentários</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topPosts.map((p, idx) => `
+            <tr>
+              <td class="col-rank">${escapeHtml(p.rank ?? idx + 1)}</td>
+              <td class="col-plat"><span class="plat plat-${(p.platform || "").toLowerCase()}">${escapeHtml((p.platform || "?").toUpperCase())}</span></td>
+              <td>${escapeHtml((p.message || "(sem texto)").replace(/\s+/g, " ").trim().slice(0, 220))}</td>
+              <td class="col-num">
+                <div class="num-big">${escapeHtml(p.total ?? 0)}</div>
+                <div class="num-sub">+${escapeHtml(p.pos ?? 0)} / -${escapeHtml(p.neg ?? 0)}</div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  ` : ""}
+
+  ${acoes.length ? `
+    <section class="bloco">
+      <h2 class="sec-title"><span class="sec-bar bar-green"></span>Agenda externa</h2>
+      <ul class="lista">
+        ${acoes.map((a) => {
+          const data = a.data_inicio ? new Date(a.data_inicio).toLocaleDateString("pt-BR") : "—";
+          const metaTxt = a.meta ? ` (${a.cadastros || 0}/${a.meta} cadastros)` : "";
+          return `<li><strong>${escapeHtml(data)}</strong> — ${escapeHtml(a.titulo || "Ação")}${a.local ? ` em ${escapeHtml(a.local)}` : ""}${escapeHtml(metaTxt)}</li>`;
+        }).join("")}
+      </ul>
+    </section>
+  ` : ""}
+
+  ${visitas.length ? `
+    <section class="bloco">
+      <h2 class="sec-title"><span class="sec-bar"></span>Visitas realizadas</h2>
+      <ul class="lista">
+        ${visitas.map((v) => {
+          const data = v.data_visita ? new Date(v.data_visita).toLocaleDateString("pt-BR") : "—";
+          const bairros = Array.isArray(v.bairros) && v.bairros.length ? ` · bairros: ${v.bairros.join(", ")}` : "";
+          const temas = Array.isArray(v.temas) && v.temas.length ? ` · temas: ${v.temas.join(", ")}` : "";
+          return `<li><strong>${escapeHtml(data)}</strong> — ${escapeHtml(v.municipio || "?")}/${escapeHtml(v.uf || "?")}${escapeHtml(bairros)}${escapeHtml(temas)}</li>`;
+        }).join("")}
+      </ul>
+    </section>
+  ` : ""}
+
+  ${recs.length ? `
+    <section class="bloco">
+      <h2 class="sec-title"><span class="sec-bar bar-orange"></span>Recomendações para a próxima semana</h2>
+      <ul class="lista">
+        ${recs.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}
+      </ul>
+    </section>
+  ` : ""}
+
+  <footer class="rodape">
+    Inteligência de Conteúdo · Boletim Semanal · Gerado em ${escapeHtml(new Date().toLocaleString("pt-BR"))}
+  </footer>
+</div>
+`;
+}
+
+const BOLETIM_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+.boletim, .boletim * { box-sizing: border-box; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.boletim { width: 794px; padding: 0; background: #ffffff; color: #1e293b; line-height: 1.45; }
+.boletim h1, .boletim h2, .boletim h3, .boletim p, .boletim ul, .boletim li { margin: 0; padding: 0; }
+.boletim ul { list-style: none; }
+
+.cover { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color: #fff; padding: 56px 56px 40px; border-bottom: 4px solid #3b82f6; }
+.cover-tag { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; color: #93c5fd; }
+.cover-title { font-size: 30px; font-weight: 800; margin-top: 14px; line-height: 1.15; max-width: 640px; word-wrap: break-word; }
+.cover-period { margin-top: 18px; font-size: 14px; color: #cbd5e1; font-weight: 500; }
+
+.resumo { margin: 32px 56px 0; padding: 22px 24px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.resumo-label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: #64748b; margin-bottom: 10px; }
+.resumo-sub { font-style: italic; color: #0f172a; font-size: 14px; margin-bottom: 12px; }
+.resumo-list li { font-size: 13px; color: #1e293b; padding: 4px 0 4px 18px; position: relative; }
+.resumo-list li::before { content: "•"; color: #3b82f6; font-weight: 700; position: absolute; left: 4px; top: 3px; }
+
+.kpi-grid { margin: 24px 56px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kpi { padding: 16px 16px 14px; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; border-radius: 8px; background: #ffffff; min-height: 92px; }
+.kpi-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #64748b; text-transform: uppercase; }
+.kpi-value { font-size: 24px; font-weight: 800; color: #0f172a; margin-top: 6px; line-height: 1.1; word-break: break-word; }
+.kpi-sub { font-size: 11px; color: #64748b; margin-top: 6px; }
+.k-blue { border-left-color: #3b82f6; }
+.k-green, .tom-pos { border-left-color: #16a34a; }
+.k-orange, .tom-mix { border-left-color: #ea580c; }
+.tom-neg { border-left-color: #dc2626; }
+.tom-neu { border-left-color: #64748b; }
+
+.bloco { margin: 32px 56px 0; }
+.sec-title { font-size: 18px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.sec-bar { display: inline-block; width: 4px; height: 20px; background: #3b82f6; border-radius: 2px; }
+.sec-bar.bar-orange { background: #ea580c; }
+.sec-bar.bar-green { background: #16a34a; }
+
+.markdown p { font-size: 13px; color: #334155; margin: 0 0 8px; }
+.markdown h2 { font-size: 15px; font-weight: 700; color: #0f172a; margin: 16px 0 8px; }
+.markdown h3 { font-size: 13px; font-weight: 700; color: #0f172a; margin: 12px 0 6px; }
+.markdown ul { margin: 4px 0 10px 0; }
+.markdown li { font-size: 13px; color: #334155; padding: 3px 0 3px 16px; position: relative; }
+.markdown li::before { content: "•"; color: #3b82f6; font-weight: 700; position: absolute; left: 0; top: 2px; }
+.markdown a { color: #2563eb; text-decoration: underline; word-break: break-all; }
+.markdown strong { color: #0f172a; font-weight: 700; }
+.markdown code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+.tbl { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-size: 12px; }
+.tbl thead th { background: #0f172a; color: #fff; text-align: left; padding: 10px 12px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.tbl tbody td { padding: 12px; border-top: 1px solid #e2e8f0; vertical-align: top; color: #334155; }
+.tbl tbody tr:nth-child(odd) td { background: #f8fafc; }
+.col-rank { width: 36px; text-align: center; font-weight: 700; color: #0f172a; }
+.col-plat { width: 110px; }
+.col-num { width: 90px; text-align: right; }
+.num-big { font-size: 16px; font-weight: 800; color: #2563eb; }
+.num-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+.plat { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
+.plat-facebook { background: #1877f2; color: #fff; }
+.plat-instagram { background: linear-gradient(135deg,#f58529,#dd2a7b,#8134af); color: #fff; }
+
+.lista li { font-size: 13px; color: #334155; padding: 6px 0 6px 18px; position: relative; border-bottom: 1px dashed #e2e8f0; }
+.lista li:last-child { border-bottom: 0; }
+.lista li::before { content: "•"; color: #3b82f6; font-weight: 700; position: absolute; left: 4px; top: 6px; }
+.lista strong { color: #0f172a; }
+
+.rodape { margin: 40px 56px 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
+`;
+
+/**
+ * Renderiza o HTML num container off-screen, captura com html2canvas e
+ * paginação A4 com jsPDF. Retorna o documento jsPDF (faz save se download=true).
+ */
+async function buildBoletimPdf(boletim: any, download = true): Promise<jsPDF> {
+  const html = buildBoletimHtml(boletim);
+
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.left = "-10000px";
+  container.style.top = "0";
+  container.style.width = "794px";
+  container.style.background = "#ffffff";
+  container.style.zIndex = "-1";
+  container.innerHTML = `<style>${BOLETIM_CSS}</style>${html}`;
+  document.body.appendChild(container);
+
+  // Aguarda a fonte Inter carregar (caso já não esteja em cache)
+  try { await (document as any).fonts?.ready; } catch { /* ignore */ }
+  // Pequeno delay para layout estabilizar
+  await new Promise((r) => setTimeout(r, 80));
+
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      windowWidth: 794,
+    });
+  } finally {
+    document.body.removeChild(container);
   }
 
-  if (visitas.length > 0) {
-    y += 12;
-    sectionTitle("Visitas realizadas", C.accent);
-    for (const v of visitas) {
-      const data = v.data_visita ? new Date(v.data_visita).toLocaleDateString("pt-BR") : "—";
-      const bairros = Array.isArray(v.bairros) && v.bairros.length ? ` · bairros: ${v.bairros.join(", ")}` : "";
-      const temas = Array.isArray(v.temas) && v.temas.length ? ` · temas: ${v.temas.join(", ")}` : "";
-      paragraph(`• ${data} — ${v.municipio || "?"}/${v.uf || "?"}${bairros}${temas}`, { size: 10 });
-    }
-  }
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
 
-  /* ---------- RECOMENDAÇÕES ---------- */
-  const recs: string[] = Array.isArray(meta.recomendacoes) ? meta.recomendacoes : [];
-  if (recs.length > 0) {
-    y += 12;
-    sectionTitle("Recomendações para a próxima semana", C.warn);
-    for (const r of recs) {
-      paragraph(`• ${r}`, { size: 10 });
-    }
-  }
+  const imgW = pageW;
+  const imgH = (canvas.height * imgW) / canvas.width;
+  const imgData = canvas.toDataURL("image/jpeg", 0.92);
 
-  drawFooter();
+  let heightLeft = imgH;
+  let position = 0;
+  doc.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+  heightLeft -= pageH;
+  while (heightLeft > 0) {
+    position = heightLeft - imgH; // valor negativo: empurra a imagem para cima
+    doc.addPage();
+    doc.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+    heightLeft -= pageH;
+  }
 
   if (download) {
+    const fontes = boletim?.fontes || {};
+    const periodo = fontes.periodo || {};
+    const periodoLabel =
+      periodo.since && periodo.until
+        ? `${new Date(periodo.since).toLocaleDateString("pt-BR")} a ${new Date(periodo.until).toLocaleDateString("pt-BR")}`
+        : "boletim";
     const slug = periodoLabel.replace(/[^\w]+/g, "-").toLowerCase();
     doc.save(`boletim-semanal-${slug}.pdf`);
   }
   return doc;
 }
 
-function exportBoletimPdf(boletim: any) {
-  buildBoletimPdf(boletim, true);
+async function exportBoletimPdf(boletim: any) {
+  await buildBoletimPdf(boletim, true);
 }
 
 interface Props { clientId: string }
