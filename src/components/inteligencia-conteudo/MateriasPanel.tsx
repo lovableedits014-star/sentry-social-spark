@@ -590,6 +590,11 @@ export function MateriasPanel({ clientId }: Props) {
         data = r.data; error = r.error;
       }
       if (error) throw error;
+      if (data?.noData) {
+        toast.info(data.message || "Sem dados no período selecionado.");
+        setReprocessOpen(false);
+        return;
+      }
       if (data?.materia_error) throw new Error(data.materia_error);
       toast.success(`Reprocessado com ${data?.materia_provider || data?.provider || reprocessProvider}/${data?.materia_model || data?.model || "default"}`);
       setReprocessOpen(false);
@@ -678,6 +683,10 @@ export function MateriasPanel({ clientId }: Props) {
           },
         });
         if (error) throw error;
+        if (data?.noData) {
+          toast.info(data.message || "Sem dados no período selecionado.");
+          return;
+        }
         toast.success("Boletim gerado!");
         setSelected(data?.saved || data?.boletim);
         await load();
