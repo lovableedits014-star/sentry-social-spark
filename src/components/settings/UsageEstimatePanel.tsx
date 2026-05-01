@@ -192,6 +192,8 @@ export default function UsageEstimatePanel({ clientId }: { clientId: string }) {
 
   const willOverflowCloud = (estimate?.cloudProjPct ?? 0) > 100;
   const willOverflowAi = (estimate?.aiProjPct ?? 0) > 100;
+  const cloudRemaining = Math.max(0, FREE_CLOUD_USD - (estimate?.cloudUsed ?? 0));
+  const lowCloudBalance = !willOverflowCloud && cloudRemaining > 0 && cloudRemaining < 5;
 
   return (
     <Card>
@@ -235,6 +237,28 @@ export default function UsageEstimatePanel({ clientId }: { clientId: string }) {
             </AlertDescription>
           </Alert>
         )}
+
+        {lowCloudBalance && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Saldo Cloud baixo — restam {fmtUsd(cloudRemaining)}</AlertTitle>
+            <AlertDescription>
+              Você está perto de esgotar o saldo grátis do mês. Para evitar pausas no sistema,{" "}
+              <a href={SETTINGS_URL} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                adicione saldo agora
+              </a>{" "}
+              em Settings → Cloud &amp; AI balance (requer plano Pro ou superior).
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Alert className="bg-muted/40">
+          <Sparkles className="h-4 w-4" />
+          <AlertTitle>Otimizações ativas</AlertTitle>
+          <AlertDescription className="text-xs">
+            Limpeza automática diária de dados antigos (comentários &gt;180d, logs &gt;90d), throttle de 5 min na sincronização Meta e crons internos com frequência reduzida. Estas otimizações cortam ~30–40% do consumo Cloud.
+          </AlertDescription>
+        </Alert>
 
         {/* Lovable Cloud */}
         <div>
@@ -306,6 +330,8 @@ export default function UsageEstimatePanel({ clientId }: { clientId: string }) {
 
         <p className="text-xs text-muted-foreground pt-2 border-t">
           ⚠️ Esta é uma <strong>estimativa interna</strong> com preços de referência. O valor real pode variar conforme tamanho da instância, transferência de dados e outros fatores. Sempre confira o painel oficial antes de decisões de upgrade.
+          <br />
+          ℹ️ <strong>Sobre o crédito grátis:</strong> $25 Cloud + $1 AI por workspace todo mês (renovação mensal automática), confirmado pela Lovable até <strong>início de 2026</strong>. Após essa data, será descontinuado e o consumo passa a ser inteiramente pago.
         </p>
       </CardContent>
     </Card>
