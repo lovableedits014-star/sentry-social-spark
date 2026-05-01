@@ -678,6 +678,10 @@ export function MateriasPanel({ clientId }: Props) {
           },
         });
         if (error) throw error;
+        if (data?.noData) {
+          toast.info(data.message || "Sem dados no período selecionado.");
+          return;
+        }
         toast.success("Boletim gerado!");
         setSelected(data?.saved || data?.boletim);
         await load();
