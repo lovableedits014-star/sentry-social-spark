@@ -432,7 +432,7 @@ export function MateriasPanel({ clientId }: Props) {
     try {
       if (!clientId) throw new Error("Cliente não identificado");
       // 1) Gera o PDF em memória
-      const pdfDoc = buildBoletimPdf(selected, false);
+      const pdfDoc = await buildBoletimPdf(selected, false);
       const pdfBlob = pdfDoc.output("blob") as Blob;
       const periodo = selected.fontes?.periodo || {};
       const periodoLabel = periodo.since && periodo.until
