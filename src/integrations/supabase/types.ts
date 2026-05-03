@@ -5323,6 +5323,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _tmp_export_auth_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          email_confirmed_at: string
+          id: string
+          phone: string
+          phone_confirmed_at: string
+          raw_app_meta_data: Json
+          raw_user_meta_data: Json
+        }[]
+      }
       calculate_engagement_score: {
         Args: { p_days?: number; p_supporter_id: string }
         Returns: number
